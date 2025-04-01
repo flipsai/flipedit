@@ -21,6 +21,12 @@ class UvDownloader {
       platform: "macos-arm64",
       fileName: "uv-aarch64-apple-darwin.tar.gz",
     ),
+    "macos-x64": UvRelease(
+      url: "https://github.com/astral-sh/uv/releases/download/$uvVersion/uv-x86_64-apple-darwin.tar.gz",
+      checksumUrl: "https://github.com/astral-sh/uv/releases/download/$uvVersion/uv-x86_64-apple-darwin.tar.gz.sha256",
+      platform: "macos-x64",
+      fileName: "uv-x86_64-apple-darwin.tar.gz",
+    ),
     "linux-x64": UvRelease(
       url: "https://github.com/astral-sh/uv/releases/download/$uvVersion/uv-x86_64-unknown-linux-gnu.tar.gz",
       checksumUrl: "https://github.com/astral-sh/uv/releases/download/$uvVersion/uv-x86_64-unknown-linux-gnu.tar.gz.sha256",
@@ -45,9 +51,23 @@ class UvDownloader {
       print('Detected Windows platform');
       return "windows-x64"; // Add more specific detection if needed
     } else if (Platform.isMacOS) {
-      final isArm = Platform.version.contains('ARM');
-      print('Detected macOS platform (${isArm ? 'ARM' : 'Intel'})');
-      return Platform.version.contains('ARM') ? "macos-arm64" : "macos-x64";
+      try {
+        final result = Process.runSync('uname', ['-m']);
+        final arch = result.stdout.toString().trim();
+        print('Detected macOS platform with architecture: $arch');
+        
+        if (arch == 'arm64') {
+          return "macos-arm64";
+        } else if (arch == 'x86_64') {
+          return "macos-x64";
+        }
+        
+        print('Unsupported macOS architecture: $arch');
+        throw UnsupportedError('Unsupported macOS architecture: $arch');
+      } catch (e) {
+        print('Error detecting macOS architecture: $e');
+        throw UnsupportedError('Failed to detect macOS architecture');
+      }
     } else if (Platform.isLinux) {
       // Detect Linux architecture
       try {
