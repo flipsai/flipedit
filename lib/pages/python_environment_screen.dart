@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import '../services/uv_manager.dart'; // Make sure to import your UvManager class
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
@@ -21,6 +21,7 @@ class _PythonEnvironmentScreenState extends State<PythonEnvironmentScreen> {
   List<String> _availableVenvs = [];
   String? _selectedVenv;
   final _newVenvController = TextEditingController();
+  final _packageController = TextEditingController();
   
   @override
   void initState() {
@@ -210,118 +211,143 @@ print(result.stdout)
             : '${_appDataDir}/venvs/$_selectedVenv/bin/python')
         : 'No environment selected';
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('FlipEdit'),
+    return NavigationView(
+      appBar: NavigationAppBar(
+        title: const Text('FlipEdit'),
+        automaticallyImplyLeading: false,
       ),
-      body: Padding(
-        padding: EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(_statusMessage, style: TextStyle(fontWeight: FontWeight.bold)),
-            if (_isDownloading) ...[
-              SizedBox(height: 10),
-              LinearProgressIndicator(value: _downloadProgress),
-            ],
-            SizedBox(height: 10),
-            Text('Python Path:', style: TextStyle(fontWeight: FontWeight.bold)),
-            Text(pythonPath, style: TextStyle(fontFamily: 'monospace')),
-            SizedBox(height: 20),
-            
-            // Add a test button for UV installation
-            ElevatedButton(
-              onPressed: _isInitialized ? _testUvInstallation : null,
-              child: Text('Test UV Installation'),
-            ),
-            SizedBox(height: 20),
-            
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _newVenvController,
-                    decoration: InputDecoration(
-                      hintText: 'New environment name',
+      pane: NavigationPane(
+        selected: 0,
+        items: [
+          PaneItem(
+            icon: const Icon(FluentIcons.package),
+            title: const Text('Python Environments'),
+            body: ScaffoldPage(
+              content: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    InfoLabel(
+                      label: "Status",
+                      child: Text(_statusMessage),
                     ),
-                    enabled: _isInitialized,
-                  ),
-                ),
-                SizedBox(width: 10),
-                ElevatedButton(
-                  onPressed: _isInitialized ? _createEnvironment : null,
-                  child: Text('Create Environment'),
-                ),
-              ],
-            ),
-            SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: DropdownButton<String>(
-                    value: _selectedVenv,
-                    hint: Text('Select Virtual Environment'),
-                    isExpanded: true,
-                    items: _availableVenvs.map((String venv) {
-                      return DropdownMenuItem<String>(
-                        value: venv,
-                        child: Text(venv),
-                      );
-                    }).toList(),
-                    onChanged: (String? newValue) {
-                      setState(() {
-                        _selectedVenv = newValue;
-                        _listPackages();
-                      });
-                    },
-                  ),
-                ),
-                SizedBox(width: 10),
-                IconButton(
-                  icon: Icon(Icons.refresh),
-                  onPressed: _isInitialized ? _refreshVenvs : null,
-                ),
-              ],
-            ),
-            SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    decoration: InputDecoration(
-                      hintText: 'Package name (e.g., numpy)',
+                    if (_isDownloading) ...[
+                      const SizedBox(height: 10),
+                      ProgressBar(value: _downloadProgress * 100),
+                    ],
+                    const SizedBox(height: 10),
+                    InfoLabel(
+                      label: "Python Path",
+                      child: Text(pythonPath, style: const TextStyle(fontFamily: 'monospace')),
                     ),
-                    onSubmitted: (value) {
-                      if (value.isNotEmpty && _selectedVenv != null) {
-                        _installPackage(value);
-                      }
-                    },
-                    enabled: _selectedVenv != null,
-                  ),
+                    const SizedBox(height: 20),
+                    
+                    // Add a test button for UV installation
+                    Button(
+                      onPressed: _isInitialized ? _testUvInstallation : null,
+                      child: const Text('Test UV Installation'),
+                    ),
+                    const SizedBox(height: 20),
+                    
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextBox(
+                            controller: _newVenvController,
+                            placeholder: 'New environment name',
+                            enabled: _isInitialized,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Button(
+                          onPressed: _isInitialized ? _createEnvironment : null,
+                          child: const Text('Create Environment'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ComboBox<String>(
+                            value: _selectedVenv,
+                            placeholder: const Text('Select Virtual Environment'),
+                            isExpanded: true,
+                            items: _availableVenvs.map((String venv) {
+                              return ComboBoxItem<String>(
+                                value: venv,
+                                child: Text(venv),
+                              );
+                            }).toList(),
+                            onChanged: (String? newValue) {
+                              setState(() {
+                                _selectedVenv = newValue;
+                                _listPackages();
+                              });
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        IconButton(
+                          icon: const Icon(FluentIcons.refresh),
+                          onPressed: _isInitialized ? _refreshVenvs : null,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextBox(
+                            controller: _packageController,
+                            placeholder: 'Package name (e.g., numpy)',
+                            enabled: _selectedVenv != null,
+                            onSubmitted: (value) {
+                              if (value.isNotEmpty && _selectedVenv != null) {
+                                _installPackage(value);
+                                _packageController.clear();
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Button(
+                          onPressed: (_isInitialized && _selectedVenv != null) 
+                            ? () => _listPackages() 
+                            : null,
+                          child: const Text('Refresh List'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    InfoLabel(
+                      label: "Installed Packages",
+                    ),
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: _installedPackages.length,
+                        itemBuilder: (context, index) {
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4.0),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: FluentTheme.of(context).cardColor,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              padding: const EdgeInsets.all(8.0),
+                              child: Text(_installedPackages[index]),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ),
-                SizedBox(width: 10),
-                ElevatedButton(
-                  onPressed: (_isInitialized && _selectedVenv != null) 
-                    ? () => _listPackages() 
-                    : null,
-                  child: Text('Refresh List'),
-                ),
-              ],
-            ),
-            SizedBox(height: 20),
-            Text('Installed Packages:', style: TextStyle(fontWeight: FontWeight.bold)),
-            Expanded(
-              child: ListView.builder(
-                itemCount: _installedPackages.length,
-                itemBuilder: (context, index) {
-                  return ListTile(
-                    title: Text(_installedPackages[index]),
-                  );
-                },
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
