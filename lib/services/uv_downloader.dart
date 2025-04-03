@@ -43,7 +43,11 @@ class UvDownloader {
 
   static Future<String> getUvPath() async {
     final directory = await getApplicationSupportDirectory();
-    return '${directory.path}/uv';
+    if (Platform.isWindows) {
+      return '${directory.path}\\uv.exe';
+    } else {
+      return '${directory.path}/uv';
+    }
   }
 
   static String _getCurrentPlatform() {
@@ -183,13 +187,31 @@ class UvDownloader {
     }
     
     // Move the UV executable to the final location
-    await File(extractedUvPath).rename(uvPath);
-    print('UV executable moved to: $uvPath');
+    print('Moving UV executable from $extractedUvPath to $uvPath');
+    try {
+      await File(extractedUvPath).copy(uvPath);
+      print('UV executable copied to: $uvPath');
+    } catch (e) {
+      print('Error copying UV executable: $e');
+      // Try renaming instead
+      try {
+        await File(extractedUvPath).rename(uvPath);
+        print('UV executable moved to: $uvPath');
+      } catch (e) {
+        print('Error moving UV executable: $e');
+        rethrow;
+      }
+    }
     
     // Make the file executable on Unix systems
     if (!Platform.isWindows) {
       await Process.run('chmod', ['+x', uvPath]);
       print('Made UV executable');
+    }
+    
+    // Verify the executable exists at target location
+    if (!await File(uvPath).exists()) {
+      throw Exception('UV executable not found at target location after installation: $uvPath');
     }
     
     // Clean up extracted files

@@ -12,6 +12,7 @@ class PythonEnvironmentScreen extends StatefulWidget {
 class _PythonEnvironmentScreenState extends State<PythonEnvironmentScreen> {
   final UvManager _uvManager = UvManager();
   bool _isInitialized = false;
+  bool _initialRefreshDone = false;
   String _statusMessage = "Initializing...";
   String _appDataDir = '';
   List<String> _installedPackages = [];
@@ -43,6 +44,11 @@ class _PythonEnvironmentScreenState extends State<PythonEnvironmentScreen> {
         _statusMessage = "UV initialized successfully";
         _appDataDir = appDir.path;
       });
+      
+      await _refreshVenvs();
+      setState(() {
+        _initialRefreshDone = true;
+      });
     } catch (e) {
       setState(() {
         _isDownloading = false;
@@ -53,32 +59,70 @@ class _PythonEnvironmentScreenState extends State<PythonEnvironmentScreen> {
   
   Future<void> _refreshVenvs() async {
     if (!_isInitialized) return;
-    final venvs = await _uvManager.listVenvs();
+    
     setState(() {
-      _availableVenvs = venvs;
-      if (!venvs.contains(_selectedVenv)) {
-        _selectedVenv = null;
-      }
+      _statusMessage = "Refreshing environments...";
     });
+    
+    try {
+      final venvs = await _uvManager.listVenvs();
+      
+      setState(() {
+        _availableVenvs = venvs;
+        if (!venvs.contains(_selectedVenv)) {
+          _selectedVenv = null;
+        }
+        _statusMessage = "Found ${venvs.length} environments";
+      });
+      
+      if (venvs.isEmpty) {
+        print("Warning: No environments found during refresh");
+        setState(() {
+          _statusMessage = "No environments found. Try creating one.";
+        });
+      }
+    } catch (e) {
+      print("Error refreshing environments: $e");
+      setState(() {
+        _statusMessage = "Error refreshing environments: $e";
+      });
+    }
   }
   
   Future<void> _createEnvironment() async {
     if (!_isInitialized || _newVenvController.text.isEmpty) return;
     
+    final venvName = _newVenvController.text;
+    print("Creating new environment: $venvName");
+    
     setState(() {
-      _statusMessage = "Creating virtual environment...";
+      _statusMessage = "Creating virtual environment '$venvName'...";
     });
     
     try {
-      final venvName = _newVenvController.text;
-      final result = await _uvManager.createVenv(venvName);
-      await _refreshVenvs();
+      await _uvManager.createVenv(venvName);
+      print("Environment created, now refreshing venv list");
+      
+      await Future.delayed(const Duration(seconds: 1));
+      final venvs = await _uvManager.listVenvs();
+      
       setState(() {
-        _selectedVenv = venvName;
-        _statusMessage = "Environment created: ${result.stdout}";
+        _availableVenvs = venvs;
+        
+        if (venvs.contains(venvName)) {
+          _selectedVenv = venvName;
+          _statusMessage = "Environment '$venvName' created and selected";
+        } else {
+          _statusMessage = "Environment created but not found in list. Try refreshing manually.";
+        }
         _newVenvController.clear();
       });
+      
+      if (_selectedVenv == venvName) {
+        await _listPackages();
+      }
     } catch (e) {
+      print("Error creating environment: $e");
       setState(() {
         _statusMessage = "Failed to create environment: $e";
       });
@@ -97,7 +141,6 @@ class _PythonEnvironmentScreenState extends State<PythonEnvironmentScreen> {
       print("Installation stdout: ${result.stdout}");
       print("Installation stderr: ${result.stderr}");
       
-      // Refresh installed packages list
       await _listPackages();
       
       setState(() {
@@ -114,8 +157,11 @@ class _PythonEnvironmentScreenState extends State<PythonEnvironmentScreen> {
   Future<void> _listPackages() async {
     if (!_isInitialized || _selectedVenv == null) return;
     
+    setState(() {
+      _statusMessage = "Listing packages for $_selectedVenv...";
+    });
+    
     try {
-      // Check if environment exists first
       if (!await _uvManager.doesEnvExist(_selectedVenv!)) {
         setState(() {
           _statusMessage = "Virtual environment not found. Please create it first.";
@@ -123,7 +169,6 @@ class _PythonEnvironmentScreenState extends State<PythonEnvironmentScreen> {
         return;
       }
       
-      // Create a simple Python script to list packages using pip instead of pkg_resources
       const listPackagesScript = """
 import json
 import subprocess
@@ -131,19 +176,16 @@ result = subprocess.run(['pip', 'list', '--format=json'], capture_output=True, t
 print(result.stdout)
       """;
       
-      // Save it to a temporary file
       final tempDir = await getTemporaryDirectory();
       final scriptPath = '${tempDir.path}/list_packages.py';
       await File(scriptPath).writeAsString(listPackagesScript);
       
-      // Run it within the selected virtual environment
       final result = await _uvManager.runPythonScript(_selectedVenv!, scriptPath, []);
       
       if (result.exitCode != 0) {
         throw Exception("Failed to list packages: ${result.stderr}");
       }
 
-      // Parse the JSON output from pip list
       final List<dynamic> packages = json.decode(result.stdout);
       setState(() {
         _installedPackages = packages
@@ -162,10 +204,9 @@ print(result.stdout)
   
   @override
   Widget build(BuildContext context) {
-    // Calculate the Python path based on selected environment
     String pythonPath = _selectedVenv != null 
         ? (Platform.isWindows 
-            ? '${_appDataDir}/venvs/$_selectedVenv/Scripts/python.exe'
+            ? '${_appDataDir}\\venvs\\$_selectedVenv\\Scripts\\python.exe'
             : '${_appDataDir}/venvs/$_selectedVenv/bin/python')
         : 'No environment selected';
 
@@ -187,6 +228,14 @@ print(result.stdout)
             Text('Python Path:', style: TextStyle(fontWeight: FontWeight.bold)),
             Text(pythonPath, style: TextStyle(fontFamily: 'monospace')),
             SizedBox(height: 20),
+            
+            // Add a test button for UV installation
+            ElevatedButton(
+              onPressed: _isInitialized ? _testUvInstallation : null,
+              child: Text('Test UV Installation'),
+            ),
+            SizedBox(height: 20),
+            
             Row(
               children: [
                 Expanded(
@@ -195,6 +244,7 @@ print(result.stdout)
                     decoration: InputDecoration(
                       hintText: 'New environment name',
                     ),
+                    enabled: _isInitialized,
                   ),
                 ),
                 SizedBox(width: 10),
@@ -274,5 +324,60 @@ print(result.stdout)
         ),
       ),
     );
+  }
+
+  // Add a new method to test UV installation
+  Future<void> _testUvInstallation() async {
+    if (!_isInitialized) return;
+    
+    setState(() {
+      _statusMessage = "Testing UV installation...";
+    });
+    
+    try {
+      // Get the UV path from the UvManager
+      final uvPath = _uvManager.uvPath;
+      
+      // Test if the UV file exists
+      final uvFile = File(uvPath);
+      final exists = await uvFile.exists();
+      
+      print('UV path: $uvPath');
+      print('UV file exists: $exists');
+      
+      if (!exists) {
+        setState(() {
+          _statusMessage = "UV executable not found at: $uvPath";
+        });
+        return;
+      }
+      
+      // Try running the UV version command
+      try {
+        final result = await Process.run(uvPath, ['--version'], runInShell: true);
+        print('UV version stdout: ${result.stdout}');
+        print('UV version stderr: ${result.stderr}');
+        
+        if (result.exitCode == 0) {
+          setState(() {
+            _statusMessage = "UV is working: ${result.stdout}";
+          });
+        } else {
+          setState(() {
+            _statusMessage = "UV command failed: ${result.stderr}";
+          });
+        }
+      } catch (e) {
+        print('Error running UV command: $e');
+        setState(() {
+          _statusMessage = "Error running UV command: $e";
+        });
+      }
+    } catch (e) {
+      print('Error testing UV installation: $e');
+      setState(() {
+        _statusMessage = "Error testing UV installation: $e";
+      });
+    }
   }
 }
