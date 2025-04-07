@@ -54,7 +54,7 @@ extension DurationExtensions on Duration {
     final seconds = inSeconds.remainder(60);
     
     // Calculate frames portion
-    final totalSeconds = inSeconds.toDouble();
+    final totalSeconds = inMicroseconds / 1000000.0;
     final framePart = ((totalSeconds - totalSeconds.floor()) * frameRate).round();
     
     return '$hours:${twoDigits(minutes)}:${twoDigits(seconds)}:${twoDigits(framePart)}';
