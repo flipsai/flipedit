@@ -4,7 +4,7 @@ import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
-import 'package:watch_it/watch_it.dart' hide di;
+import 'package:watch_it/watch_it.dart';
 import 'dart:math' as math;
 
 /// A clip in the timeline track

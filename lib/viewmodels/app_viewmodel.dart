@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flipedit/services/uv_manager.dart';
 import 'package:flipedit/di/service_locator.dart';
+import 'package:watch_it/watch_it.dart';
 
 class AppViewModel extends ChangeNotifier {
   final UvManager _uvManager = di<UvManager>();
