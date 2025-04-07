@@ -8,13 +8,12 @@ alwaysApply: true
 ## Core Architecture
 - **Framework**: Flutter/Dart
 - **Architecture Pattern**: MVVM (Model-View-ViewModel)
-- **State Management**: `watch_it` (based on `get_it` service locator)
+- **State Management**: `watch_it` for reactive state management with built-in dependency injection
 - **Data Persistence**: `drift` (SQLite wrapper for Flutter)
 
 ## Key Packages
 1. **State Management**:
-   - `watch_it`: Extension of `get_it` for reactive state management
-   - `get_it`: Service locator for dependency injection
+   - `watch_it`: Provides reactive state management with a built-in service locator
 
 2. **Data Persistence**:
    - `drift`: SQLite ORM for Flutter with reactive streams

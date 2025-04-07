@@ -4,11 +4,9 @@ import 'package:flipedit/viewmodels/app_viewmodel.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
-import 'package:get_it/get_it.dart' hide di;
 import 'package:watch_it/watch_it.dart';
 
-// Global ServiceLocator instance accessible via di<Type>()
-final di = GetIt.instance;
+// Use the global di instance provided by watch_it
 
 /// Setup all service locator registrations
 void setupServiceLocator() {
