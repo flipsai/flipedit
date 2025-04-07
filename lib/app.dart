@@ -3,7 +3,7 @@ import 'package:flipedit/di/service_locator.dart';
 import 'package:flipedit/viewmodels/app_viewmodel.dart';
 import 'package:flipedit/views/screens/editor_screen.dart';
 import 'package:flipedit/views/screens/welcome_screen.dart';
-import 'package:watch_it/watch_it.dart' hide di;
+import 'package:watch_it/watch_it.dart';
 
 class FlipEditApp extends StatelessWidget with WatchItMixin {
   FlipEditApp({super.key});
