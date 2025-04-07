@@ -21,20 +21,22 @@ class EditorScreen extends StatelessWidget with WatchItMixin {
     final showTimeline = watchPropertyValue((EditorViewModel vm) => vm.showTimeline);
     final showInspector = watchPropertyValue((EditorViewModel vm) => vm.showInspector);
     
-    return NavigationView(
-      appBar: NavigationAppBar(
+    return ScaffoldPage(
+      header: PageHeader(
         title: Text(projectName),
-        actions: Row(
-          children: [
-            Button(
-              child: const Text('Save'),
+        commandBar: CommandBar(
+          mainAxisAlignment: MainAxisAlignment.end,
+          primaryItems: [
+            CommandBarButton(
+              icon: const Icon(FluentIcons.save),
+              label: const Text('Save'),
               onPressed: () {
                 projectViewModel.saveProject();
               },
             ),
-            const SizedBox(width: 8),
-            Button(
-              child: const Text('Export'),
+            CommandBarButton(
+              icon: const Icon(FluentIcons.export),
+              label: const Text('Export'),
               onPressed: () {
                 // Show export dialog
               },
@@ -42,60 +44,49 @@ class EditorScreen extends StatelessWidget with WatchItMixin {
           ],
         ),
       ),
-      pane: NavigationPane(
-        selected: 0,
-        header: const SizedBox(height: 10),
-        displayMode: PaneDisplayMode.compact,
-        items: [
-          PaneItem(
-            icon: const Icon(FluentIcons.edit),
-            title: const Text('Editor'),
-            body: Row(
+      content: Row(
+        children: [
+          // Left sidebar with extensions (VS Code's activity bar)
+          const ExtensionSidebar(),
+          
+          // Extension panel when an extension is selected (VS Code's primary sidebar)
+          if (selectedExtension.isNotEmpty)
+            ExtensionPanelContainer(extensionId: selectedExtension),
+          
+          // Main editor area
+          Expanded(
+            child: Column(
               children: [
-                // Left sidebar with extensions (similar to VS Code's activity bar)
-                const ExtensionSidebar(),
-                
-                // Extension panel when an extension is selected
-                if (selectedExtension.isNotEmpty)
-                  ExtensionPanelContainer(extensionId: selectedExtension),
-                
-                // Main editor area
+                // Preview area - always visible
                 Expanded(
-                  child: Column(
-                    children: [
-                      // Preview area - always visible
-                      Expanded(
-                        flex: 3,
-                        child: Container(
-                          color: Colors.black,
-                          child: const Center(
-                            child: Text(
-                              'Preview',
-                              style: TextStyle(color: Colors.white),
-                            ),
-                          ),
-                        ),
+                  flex: 3,
+                  child: Container(
+                    color: Colors.black,
+                    child: const Center(
+                      child: Text(
+                        'Preview',
+                        style: TextStyle(color: Colors.white),
                       ),
-                      
-                      // Timeline panel - can be toggled
-                      if (showTimeline)
-                        const Expanded(
-                          flex: 1,
-                          child: Timeline(),
-                        ),
-                    ],
+                    ),
                   ),
                 ),
                 
-                // Right sidebar with inspector
-                if (showInspector)
-                  const SizedBox(
-                    width: 300,
-                    child: InspectorPanel(),
+                // Timeline panel - can be toggled
+                if (showTimeline)
+                  const Expanded(
+                    flex: 1,
+                    child: Timeline(),
                   ),
               ],
             ),
           ),
+          
+          // Right sidebar with inspector (VS Code's secondary sidebar)
+          if (showInspector)
+            const SizedBox(
+              width: 300,
+              child: InspectorPanel(),
+            ),
         ],
       ),
     );
