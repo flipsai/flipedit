@@ -35,12 +35,26 @@ class FrameProcessor {
   /// Pre-cache a range of frames for smoother playback
   Future<void> preloadFrames(IClip clip, int startFrame, int endFrame) async {
     // Process frames in the background
+    final List<Future<void>> futures = [];
     for (int i = startFrame; i <= endFrame; i++) {
       if (!_isFrameCached(clip.id, i)) {
         // Use compute to run in a separate isolate for heavy processing
-        final processedFrame = await clip.getProcessedFrame(i);
-        _cacheFrame(clip.id, i, processedFrame);
+        futures.add(_processAndCacheFrame(clip, i));
       }
+    }
+    // Wait for all preloaded frames to complete
+    await Future.wait(futures);
+  }
+  
+  Future<void> _processAndCacheFrame(IClip clip, int framePosition) async {
+    try {
+      // In a production app, you would use compute() here:
+      // final processedFrame = await compute(_isolateProcessFrame, {clip, framePosition});
+      final processedFrame = await clip.getProcessedFrame(framePosition);
+      _cacheFrame(clip.id, framePosition, processedFrame);
+    } catch (e, stackTrace) {
+      Logger.e('FrameProcessor', 'Error preloading frame at position $framePosition for clip ${clip.id}', e, stackTrace);
+      // Don't rethrow for preloading - just log the error
     }
   }
   
