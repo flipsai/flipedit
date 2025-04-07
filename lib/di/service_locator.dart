@@ -4,6 +4,7 @@ import 'package:flipedit/viewmodels/app_viewmodel.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
+import 'package:flipedit/viewmodels/panel_grid_viewmodel.dart';
 import 'package:watch_it/watch_it.dart';
 
 // Use the global di instance provided by watch_it
@@ -19,4 +20,5 @@ void setupServiceLocator() {
   di.registerLazySingleton<ProjectViewModel>(() => ProjectViewModel());
   di.registerLazySingleton<EditorViewModel>(() => EditorViewModel());
   di.registerLazySingleton<TimelineViewModel>(() => TimelineViewModel());
+  di.registerLazySingleton<PanelGridViewModel>(() => PanelGridViewModel());
 }
