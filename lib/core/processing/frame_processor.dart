@@ -108,6 +108,9 @@ class FrameProcessor {
   
   /// Remove oldest frames if cache exceeds maximum size
   void _pruneCache(String clipId) {
+    if (!_frameCache.containsKey(clipId)) {
+      return;
+    }
     final clipCache = _frameCache[clipId]!;
     
     if (clipCache.length > maxCacheSize) {
