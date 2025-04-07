@@ -1,29 +1,40 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/material.dart' as material;
 import 'package:flipedit/di/service_locator.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
 import 'package:flipedit/views/widgets/extensions/extension_sidebar.dart';
-import 'package:flipedit/views/widgets/extensions/extension_panel_container.dart';
-import 'package:flipedit/views/widgets/inspector/inspector_panel.dart';
-import 'package:flipedit/views/widgets/timeline/timeline.dart';
+import 'package:flipedit/views/widgets/panel_system/panel_system.dart';
 import 'package:watch_it/watch_it.dart';
+import 'package:fluent_ui/fluent_ui.dart' as fluent;
 
-class EditorScreen extends StatelessWidget with WatchItMixin {
+class EditorScreen extends StatefulWidget {
   const EditorScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final projectViewModel = di<ProjectViewModel>();
-    final projectName = watchPropertyValue((ProjectViewModel vm) => vm.currentProject?.name ?? 'Untitled Project');
+  State<EditorScreen> createState() => _EditorScreenState();
+}
+
+class _EditorScreenState extends State<EditorScreen> {
+  late final EditorViewModel _editorViewModel;
+  
+  @override
+  void initState() {
+    super.initState();
     
-    final editorViewModel = di<EditorViewModel>();
-    final selectedExtension = watchPropertyValue((EditorViewModel vm) => vm.selectedExtension);
-    final showTimeline = watchPropertyValue((EditorViewModel vm) => vm.showTimeline);
-    final showInspector = watchPropertyValue((EditorViewModel vm) => vm.showInspector);
+    // Initialize the panel layout
+    _editorViewModel = di<EditorViewModel>();
+    _editorViewModel.initializePanelLayout();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Get panel definitions for the current layout
+    final panels = _editorViewModel.getPanelDefinitions();
     
     return ScaffoldPage(
       header: PageHeader(
-        title: Text(projectName),
+        title: _ProjectTitle(),
         commandBar: CommandBar(
           mainAxisAlignment: MainAxisAlignment.end,
           primaryItems: [
@@ -31,7 +42,7 @@ class EditorScreen extends StatelessWidget with WatchItMixin {
               icon: const Icon(FluentIcons.save),
               label: const Text('Save'),
               onPressed: () {
-                projectViewModel.saveProject();
+                di<ProjectViewModel>().saveProject();
               },
             ),
             CommandBarButton(
@@ -41,54 +52,84 @@ class EditorScreen extends StatelessWidget with WatchItMixin {
                 // Show export dialog
               },
             ),
+            // New toggle buttons for layout elements
+            _buildTimelineToggle(),
+            _buildInspectorToggle(),
           ],
         ),
       ),
-      content: Row(
-        children: [
-          // Left sidebar with extensions (VS Code's activity bar)
-          const ExtensionSidebar(),
-          
-          // Extension panel when an extension is selected (VS Code's primary sidebar)
-          if (selectedExtension.isNotEmpty)
-            ExtensionPanelContainer(extensionId: selectedExtension),
-          
-          // Main editor area
-          Expanded(
-            child: Column(
-              children: [
-                // Preview area - always visible
-                Expanded(
-                  flex: 3,
-                  child: Container(
-                    color: Colors.black,
-                    child: const Center(
-                      child: Text(
-                        'Preview',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    ),
-                  ),
-                ),
-                
-                // Timeline panel - can be toggled
-                if (showTimeline)
-                  const Expanded(
-                    flex: 1,
-                    child: Timeline(),
-                  ),
-              ],
+      content: material.Material(
+        color: Colors.transparent,
+        child: Row(
+          children: [
+            // Left sidebar with extensions (VS Code's activity bar)
+            const ExtensionSidebar(),
+            
+            // Main content area with draggable panels
+            Expanded(
+              child: PanelGridSystem(
+                initialPanels: panels,
+                backgroundColor: const Color(0xFFF3F3F3),
+                resizeHandleColor: const Color(0xFFDDDDDD),
+              ),
             ),
-          ),
-          
-          // Right sidebar with inspector (VS Code's secondary sidebar)
-          if (showInspector)
-            const SizedBox(
-              width: 300,
-              child: InspectorPanel(),
-            ),
-        ],
+          ],
+        ),
       ),
+    );
+  }
+
+  CommandBarButton _buildTimelineToggle() {
+    return CommandBarButton(
+      icon: const _TimelineButtonIcon(),
+      onPressed: () {
+        _editorViewModel.toggleTimeline();
+      },
+    );
+  }
+
+  CommandBarButton _buildInspectorToggle() {
+    return CommandBarButton(
+      icon: const _InspectorButtonIcon(),
+      onPressed: () {
+        _editorViewModel.toggleInspector();
+      },
+    );
+  }
+}
+
+class _ProjectTitle extends StatelessWidget with WatchItMixin {
+  _ProjectTitle({Key? key}) : super(key: key);
+  
+  @override
+  Widget build(BuildContext context) {
+    final projectName = watchPropertyValue((ProjectViewModel vm) => vm.currentProject?.name) ?? 'Untitled Project';
+    return Text(projectName);
+  }
+}
+
+class _TimelineButtonIcon extends StatelessWidget with WatchItMixin {
+  const _TimelineButtonIcon({Key? key}) : super(key: key);
+  
+  @override
+  Widget build(BuildContext context) {
+    final showTimeline = watchPropertyValue((EditorViewModel vm) => vm.showTimeline) ?? false;
+    return Icon(
+      FluentIcons.timeline,
+      color: showTimeline ? Colors.white : Colors.grey,
+    );
+  }
+}
+
+class _InspectorButtonIcon extends StatelessWidget with WatchItMixin {
+  const _InspectorButtonIcon({Key? key}) : super(key: key);
+  
+  @override
+  Widget build(BuildContext context) {
+    final showInspector = watchPropertyValue((EditorViewModel vm) => vm.showInspector) ?? false;
+    return Icon(
+      FluentIcons.edit_mirrored,
+      color: showInspector ? Colors.white : Colors.grey,
     );
   }
 }
