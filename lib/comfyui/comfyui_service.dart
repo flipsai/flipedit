@@ -7,6 +7,7 @@ import 'package:flipedit/di/service_locator.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
+import 'package:watch_it/watch_it.dart';
 
 /// Service for interacting with ComfyUI
 class ComfyUIService extends ChangeNotifier {

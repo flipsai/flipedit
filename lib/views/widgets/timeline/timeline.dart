@@ -5,7 +5,7 @@ import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/views/widgets/timeline/timeline_clip.dart';
 import 'package:flipedit/views/widgets/timeline/timeline_track.dart';
-import 'package:watch_it/watch_it.dart' hide di;
+import 'package:watch_it/watch_it.dart';
 
 /// Main timeline widget that shows clips and tracks
 /// Similar to the timeline in video editors like Premiere Pro or Final Cut

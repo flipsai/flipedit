@@ -4,7 +4,7 @@ import 'package:flipedit/di/service_locator.dart';
 import 'package:flipedit/services/uv_manager.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
-
+import 'package:watch_it/watch_it.dart';
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 

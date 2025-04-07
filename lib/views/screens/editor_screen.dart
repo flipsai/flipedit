@@ -6,7 +6,7 @@ import 'package:flipedit/views/widgets/extensions/extension_sidebar.dart';
 import 'package:flipedit/views/widgets/extensions/extension_panel_container.dart';
 import 'package:flipedit/views/widgets/inspector/inspector_panel.dart';
 import 'package:flipedit/views/widgets/timeline/timeline.dart';
-import 'package:watch_it/watch_it.dart' hide di;
+import 'package:watch_it/watch_it.dart';
 
 class EditorScreen extends StatelessWidget with WatchItMixin {
   const EditorScreen({super.key});
