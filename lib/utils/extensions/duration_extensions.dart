@@ -33,6 +33,9 @@ extension DurationExtensions on Duration {
   
   /// Format duration as frames, based on a given frame rate
   String formattedAsFrames(int frameRate) {
+    if (frameRate <= 0) {
+      throw ArgumentError.value(frameRate, 'frameRate', 'Must be greater than 0');
+    }
     final totalFrames = (inMilliseconds / (1000 / frameRate)).round();
     return '$totalFrames frames';
   }
