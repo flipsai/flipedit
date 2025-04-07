@@ -81,7 +81,17 @@ class FrameProcessor {
   
   /// Get a cached frame
   Map<String, dynamic> _getCachedFrame(String clipId, int framePosition) {
-    return Map<String, dynamic>.from(_frameCache[clipId]![framePosition]!);
+    final clipCache = _frameCache[clipId];
+    if (clipCache == null) {
+      return {}; // Or throw an appropriate exception
+    }
+    
+    final frameData = clipCache[framePosition];
+    if (frameData == null) {
+      return {}; // Or throw an appropriate exception
+    }
+    
+    return Map<String, dynamic>.from(frameData);
   }
   
   /// Store a frame in the cache
