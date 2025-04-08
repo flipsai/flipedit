@@ -1,14 +1,14 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/material.dart' as material;
+import 'package:flipedit/di/service_locator.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
-import 'package:flipedit/viewmodels/project_viewmodel.dart';
 import 'package:flipedit/views/widgets/extensions/extension_panel_container.dart';
 import 'package:flipedit/views/widgets/extensions/extension_sidebar.dart';
 import 'package:docking/docking.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/views/widgets/common/resizable_divider.dart';
 
-class EditorScreen extends WatchingStatefulWidget {
+class EditorScreen extends StatefulWidget {
   const EditorScreen({super.key});
 
   @override
@@ -16,7 +16,6 @@ class EditorScreen extends WatchingStatefulWidget {
 }
 
 class _EditorScreenState extends State<EditorScreen> {
-  late final EditorViewModel _editorViewModel;
   double _extensionPanelWidth = 250.0; // Initial width
   final double _minExtensionPanelWidth = 150.0; // Minimum width
   final double _maxExtensionPanelWidth = 500.0; // Maximum width
@@ -26,40 +25,68 @@ class _EditorScreenState extends State<EditorScreen> {
     super.initState();
     
     // Initialize the panel layout
-    _editorViewModel = di<EditorViewModel>();
-    _editorViewModel.initializePanelLayout();
+    di<EditorViewModel>().initializePanelLayout();
   }
 
   @override
   Widget build(BuildContext context) {
-    // Watch the selected extension using watchPropertyValue - should work now
-    final selectedExtension = watchPropertyValue((EditorViewModel vm) => vm.selectedExtension);
+    return _EditorContent(
+      extensionPanelWidth: _extensionPanelWidth,
+      minExtensionPanelWidth: _minExtensionPanelWidth,
+      maxExtensionPanelWidth: _maxExtensionPanelWidth,
+      onPanelResized: (newWidth) {
+        setState(() {
+          _extensionPanelWidth = newWidth;
+        });
+      },
+    );
+  }
+}
+
+// Separate stateless widget that uses WatchItMixin to handle reactive UI updates
+class _EditorContent extends StatelessWidget with WatchItMixin {
+  final double extensionPanelWidth;
+  final double minExtensionPanelWidth;
+  final double maxExtensionPanelWidth;
+  final Function(double) onPanelResized;
+
+  const _EditorContent({
+    required this.extensionPanelWidth,
+    required this.minExtensionPanelWidth,
+    required this.maxExtensionPanelWidth,
+    required this.onPanelResized,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Use watch_it's data binding to observe multiple properties
+    final selectedExtension = watchValue((EditorViewModel vm) => vm.selectedExtensionNotifier);
+    final layout = watchValue((EditorViewModel vm) => vm.layoutNotifier);
     
-    // Get panel definitions for the current layout
-    final DockingLayout? initialLayout = _editorViewModel.getInitialLayout();
+    // Watch the visibility properties that affect the layoutStructureKey
+    watchValue((EditorViewModel vm) => vm.isTimelineVisibleNotifier);
+    watchValue((EditorViewModel vm) => vm.isInspectorVisibleNotifier);
 
     return ScaffoldPage(
       padding: EdgeInsets.zero,
       content: material.Material(
         color: Colors.transparent,
-        // No WatchItBuilder needed here, direct conditional logic
         child: Row(
           children: [
             // Left sidebar with extensions (VS Code's activity bar)
             const ExtensionSidebar(),
             
             // Conditionally display the selected extension panel and resize handle
-            if (selectedExtension != null && selectedExtension.isNotEmpty) ...[
+            if (selectedExtension.isNotEmpty) ...[  
               SizedBox(
-                width: _extensionPanelWidth,
+                width: extensionPanelWidth,
                 child: ExtensionPanelContainer(extensionId: selectedExtension),
               ),
               ResizableDivider(
                 onDragUpdate: (dx) {
-                  setState(() {
-                    _extensionPanelWidth = (_extensionPanelWidth + dx)
-                        .clamp(_minExtensionPanelWidth, _maxExtensionPanelWidth);
-                  });
+                  final newWidth = (extensionPanelWidth + dx)
+                      .clamp(minExtensionPanelWidth, maxExtensionPanelWidth);
+                  onPanelResized(newWidth);
                 },
               ),
             ],
@@ -76,10 +103,15 @@ class _EditorScreenState extends State<EditorScreen> {
                     // You might want a visible line painter overlaid or adjust colors
                   ),
                 ),
-                child: Docking(
-                  layout: initialLayout ?? DockingLayout(root: DockingRow([])), 
-                  // We might need to add controller/callbacks later if needed
-                ),
+                child: layout != null
+                    ? Docking(
+                        key: ValueKey(di<EditorViewModel>().layoutStructureKey),
+                        layout: layout,
+                        onItemClose: _handlePanelClosed,
+                      )
+                    : const Center(
+                        child: Text('Loading editor...'),
+                      ),
               ),
             ),
           ],
@@ -87,4 +119,15 @@ class _EditorScreenState extends State<EditorScreen> {
       ),
     );
   }
+  
+  void _handlePanelClosed(DockingItem item) {
+    // Update the view model based on which panel was closed
+    if (item.id == 'inspector') {
+      di<EditorViewModel>().markInspectorClosed();
+    } else if (item.id == 'timeline') {
+      di<EditorViewModel>().markTimelineClosed();
+    }
+  }
 }
+
+

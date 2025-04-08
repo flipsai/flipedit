@@ -1,9 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flipedit/di/service_locator.dart';
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
-import 'package:flipedit/views/widgets/timeline/timeline_clip.dart';
 import 'package:flipedit/views/widgets/timeline/timeline_track.dart';
 import 'package:watch_it/watch_it.dart';
 
@@ -11,14 +9,14 @@ import 'package:watch_it/watch_it.dart';
 /// Similar to the timeline in video editors like Premiere Pro or Final Cut
 class Timeline extends StatelessWidget with WatchItMixin {
   const Timeline({super.key});
-
+  
   @override
   Widget build(BuildContext context) {
-    final timelineViewModel = di<TimelineViewModel>();
-    final clips = watchPropertyValue((TimelineViewModel vm) => vm.clips);
-    final currentFrame = watchPropertyValue((TimelineViewModel vm) => vm.currentFrame);
-    final isPlaying = watchPropertyValue((TimelineViewModel vm) => vm.isPlaying);
-    final zoom = watchPropertyValue((TimelineViewModel vm) => vm.zoom);
+    // Use watch_it's data binding to observe multiple properties in a clean way
+    final clips = watchValue((TimelineViewModel vm) => vm.clipsNotifier);
+    final currentFrame = watchValue((TimelineViewModel vm) => vm.currentFrameNotifier);
+    final isPlaying = watchValue((TimelineViewModel vm) => vm.isPlayingNotifier);
+    final zoom = watchValue((TimelineViewModel vm) => vm.zoomNotifier);
     
     return Container(
       decoration: BoxDecoration(
@@ -28,7 +26,7 @@ class Timeline extends StatelessWidget with WatchItMixin {
       child: Column(
         children: [
           // Timeline controls
-          _buildTimelineControls(context, isPlaying, currentFrame),
+          _buildTimelineControls(context, isPlaying, currentFrame, zoom),
           
           // Timeline content
           Expanded(
@@ -47,47 +45,63 @@ class Timeline extends StatelessWidget with WatchItMixin {
                   ),
                 ),
                 
-                // Tracks with clips
+                // Timeline tracks
                 Expanded(
                   child: Stack(
                     children: [
-                      // Time ruler
-                      Positioned(
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        child: _TimeRuler(
-                          zoom: zoom,
-                          totalFrames: timelineViewModel.totalFrames,
+                      // Scrollable tracks area
+                      Positioned.fill(
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Container(
+                            // Make the timeline wide enough based on total frames
+                            width: watchValue((TimelineViewModel vm) => vm.totalFramesNotifier) * zoom * 5 + 200,
+                            child: Column(
+                              children: [
+                                // Time ruler
+                                _TimeRuler(
+                                  zoom: zoom,
+                                  currentFrame: currentFrame,
+                                ),
+                                
+                                // Tracks
+                                Expanded(
+                                  child: ListView(
+                                    padding: const EdgeInsets.symmetric(vertical: 2),
+                                    children: [
+                                      // Video track with clips
+                                      TimelineTrack(
+                                        trackIndex: 0,
+                                        clips: clips.where((clip) => 
+                                          clip.type == ClipType.video || 
+                                          clip.type == ClipType.image
+                                        ).toList(),
+                                      ),
+                                      
+                                      // Audio track
+                                      TimelineTrack(
+                                        trackIndex: 1,
+                                        clips: clips.where((clip) => 
+                                          clip.type == ClipType.audio
+                                        ).toList(),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
                       
-                      // Playhead
+                      // Current frame indicator (playhead)
                       Positioned(
                         top: 0,
                         bottom: 0,
-                        left: currentFrame * zoom * 5, // 5 pixels per frame at zoom 1.0
+                        left: currentFrame * zoom * 5,
+                        width: 2,
                         child: Container(
-                          width: 1,
                           color: Colors.red,
-                        ),
-                      ),
-                      
-                      // Tracks and clips
-                      Padding(
-                        padding: const EdgeInsets.only(top: 20),
-                        child: ListView(
-                          padding: const EdgeInsets.symmetric(vertical: 2),
-                          children: [
-                            TimelineTrack(
-                              trackIndex: 0,
-                              clips: clips.where((clip) => clip.type.toString().contains('video')).toList(),
-                            ),
-                            TimelineTrack(
-                              trackIndex: 1,
-                              clips: clips.where((clip) => clip.type.toString().contains('audio')).toList(),
-                            ),
-                          ],
                         ),
                       ),
                     ],
@@ -101,7 +115,7 @@ class Timeline extends StatelessWidget with WatchItMixin {
     );
   }
 
-  Widget _buildTimelineControls(BuildContext context, bool isPlaying, int currentFrame) {
+  Widget _buildTimelineControls(BuildContext context, bool isPlaying, int currentFrame, double zoom) {
     final timelineViewModel = di<TimelineViewModel>();
     
     return Container(
@@ -114,13 +128,13 @@ class Timeline extends StatelessWidget with WatchItMixin {
           IconButton(
             icon: const Icon(FluentIcons.remove, size: 16),
             onPressed: () {
-              timelineViewModel.setZoom(timelineViewModel.zoom / 1.2);
+              di<TimelineViewModel>().setZoom(zoom / 1.2);
             },
           ),
           IconButton(
             icon: const Icon(FluentIcons.add, size: 16),
             onPressed: () {
-              timelineViewModel.setZoom(timelineViewModel.zoom * 1.2);
+              di<TimelineViewModel>().setZoom(zoom * 1.2);
             },
           ),
           
@@ -130,7 +144,7 @@ class Timeline extends StatelessWidget with WatchItMixin {
           IconButton(
             icon: const Icon(FluentIcons.previous, size: 16),
             onPressed: () {
-              timelineViewModel.seekTo(0);
+              di<TimelineViewModel>().seekTo(0);
             },
           ),
           IconButton(
@@ -139,13 +153,13 @@ class Timeline extends StatelessWidget with WatchItMixin {
               size: 16,
             ),
             onPressed: () {
-              timelineViewModel.togglePlayback();
+              di<TimelineViewModel>().togglePlayback();
             },
           ),
           IconButton(
             icon: const Icon(FluentIcons.next, size: 16),
             onPressed: () {
-              timelineViewModel.seekTo(timelineViewModel.totalFrames);
+              di<TimelineViewModel>().seekTo(timelineViewModel.totalFrames);
             },
           ),
           
@@ -229,14 +243,16 @@ class _TrackLabel extends StatelessWidget {
   }
 }
 
-class _TimeRuler extends StatelessWidget {
+class _TimeRuler extends StatelessWidget with WatchItMixin {
   final double zoom;
-  final int totalFrames;
+  final int currentFrame;
   
-  const _TimeRuler({required this.zoom, required this.totalFrames});
+  const _TimeRuler({required this.zoom, required this.currentFrame});
   
   @override
   Widget build(BuildContext context) {
+    final totalFrames = watchValue((TimelineViewModel vm) => vm.totalFramesNotifier);
+    
     return Container(
       height: 20,
       color: const Color(0xFF2D2D2D),

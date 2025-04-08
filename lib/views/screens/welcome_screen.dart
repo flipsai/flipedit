@@ -10,10 +10,11 @@ class WelcomeScreen extends StatelessWidget with WatchItMixin {
 
   @override
   Widget build(BuildContext context) {
-    final isInitialized = watchPropertyValue((AppViewModel vm) => vm.isInitialized);
-    final isDownloading = watchPropertyValue((AppViewModel vm) => vm.isDownloading);
-    final statusMessage = watchPropertyValue((AppViewModel vm) => vm.statusMessage);
-    final progress = watchPropertyValue((AppViewModel vm) => vm.downloadProgress);
+    // Use watch_it's data binding to observe multiple properties
+    final isInitialized = watchValue((AppViewModel vm) => vm.isInitializedNotifier);
+    final isDownloading = watchValue((AppViewModel vm) => vm.isDownloadingNotifier);
+    final statusMessage = watchValue((AppViewModel vm) => vm.statusMessageNotifier);
+    final progress = watchValue((AppViewModel vm) => vm.downloadProgressNotifier);
     
     return ScaffoldPage(
       header: const PageHeader(
@@ -78,7 +79,8 @@ class _WelcomeView extends StatelessWidget with WatchItMixin {
 
   @override
   Widget build(BuildContext context) {
-    final recentProjects = watchPropertyValue((ProjectViewModel vm) => vm.recentProjects);
+    // Use watch_it's data binding to observe the recentProjects property
+    final recentProjects = watchValue((ProjectViewModel vm) => vm.recentProjectsNotifier);
     
     return Card(
       child: Padding(
@@ -120,9 +122,8 @@ class _WelcomeView extends StatelessWidget with WatchItMixin {
   }
 
   void _createNewProject(BuildContext context) {
-    final projectViewModel = di<ProjectViewModel>();
-    
-    projectViewModel.createNewProject('New Project', '/path/to/project');
+    // Use di directly for actions without storing in a local variable
+    di<ProjectViewModel>().createNewProject('New Project', '/path/to/project');
     
     // Navigate to the editor
     Navigator.of(context).pushReplacement(
@@ -133,9 +134,7 @@ class _WelcomeView extends StatelessWidget with WatchItMixin {
   void _openProject(BuildContext context) {
     // In a real app, this would show a file picker
     // For now, we'll just create a dummy project
-    final projectViewModel = di<ProjectViewModel>();
-    
-    projectViewModel.createNewProject('Opened Project', '/path/to/opened/project');
+    di<ProjectViewModel>().createNewProject('Opened Project', '/path/to/opened/project');
     
     // Navigate to the editor
     Navigator.of(context).pushReplacement(
@@ -155,8 +154,7 @@ class _RecentProjectItem extends StatelessWidget {
       title: Text(project.name),
       subtitle: Text(project.path),
       onPressed: () {
-        final projectViewModel = di<ProjectViewModel>();
-        projectViewModel.openProject(project);
+        di<ProjectViewModel>().openProject(project);
         
         Navigator.of(context).pushReplacement(
           FluentPageRoute(builder: (context) => const EditorScreen()),

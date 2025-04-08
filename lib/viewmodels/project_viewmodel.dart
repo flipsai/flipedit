@@ -1,17 +1,27 @@
 import 'package:flutter/foundation.dart';
 import 'package:flipedit/models/project.dart';
 
-class ProjectViewModel extends ChangeNotifier {
-  Project? _currentProject;
-  Project? get currentProject => _currentProject;
+class ProjectViewModel {
+  final ValueNotifier<Project?> currentProjectNotifier = ValueNotifier<Project?>(null);
+  Project? get currentProject => currentProjectNotifier.value;
+  set currentProject(Project? value) {
+    if (currentProjectNotifier.value == value) return;
+    currentProjectNotifier.value = value;
+  }
   
-  bool get hasProject => _currentProject != null;
+  bool get hasProject => currentProject != null;
   
-  List<Project> _recentProjects = [];
-  List<Project> get recentProjects => _recentProjects;
+  final ValueNotifier<List<Project>> recentProjectsNotifier = ValueNotifier<List<Project>>([]);
+  List<Project> get recentProjects => List.unmodifiable(recentProjectsNotifier.value);
+  set recentProjects(List<Project> value) {
+    if (recentProjectsNotifier.value == value) return;
+    recentProjectsNotifier.value = value;
+  }
   
   void createNewProject(String name, String path) {
-    _currentProject = Project(
+    if (name.isEmpty || path.isEmpty) return;
+    
+    currentProject = Project(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       name: name,
       path: path,
@@ -20,36 +30,29 @@ class ProjectViewModel extends ChangeNotifier {
     );
     
     // In a real application, we would save this to a database using Drift
-    
-    notifyListeners();
   }
   
   void openProject(Project project) {
-    _currentProject = project;
+    currentProject = project;
     // Load project data from disk
-    notifyListeners();
   }
   
   void closeProject() {
-    _currentProject = null;
-    notifyListeners();
+    currentProject = null;
   }
   
   void saveProject() {
-    if (_currentProject != null) {
-      _currentProject = _currentProject!.copyWith(
-        lastModifiedAt: DateTime.now(),
-      );
-      
-      // In a real application, we would save to disk
-      
-      notifyListeners();
-    }
+    if (currentProject == null) return;
+    
+    currentProject = currentProject!.copyWith(
+      lastModifiedAt: DateTime.now(),
+    );
+    
+    // In a real application, we would save to disk
   }
   
   void loadRecentProjects() {
     // In a real application, load from Drift database
-    _recentProjects = [];
-    notifyListeners();
+    recentProjects = [];
   }
 }

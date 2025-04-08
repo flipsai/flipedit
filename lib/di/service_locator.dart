@@ -6,7 +6,8 @@ import 'package:flipedit/viewmodels/project_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:watch_it/watch_it.dart';
 
-// Use the global di instance provided by watch_it
+// Use the global di instance provided by watch_it package
+// No need to create our own GetIt instance
 
 /// Setup all service locator registrations
 void setupServiceLocator() {
