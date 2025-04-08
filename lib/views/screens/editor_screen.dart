@@ -3,12 +3,13 @@ import 'package:flutter/material.dart' as material;
 import 'package:flipedit/di/service_locator.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
+import 'package:flipedit/views/widgets/extensions/extension_panel_container.dart';
 import 'package:flipedit/views/widgets/extensions/extension_sidebar.dart';
 import 'package:flipedit/views/widgets/panel_system/panel_system.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:fluent_ui/fluent_ui.dart' as fluent;
 
-class EditorScreen extends StatefulWidget {
+class EditorScreen extends WatchingStatefulWidget {
   const EditorScreen({super.key});
 
   @override
@@ -29,6 +30,9 @@ class _EditorScreenState extends State<EditorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Watch the selected extension using watchPropertyValue - should work now
+    final selectedExtension = watchPropertyValue((EditorViewModel vm) => vm.selectedExtension);
+    
     // Get panel definitions for the current layout
     final panels = _editorViewModel.getPanelDefinitions();
     
@@ -60,10 +64,15 @@ class _EditorScreenState extends State<EditorScreen> {
       ),
       content: material.Material(
         color: Colors.transparent,
+        // No WatchItBuilder needed here, direct conditional logic
         child: Row(
           children: [
             // Left sidebar with extensions (VS Code's activity bar)
             const ExtensionSidebar(),
+            
+            // Conditionally display the selected extension panel
+            if (selectedExtension != null && selectedExtension.isNotEmpty)
+              ExtensionPanelContainer(extensionId: selectedExtension),
             
             // Main content area with draggable panels
             Expanded(
@@ -98,8 +107,8 @@ class _EditorScreenState extends State<EditorScreen> {
   }
 }
 
-class _ProjectTitle extends StatelessWidget with WatchItMixin {
-  _ProjectTitle({Key? key}) : super(key: key);
+class _ProjectTitle extends WatchingWidget {
+  const _ProjectTitle({Key? key}) : super(key: key);
   
   @override
   Widget build(BuildContext context) {
@@ -108,7 +117,7 @@ class _ProjectTitle extends StatelessWidget with WatchItMixin {
   }
 }
 
-class _TimelineButtonIcon extends StatelessWidget with WatchItMixin {
+class _TimelineButtonIcon extends WatchingWidget {
   const _TimelineButtonIcon({Key? key}) : super(key: key);
   
   @override
@@ -121,7 +130,7 @@ class _TimelineButtonIcon extends StatelessWidget with WatchItMixin {
   }
 }
 
-class _InspectorButtonIcon extends StatelessWidget with WatchItMixin {
+class _InspectorButtonIcon extends WatchingWidget {
   const _InspectorButtonIcon({Key? key}) : super(key: key);
   
   @override
