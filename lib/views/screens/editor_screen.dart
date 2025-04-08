@@ -39,31 +39,7 @@ class _EditorScreenState extends State<EditorScreen> {
     final DockingLayout? initialLayout = _editorViewModel.getInitialLayout();
 
     return ScaffoldPage(
-      header: PageHeader(
-        title: _ProjectTitle(),
-        commandBar: CommandBar(
-          mainAxisAlignment: MainAxisAlignment.end,
-          primaryItems: [
-            CommandBarButton(
-              icon: const Icon(FluentIcons.save),
-              label: const Text('Save'),
-              onPressed: () {
-                di<ProjectViewModel>().saveProject();
-              },
-            ),
-            CommandBarButton(
-              icon: const Icon(FluentIcons.export),
-              label: const Text('Export'),
-              onPressed: () {
-                // Show export dialog
-              },
-            ),
-            // New toggle buttons for layout elements
-            _buildTimelineToggle(),
-            _buildInspectorToggle(),
-          ],
-        ),
-      ),
+      padding: EdgeInsets.zero,
       content: material.Material(
         color: Colors.transparent,
         // No WatchItBuilder needed here, direct conditional logic
@@ -109,56 +85,6 @@ class _EditorScreenState extends State<EditorScreen> {
           ],
         ),
       ),
-    );
-  }
-
-  CommandBarButton _buildTimelineToggle() {
-    return CommandBarButton(
-      icon: const _TimelineButtonIcon(),
-      onPressed: () {
-        _editorViewModel.toggleTimeline();
-      },
-    );
-  }
-
-  CommandBarButton _buildInspectorToggle() {
-    return CommandBarButton(
-      icon: const _InspectorButtonIcon(),
-      onPressed: () {
-        _editorViewModel.toggleInspector();
-      },
-    );
-  }
-}
-
-class _ProjectTitle extends WatchingWidget {
-  const _ProjectTitle({Key? key}) : super(key: key);
-  
-  @override
-  Widget build(BuildContext context) {
-    final projectName = watchPropertyValue((ProjectViewModel vm) => vm.currentProject?.name) ?? 'Untitled Project';
-    return Text(projectName);
-  }
-}
-
-class _TimelineButtonIcon extends WatchingWidget {
-  const _TimelineButtonIcon({Key? key}) : super(key: key);
-  
-  @override
-  Widget build(BuildContext context) {
-    return Icon(
-      FluentIcons.timeline,
-    );
-  }
-}
-
-class _InspectorButtonIcon extends WatchingWidget {
-  const _InspectorButtonIcon({Key? key}) : super(key: key);
-  
-  @override
-  Widget build(BuildContext context) {
-    return Icon(
-      FluentIcons.edit_mirrored,
     );
   }
 }
