@@ -1,5 +1,4 @@
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flipedit/di/service_locator.dart';
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/views/widgets/timeline/timeline_clip.dart';
@@ -18,7 +17,8 @@ class TimelineTrack extends StatelessWidget with WatchItMixin {
   
   @override
   Widget build(BuildContext context) {
-    final zoom = watchPropertyValue((TimelineViewModel vm) => vm.zoom);
+    // Use watch_it's data binding to observe the zoom property
+    final zoom = watchValue((TimelineViewModel vm) => vm.zoomNotifier);
     
     return Container(
       height: 60,

@@ -20,10 +20,9 @@ class TimelineClip extends StatelessWidget with WatchItMixin {
   
   @override
   Widget build(BuildContext context) {
-    final selectedClipId = watchPropertyValue((EditorViewModel vm) => vm.selectedClipId);
+    // Use watch_it's data binding to observe the selectedClipId property
+    final selectedClipId = watchValue((EditorViewModel vm) => vm.selectedClipIdNotifier);
     final isSelected = selectedClipId == clip.id;
-    
-    final editorViewModel = di<EditorViewModel>();
     
     // Clip background color based on type
     Color clipColor;
@@ -47,7 +46,7 @@ class TimelineClip extends StatelessWidget with WatchItMixin {
     
     return GestureDetector(
       onTap: () {
-        editorViewModel.selectClip(clip.id);
+        di<EditorViewModel>().selectClip(clip.id);
       },
       onHorizontalDragUpdate: (details) {
         // This would handle moving the clip in a real implementation
@@ -100,12 +99,9 @@ class TimelineClip extends StatelessWidget with WatchItMixin {
               ),
             ),
             
-            // Clip content - would show thumbnails or waveforms in a real implementation
+            // Clip content
             Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(4.0),
-                child: _getClipContent(),
-              ),
+              child: _buildClipContent(clipColor),
             ),
           ],
         ),
@@ -113,42 +109,66 @@ class TimelineClip extends StatelessWidget with WatchItMixin {
     );
   }
   
-  Widget _getClipContent() {
+  Widget _buildClipContent(Color clipColor) {
     switch (clip.type) {
       case ClipType.video:
-        return const Center(
-          child: Icon(
-            FluentIcons.video,
-            color: Colors.white,
-            size: 16,
+        // For video, show a thumbnail or placeholder
+        return Container(
+          color: clipColor.withAlpha(150),
+          child: Center(
+            child: Icon(
+              FluentIcons.video,
+              size: 14,
+              color: Colors.white.withAlpha(150),
+            ),
           ),
         );
+      
       case ClipType.audio:
+        // For audio, show a waveform
         return CustomPaint(
-          painter: _AudioWaveformPainter(),
+          painter: _AudioWaveformPainter(
+            color: Colors.white.withAlpha(150),
+          ),
+          child: Container(),
         );
+        
       case ClipType.image:
-        return const Center(
-          child: Icon(
-            FluentIcons.photo2,
-            color: Colors.white,
-            size: 16,
+        // For image, show a placeholder
+        return Container(
+          color: clipColor.withAlpha(150),
+          child: Center(
+            child: Icon(
+              FluentIcons.picture,
+              size: 14,
+              color: Colors.white.withAlpha(150),
+            ),
           ),
         );
+        
       case ClipType.text:
-        return const Center(
-          child: Icon(
-            FluentIcons.font,
-            color: Colors.white,
-            size: 16,
+        // For text, show a text icon
+        return Container(
+          color: clipColor.withAlpha(150),
+          child: Center(
+            child: Icon(
+              FluentIcons.text_document,
+              size: 14,
+              color: Colors.white.withAlpha(150),
+            ),
           ),
         );
+        
       case ClipType.effect:
-        return const Center(
-          child: Icon(
-            FluentIcons.filter,
-            color: Colors.white,
-            size: 16,
+        // For effects, show an effect icon
+        return Container(
+          color: clipColor.withAlpha(150),
+          child: Center(
+            child: Icon(
+              FluentIcons.filter,
+              size: 14,
+              color: Colors.white.withAlpha(150),
+            ),
           ),
         );
     }
@@ -157,21 +177,29 @@ class TimelineClip extends StatelessWidget with WatchItMixin {
 
 /// Paints a simple audio waveform
 class _AudioWaveformPainter extends CustomPainter {
+  final Color color;
+  
+  _AudioWaveformPainter({required this.color});
+  
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.white
-      ..strokeWidth = 1;
+      ..color = color
+      ..strokeWidth = 1
+      ..style = PaintingStyle.stroke;
     
-    // Draw a simple waveform
     final path = Path();
-    const amplitude = 10.0;
-    const frequency = 0.15;
     
-    path.moveTo(0, size.height / 2);
+    // Generate a simple random waveform
+    final random = math.Random(42); // Fixed seed for consistent waveform
     
-    for (var x = 0.0; x < size.width; x++) {
-      final y = size.height / 2 + amplitude * math.sin(x * frequency);
+    double x = 0;
+    double y = size.height / 2;
+    path.moveTo(x, y);
+    
+    while (x < size.width) {
+      x += 2;
+      y = size.height / 2 + (random.nextDouble() * 2 - 1) * size.height / 3;
       path.lineTo(x, y);
     }
     
@@ -179,7 +207,5 @@ class _AudioWaveformPainter extends CustomPainter {
   }
   
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) {
-    return false;
-  }
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

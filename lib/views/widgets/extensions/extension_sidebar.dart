@@ -9,8 +9,8 @@ class ExtensionSidebar extends StatelessWidget with WatchItMixin {
 
   @override
   Widget build(BuildContext context) {
-    final editorViewModel = di<EditorViewModel>();
-    final selectedExtension = watchPropertyValue((EditorViewModel vm) => vm.selectedExtension);
+    // Use watch_it's data binding to observe the selectedExtension property
+    final selectedExtension = watchValue((EditorViewModel vm) => vm.selectedExtensionNotifier);
     
     return Container(
       width: 48,
@@ -109,8 +109,6 @@ class ExtensionSidebar extends StatelessWidget with WatchItMixin {
     required String tooltip,
     required bool isSelected,
   }) {
-    final editorViewModel = di<EditorViewModel>();
-    
     return Tooltip(
       message: tooltip,
       child: IconButton(
@@ -122,9 +120,9 @@ class ExtensionSidebar extends StatelessWidget with WatchItMixin {
         onPressed: () {
           // Toggle the extension panel - turn off if already selected
           if (isSelected) {
-            editorViewModel.selectExtension('');
+            di<EditorViewModel>().selectExtension('');
           } else {
-            editorViewModel.selectExtension(id);
+            di<EditorViewModel>().selectExtension(id);
           }
         },
         style: ButtonStyle(
