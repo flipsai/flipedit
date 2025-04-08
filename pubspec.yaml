@@ -32,6 +32,7 @@ dependencies:
   build_runner: ^2.4.15
   crypto: ^3.0.3
   cupertino_icons: ^1.0.8
+  docking: ^1.16.1
   drift: ^2.26.0
   fluent_ui: ^4.11.2
   flutter:

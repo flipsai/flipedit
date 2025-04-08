@@ -1,13 +1,12 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/material.dart' as material;
-import 'package:flipedit/di/service_locator.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
 import 'package:flipedit/views/widgets/extensions/extension_panel_container.dart';
 import 'package:flipedit/views/widgets/extensions/extension_sidebar.dart';
-import 'package:flipedit/views/widgets/panel_system/panel_system.dart';
+import 'package:docking/docking.dart';
 import 'package:watch_it/watch_it.dart';
-import 'package:fluent_ui/fluent_ui.dart' as fluent;
+import 'package:flipedit/views/widgets/common/resizable_divider.dart';
 
 class EditorScreen extends WatchingStatefulWidget {
   const EditorScreen({super.key});
@@ -18,7 +17,10 @@ class EditorScreen extends WatchingStatefulWidget {
 
 class _EditorScreenState extends State<EditorScreen> {
   late final EditorViewModel _editorViewModel;
-  
+  double _extensionPanelWidth = 250.0; // Initial width
+  final double _minExtensionPanelWidth = 150.0; // Minimum width
+  final double _maxExtensionPanelWidth = 500.0; // Maximum width
+
   @override
   void initState() {
     super.initState();
@@ -34,8 +36,8 @@ class _EditorScreenState extends State<EditorScreen> {
     final selectedExtension = watchPropertyValue((EditorViewModel vm) => vm.selectedExtension);
     
     // Get panel definitions for the current layout
-    final panels = _editorViewModel.getPanelDefinitions();
-    
+    final DockingLayout? initialLayout = _editorViewModel.getInitialLayout();
+
     return ScaffoldPage(
       header: PageHeader(
         title: _ProjectTitle(),
@@ -70,16 +72,38 @@ class _EditorScreenState extends State<EditorScreen> {
             // Left sidebar with extensions (VS Code's activity bar)
             const ExtensionSidebar(),
             
-            // Conditionally display the selected extension panel
-            if (selectedExtension != null && selectedExtension.isNotEmpty)
-              ExtensionPanelContainer(extensionId: selectedExtension),
+            // Conditionally display the selected extension panel and resize handle
+            if (selectedExtension != null && selectedExtension.isNotEmpty) ...[
+              SizedBox(
+                width: _extensionPanelWidth,
+                child: ExtensionPanelContainer(extensionId: selectedExtension),
+              ),
+              ResizableDivider(
+                onDragUpdate: (dx) {
+                  setState(() {
+                    _extensionPanelWidth = (_extensionPanelWidth + dx)
+                        .clamp(_minExtensionPanelWidth, _maxExtensionPanelWidth);
+                  });
+                },
+              ),
+            ],
             
-            // Main content area with draggable panels
+            // Main content area with docking panels
             Expanded(
-              child: PanelGridSystem(
-                initialPanels: panels,
-                backgroundColor: const Color(0xFFF3F3F3),
-                resizeHandleColor: const Color(0xFFDDDDDD),
+              child: MultiSplitViewTheme(
+                data: MultiSplitViewThemeData(
+                  dividerThickness: 8.0,
+                  dividerPainter: DividerPainters.background(
+                    // Use theme colors for consistency
+                    color: Colors.transparent, // Normal state background
+                    highlightedColor: FluentTheme.of(context).accentColor.lighter, // Highlighted state background
+                    // You might want a visible line painter overlaid or adjust colors
+                  ),
+                ),
+                child: Docking(
+                  layout: initialLayout ?? DockingLayout(root: DockingRow([])), 
+                  // We might need to add controller/callbacks later if needed
+                ),
               ),
             ),
           ],
@@ -122,10 +146,8 @@ class _TimelineButtonIcon extends WatchingWidget {
   
   @override
   Widget build(BuildContext context) {
-    final showTimeline = watchPropertyValue((EditorViewModel vm) => vm.showTimeline) ?? false;
     return Icon(
       FluentIcons.timeline,
-      color: showTimeline ? Colors.white : Colors.grey,
     );
   }
 }
@@ -135,10 +157,8 @@ class _InspectorButtonIcon extends WatchingWidget {
   
   @override
   Widget build(BuildContext context) {
-    final showInspector = watchPropertyValue((EditorViewModel vm) => vm.showInspector) ?? false;
     return Icon(
       FluentIcons.edit_mirrored,
-      color: showInspector ? Colors.white : Colors.grey,
     );
   }
 }
