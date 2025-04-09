@@ -24,8 +24,8 @@ class _EditorScreenState extends State<EditorScreen> {
   void initState() {
     super.initState();
     
-    // Initialize the panel layout
-    di<EditorViewModel>().initializePanelLayout();
+    // Initialization call is now async and handled within the ViewModel constructor
+    // di<EditorViewModel>().initializePanelLayout(); // Remove this line
   }
 
   @override
@@ -59,13 +59,12 @@ class _EditorContent extends StatelessWidget with WatchItMixin {
 
   @override
   Widget build(BuildContext context) {
-    // Use watch_it's data binding to observe multiple properties
     final selectedExtension = watchValue((EditorViewModel vm) => vm.selectedExtensionNotifier);
     final layout = watchValue((EditorViewModel vm) => vm.layoutNotifier);
     
-    // Watch the visibility properties that affect the layoutStructureKey
-    watchValue((EditorViewModel vm) => vm.isTimelineVisibleNotifier);
-    watchValue((EditorViewModel vm) => vm.isInspectorVisibleNotifier);
+    // No longer need to watch visibility explicitly here, layoutNotifier handles it
+    // watchValue((EditorViewModel vm) => vm.isTimelineVisibleNotifier);
+    // watchValue((EditorViewModel vm) => vm.isInspectorVisibleNotifier);
 
     return ScaffoldPage(
       padding: EdgeInsets.zero,
@@ -105,12 +104,14 @@ class _EditorContent extends StatelessWidget with WatchItMixin {
                 ),
                 child: layout != null
                     ? Docking(
-                        key: ValueKey(di<EditorViewModel>().layoutStructureKey),
+                        // key: ValueKey(di<EditorViewModel>().layoutStructureKey), // Remove dynamic key
                         layout: layout,
                         onItemClose: _handlePanelClosed,
+                        // Consider adding onLayoutChanged if available and needed for more fine-grained state saving
                       )
                     : const Center(
-                        child: Text('Loading editor...'),
+                        // Show a more informative loading state
+                        child: ProgressRing(), 
                       ),
               ),
             ),

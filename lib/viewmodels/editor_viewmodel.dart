@@ -1,3 +1,5 @@
+import 'dart:convert'; // Add for jsonEncode/Decode
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flipedit/views/widgets/inspector/inspector_panel.dart';
@@ -6,300 +8,696 @@ import 'package:flipedit/views/widgets/preview/preview_panel.dart';
 import 'package:docking/docking.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/services/video_player_manager.dart';
+import 'package:flipedit/services/layout_service.dart'; // Import LayoutService
+import 'package:flipedit/di/service_locator.dart'; // Import di
+
+// Define typedefs for the function types expected by DockingLayout
+typedef DockingAreaParser = dynamic Function(DockingArea area);
+typedef DockingAreaBuilder = DockingArea? Function(dynamic data);
 
 /// Manages the editor layout and currently selected panels, tools, etc.
-class EditorViewModel {
+/// Now uses stringify/load for basic layout structure persistence.
+class EditorViewModel with Disposable {
+  // Inject LayoutService
+  final LayoutService _layoutService = di<LayoutService>();
+
+  // --- State Notifiers ---
   final ValueNotifier<String> selectedExtensionNotifier = ValueNotifier<String>('video');
+  final ValueNotifier<String?> selectedClipIdNotifier = ValueNotifier<String?>(null);
+  final ValueNotifier<DockingLayout?> layoutNotifier = ValueNotifier<DockingLayout?>(null);
+  // Keep visibility notifiers for backwards compatibility
+  final ValueNotifier<bool> isTimelineVisibleNotifier = ValueNotifier<bool>(true);
+  final ValueNotifier<bool> isInspectorVisibleNotifier = ValueNotifier<bool>(true);
+  final ValueNotifier<List<String>> videoUrlsNotifier = ValueNotifier<List<String>>([]);
+  final ValueNotifier<List<double>> opacitiesNotifier = ValueNotifier<List<double>>([]);
+
+  // Last known parent and position for panels, used to restore them to their previous positions
+  Map<String, Map<String, dynamic>> _lastPanelPositions = {};
+  
+  // Listener for layout changes
+  VoidCallback? _layoutListener;
+  
+  // Flag to prevent saving during initial load
+  bool _isInitialLoad = true;
+
+  // --- Getters ---
   String get selectedExtension => selectedExtensionNotifier.value;
+  String? get selectedClipId => selectedClipIdNotifier.value;
+  DockingLayout? get layout => layoutNotifier.value;
+  // Continue to derive visibility from layout
+  bool get isTimelineVisible => layoutNotifier.value?.findDockingItem('timeline') != null;
+  bool get isInspectorVisible => layoutNotifier.value?.findDockingItem('inspector') != null;
+  List<String> get videoUrls => videoUrlsNotifier.value;
+  List<double> get opacities => opacitiesNotifier.value;
+
+  // --- Setters ---
   set selectedExtension(String value) {
     if (selectedExtensionNotifier.value == value) return;
     selectedExtensionNotifier.value = value;
   }
   
-  final ValueNotifier<String?> selectedClipIdNotifier = ValueNotifier<String?>(null);
-  String? get selectedClipId => selectedClipIdNotifier.value;
   set selectedClipId(String? value) {
     if (selectedClipIdNotifier.value == value) return;
     selectedClipIdNotifier.value = value;
   }
-  
-  final ValueNotifier<DockingLayout?> layoutNotifier = ValueNotifier<DockingLayout?>(null);
-  DockingLayout? get layout => layoutNotifier.value; // This will be watched by the View
+
+  // Layout setter manages the listener
   set layout(DockingLayout? value) {
-    if (layoutNotifier.value == value) return;
-    layoutNotifier.value = value;
+     if (layoutNotifier.value == value) return;
+
+     // Remove listener from old layout
+     if (layoutNotifier.value != null && _layoutListener != null) {
+       layoutNotifier.value!.removeListener(_layoutListener!);
+       print("Removed listener from old layout.");
+     }
+     
+     layoutNotifier.value = value;
+     
+     // Add listener to new layout
+     if (layoutNotifier.value != null) {
+       _layoutListener = _onLayoutChanged;
+       layoutNotifier.value!.addListener(_layoutListener!);
+       print("Added listener to new layout.");
+     } else {
+       _layoutListener = null;
+       print("Layout set to null, listener removed.");
+     }
+     
+     // Update visibility flags for compatibility (for menu item state)
+     if (layoutNotifier.value != null) {
+       isTimelineVisibleNotifier.value = isTimelineVisible;
+       isInspectorVisibleNotifier.value = isInspectorVisible;
+     }
   }
   
-  // Getter for a key representing the layout structure
-  String get layoutStructureKey {
-    // Generate a simple string based on visible panels
-    final parts = ['preview']; // Preview is always there
-    if (isTimelineVisible) parts.add('timeline');
-    if (isInspectorVisible) parts.add('inspector');
-    return parts.join('_');
-  }
-  
-  // State flags for panel visibility
-  final ValueNotifier<bool> isTimelineVisibleNotifier = ValueNotifier<bool>(true);
-  bool get isTimelineVisible => isTimelineVisibleNotifier.value;
-  set isTimelineVisible(bool value) {
-    if (isTimelineVisibleNotifier.value == value) return;
-    isTimelineVisibleNotifier.value = value;
-    _updateLayout();
-  }
-  
-  final ValueNotifier<bool> isInspectorVisibleNotifier = ValueNotifier<bool>(true);
-  bool get isInspectorVisible => isInspectorVisibleNotifier.value;
-  set isInspectorVisible(bool value) {
-    if (isInspectorVisibleNotifier.value == value) return;
-    isInspectorVisibleNotifier.value = value;
-    _updateLayout();
-  }
-  
-  // Video player state
-  final ValueNotifier<List<String>> videoUrlsNotifier = ValueNotifier<List<String>>([]);
-  List<String> get videoUrls => videoUrlsNotifier.value;
   set videoUrls(List<String> value) {
-    if (videoUrlsNotifier.value == value) return;
+    if (listEquals(videoUrlsNotifier.value, value)) return;
     videoUrlsNotifier.value = value;
   }
 
-  final ValueNotifier<List<double>> opacitiesNotifier = ValueNotifier<List<double>>([]);
-  List<double> get opacities => opacitiesNotifier.value;
   set opacities(List<double> value) {
-    if (opacitiesNotifier.value == value) return;
+    if (listEquals(opacitiesNotifier.value, value)) return;
     opacitiesNotifier.value = value;
   }
   
   EditorViewModel() {
-    // Initialize with a sample video for demonstration
-    // addVideo("http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4");
-    // Add multiple sample videos
     _initializeSampleVideos();
-    initializePanelLayout(); // Initialize the layout
+    _loadAndBuildInitialLayout();
   }
 
-  void _initializeSampleVideos() {
-    // Clear existing (if any, unlikely in constructor)
-    videoUrls = [];
-    opacities = []; 
+  // --- Layout Persistence & Handling ---
+
+  // Called when the layout object notifies listeners (drag, resize, close)
+  void _onLayoutChanged() {
+    print("DockingLayout changed internally.");
     
-    // Add sample videos
-    addVideo("http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"); // Index 0, Opacity 1.0
-    addVideo("http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4"); // Index 1, Opacity 1.0
-    addVideo("http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4");    // Index 2, Opacity 1.0
+    if (_isInitialLoad) {
+      // Skip saving during initial load
+      print("Skipping save during initial load.");
+      return;
+    }
     
-    // Adjust opacities for visual stacking demonstration
-    // Keep bottom layer (index 0) fully opaque
-    setVideoOpacity(1, 0.5); // Make middle layer 50% transparent
-    setVideoOpacity(2, 0.5); // Make top layer 50% transparent
+    // Always save the full layout when it changes
+    _saveLayoutState();
     
-    // Note: _updateLayout() is called implicitly by addVideo/setVideoOpacity
+    // Track panel positions when layout changes
+    _storePanelPositions();
+    
+    // Update visibility notifiers for compatibility with menus
+    final currentLayout = layoutNotifier.value;
+    if (currentLayout != null) {
+      bool timelineFound = currentLayout.findDockingItem('timeline') != null;
+      bool inspectorFound = currentLayout.findDockingItem('inspector') != null;
+      
+      if (isTimelineVisibleNotifier.value != timelineFound) {
+        isTimelineVisibleNotifier.value = timelineFound;
+        print("Timeline visibility flag updated to $timelineFound");
+      }
+      
+      if (isInspectorVisibleNotifier.value != inspectorFound) {
+        isInspectorVisibleNotifier.value = inspectorFound;
+        print("Inspector visibility flag updated to $inspectorFound");
+      }
+    }
   }
   
-  // Helper methods to build DockingItems (avoids duplication)
+  // Store positions of all panels for later restoration
+  void _storePanelPositions() {
+    final currentLayout = layoutNotifier.value;
+    if (currentLayout == null) return;
+    
+    void processItem(DockingItem item, DockingArea parent, DropPosition position) {
+      if (item.id == 'timeline' || item.id == 'inspector') {
+        // Store adjacent item (sibling) ID and relative position
+        String adjacentId = 'preview'; // Default fallback
+        
+        if (parent is DockingRow || parent is DockingColumn) {
+          // Use safer method to get children
+          final List<DockingArea> children = _getChildrenSafely(parent);
+          final index = children.indexOf(item);
+          
+          // Find a stable reference item (adjacent sibling)
+          DockingItem? referenceItem;
+          if (index > 0) {
+            final prevArea = children[index - 1];
+            referenceItem = _findReferenceItem(prevArea);
+            position = parent is DockingRow ? DropPosition.right : DropPosition.bottom;
+          } else if (index < children.length - 1) {
+            final nextArea = children[index + 1];
+            referenceItem = _findReferenceItem(nextArea);
+            position = parent is DockingRow ? DropPosition.left : DropPosition.top;
+          }
+          
+          if (referenceItem != null) {
+            adjacentId = referenceItem.id;
+          }
+        } else if (parent is DockingTabs) {
+          // Use safer method for tabs
+          final List<DockingArea> tabItems = _getChildrenSafely(parent);
+          for (final tabItem in tabItems) {
+            if (tabItem != item && tabItem is DockingItem) {
+              adjacentId = tabItem.id;
+              break;
+            }
+          }
+          // For tabs, using center/tab behavior (right is a common fallback)
+          position = DropPosition.right;
+        }
+        
+        _lastPanelPositions[item.id] = {
+          'adjacentId': adjacentId,
+          'position': position,
+        };
+        
+        print("Stored position for ${item.id}: adjacent=${adjacentId}, pos=${position}");
+      }
+    }
+    
+    // Walk through the layout to find and store panel positions
+    void visitArea(DockingArea area, DropPosition position) {
+      if (area is DockingItem) {
+        // Pass a dummy parent for DockingItems at the root level (rare case)
+        // This parent is just for tracking purposes
+        final dummyParent = DockingRow([]);
+        processItem(area, dummyParent, position);
+      } else if (area is DockingRow || area is DockingColumn) {
+        // Use safer method to get children
+        final List<DockingArea> children = _getChildrenSafely(area);
+        for (final child in children) {
+          if (child is DockingItem) {
+            // For items, process them with their actual parent
+            processItem(child, area, position);
+          } else if (child is DockingArea) {
+            // For sub-containers, visit them recursively
+            visitArea(child, position);
+          }
+        }
+      } else if (area is DockingTabs) {
+        // Use safer method for tabs
+        final List<DockingArea> tabItems = _getChildrenSafely(area);
+        for (final child in tabItems) {
+          if (child is DockingItem) {
+            processItem(child, area, DropPosition.right);
+          }
+        }
+      }
+    }
+    
+    // Start traversal from root
+    final root = currentLayout.root;
+    if (root != null) {
+      visitArea(root, DropPosition.right);
+    }
+  }
+  
+  // Helper function to safely get children from various container types
+  List<DockingArea> _getChildrenSafely(DockingArea container) {
+    List<DockingArea> result = [];
+    
+    try {
+      if (container is DockingParentArea) {
+        // Use the proper API methods for any DockingParentArea (DockingRow, DockingColumn, DockingTabs)
+        for (int i = 0; i < container.childrenCount; i++) {
+          final child = container.childAt(i);
+          result.add(child);
+        }
+      }
+    } catch (e) {
+      print("Error accessing children of ${container.runtimeType}: $e");
+    }
+    
+    return result;
+  }
+  
+  // Helper to find a stable reference item in an area
+  DockingItem? _findReferenceItem(DockingArea area) {
+    if (area is DockingItem) {
+      return area;
+    } else {
+      // Use our safer method to get children
+      final List<DockingArea> children = _getChildrenSafely(area);
+      for (final child in children) {
+        if (child is DockingItem) {
+          return child;
+        } else {
+          final item = _findReferenceItem(child);
+          if (item != null) {
+            return item;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  Future<void> _loadAndBuildInitialLayout() async {
+    _isInitialLoad = true;
+    print("Attempting to load panel layout state...");
+    
+    try {
+      // Try to load saved visibility state
+      final visibilityState = await _layoutService.loadVisibilityState();
+      
+      // Start with default layout
+      layout = _buildDefaultLayout();
+      
+      // Apply visibility state if available
+      if (visibilityState != null) {
+        final isTimelineVisible = visibilityState['isTimelineVisible'] ?? true;
+        final isInspectorVisible = visibilityState['isInspectorVisible'] ?? true;
+        
+        // Apply visibility settings to the layout
+        final currentLayout = layoutNotifier.value;
+        if (currentLayout != null) {
+          if (!isTimelineVisible) {
+            currentLayout.removeItemByIds(['timeline']);
+            isTimelineVisibleNotifier.value = false;
+          }
+          
+          if (!isInspectorVisible) {
+            currentLayout.removeItemByIds(['inspector']);
+            isInspectorVisibleNotifier.value = false;
+          }
+        }
+        
+        print("Applied visibility state: timeline=$isTimelineVisible, inspector=$isInspectorVisible");
+      } else {
+        print("No saved visibility state found. Using default layout.");
+      }
+    } catch (e) {
+      print("Error during layout initialization: $e");
+      layout = _buildDefaultLayout();
+    } finally {
+      // Set flag after a brief delay to ensure loading is complete
+      Future.delayed(const Duration(milliseconds: 500), () {
+        _isInitialLoad = false;
+        print("Initial load complete. Layout changes will now be saved.");
+      });
+    }
+  }
+  
+  Future<void> _saveLayoutState() async {
+    if (_isInitialLoad) return; // Don't save during initial load
+    
+    // Just save visibility state
+    try {
+      final visibilityState = {
+        'isTimelineVisible': isTimelineVisible,
+        'isInspectorVisible': isInspectorVisible,
+      };
+      await _layoutService.saveVisibilityState(visibilityState);
+      print("Panel visibility state saved.");
+    } catch (e) {
+      print("Error saving visibility state: $e");
+    }
+  }
+
+  // --- Basic Parser and Builder ---
+  
+  // Very simple parser that captures just the structure and IDs
+  dynamic _basicParser(DockingArea area) {
+    // Create a basic map with the type
+    final Map<String, dynamic> result = {'type': area.runtimeType.toString()};
+    
+    try {
+      // Add type-specific properties
+      if (area is DockingRow || area is DockingColumn) {
+        // Use our safer method to get children
+        final children = <dynamic>[];
+        final safeChildren = _getChildrenSafely(area);
+        for (final child in safeChildren) {
+          children.add(_basicParser(child));
+        }
+        result['children'] = children;
+      } else if (area is DockingTabs) {
+        // For DockingTabs, just save the IDs of tab items
+        final tabItems = <Map<String, dynamic>>[];
+        final safeChildren = _getChildrenSafely(area);
+        for (final child in safeChildren) {
+          if (child is DockingItem) {
+            tabItems.add({'id': child.id, 'name': child.name});
+          }
+        }
+        result['items'] = tabItems;
+      } else if (area is DockingItem) {
+        // For DockingItem, just save ID and name
+        result['id'] = area.id;
+        result['name'] = area.name;
+      }
+    } catch (e) {
+      print("Error in basicParser for ${area.runtimeType}: $e");
+      // If error occurs, at least save the type
+    }
+    
+    return result;
+  }
+  
+  // Very simple builder that creates a basic layout
+  DockingArea? _areaBuilder(dynamic data) {
+    if (data == null) return null;
+    
+    try {
+      final type = data['type'];
+      switch (type) {
+        case 'DockingRow':
+          final childrenData = data['children'] as List<dynamic>?;
+          final children = <DockingArea>[];
+          
+          if (childrenData != null) {
+            for (final childData in childrenData) {
+              final child = _areaBuilder(childData);
+              if (child != null) {
+                children.add(child);
+              }
+            }
+          }
+          return children.isEmpty ? null : DockingRow(children);
+        
+        case 'DockingColumn':
+          final childrenData = data['children'] as List<dynamic>?;
+          final children = <DockingArea>[];
+          
+          if (childrenData != null) {
+            for (final childData in childrenData) {
+              final child = _areaBuilder(childData);
+              if (child != null) {
+                children.add(child);
+              }
+            }
+          }
+          return children.isEmpty ? null : DockingColumn(children);
+        
+        case 'DockingTabs':
+          final items = data['items'] as List<dynamic>?;
+          final tabItems = <DockingItem>[];
+          
+          if (items != null) {
+            for (final itemData in items) {
+              final id = itemData['id'];
+              // Create the appropriate panel item based on ID
+              switch (id) {
+                case 'preview':
+                  tabItems.add(_buildPreviewItem());
+                  break;
+                case 'timeline':
+                  tabItems.add(_buildTimelineItem());
+                  break;
+                case 'inspector':
+                  tabItems.add(_buildInspectorItem());
+                  break;
+              }
+            }
+          }
+          return tabItems.isEmpty ? null : DockingTabs(tabItems);
+        
+        case 'DockingItem':
+          final id = data['id'];
+          // Create the appropriate panel item based on ID
+          switch (id) {
+            case 'preview':
+              return _buildPreviewItem();
+            case 'timeline':
+              return _buildTimelineItem();
+            case 'inspector':
+              return _buildInspectorItem();
+            default:
+              return null;
+          }
+        
+        default:
+          print("Unknown area type: $type");
+          return null;
+      }
+    } catch (e) {
+      print("Error building area from data: $e");
+      return null;
+    }
+  }
+
+  // --- Default Layout ---
+  
+  // Build the default layout
+  DockingLayout _buildDefaultLayout() {
+    final previewItem = _buildPreviewItem();
+    final timelineItem = _buildTimelineItem();
+    final inspectorItem = _buildInspectorItem();
+    
+    return DockingLayout(
+      root: DockingRow([
+        DockingColumn([previewItem, timelineItem]),
+        inspectorItem
+      ])
+    );
+  }
+  
+  // --- Item Builders ---
   DockingItem _buildPreviewItem() {
     return DockingItem(
       id: 'preview',
       name: 'Preview',
+      maximizable: false, 
       widget: PreviewPanel(
-        videoUrls: videoUrls,
-        opacities: opacities,
+        videoUrls: videoUrlsNotifier.value, 
+        opacities: opacitiesNotifier.value,
       ),
     );
   }
   
   DockingItem _buildTimelineItem() {
-    return DockingItem(
-      id: 'timeline',
-      name: 'Timeline',
-      widget: const Timeline(),
-    );
+    return DockingItem(id: 'timeline', name: 'Timeline', widget: const Timeline());
   }
   
   DockingItem _buildInspectorItem() {
-    return DockingItem(
-      id: 'inspector',
-      name: 'Inspector',
-      widget: const InspectorPanel(),
-    );
+    return DockingItem(id: 'inspector', name: 'Inspector', widget: const InspectorPanel());
+  }
+
+  // --- Actions ---
+  
+  // Toggle actions now modify the layout directly
+  void toggleTimeline() {
+    final currentLayout = layoutNotifier.value;
+    if (currentLayout == null) return;
+    
+    final isCurrentlyVisible = isTimelineVisible;
+    debugPrint("Toggle Timeline visibility. Currently visible: $isCurrentlyVisible");
+    
+    if (isCurrentlyVisible) {
+      // Remove Timeline, its position will be auto-stored via layout change listener
+      currentLayout.removeItemByIds(['timeline']);
+    } else {
+      // Try to restore to last position if we have one stored
+      final lastPosition = _lastPanelPositions['timeline'];
+      
+      if (lastPosition != null) {
+        final adjacentId = lastPosition['adjacentId'] as String;
+        final position = lastPosition['position'] as DropPosition;
+        
+        final adjacentItem = currentLayout.findDockingItem(adjacentId);
+        if (adjacentItem != null) {
+          // Restore to its last position relative to the adjacent item
+          debugPrint("Restoring timeline next to $adjacentId in position $position");
+          currentLayout.addItemOn(
+            newItem: _buildTimelineItem(),
+            targetArea: adjacentItem,
+            dropPosition: position
+          );
+        } else {
+          // Adjacent item not found, fall back to default position
+          _addTimelineDefaultPosition(currentLayout);
+        }
+      } else {
+        // No last position, use default positioning
+        _addTimelineDefaultPosition(currentLayout);
+      }
+    }
+    
+    // Layout listener will trigger save
+    isTimelineVisibleNotifier.value = !isCurrentlyVisible; // Update for menu state
   }
   
-  // Build the layout based on current visibility settings
-  void _buildLayout() {
-    final items = <DockingItem>[];
-    
-    // Always add the preview
-    items.add(_buildPreviewItem());
-    
-    // Add timeline if visible
-    if (isTimelineVisible) {
-      items.add(_buildTimelineItem());
-    }
-    
-    // Add inspector if visible
-    if (isInspectorVisible) {
-      items.add(_buildInspectorItem());
-    }
-    
-    // Create a layout with the items
-    if (items.length == 1) {
-      // Just preview
-      layout = DockingLayout(root: items[0]);
-    } else if (items.length == 2) {
-      // Preview and one panel
-      layout = DockingLayout(
-        root: DockingRow([
-          DockingItem(
-            id: items[0].id,
-            name: items[0].name,
-            widget: items[0].widget,
-            weight: 0.7
-          ),
-          DockingItem(
-            id: items[1].id,
-            name: items[1].name,
-            widget: items[1].widget,
-            weight: 0.3
-          ),
-        ]),
+  // Helper for default timeline positioning
+  void _addTimelineDefaultPosition(DockingLayout layout) {
+    final previewItem = layout.findDockingItem('preview');
+    if (previewItem != null) {
+      layout.addItemOn(
+        newItem: _buildTimelineItem(),
+        targetArea: previewItem,
+        dropPosition: DropPosition.bottom
       );
     } else {
-      // Preview and both panels
-      layout = DockingLayout(
-        root: DockingRow([
-          DockingItem(
-            id: items[0].id,
-            name: items[0].name,
-            widget: items[0].widget,
-            weight: 0.6
-          ),
-          DockingColumn([
-            DockingItem(
-              id: items[1].id,
-              name: items[1].name,
-              widget: items[1].widget,
-              weight: 0.5
-            ),
-            DockingItem(
-              id: items[2].id,
-              name: items[2].name,
-              widget: items[2].widget,
-              weight: 0.5
-            ),
-          ], weight: 0.4),
-        ]),
-      );
+      // Fallback - add to root
+      layout.addItemOnRoot(newItem: _buildTimelineItem());
     }
-  }
-  
-  // Update the layout
-  void _updateLayout() {
-    _buildLayout();
-  }
-  
-  DockingLayout? getInitialLayout() {
-    return layout;
-  }
-  
-  void toggleTimeline() {
-    isTimelineVisible = !isTimelineVisible;
-    debugPrint("Toggle Timeline - Docking interaction TBD");
   }
   
   void toggleInspector() {
-    isInspectorVisible = !isInspectorVisible;
-    debugPrint("Toggle Inspector - Docking interaction TBD");
+    final currentLayout = layoutNotifier.value;
+    if (currentLayout == null) return;
+    
+    final isCurrentlyVisible = isInspectorVisible;
+    debugPrint("Toggle Inspector visibility. Currently visible: $isCurrentlyVisible");
+    
+    if (isCurrentlyVisible) {
+      // Remove Inspector, its position will be auto-stored via layout change listener
+      currentLayout.removeItemByIds(['inspector']);
+    } else {
+      // Try to restore to last position if we have one stored
+      final lastPosition = _lastPanelPositions['inspector'];
+      
+      if (lastPosition != null) {
+        final adjacentId = lastPosition['adjacentId'] as String;
+        final position = lastPosition['position'] as DropPosition;
+        
+        final adjacentItem = currentLayout.findDockingItem(adjacentId);
+        if (adjacentItem != null) {
+          // Restore to its last position relative to the adjacent item
+          debugPrint("Restoring inspector next to $adjacentId in position $position");
+          currentLayout.addItemOn(
+            newItem: _buildInspectorItem(),
+            targetArea: adjacentItem,
+            dropPosition: position
+          );
+        } else {
+          // Adjacent item not found, fall back to default position
+          _addInspectorDefaultPosition(currentLayout);
+        }
+      } else {
+        // No last position, use default positioning
+        _addInspectorDefaultPosition(currentLayout);
+      }
+    }
+    
+    // Layout listener will trigger save
+    isInspectorVisibleNotifier.value = !isCurrentlyVisible; // Update for menu state
   }
   
-  // Methods to update state when docking UI closes a panel
-  void markInspectorClosed() {
-    if (isInspectorVisible) { // Only update if it was considered visible
-      isInspectorVisible = false;
-      debugPrint("Marked Inspector Closed by Docking UI");
+  // Helper for default inspector positioning
+  void _addInspectorDefaultPosition(DockingLayout layout) {
+    final previewItem = layout.findDockingItem('preview');
+    if (previewItem != null) {
+      layout.addItemOn(
+        newItem: _buildInspectorItem(),
+        targetArea: previewItem,
+        dropPosition: DropPosition.right
+      );
+    } else {
+      // Fallback - add to root
+      layout.addItemOnRoot(newItem: _buildInspectorItem());
     }
+  }
+
+  // These are called by Docking widget when the close button on an item is clicked
+  void markInspectorClosed() {
+    // Make sure to capture the position before the panel is fully closed
+    final currentLayout = layoutNotifier.value;
+    if (currentLayout != null) {
+      final inspectorItem = currentLayout.findDockingItem('inspector');
+      if (inspectorItem != null) {
+        // Store position explicitly since we're manually closing
+        _storePanelPositions();
+      }
+    }
+    
+    isInspectorVisibleNotifier.value = false; // Update menu state
+    _saveLayoutState(); // Also explicitly trigger save for robustness
   }
   
   void markTimelineClosed() {
-    if (isTimelineVisible) { // Only update if it was considered visible
-      isTimelineVisible = false;
-      debugPrint("Marked Timeline Closed by Docking UI");
+    // Make sure to capture the position before the panel is fully closed
+    final currentLayout = layoutNotifier.value;
+    if (currentLayout != null) {
+      final timelineItem = currentLayout.findDockingItem('timeline');
+      if (timelineItem != null) {
+        // Store position explicitly since we're manually closing
+        _storePanelPositions();
+      }
     }
-  }
-  
-  void selectExtension(String extensionId) {
-    selectedExtension = extensionId;
-    debugPrint("Select Extension $extensionId - Docking interaction TBD");
-  }
-  
-  void selectClip(String? clipId) {
-    selectedClipId = clipId;
-  }
-  
-  void initializePanelLayout() {
-    final previewItem = DockingItem(
-      id: 'preview', 
-      name: 'Preview', 
-      widget: PreviewPanel(
-        videoUrls: videoUrls,
-        opacities: opacities,
-      ),
-    );
-    final timelineItem = DockingItem(
-      id: 'timeline',
-      name: 'Timeline',
-      widget: const Timeline(),
-    );
-    final inspectorItem = DockingItem(
-      id: 'inspector',
-      name: 'Inspector',
-      widget: const InspectorPanel(),
-    );
     
-    layout = DockingLayout(
-      root: DockingRow([ // Root horizontal split
-        DockingColumn([ // Left column
-            previewItem, // Preview (takes weight from Column)
-            timelineItem // Timeline (takes weight from Column)
-          ]
-        ),
-        inspectorItem // Right column (Inspector, takes remaining space)
-      ])
-    );
+    isTimelineVisibleNotifier.value = false; // Update menu state
+    _saveLayoutState(); // Also explicitly trigger save for robustness
   }
 
-  // Methods to manage video players
+  // --- Sample Data & Video Management (remain the same) ---
+  void _initializeSampleVideos() {
+    videoUrls = [];
+    opacities = []; 
+    addVideo("http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4");
+    addVideo("http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4");
+    addVideo("http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4");
+    setVideoOpacity(1, 0.5);
+    setVideoOpacity(2, 0.5);
+  }
+
   void addVideo(String url) {
-    final newUrls = List<String>.from(videoUrls)..add(url);
-    final newOpacities = List<double>.from(opacities)..add(1.0);
-    
+    final newUrls = List<String>.from(videoUrlsNotifier.value)..add(url);
+    final newOpacities = List<double>.from(opacitiesNotifier.value)..add(1.0);
     videoUrls = newUrls;
     opacities = newOpacities;
-    
-    _updateLayout();
   }
 
   void removeVideo(int index) {
-    if (index < 0 || index >= videoUrls.length) return;
-    
-    // Dispose the controller before removing the URL - Use the renamed method
-    di<VideoPlayerManager>().disposeController(videoUrls[index]);
-    
-    final newUrls = List<String>.from(videoUrls)..removeAt(index);
-    final newOpacities = List<double>.from(opacities)..removeAt(index);
-    
+    if (index < 0 || index >= videoUrlsNotifier.value.length) return;
+    final urlToRemove = videoUrlsNotifier.value[index];
+    di<VideoPlayerManager>().disposeController(urlToRemove);
+    final newUrls = List<String>.from(videoUrlsNotifier.value)..removeAt(index);
+    final newOpacities = List<double>.from(opacitiesNotifier.value)..removeAt(index);
     videoUrls = newUrls;
     opacities = newOpacities;
-    
-    _updateLayout();
   }
 
   void setVideoOpacity(int index, double opacity) {
-    if (index < 0 || index >= opacities.length) return;
-    
-    final newOpacities = List<double>.from(opacities);
+    if (index < 0 || index >= opacitiesNotifier.value.length) return;
+    final newOpacities = List<double>.from(opacitiesNotifier.value);
     newOpacities[index] = opacity.clamp(0.0, 1.0);
     opacities = newOpacities;
-    _updateLayout();
+  }
+
+  // --- Cleanup ---
+  @override
+  void onDispose() {
+     print("Disposing EditorViewModel and removing layout listener.");
+     if (layoutNotifier.value != null && _layoutListener != null) {
+       layoutNotifier.value!.removeListener(_layoutListener!);
+       _layoutListener = null;
+     }
+     selectedExtensionNotifier.dispose();
+     selectedClipIdNotifier.dispose();
+     layoutNotifier.dispose(); 
+     isTimelineVisibleNotifier.dispose();
+     isInspectorVisibleNotifier.dispose();
+     videoUrlsNotifier.dispose();
+     opacitiesNotifier.dispose();
   }
 }
+
+// Helper function for list equality check
+bool listEquals<T>(List<T>? a, List<T>? b) {
+  if (a == null) return b == null;
+  if (b == null || a.length != b.length) return false;
+  if (identical(a, b)) return true;
+  for (int index = 0; index < a.length; index += 1) {
+    if (a[index] != b[index]) return false;
+  }
+  return true;
+}
+

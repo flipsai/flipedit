@@ -120,9 +120,9 @@ class ExtensionSidebar extends StatelessWidget with WatchItMixin {
         onPressed: () {
           // Toggle the extension panel - turn off if already selected
           if (isSelected) {
-            di<EditorViewModel>().selectExtension('');
+            di<EditorViewModel>().selectedExtension = '';
           } else {
-            di<EditorViewModel>().selectExtension(id);
+            di<EditorViewModel>().selectedExtension = id;
           }
         },
         style: ButtonStyle(

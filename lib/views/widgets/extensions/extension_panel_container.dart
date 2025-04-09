@@ -49,7 +49,7 @@ class ExtensionPanelContainer extends StatelessWidget {
           IconButton(
             icon: const Icon(FluentIcons.chrome_close, size: 12),
             onPressed: () {
-              di<EditorViewModel>().selectExtension('');
+              di<EditorViewModel>().selectedExtension = '';
             },
           ),
         ],
