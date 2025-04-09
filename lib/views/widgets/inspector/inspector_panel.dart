@@ -224,33 +224,10 @@ class InspectorPanel extends StatelessWidget with WatchItMixin {
   }
   
   Widget _buildEffectsTree(Clip clip) {
-    // In a real app, this would show the actual effects
-    // For now, just show some dummy effects
-    final dummyEffects = [
-      Effect(
-        id: '1', 
-        name: 'Blur', 
-        type: EffectType.filter, 
-        parameters: {'radius': 5.0},
-        startFrame: 0,
-        durationFrames: 10,
-      ),
-      Effect(
-        id: '2', 
-        name: 'Color Correction', 
-        type: EffectType.colorCorrection, 
-        parameters: {
-          'brightness': 1.2,
-          'contrast': 1.1,
-          'saturation': 1.0,
-        },
-        startFrame: 0,
-        durationFrames: 10,
-      ),
-    ];
+    final effects = clip.effects;
     
     return EffectTree(
-      effects: dummyEffects,
+      effects: effects,
       onEffectSelected: (effect) {
         // Handle effect selection
       },
