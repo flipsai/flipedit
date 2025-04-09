@@ -1,104 +1,80 @@
-import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flutter/material.dart' show PlatformMenuBar, PlatformMenu, PlatformMenuItem;
-import 'package:flutter/services.dart';
-import 'package:flipedit/di/service_locator.dart';
+import 'dart:io' show Platform;
+import 'package:fluent_ui/fluent_ui.dart' as fluent;
+import 'package:flutter/widgets.dart' show Widget;
 import 'package:flipedit/viewmodels/app_viewmodel.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
 import 'package:flipedit/views/screens/editor_screen.dart';
 import 'package:flipedit/views/screens/welcome_screen.dart';
 import 'package:watch_it/watch_it.dart';
+import 'package:flipedit/views/widgets/app_menu_bar.dart';
 
-class FlipEditApp extends StatelessWidget with WatchItMixin {
+class FlipEditApp extends fluent.StatelessWidget with WatchItMixin {
   FlipEditApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    // Use watch_it's data binding to observe properties
+  fluent.Widget build(fluent.BuildContext context) {
+    // Watch values
     final isInitialized = watchValue((AppViewModel vm) => vm.isInitializedNotifier);
     final isInspectorVisible = watchValue((EditorViewModel vm) => vm.isInspectorVisibleNotifier);
     final isTimelineVisible = watchValue((EditorViewModel vm) => vm.isTimelineVisibleNotifier);
-    
-    return FluentApp(
+    // Get ViewModels needed for menu actions
+    final editorVm = di<EditorViewModel>();
+    final projectVm = di<ProjectViewModel>();
+
+    // Determine the root widget based on Platform
+    Widget homeWidget; 
+    final Widget mainContent = isInitialized ? const EditorScreen() : const WelcomeScreen();
+
+    if (Platform.isMacOS || Platform.isWindows) {
+      // --- macOS / Windows: Use PlatformAppMenuBar --- 
+      homeWidget = PlatformAppMenuBar(
+        isInspectorVisible: isInspectorVisible,
+        isTimelineVisible: isTimelineVisible,
+        editorVm: editorVm,
+        projectVm: projectVm,
+        child: mainContent, // Pass main content as child
+      );
+    } else {
+       // --- Linux / Other: Use Fluent UI Structure with FluentAppMenuBar ---
+       homeWidget = fluent.ScaffoldPage(
+        content: fluent.NavigationView(
+          appBar: fluent.NavigationAppBar(
+            title: const fluent.Text('FlipEdit'),
+            // Instantiate FluentAppMenuBar for the actions
+            actions: FluentAppMenuBar(
+              isInspectorVisible: isInspectorVisible,
+              isTimelineVisible: isTimelineVisible,
+              editorVm: editorVm,
+              projectVm: projectVm,
+            ),
+          ),
+          content: mainContent, // Place main content here
+        ),
+      );
+    }
+
+    // Return the FluentApp with the determined home widget
+    return fluent.FluentApp(
       title: 'FlipEdit',
-      theme: FluentThemeData(
-        accentColor: Colors.blue,
-        brightness: Brightness.light,
-        visualDensity: VisualDensity.standard,
-        focusTheme: FocusThemeData(
+      theme: fluent.FluentThemeData(
+        accentColor: fluent.Colors.blue,
+        brightness: fluent.Brightness.light,
+        visualDensity: fluent.VisualDensity.standard,
+        focusTheme: fluent.FocusThemeData(
           glowFactor: 4.0,
         ),
       ),
-      darkTheme: FluentThemeData(
-        accentColor: Colors.blue,
-        brightness: Brightness.dark,
-        visualDensity: VisualDensity.standard,
-        focusTheme: FocusThemeData(
+      darkTheme: fluent.FluentThemeData(
+        accentColor: fluent.Colors.blue,
+        brightness: fluent.Brightness.dark,
+        visualDensity: fluent.VisualDensity.standard,
+        focusTheme: fluent.FocusThemeData(
           glowFactor: 4.0,
         ),
       ),
-      themeMode: ThemeMode.system,
-      home: PlatformMenuBar(
-        menus: [
-              PlatformMenu(
-                label: 'File',
-                menus: [
-                  PlatformMenuItem(
-                    label: 'New Project',
-                    shortcut: const SingleActivator(LogicalKeyboardKey.keyN, meta: true),
-                    onSelected: () {
-                      // Handle new project
-                    },
-                  ),
-                  PlatformMenuItem(
-                    label: 'Open Project...',
-                    shortcut: const SingleActivator(LogicalKeyboardKey.keyO, meta: true),
-                    onSelected: () {
-                      // Handle open project
-                    },
-                  ),
-                  PlatformMenuItem(
-                    label: 'Save Project',
-                    shortcut: const SingleActivator(LogicalKeyboardKey.keyS, meta: true),
-                    onSelected: () {
-                      di<ProjectViewModel>().saveProject();
-                    },
-                  ),
-                ],
-              ),
-              PlatformMenu(
-                label: 'Edit',
-                menus: [
-                  PlatformMenuItem(label: 'Undo', onSelected: () {
-                     // TODO: Implement Undo
-                  }),
-                  PlatformMenuItem(label: 'Redo', onSelected: () {
-                     // TODO: Implement Redo
-                  }),
-                ],
-              ),
-              PlatformMenu(
-                label: 'View',
-                menus: [
-                  PlatformMenuItem(
-                    label: isInspectorVisible ? '✓ Inspector' : '  Inspector',
-                    shortcut: const SingleActivator(LogicalKeyboardKey.keyI, meta: true),
-                    onSelected: () {
-                      di<EditorViewModel>().toggleInspector();
-                    },
-                  ),
-                  PlatformMenuItem(
-                    label: isTimelineVisible ? '✓ Timeline' : '  Timeline',
-                    shortcut: const SingleActivator(LogicalKeyboardKey.keyT, meta: true),
-                    onSelected: () {
-                      di<EditorViewModel>().toggleTimeline();
-                    },
-                  ),
-                ],
-              ),
-            ],
-        child: isInitialized ? const EditorScreen() : const WelcomeScreen(),
-      ),
+      themeMode: fluent.ThemeMode.system,
+      home: homeWidget, // Use the conditionally built widget
     );
   }
 }

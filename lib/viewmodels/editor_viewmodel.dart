@@ -2,11 +2,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flipedit/views/widgets/inspector/inspector_panel.dart';
 import 'package:flipedit/views/widgets/timeline/timeline.dart';
+import 'package:flipedit/views/widgets/preview/preview_panel.dart';
 import 'package:docking/docking.dart';
+import 'package:watch_it/watch_it.dart';
+import 'package:flipedit/services/video_player_manager.dart';
 
 /// Manages the editor layout and currently selected panels, tools, etc.
 class EditorViewModel {
-  final ValueNotifier<String> selectedExtensionNotifier = ValueNotifier<String>('');
+  final ValueNotifier<String> selectedExtensionNotifier = ValueNotifier<String>('video');
   String get selectedExtension => selectedExtensionNotifier.value;
   set selectedExtension(String value) {
     if (selectedExtensionNotifier.value == value) return;
@@ -53,20 +56,56 @@ class EditorViewModel {
     _updateLayout();
   }
   
+  // Video player state
+  final ValueNotifier<List<String>> videoUrlsNotifier = ValueNotifier<List<String>>([]);
+  List<String> get videoUrls => videoUrlsNotifier.value;
+  set videoUrls(List<String> value) {
+    if (videoUrlsNotifier.value == value) return;
+    videoUrlsNotifier.value = value;
+  }
+
+  final ValueNotifier<List<double>> opacitiesNotifier = ValueNotifier<List<double>>([]);
+  List<double> get opacities => opacitiesNotifier.value;
+  set opacities(List<double> value) {
+    if (opacitiesNotifier.value == value) return;
+    opacitiesNotifier.value = value;
+  }
+  
+  EditorViewModel() {
+    // Initialize with a sample video for demonstration
+    // addVideo("http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4");
+    // Add multiple sample videos
+    _initializeSampleVideos();
+    initializePanelLayout(); // Initialize the layout
+  }
+
+  void _initializeSampleVideos() {
+    // Clear existing (if any, unlikely in constructor)
+    videoUrls = [];
+    opacities = []; 
+    
+    // Add sample videos
+    addVideo("http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"); // Index 0, Opacity 1.0
+    addVideo("http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4"); // Index 1, Opacity 1.0
+    addVideo("http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4");    // Index 2, Opacity 1.0
+    
+    // Adjust opacities for visual stacking demonstration
+    // Keep bottom layer (index 0) fully opaque
+    setVideoOpacity(1, 0.5); // Make middle layer 50% transparent
+    setVideoOpacity(2, 0.5); // Make top layer 50% transparent
+    
+    // Note: _updateLayout() is called implicitly by addVideo/setVideoOpacity
+  }
+  
   // Helper methods to build DockingItems (avoids duplication)
   DockingItem _buildPreviewItem() {
     return DockingItem(
-        id: 'preview',
-        name: 'Preview',
-        widget: Container(
-          color: Colors.black,
-          child: const Center(
-            child: Text(
-              'Preview',
-              style: TextStyle(color: Colors.white),
-            ),
-          ),
-        ),
+      id: 'preview',
+      name: 'Preview',
+      widget: PreviewPanel(
+        videoUrls: videoUrls,
+        opacities: opacities,
+      ),
     );
   }
   
@@ -199,27 +238,22 @@ class EditorViewModel {
   
   void initializePanelLayout() {
     final previewItem = DockingItem(
-        id: 'preview', 
-        name: 'Preview', 
-        widget: Container(
-          color: Colors.black,
-          child: const Center(
-            child: Text(
-              'Preview',
-              style: TextStyle(color: Colors.white),
-            ),
-          ),
-        ),
+      id: 'preview', 
+      name: 'Preview', 
+      widget: PreviewPanel(
+        videoUrls: videoUrls,
+        opacities: opacities,
+      ),
     );
     final timelineItem = DockingItem(
-        id: 'timeline',
-        name: 'Timeline',
-        widget: const Timeline(),
+      id: 'timeline',
+      name: 'Timeline',
+      widget: const Timeline(),
     );
     final inspectorItem = DockingItem(
-        id: 'inspector',
-        name: 'Inspector',
-        widget: const InspectorPanel(),
+      id: 'inspector',
+      name: 'Inspector',
+      widget: const InspectorPanel(),
     );
     
     layout = DockingLayout(
@@ -232,5 +266,40 @@ class EditorViewModel {
         inspectorItem // Right column (Inspector, takes remaining space)
       ])
     );
+  }
+
+  // Methods to manage video players
+  void addVideo(String url) {
+    final newUrls = List<String>.from(videoUrls)..add(url);
+    final newOpacities = List<double>.from(opacities)..add(1.0);
+    
+    videoUrls = newUrls;
+    opacities = newOpacities;
+    
+    _updateLayout();
+  }
+
+  void removeVideo(int index) {
+    if (index < 0 || index >= videoUrls.length) return;
+    
+    // Dispose the controller before removing the URL - Use the renamed method
+    di<VideoPlayerManager>().disposeController(videoUrls[index]);
+    
+    final newUrls = List<String>.from(videoUrls)..removeAt(index);
+    final newOpacities = List<double>.from(opacities)..removeAt(index);
+    
+    videoUrls = newUrls;
+    opacities = newOpacities;
+    
+    _updateLayout();
+  }
+
+  void setVideoOpacity(int index, double opacity) {
+    if (index < 0 || index >= opacities.length) return;
+    
+    final newOpacities = List<double>.from(opacities);
+    newOpacities[index] = opacity.clamp(0.0, 1.0);
+    opacities = newOpacities;
+    _updateLayout();
   }
 }
