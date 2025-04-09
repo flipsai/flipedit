@@ -1,5 +1,6 @@
 import 'package:flipedit/comfyui/comfyui_service.dart';
 import 'package:flipedit/services/uv_manager.dart';
+import 'package:flipedit/services/layout_service.dart';
 import 'package:flipedit/viewmodels/app_viewmodel.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
@@ -16,6 +17,7 @@ void setupServiceLocator() {
   di.registerLazySingleton<UvManager>(() => UvManager());
   di.registerLazySingleton<ComfyUIService>(() => ComfyUIService());
   di.registerLazySingleton<VideoPlayerManager>(() => VideoPlayerManager());
+  di.registerLazySingleton<LayoutService>(() => LayoutService());
 
   // ViewModels
   di.registerLazySingleton<AppViewModel>(() => AppViewModel());

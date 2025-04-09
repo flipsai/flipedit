@@ -46,7 +46,7 @@ class TimelineClip extends StatelessWidget with WatchItMixin {
     
     return GestureDetector(
       onTap: () {
-        di<EditorViewModel>().selectClip(clip.id);
+        di<EditorViewModel>().selectedClipId = clip.id;
       },
       onHorizontalDragUpdate: (details) {
         // This would handle moving the clip in a real implementation
