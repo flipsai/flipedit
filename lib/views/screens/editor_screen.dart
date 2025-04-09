@@ -1,103 +1,133 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/material.dart' as material;
 import 'package:flipedit/di/service_locator.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
-import 'package:flipedit/viewmodels/project_viewmodel.dart';
-import 'package:flipedit/views/widgets/extensions/extension_sidebar.dart';
 import 'package:flipedit/views/widgets/extensions/extension_panel_container.dart';
-import 'package:flipedit/views/widgets/inspector/inspector_panel.dart';
-import 'package:flipedit/views/widgets/timeline/timeline.dart';
+import 'package:flipedit/views/widgets/extensions/extension_sidebar.dart';
+import 'package:docking/docking.dart';
 import 'package:watch_it/watch_it.dart';
+import 'package:flipedit/views/widgets/common/resizable_divider.dart';
 
-class EditorScreen extends StatelessWidget with WatchItMixin {
+class EditorScreen extends StatefulWidget {
   const EditorScreen({super.key});
 
   @override
+  State<EditorScreen> createState() => _EditorScreenState();
+}
+
+class _EditorScreenState extends State<EditorScreen> {
+  double _extensionPanelWidth = 250.0; // Initial width
+  final double _minExtensionPanelWidth = 150.0; // Minimum width
+  final double _maxExtensionPanelWidth = 500.0; // Maximum width
+
+  @override
+  void initState() {
+    super.initState();
+    
+    // Initialize the panel layout
+    di<EditorViewModel>().initializePanelLayout();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final projectViewModel = di<ProjectViewModel>();
-    final projectName = watchPropertyValue((ProjectViewModel vm) => vm.currentProject?.name ?? 'Untitled Project');
+    return _EditorContent(
+      extensionPanelWidth: _extensionPanelWidth,
+      minExtensionPanelWidth: _minExtensionPanelWidth,
+      maxExtensionPanelWidth: _maxExtensionPanelWidth,
+      onPanelResized: (newWidth) {
+        setState(() {
+          _extensionPanelWidth = newWidth;
+        });
+      },
+    );
+  }
+}
+
+// Separate stateless widget that uses WatchItMixin to handle reactive UI updates
+class _EditorContent extends StatelessWidget with WatchItMixin {
+  final double extensionPanelWidth;
+  final double minExtensionPanelWidth;
+  final double maxExtensionPanelWidth;
+  final Function(double) onPanelResized;
+
+  const _EditorContent({
+    required this.extensionPanelWidth,
+    required this.minExtensionPanelWidth,
+    required this.maxExtensionPanelWidth,
+    required this.onPanelResized,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Use watch_it's data binding to observe multiple properties
+    final selectedExtension = watchValue((EditorViewModel vm) => vm.selectedExtensionNotifier);
+    final layout = watchValue((EditorViewModel vm) => vm.layoutNotifier);
     
-    final editorViewModel = di<EditorViewModel>();
-    final selectedExtension = watchPropertyValue((EditorViewModel vm) => vm.selectedExtension);
-    final showTimeline = watchPropertyValue((EditorViewModel vm) => vm.showTimeline);
-    final showInspector = watchPropertyValue((EditorViewModel vm) => vm.showInspector);
-    
-    return NavigationView(
-      appBar: NavigationAppBar(
-        title: Text(projectName),
-        actions: Row(
+    // Watch the visibility properties that affect the layoutStructureKey
+    watchValue((EditorViewModel vm) => vm.isTimelineVisibleNotifier);
+    watchValue((EditorViewModel vm) => vm.isInspectorVisibleNotifier);
+
+    return ScaffoldPage(
+      padding: EdgeInsets.zero,
+      content: material.Material(
+        color: Colors.transparent,
+        child: Row(
           children: [
-            Button(
-              child: const Text('Save'),
-              onPressed: () {
-                projectViewModel.saveProject();
-              },
-            ),
-            const SizedBox(width: 8),
-            Button(
-              child: const Text('Export'),
-              onPressed: () {
-                // Show export dialog
-              },
+            // Left sidebar with extensions (VS Code's activity bar)
+            const ExtensionSidebar(),
+            
+            // Conditionally display the selected extension panel and resize handle
+            if (selectedExtension.isNotEmpty) ...[  
+              SizedBox(
+                width: extensionPanelWidth,
+                child: ExtensionPanelContainer(extensionId: selectedExtension),
+              ),
+              ResizableDivider(
+                onDragUpdate: (dx) {
+                  final newWidth = (extensionPanelWidth + dx)
+                      .clamp(minExtensionPanelWidth, maxExtensionPanelWidth);
+                  onPanelResized(newWidth);
+                },
+              ),
+            ],
+            
+            // Main content area with docking panels
+            Expanded(
+              child: MultiSplitViewTheme(
+                data: MultiSplitViewThemeData(
+                  dividerThickness: 8.0,
+                  dividerPainter: DividerPainters.background(
+                    // Use theme colors for consistency
+                    color: Colors.transparent, // Normal state background
+                    highlightedColor: FluentTheme.of(context).accentColor.lighter, // Highlighted state background
+                    // You might want a visible line painter overlaid or adjust colors
+                  ),
+                ),
+                child: layout != null
+                    ? Docking(
+                        key: ValueKey(di<EditorViewModel>().layoutStructureKey),
+                        layout: layout,
+                        onItemClose: _handlePanelClosed,
+                      )
+                    : const Center(
+                        child: Text('Loading editor...'),
+                      ),
+              ),
             ),
           ],
         ),
       ),
-      pane: NavigationPane(
-        selected: 0,
-        header: const SizedBox(height: 10),
-        displayMode: PaneDisplayMode.compact,
-        items: [
-          PaneItem(
-            icon: const Icon(FluentIcons.edit),
-            title: const Text('Editor'),
-            body: Row(
-              children: [
-                // Left sidebar with extensions (similar to VS Code's activity bar)
-                const ExtensionSidebar(),
-                
-                // Extension panel when an extension is selected
-                if (selectedExtension.isNotEmpty)
-                  ExtensionPanelContainer(extensionId: selectedExtension),
-                
-                // Main editor area
-                Expanded(
-                  child: Column(
-                    children: [
-                      // Preview area - always visible
-                      Expanded(
-                        flex: 3,
-                        child: Container(
-                          color: Colors.black,
-                          child: const Center(
-                            child: Text(
-                              'Preview',
-                              style: TextStyle(color: Colors.white),
-                            ),
-                          ),
-                        ),
-                      ),
-                      
-                      // Timeline panel - can be toggled
-                      if (showTimeline)
-                        const Expanded(
-                          flex: 1,
-                          child: Timeline(),
-                        ),
-                    ],
-                  ),
-                ),
-                
-                // Right sidebar with inspector
-                if (showInspector)
-                  const SizedBox(
-                    width: 300,
-                    child: InspectorPanel(),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
+  
+  void _handlePanelClosed(DockingItem item) {
+    // Update the view model based on which panel was closed
+    if (item.id == 'inspector') {
+      di<EditorViewModel>().markInspectorClosed();
+    } else if (item.id == 'timeline') {
+      di<EditorViewModel>().markTimelineClosed();
+    }
+  }
 }
+
+

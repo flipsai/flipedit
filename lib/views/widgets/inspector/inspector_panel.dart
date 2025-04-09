@@ -3,6 +3,7 @@ import 'package:flipedit/di/service_locator.dart';
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/effect.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
+import 'package:flipedit/models/enums/effect_type.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/views/widgets/inspector/effect_tree.dart';
@@ -12,10 +13,11 @@ import 'package:watch_it/watch_it.dart';
 /// Similar to VS Code's property panel
 class InspectorPanel extends StatelessWidget with WatchItMixin {
   const InspectorPanel({super.key});
-
+  
   @override
   Widget build(BuildContext context) {
-    final selectedClipId = watchPropertyValue((EditorViewModel vm) => vm.selectedClipId);
+    // Use watch_it's data binding to observe the selectedClipId property
+    final selectedClipId = watchValue((EditorViewModel vm) => vm.selectedClipIdNotifier);
     
     return Container(
       color: const Color(0xFFF3F3F3),
@@ -66,8 +68,8 @@ class InspectorPanel extends StatelessWidget with WatchItMixin {
   }
 
   Widget _buildSelectedClipInspector(String clipId) {
-    final timelineViewModel = di<TimelineViewModel>();
-    final clips = timelineViewModel.clips;
+    // Use watchValue to observe the clips property
+    final clips = watchValue((TimelineViewModel vm) => vm.clipsNotifier);
     
     final selectedClip = clips.firstWhere(
       (clip) => clip.id == clipId,
@@ -100,138 +102,202 @@ class InspectorPanel extends StatelessWidget with WatchItMixin {
                 fontWeight: FontWeight.bold,
               ),
             ),
+            const SizedBox(height: 4),
             Text(
-              'Type: ${selectedClip.type.displayName}',
+              'Type: ${selectedClip.type.toString().split('.').last}',
               style: const TextStyle(
-                color: Colors.grey,
                 fontSize: 12,
+                color: Colors.grey,
               ),
             ),
             const SizedBox(height: 16),
             
-            // Clip properties section
-            const Text(
-              'Clip Properties',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            _buildPropertyRow(
-              label: 'Start Frame',
-              value: selectedClip.startFrame.toString(),
-              onChanged: (value) {
-                // Handle property change
-                final newValue = int.tryParse(value);
-                if (newValue != null) {
-                  final updatedClip = selectedClip.copyWith(startFrame: newValue);
-                  timelineViewModel.updateClip(clipId, updatedClip);
-                }
-              },
-            ),
-            _buildPropertyRow(
-              label: 'Duration (frames)',
-              value: selectedClip.durationFrames.toString(),
-              onChanged: (value) {
-                // Handle property change
-                final newValue = int.tryParse(value);
-                if (newValue != null) {
-                  final updatedClip = selectedClip.copyWith(durationFrames: newValue);
-                  timelineViewModel.updateClip(clipId, updatedClip);
-                }
-              },
+            // Basic properties section
+            _buildSection(
+              title: 'Basic Properties',
+              children: [
+                _buildTextField(
+                  label: 'Name',
+                  value: selectedClip.name,
+                  onChanged: (value) {
+                    // Update clip name
+                  },
+                ),
+                const SizedBox(height: 8),
+                _buildTextField(
+                  label: 'Start Frame',
+                  value: selectedClip.startFrame.toString(),
+                  onChanged: (value) {
+                    // Update start frame
+                  },
+                ),
+                const SizedBox(height: 8),
+                _buildTextField(
+                  label: 'Duration (frames)',
+                  value: selectedClip.durationFrames.toString(),
+                  onChanged: (value) {
+                    // Update duration
+                  },
+                ),
+              ],
             ),
             
-            // Media properties section
             const SizedBox(height: 16),
-            const Text(
-              'Media Properties',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            _buildPropertyRow(
-              label: 'File',
-              value: selectedClip.filePath,
-              readOnly: true,
-            ),
             
             // Effects section
+            _buildSection(
+              title: 'Effects',
+              children: [
+                _buildEffectsTree(selectedClip),
+                const SizedBox(height: 8),
+                Button(
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(FluentIcons.add, size: 12),
+                      SizedBox(width: 4),
+                      Text('Add Effect'),
+                    ],
+                  ),
+                  onPressed: () {
+                    // Show add effect dialog
+                  },
+                ),
+              ],
+            ),
+            
+            // Type-specific properties
             const SizedBox(height: 16),
-            const Text(
-              'Effects',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            
-            // Effect tree
-            EffectTree(
-              effects: selectedClip.effects,
-              onEffectSelected: (Effect effect) {
-                // Handle effect selection
-              },
-            ),
-            
-            // Add effect button
-            const SizedBox(height: 8),
-            Button(
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(FluentIcons.add, size: 12),
-                  SizedBox(width: 4),
-                  Text('Add Effect'),
-                ],
-              ),
-              onPressed: () {
-                // Show add effect dialog
-              },
-            ),
+            _buildTypeSpecificProperties(selectedClip),
           ],
         ),
       ),
     );
   }
-
-  Widget _buildPropertyRow({
+  
+  Widget _buildSection({required String title, required List<Widget> children}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 8),
+        ...children,
+      ],
+    );
+  }
+  
+  Widget _buildTextField({
     required String label,
     required String value,
-    bool readOnly = false,
-    Function(String)? onChanged,
+    required Function(String) onChanged,
   }) {
     final controller = TextEditingController(text: value);
-    if (onChanged != null) {
-      controller.addListener(() {
-        onChanged(controller.text);
-      });
-    }
     
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 120,
-            child: Text(
-              label,
-              style: const TextStyle(fontSize: 12),
-            ),
+    // Add listener to controller to handle changes
+    controller.addListener(() {
+      onChanged(controller.text);
+    });
+    
+    return Row(
+      children: [
+        SizedBox(
+          width: 100,
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 12),
           ),
-          Expanded(
-            child: TextBox(
-              placeholder: label,
-              controller: controller,
-              readOnly: readOnly,
-            ),
+        ),
+        Expanded(
+          child: TextBox(
+            placeholder: label,
+            controller: controller,
           ),
-        ],
-      ),
+        ),
+      ],
     );
+  }
+  
+  Widget _buildEffectsTree(Clip clip) {
+    final effects = clip.effects;
+    
+    return EffectTree(
+      effects: effects,
+      onEffectSelected: (effect) {
+        // Handle effect selection
+      },
+    );
+  }
+  
+  Widget _buildTypeSpecificProperties(Clip clip) {
+    switch (clip.type) {
+      case ClipType.video:
+        return _buildSection(
+          title: 'Video Properties',
+          children: [
+            _buildTextField(
+              label: 'Playback Speed',
+              value: '1.0',
+              onChanged: (value) {
+                // Update playback speed
+              },
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const SizedBox(
+                  width: 100,
+                  child: Text(
+                    'Volume',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                ),
+                Expanded(
+                  child: Slider(
+                    value: 0.8,
+                    onChanged: (value) {
+                      // Update volume
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      
+      case ClipType.audio:
+        return _buildSection(
+          title: 'Audio Properties',
+          children: [
+            Row(
+              children: [
+                const SizedBox(
+                  width: 100,
+                  child: Text(
+                    'Volume',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                ),
+                Expanded(
+                  child: Slider(
+                    value: 0.8,
+                    onChanged: (value) {
+                      // Update volume
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      
+      default:
+        return Container();
+    }
   }
 }

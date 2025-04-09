@@ -1,6 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flipedit/di/service_locator.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
+import 'package:flipedit/views/screens/settings_screen.dart';
 import 'package:watch_it/watch_it.dart';
 
 /// Container that displays the content of a selected extension
@@ -71,6 +72,8 @@ class ExtensionPanelContainer extends StatelessWidget {
         return const _EnhancePanel();
       case 'export':
         return const _ExportPanel();
+      case 'settings':
+        return const SettingsScreen();
       default:
         return Center(
           child: Text('$extensionId panel content'),

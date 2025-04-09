@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flipedit/models/interfaces/clip_interface.dart';
+import 'package:flipedit/utils/logger.dart';
 
 /// Handles frame processing and caching for the video editor
 class FrameProcessor {
