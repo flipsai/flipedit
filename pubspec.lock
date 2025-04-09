@@ -320,9 +320,10 @@ packages:
   fvp:
     dependency: "direct main"
     description:
-      path: fvp
-      relative: true
-    source: path
+      name: fvp
+      sha256: "724802f4c3f4d22cd2913356e91208096ba5aaab1db71c9e12b66bef4cf6f799"
+      url: "https://pub.dev"
+    source: hosted
     version: "0.31.0"
   get_it:
     dependency: transitive
