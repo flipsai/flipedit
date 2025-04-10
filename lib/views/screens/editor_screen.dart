@@ -8,63 +8,13 @@ import 'package:docking/docking.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/views/widgets/common/resizable_divider.dart';
 
-class EditorScreen extends StatefulWidget {
+// Convert EditorScreen to StatelessWidget as state is moved down
+class EditorScreen extends StatelessWidget with WatchItMixin {
   const EditorScreen({super.key});
 
   @override
-  State<EditorScreen> createState() => _EditorScreenState();
-}
-
-class _EditorScreenState extends State<EditorScreen> {
-  double _extensionPanelWidth = 250.0; // Initial width
-  final double _minExtensionPanelWidth = 150.0; // Minimum width
-  final double _maxExtensionPanelWidth = 500.0; // Maximum width
-
-  @override
-  void initState() {
-    super.initState();
-
-    // Initialization call is now async and handled within the ViewModel constructor
-    // di<EditorViewModel>().initializePanelLayout(); // Remove this line
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return _EditorContent(
-      extensionPanelWidth: _extensionPanelWidth,
-      minExtensionPanelWidth: _minExtensionPanelWidth,
-      maxExtensionPanelWidth: _maxExtensionPanelWidth,
-      onPanelResized: (newWidth) {
-        setState(() {
-          _extensionPanelWidth = newWidth;
-        });
-      },
-    );
-  }
-}
-
-// Separate stateless widget that uses WatchItMixin to handle reactive UI updates
-class _EditorContent extends StatelessWidget with WatchItMixin {
-  final double extensionPanelWidth;
-  final double minExtensionPanelWidth;
-  final double maxExtensionPanelWidth;
-  final Function(double) onPanelResized;
-
-  const _EditorContent({
-    required this.extensionPanelWidth,
-    required this.minExtensionPanelWidth,
-    required this.maxExtensionPanelWidth,
-    required this.onPanelResized,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    // Removed watch for selectedExtension here
     final layout = watchValue((EditorViewModel vm) => vm.layoutNotifier);
-
-    // No longer need to watch visibility explicitly here, layoutNotifier handles it
-    // watchValue((EditorViewModel vm) => vm.isTimelineVisibleNotifier);
-    // watchValue((EditorViewModel vm) => vm.isInspectorVisibleNotifier);
 
     return ScaffoldPage(
       padding: EdgeInsets.zero,
@@ -75,13 +25,7 @@ class _EditorContent extends StatelessWidget with WatchItMixin {
             // Left sidebar with extensions (VS Code's activity bar)
             const ExtensionSidebar(),
 
-            // Use the new dedicated widget for the extension panel
-            _ConditionalExtensionPanel(
-              extensionPanelWidth: extensionPanelWidth,
-              minExtensionPanelWidth: minExtensionPanelWidth,
-              maxExtensionPanelWidth: maxExtensionPanelWidth,
-              onPanelResized: onPanelResized,
-            ),
+            const _ConditionalExtensionPanel(),
 
             // Main content area with docking panels
             Expanded(
@@ -127,22 +71,51 @@ class _EditorContent extends StatelessWidget with WatchItMixin {
   }
 }
 
-// New widget dedicated to showing/hiding the extension panel
-class _ConditionalExtensionPanel extends StatelessWidget with WatchItMixin {
-  final double extensionPanelWidth;
-  final double minExtensionPanelWidth;
-  final double maxExtensionPanelWidth;
-  final Function(double) onPanelResized;
+class _ConditionalExtensionPanel extends StatefulWidget {
+  const _ConditionalExtensionPanel();
 
-  const _ConditionalExtensionPanel({
-    required this.extensionPanelWidth,
-    required this.minExtensionPanelWidth,
-    required this.maxExtensionPanelWidth,
-    required this.onPanelResized,
+  @override
+  State<_ConditionalExtensionPanel> createState() =>
+      _ConditionalExtensionPanelState();
+}
+
+class _ConditionalExtensionPanelState extends State<_ConditionalExtensionPanel> {
+  double _extensionPanelWidth = 250.0; // Initial width
+  final double _minExtensionPanelWidth = 150.0; // Minimum width
+  final double _maxExtensionPanelWidth = 500.0; // Maximum width
+
+  // Callback function to update the width
+  void _updateWidth(double dx) {
+    setState(() {
+      _extensionPanelWidth = (_extensionPanelWidth + dx).clamp(
+        _minExtensionPanelWidth,
+        _maxExtensionPanelWidth,
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Pass the current width and the update function to the internal widget
+    return _ExtensionPanelInternal(
+      width: _extensionPanelWidth,
+      onResize: _updateWidth,
+    );
+  }
+}
+
+class _ExtensionPanelInternal extends StatelessWidget with WatchItMixin {
+  final double width;
+  final Function(double) onResize;
+
+  const _ExtensionPanelInternal({
+    required this.width,
+    required this.onResize,
   });
 
   @override
   Widget build(BuildContext context) {
+    // Watch the value here using the mixin
     final selectedExtension = watchValue(
       (EditorViewModel vm) => vm.selectedExtensionNotifier,
     );
@@ -154,17 +127,11 @@ class _ConditionalExtensionPanel extends StatelessWidget with WatchItMixin {
             MainAxisSize.min, // Important to prevent Row taking extra space
         children: [
           SizedBox(
-            width: extensionPanelWidth,
+            width: width, // Use width passed from parent stateful widget
             child: ExtensionPanelContainer(extensionId: selectedExtension),
           ),
           ResizableDivider(
-            onDragUpdate: (dx) {
-              final newWidth = (extensionPanelWidth + dx).clamp(
-                minExtensionPanelWidth,
-                maxExtensionPanelWidth,
-              );
-              onPanelResized(newWidth);
-            },
+            onDragUpdate: onResize, // Use callback passed from parent
           ),
         ],
       );
