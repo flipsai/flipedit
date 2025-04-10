@@ -20,11 +20,11 @@ class ResizableDivider extends StatefulWidget {
   final VoidCallback? onDragEnd;
 
   /// The color of the divider line when not hovered or dragged.
-  final Color? defaultColor;
+  final Color? color;
 
   /// The background color of the interactive area when hovered or dragged.
   final Color? highlightColor;
-  
+
   /// Duration of the hover animation effect
   final Duration animationDuration;
 
@@ -35,9 +35,11 @@ class ResizableDivider extends StatefulWidget {
     this.onDragStart,
     this.onDragEnd,
     this.thickness = 8.0, // Default thickness for the grab area
-    this.defaultColor,
+    this.color,
     this.highlightColor,
-    this.animationDuration = const Duration(milliseconds: 150), // Default animation duration
+    this.animationDuration = const Duration(
+      milliseconds: 150,
+    ), // Default animation duration
   });
 
   @override
@@ -51,52 +53,71 @@ class _ResizableDividerState extends State<ResizableDivider> {
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
-    final dividerColor = widget.defaultColor ?? theme.resources.dividerStrokeColorDefault;
-    final effectiveHighlightColor = widget.highlightColor ?? theme.accentColor.lighter;
+    final effectiveColor =
+        widget.color ?? theme.resources.subtleFillColorTertiary;
+    final effectiveHighlightColor =
+        widget.highlightColor ?? theme.resources.subtleFillColorSecondary;
     final isVertical = widget.axis == Axis.vertical;
 
     return GestureDetector(
-      onHorizontalDragStart: isVertical ? (_) {
-        setState(() => _isResizing = true);
-        widget.onDragStart?.call();
-      } : null,
-      onVerticalDragStart: !isVertical ? (_) {
-        setState(() => _isResizing = true);
-        widget.onDragStart?.call();
-      } : null,
-      onHorizontalDragUpdate: isVertical ? (details) {
-        widget.onDragUpdate(details.delta.dx);
-      } : null,
-      onVerticalDragUpdate: !isVertical ? (details) {
-        widget.onDragUpdate(details.delta.dy);
-      } : null,
-      onHorizontalDragEnd: isVertical ? (_) {
-        setState(() => _isResizing = false);
-        widget.onDragEnd?.call();
-      } : null,
-      onVerticalDragEnd: !isVertical ? (_) {
-        setState(() => _isResizing = false);
-        widget.onDragEnd?.call();
-      } : null,
+      onHorizontalDragStart:
+          isVertical
+              ? (_) {
+                setState(() => _isResizing = true);
+                widget.onDragStart?.call();
+              }
+              : null,
+      onVerticalDragStart:
+          !isVertical
+              ? (_) {
+                setState(() => _isResizing = true);
+                widget.onDragStart?.call();
+              }
+              : null,
+      onHorizontalDragUpdate:
+          isVertical
+              ? (details) {
+                widget.onDragUpdate(details.delta.dx);
+              }
+              : null,
+      onVerticalDragUpdate:
+          !isVertical
+              ? (details) {
+                widget.onDragUpdate(details.delta.dy);
+              }
+              : null,
+      onHorizontalDragEnd:
+          isVertical
+              ? (_) {
+                setState(() => _isResizing = false);
+                widget.onDragEnd?.call();
+              }
+              : null,
+      onVerticalDragEnd:
+          !isVertical
+              ? (_) {
+                setState(() => _isResizing = false);
+                widget.onDragEnd?.call();
+              }
+              : null,
       child: MouseRegion(
-        cursor: isVertical ? SystemMouseCursors.resizeColumn : SystemMouseCursors.resizeRow,
+        cursor:
+            isVertical
+                ? SystemMouseCursors.resizeColumn
+                : SystemMouseCursors.resizeRow,
         onEnter: (_) => setState(() => _isHovering = true),
         onExit: (_) => setState(() => _isHovering = false),
         child: AnimatedContainer(
           duration: widget.animationDuration,
           width: isVertical ? widget.thickness : null,
           height: !isVertical ? widget.thickness : null,
-          color: (_isHovering || _isResizing)
-              ? effectiveHighlightColor
-              : Colors.transparent,
+          color:
+              (_isHovering || _isResizing)
+                  ? effectiveHighlightColor
+                  : effectiveColor,
           alignment: Alignment.center,
-          child: SizedBox(
-            width: isVertical ? 1.0 : double.infinity, 
-            height: !isVertical ? 1.0 : double.infinity, 
-            child: Container(color: dividerColor),
-          ),
         ),
       ),
     );
   }
-} 
+}
