@@ -89,27 +89,26 @@ class _EditorContent extends StatelessWidget with WatchItMixin {
                 data: MultiSplitViewThemeData(
                   dividerThickness: 8.0,
                   dividerPainter: DividerPainters.background(
-                    // Use theme colors for consistency
-                    color: Colors.transparent, // Normal state background
+                    color:
+                        FluentTheme.of(
+                          context,
+                        ).resources.subtleFillColorTertiary,
                     highlightedColor:
                         FluentTheme.of(
                           context,
-                        ).accentColor.lighter, // Highlighted state background
-                    // You might want a visible line painter overlaid or adjust colors
+                        ).resources.subtleFillColorSecondary,
                   ),
                 ),
-                child:
-                    layout != null
-                        ? Docking(
-                          // key: ValueKey(di<EditorViewModel>().layoutStructureKey), // Remove dynamic key
-                          layout: layout,
-                          onItemClose: _handlePanelClosed,
-                          // Consider adding onLayoutChanged if available and needed for more fine-grained state saving
-                        )
-                        : const Center(
-                          // Show a more informative loading state
-                          child: ProgressRing(),
-                        ),
+                child: TabbedViewTheme(
+                  data: TabbedViewThemeData.dark(),
+                  child:
+                      layout != null
+                          ? Docking(
+                            layout: layout,
+                            onItemClose: _handlePanelClosed,
+                          )
+                          : const Center(child: ProgressRing()),
+                ),
               ),
             ),
           ],
