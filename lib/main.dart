@@ -17,7 +17,22 @@ Future<void> main() async {
     print("FVP/MDK Initialized Successfully!");
   } catch (e) {
     print("Error initializing FVP/MDK: $e");
-    // Consider showing an error dialog to the user
+    // Show error dialog to the user
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      showDialog(
+        context: navigatorKey.currentContext!,
+        builder: (context) => AlertDialog(
+          title: const Text('Initialization Error'),
+          content: Text('Failed to initialize video playback: $e'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    });
   }
 
   // Set up dependency injection
