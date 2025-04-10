@@ -8,48 +8,45 @@ import 'package:watch_it/watch_it.dart';
 /// Similar to VS Code's sidebar panels
 class ExtensionPanelContainer extends StatelessWidget {
   final String extensionId;
-  
-  const ExtensionPanelContainer({
-    super.key,
-    required this.extensionId,
-  });
+
+  const ExtensionPanelContainer({super.key, required this.extensionId});
 
   @override
   Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
     return Container(
       width: 300,
-      color: const Color(0xFFF3F3F3),
+      color: theme.resources.controlFillColorDefault,
       child: Column(
-        children: [
-          _buildHeader(context),
-          Expanded(
-            child: _buildContent(),
-          ),
-        ],
+        children: [_buildHeader(context), Expanded(child: _buildContent())],
       ),
     );
   }
 
   Widget _buildHeader(BuildContext context) {
+    final theme = FluentTheme.of(context);
     return Container(
       height: 36,
       padding: const EdgeInsets.symmetric(horizontal: 8),
-      color: const Color(0xFFECECEC),
+      color: theme.resources.subtleFillColorTertiary,
       child: Row(
         children: [
           Expanded(
             child: Text(
               _getExtensionTitle(),
-              style: const TextStyle(
-                fontSize: 12,
+              style: theme.typography.caption?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
             ),
           ),
           IconButton(
-            icon: const Icon(FluentIcons.chrome_close, size: 12),
+            icon: Icon(
+              FluentIcons.chrome_close,
+              size: 12,
+              color: theme.resources.textFillColorSecondary,
+            ),
             onPressed: () {
-              di<EditorViewModel>().selectExtension('');
+              di<EditorViewModel>().selectedExtension = '';
             },
           ),
         ],
@@ -61,23 +58,21 @@ class ExtensionPanelContainer extends StatelessWidget {
     // This would be more dynamic in a real app, loading the appropriate extension UI
     switch (extensionId) {
       case 'media':
-        return const _MediaExtensionPanel();
+        return _MediaExtensionPanel();
       case 'backgroundRemoval':
-        return const _BackgroundRemovalPanel();
+        return _BackgroundRemovalPanel();
       case 'track':
-        return const _ObjectTrackingPanel();
+        return _ObjectTrackingPanel();
       case 'generate':
-        return const _GeneratePanel();
+        return _GeneratePanel();
       case 'enhance':
-        return const _EnhancePanel();
+        return _EnhancePanel();
       case 'export':
-        return const _ExportPanel();
+        return _ExportPanel();
       case 'settings':
         return const SettingsScreen();
       default:
-        return Center(
-          child: Text('$extensionId panel content'),
-        );
+        return Center(child: Text('$extensionId panel content'));
     }
   }
 
@@ -110,10 +105,11 @@ class ExtensionPanelContainer extends StatelessWidget {
 }
 
 class _MediaExtensionPanel extends StatelessWidget {
-  const _MediaExtensionPanel();
+  _MediaExtensionPanel();
 
   @override
   Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -130,18 +126,21 @@ class _MediaExtensionPanel extends StatelessWidget {
         Expanded(
           child: ListView(
             padding: const EdgeInsets.all(8.0),
-            children: [
+            children: <Widget>[
               _buildMediaItem(
+                context: context,
                 title: 'Video 1.mp4',
                 duration: '00:03:24',
                 icon: FluentIcons.video,
               ),
               _buildMediaItem(
+                context: context,
                 title: 'Audio 1.mp3',
                 duration: '00:02:30',
                 icon: FluentIcons.music_in_collection,
               ),
               _buildMediaItem(
+                context: context,
                 title: 'Image 1.jpg',
                 duration: '',
                 icon: FluentIcons.photo2,
@@ -170,22 +169,25 @@ class _MediaExtensionPanel extends StatelessWidget {
   }
 
   Widget _buildMediaItem({
+    required BuildContext context,
     required String title,
     required String duration,
     required IconData icon,
   }) {
+    final theme = FluentTheme.of(context);
     return Container(
       margin: const EdgeInsets.only(bottom: 4.0),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.resources.subtleFillColorSecondary,
         borderRadius: BorderRadius.circular(4.0),
       ),
       child: ListTile(
-        leading: Icon(icon),
-        title: Text(title, style: const TextStyle(fontSize: 12)),
-        subtitle: duration.isNotEmpty 
-            ? Text(duration, style: const TextStyle(fontSize: 11)) 
-            : null,
+        leading: Icon(icon, color: theme.resources.textFillColorPrimary),
+        title: Text(title, style: theme.typography.body),
+        subtitle:
+            duration.isNotEmpty
+                ? Text(duration, style: theme.typography.caption)
+                : null,
         onPressed: () {
           // Handle media item selection
         },
@@ -195,21 +197,22 @@ class _MediaExtensionPanel extends StatelessWidget {
 }
 
 class _BackgroundRemovalPanel extends StatelessWidget {
-  const _BackgroundRemovalPanel();
+  _BackgroundRemovalPanel();
 
   @override
   Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Remove Background',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
+          Text('Remove Background', style: theme.typography.bodyStrong),
           const SizedBox(height: 16),
-          const Text('Select a clip on the timeline to remove its background.'),
+          Text(
+            'Select a clip on the timeline to remove its background.',
+            style: theme.typography.body,
+          ),
           const SizedBox(height: 16),
           InfoLabel(
             label: 'Model',
@@ -314,9 +317,7 @@ class _ObjectTrackingPanel extends StatelessWidget {
               border: Border.all(color: Colors.grey[50]!),
               borderRadius: BorderRadius.circular(4),
             ),
-            child: const Center(
-              child: Text('No objects tracked yet'),
-            ),
+            child: const Center(child: Text('No objects tracked yet')),
           ),
           const SizedBox(height: 16),
           Row(
@@ -365,18 +366,9 @@ class _GeneratePanel extends StatelessWidget {
               placeholder: const Text('Select type'),
               isExpanded: true,
               items: const [
-                ComboBoxItem<String>(
-                  value: 'image',
-                  child: Text('Image'),
-                ),
-                ComboBoxItem<String>(
-                  value: 'video',
-                  child: Text('Video'),
-                ),
-                ComboBoxItem<String>(
-                  value: 'audio',
-                  child: Text('Audio'),
-                ),
+                ComboBoxItem<String>(value: 'image', child: Text('Image')),
+                ComboBoxItem<String>(value: 'video', child: Text('Video')),
+                ComboBoxItem<String>(value: 'audio', child: Text('Audio')),
               ],
               onChanged: (value) {
                 // Handle type selection
@@ -435,10 +427,7 @@ class _EnhancePanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Enhance',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
+          const Text('Enhance', style: TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
           const Text('Improve quality of selected media.'),
           const SizedBox(height: 16),
@@ -516,22 +505,10 @@ class _ExportPanel extends StatelessWidget {
               placeholder: const Text('Select format'),
               isExpanded: true,
               items: const [
-                ComboBoxItem<String>(
-                  value: 'mp4',
-                  child: Text('MP4 (H.264)'),
-                ),
-                ComboBoxItem<String>(
-                  value: 'mov',
-                  child: Text('MOV (ProRes)'),
-                ),
-                ComboBoxItem<String>(
-                  value: 'webm',
-                  child: Text('WebM (VP9)'),
-                ),
-                ComboBoxItem<String>(
-                  value: 'gif',
-                  child: Text('GIF'),
-                ),
+                ComboBoxItem<String>(value: 'mp4', child: Text('MP4 (H.264)')),
+                ComboBoxItem<String>(value: 'mov', child: Text('MOV (ProRes)')),
+                ComboBoxItem<String>(value: 'webm', child: Text('WebM (VP9)')),
+                ComboBoxItem<String>(value: 'gif', child: Text('GIF')),
               ],
               onChanged: (value) {
                 // Handle format selection
@@ -557,10 +534,7 @@ class _ExportPanel extends StatelessWidget {
                   value: '4k',
                   child: Text('4K (3840x2160)'),
                 ),
-                ComboBoxItem<String>(
-                  value: 'custom',
-                  child: Text('Custom...'),
-                ),
+                ComboBoxItem<String>(value: 'custom', child: Text('Custom...')),
               ],
               onChanged: (value) {
                 // Handle resolution selection

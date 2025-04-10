@@ -23,9 +23,9 @@ class _EditorScreenState extends State<EditorScreen> {
   @override
   void initState() {
     super.initState();
-    
-    // Initialize the panel layout
-    di<EditorViewModel>().initializePanelLayout();
+
+    // Initialization call is now async and handled within the ViewModel constructor
+    // di<EditorViewModel>().initializePanelLayout(); // Remove this line
   }
 
   @override
@@ -59,13 +59,12 @@ class _EditorContent extends StatelessWidget with WatchItMixin {
 
   @override
   Widget build(BuildContext context) {
-    // Use watch_it's data binding to observe multiple properties
-    final selectedExtension = watchValue((EditorViewModel vm) => vm.selectedExtensionNotifier);
+    // Removed watch for selectedExtension here
     final layout = watchValue((EditorViewModel vm) => vm.layoutNotifier);
-    
-    // Watch the visibility properties that affect the layoutStructureKey
-    watchValue((EditorViewModel vm) => vm.isTimelineVisibleNotifier);
-    watchValue((EditorViewModel vm) => vm.isInspectorVisibleNotifier);
+
+    // No longer need to watch visibility explicitly here, layoutNotifier handles it
+    // watchValue((EditorViewModel vm) => vm.isTimelineVisibleNotifier);
+    // watchValue((EditorViewModel vm) => vm.isInspectorVisibleNotifier);
 
     return ScaffoldPage(
       padding: EdgeInsets.zero,
@@ -75,43 +74,41 @@ class _EditorContent extends StatelessWidget with WatchItMixin {
           children: [
             // Left sidebar with extensions (VS Code's activity bar)
             const ExtensionSidebar(),
-            
-            // Conditionally display the selected extension panel and resize handle
-            if (selectedExtension.isNotEmpty) ...[  
-              SizedBox(
-                width: extensionPanelWidth,
-                child: ExtensionPanelContainer(extensionId: selectedExtension),
-              ),
-              ResizableDivider(
-                onDragUpdate: (dx) {
-                  final newWidth = (extensionPanelWidth + dx)
-                      .clamp(minExtensionPanelWidth, maxExtensionPanelWidth);
-                  onPanelResized(newWidth);
-                },
-              ),
-            ],
-            
+
+            // Use the new dedicated widget for the extension panel
+            _ConditionalExtensionPanel(
+              extensionPanelWidth: extensionPanelWidth,
+              minExtensionPanelWidth: minExtensionPanelWidth,
+              maxExtensionPanelWidth: maxExtensionPanelWidth,
+              onPanelResized: onPanelResized,
+            ),
+
             // Main content area with docking panels
             Expanded(
               child: MultiSplitViewTheme(
                 data: MultiSplitViewThemeData(
                   dividerThickness: 8.0,
                   dividerPainter: DividerPainters.background(
-                    // Use theme colors for consistency
-                    color: Colors.transparent, // Normal state background
-                    highlightedColor: FluentTheme.of(context).accentColor.lighter, // Highlighted state background
-                    // You might want a visible line painter overlaid or adjust colors
+                    color:
+                        FluentTheme.of(
+                          context,
+                        ).resources.subtleFillColorTertiary,
+                    highlightedColor:
+                        FluentTheme.of(
+                          context,
+                        ).resources.subtleFillColorSecondary,
                   ),
                 ),
-                child: layout != null
-                    ? Docking(
-                        key: ValueKey(di<EditorViewModel>().layoutStructureKey),
-                        layout: layout,
-                        onItemClose: _handlePanelClosed,
-                      )
-                    : const Center(
-                        child: Text('Loading editor...'),
-                      ),
+                child: TabbedViewTheme(
+                  data: TabbedViewThemeData.dark(),
+                  child:
+                      layout != null
+                          ? Docking(
+                            layout: layout,
+                            onItemClose: _handlePanelClosed,
+                          )
+                          : const Center(child: ProgressRing()),
+                ),
               ),
             ),
           ],
@@ -119,7 +116,7 @@ class _EditorContent extends StatelessWidget with WatchItMixin {
       ),
     );
   }
-  
+
   void _handlePanelClosed(DockingItem item) {
     // Update the view model based on which panel was closed
     if (item.id == 'inspector') {
@@ -130,4 +127,50 @@ class _EditorContent extends StatelessWidget with WatchItMixin {
   }
 }
 
+// New widget dedicated to showing/hiding the extension panel
+class _ConditionalExtensionPanel extends StatelessWidget with WatchItMixin {
+  final double extensionPanelWidth;
+  final double minExtensionPanelWidth;
+  final double maxExtensionPanelWidth;
+  final Function(double) onPanelResized;
 
+  const _ConditionalExtensionPanel({
+    required this.extensionPanelWidth,
+    required this.minExtensionPanelWidth,
+    required this.maxExtensionPanelWidth,
+    required this.onPanelResized,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedExtension = watchValue(
+      (EditorViewModel vm) => vm.selectedExtensionNotifier,
+    );
+
+    // Return the panel and divider row only if an extension is selected
+    if (selectedExtension.isNotEmpty) {
+      return Row(
+        mainAxisSize:
+            MainAxisSize.min, // Important to prevent Row taking extra space
+        children: [
+          SizedBox(
+            width: extensionPanelWidth,
+            child: ExtensionPanelContainer(extensionId: selectedExtension),
+          ),
+          ResizableDivider(
+            onDragUpdate: (dx) {
+              final newWidth = (extensionPanelWidth + dx).clamp(
+                minExtensionPanelWidth,
+                maxExtensionPanelWidth,
+              );
+              onPanelResized(newWidth);
+            },
+          ),
+        ],
+      );
+    } else {
+      // Return an empty container when no extension is selected
+      return const SizedBox.shrink();
+    }
+  }
+}

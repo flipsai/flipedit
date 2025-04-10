@@ -1,9 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flipedit/di/service_locator.dart';
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
-import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:watch_it/watch_it.dart';
 import 'dart:math' as math;
 
@@ -11,55 +9,73 @@ import 'dart:math' as math;
 class TimelineClip extends StatelessWidget with WatchItMixin {
   final Clip clip;
   final int trackIndex;
-  
-  const TimelineClip({
-    super.key,
-    required this.clip,
-    required this.trackIndex,
-  });
-  
+
+  const TimelineClip({super.key, required this.clip, required this.trackIndex});
+
+  // Define base colors for clip types (consider making these theme-dependent later)
+  static const Map<ClipType, Color> _clipTypeColors = {
+    ClipType.video: Color(0xFF264F78), // Blueish
+    ClipType.audio: Color(0xFF498205), // Greenish
+    ClipType.image: Color(0xFF8764B8), // Purplish
+    ClipType.text: Color(0xFFC29008), // Yellowish/Orange
+    ClipType.effect: Color(0xFFC50F1F), // Reddish
+  };
+
+  // Helper to get appropriate contrast color (white or black)
+  Color _getContrastColor(Color backgroundColor) {
+    // Calculate luminance
+    final luminance =
+        (0.299 * backgroundColor.red +
+            0.587 * backgroundColor.green +
+            0.114 * backgroundColor.blue) /
+        255;
+    return luminance > 0.5 ? Colors.black : Colors.white;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
     // Use watch_it's data binding to observe the selectedClipId property
-    final selectedClipId = watchValue((EditorViewModel vm) => vm.selectedClipIdNotifier);
+    final selectedClipId = watchValue(
+      (EditorViewModel vm) => vm.selectedClipIdNotifier,
+    );
     final isSelected = selectedClipId == clip.id;
-    
-    // Clip background color based on type
-    Color clipColor;
-    switch (clip.type) {
-      case ClipType.video:
-        clipColor = const Color(0xFF264F78);
-        break;
-      case ClipType.audio:
-        clipColor = const Color(0xFF498205);
-        break;
-      case ClipType.image:
-        clipColor = const Color(0xFF8764B8);
-        break;
-      case ClipType.text:
-        clipColor = const Color(0xFFC29008);
-        break;
-      case ClipType.effect:
-        clipColor = const Color(0xFFC50F1F);
-        break;
-    }
-    
+
+    // Get base color for clip type
+    final baseClipColor =
+        _clipTypeColors[clip.type] ?? Colors.grey; // Default grey
+    // Adjust color based on theme brightness maybe? (Optional)
+    // final clipColor = theme.brightness == Brightness.dark ? baseClipColor : baseClipColor.withOpacity(0.8);
+    final clipColor = baseClipColor;
+    final contrastColor = _getContrastColor(
+      clipColor,
+    ); // Color for text/icons on the clip
+
+    // Use theme accent color for selection border
+    final selectionBorderColor = theme.accentColor.normal;
+
     return GestureDetector(
       onTap: () {
-        di<EditorViewModel>().selectClip(clip.id);
+        di<EditorViewModel>().selectedClipId = clip.id;
       },
       onHorizontalDragUpdate: (details) {
-        // This would handle moving the clip in a real implementation
-        // You'd need to convert the pixel movement to frames based on zoom level
+        // TODO: Implement clip dragging logic
+        // Convert details.delta.dx based on zoom from TimelineViewModel
+        // Update clip.startFrame via EditorViewModel or TimelineViewModel
       },
       child: Container(
+        // Add margin for spacing between clips
+        margin: const EdgeInsets.only(right: 2),
         decoration: BoxDecoration(
           color: clipColor,
           border: Border.all(
-            color: isSelected ? Colors.white : Colors.transparent,
-            width: 2,
+            // Use theme accent for selection, transparent otherwise
+            color: isSelected ? selectionBorderColor : Colors.transparent,
+            width: isSelected ? 2 : 1, // Thicker border when selected
           ),
           borderRadius: BorderRadius.circular(4),
+          // Add a subtle shadow for depth (optional)
+          // boxShadow: kElevationToShadow[1],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -69,106 +85,123 @@ class TimelineClip extends StatelessWidget with WatchItMixin {
               height: 18,
               padding: const EdgeInsets.symmetric(horizontal: 4),
               decoration: BoxDecoration(
-                color: clipColor.withAlpha(205),
+                // Slightly darker/lighter shade for header background
+                color: clipColor.withOpacity(0.8),
                 borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(2),
-                  topRight: Radius.circular(2),
+                  topLeft: Radius.circular(
+                    3,
+                  ), // Match container radius slightly
+                  topRight: Radius.circular(3),
                 ),
               ),
               child: Row(
-                mainAxisSize: MainAxisSize.min,
+                // No need for min size, let it fill
                 children: [
-                  Text(
-                    clip.name,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
+                  Expanded(
+                    // Allow title to take available space
+                    child: Text(
+                      clip.name,
+                      // Use theme caption style with contrast color
+                      style: theme.typography.caption?.copyWith(
+                        color: contrastColor,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      overflow: TextOverflow.ellipsis, // Prevent overflow
+                      maxLines: 1,
                     ),
-                    overflow: TextOverflow.ellipsis,
                   ),
-                  Expanded(child: Container()),
+                  // Display duration at the end
                   Text(
                     '${clip.durationFrames}f',
-                    style: const TextStyle(
-                      color: Colors.white,
+                    // Use theme caption style with contrast color
+                    style: theme.typography.caption?.copyWith(
+                      color: contrastColor,
                       fontSize: 9,
                     ),
                   ),
                 ],
               ),
             ),
-            
-            // Clip content
+
+            // Clip content area
             Expanded(
-              child: _buildClipContent(clipColor),
+              // Use ShapeBorderClipper for rounded corners on the bottom
+              child: ClipPath(
+                clipper: const ShapeBorderClipper(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.only(
+                      bottomLeft: Radius.circular(3),
+                      bottomRight: Radius.circular(3),
+                    ),
+                  ),
+                ),
+                child: _buildClipContent(clipColor, contrastColor, theme),
+              ),
             ),
           ],
         ),
       ),
     );
   }
-  
-  Widget _buildClipContent(Color clipColor) {
+
+  Widget _buildClipContent(
+    Color clipColor,
+    Color contrastColor,
+    FluentThemeData theme,
+  ) {
+    // Use a semi-transparent version of the contrast color for icons/content
+    final contentColor = contrastColor.withOpacity(0.7);
+    // Use a slightly transparent version of the base color for backgrounds
+    final contentBackgroundColor = clipColor.withOpacity(0.6);
+
     switch (clip.type) {
       case ClipType.video:
-        // For video, show a thumbnail or placeholder
         return Container(
-          color: clipColor.withAlpha(150),
+          color: contentBackgroundColor,
           child: Center(
-            child: Icon(
-              FluentIcons.video,
-              size: 14,
-              color: Colors.white.withAlpha(150),
-            ),
+            child: Icon(FluentIcons.video, size: 16, color: contentColor),
           ),
         );
-      
+
       case ClipType.audio:
-        // For audio, show a waveform
+        // Use CustomPaint for waveform
         return CustomPaint(
           painter: _AudioWaveformPainter(
-            color: Colors.white.withAlpha(150),
+            // Pass the content color for the waveform
+            color: contentColor,
+            // Pass clip hashcode for deterministic random waveform
+            seed: clip.hashCode,
           ),
-          child: Container(),
+          child: Container(
+            color: contentBackgroundColor.withOpacity(0.5),
+          ), // Fainter background behind waveform
         );
-        
+
       case ClipType.image:
-        // For image, show a placeholder
         return Container(
-          color: clipColor.withAlpha(150),
+          color: contentBackgroundColor,
           child: Center(
-            child: Icon(
-              FluentIcons.picture,
-              size: 14,
-              color: Colors.white.withAlpha(150),
-            ),
+            child: Icon(FluentIcons.picture, size: 16, color: contentColor),
           ),
         );
-        
+
       case ClipType.text:
-        // For text, show a text icon
         return Container(
-          color: clipColor.withAlpha(150),
+          color: contentBackgroundColor,
           child: Center(
             child: Icon(
               FluentIcons.text_document,
-              size: 14,
-              color: Colors.white.withAlpha(150),
+              size: 16,
+              color: contentColor,
             ),
           ),
         );
-        
+
       case ClipType.effect:
-        // For effects, show an effect icon
         return Container(
-          color: clipColor.withAlpha(150),
+          color: contentBackgroundColor,
           child: Center(
-            child: Icon(
-              FluentIcons.filter,
-              size: 14,
-              color: Colors.white.withAlpha(150),
-            ),
+            child: Icon(FluentIcons.filter, size: 16, color: contentColor),
           ),
         );
     }
@@ -178,34 +211,46 @@ class TimelineClip extends StatelessWidget with WatchItMixin {
 /// Paints a simple audio waveform
 class _AudioWaveformPainter extends CustomPainter {
   final Color color;
-  
-  _AudioWaveformPainter({required this.color});
-  
+  final int seed;
+
+  _AudioWaveformPainter({required this.color, required this.seed});
+
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1
-      ..style = PaintingStyle.stroke;
-    
+    if (size.width <= 0 || size.height <= 0)
+      return; // Avoid painting on zero size
+
+    final paint =
+        Paint()
+          ..color = color
+          ..strokeWidth =
+              1.5 // Slightly thicker line
+          ..style = PaintingStyle.stroke;
+
     final path = Path();
-    
-    // Generate a simple random waveform
-    final random = math.Random(42); // Fixed seed for consistent waveform
-    
-    double x = 0;
-    double y = size.height / 2;
-    path.moveTo(x, y);
-    
-    while (x < size.width) {
-      x += 2;
-      y = size.height / 2 + (random.nextDouble() * 2 - 1) * size.height / 3;
+    final random = math.Random(seed); // Use the passed seed
+    final waveHeight = size.height * 0.6; // Max height of waveform
+    final middleY = size.height / 2;
+
+    path.moveTo(0, middleY);
+
+    const step = 3.0; // Draw line every 3 pixels
+    for (double x = step; x < size.width; x += step) {
+      final y = middleY + (random.nextDouble() * 2 - 1) * (waveHeight / 2);
       path.lineTo(x, y);
     }
-    
+    // Ensure path ends at the edge
+    // path.lineTo(size.width, middleY);
+
     canvas.drawPath(path, paint);
   }
-  
+
+  // Repaint if color changes (though unlikely here)
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _AudioWaveformPainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.seed != seed;
 }
+
+// Helper to get EditorViewModel instance (assuming watch_it/get_it setup)
+EditorViewModel get _editorVm => di<EditorViewModel>();
+// Ensure di is properly initialized in your app.
