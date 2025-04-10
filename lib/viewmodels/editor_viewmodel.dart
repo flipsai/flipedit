@@ -117,11 +117,8 @@ class EditorViewModel with Disposable {
       return;
     }
     
-    // Always save the full layout when it changes
+    // Always save the visibility state when it changes
     _saveLayoutState();
-    
-    // Track panel positions when layout changes
-    _storePanelPositions();
     
     // Update visibility notifiers for compatibility with menus
     final currentLayout = layoutNotifier.value;
@@ -196,10 +193,11 @@ class EditorViewModel with Disposable {
     // Walk through the layout to find and store panel positions
     void visitArea(DockingArea area, DropPosition position) {
       if (area is DockingItem) {
-        // Pass a dummy parent for DockingItems at the root level (rare case)
-        // This parent is just for tracking purposes
-        final dummyParent = DockingRow([]);
-        processItem(area, dummyParent, position);
+        // If an item is encountered directly (likely the root),
+        // we don't need to process its position relative to siblings
+        // as it has none in this context. Just return.
+        print("Skipping position storage for root DockingItem: ${area.id}");
+        return;
       } else if (area is DockingRow || area is DockingColumn) {
         // Use safer method to get children
         final List<DockingArea> children = _getChildrenSafely(area);
@@ -502,32 +500,44 @@ class EditorViewModel with Disposable {
     debugPrint("Toggle Timeline visibility. Currently visible: $isCurrentlyVisible");
     
     if (isCurrentlyVisible) {
-      // Remove Timeline, its position will be auto-stored via layout change listener
+      // Store position *before* removing the item via menu toggle
+      _storePanelPositions(); 
       currentLayout.removeItemByIds(['timeline']);
     } else {
-      // Try to restore to last position if we have one stored
-      final lastPosition = _lastPanelPositions['timeline'];
-      
-      if (lastPosition != null) {
-        final adjacentId = lastPosition['adjacentId'] as String;
-        final position = lastPosition['position'] as DropPosition;
+      // Check if the layout is effectively empty (no core panels found)
+      bool isLayoutEmpty = currentLayout.findDockingItem('preview') == null &&
+                           currentLayout.findDockingItem('inspector') == null &&
+                           currentLayout.findDockingItem('timeline') == null;
+
+      if (isLayoutEmpty) {
+        debugPrint("Layout is empty. Resetting layout with Timeline as root.");
+        // IMPORTANT: Assign to the layout property to trigger notifier and listener attachment
+        this.layout = DockingLayout(root: _buildTimelineItem());
+      } else {
+        // Layout is not empty, proceed with restoring/adding
+        final lastPosition = _lastPanelPositions['timeline'];
         
-        final adjacentItem = currentLayout.findDockingItem(adjacentId);
-        if (adjacentItem != null) {
-          // Restore to its last position relative to the adjacent item
-          debugPrint("Restoring timeline next to $adjacentId in position $position");
-          currentLayout.addItemOn(
-            newItem: _buildTimelineItem(),
-            targetArea: adjacentItem,
-            dropPosition: position
-          );
+        if (lastPosition != null) {
+          final adjacentId = lastPosition['adjacentId'] as String;
+          final position = lastPosition['position'] as DropPosition;
+          
+          final adjacentItem = currentLayout.findDockingItem(adjacentId);
+          if (adjacentItem != null) {
+            // Restore to its last position relative to the adjacent item
+            debugPrint("Restoring timeline next to $adjacentId in position $position");
+            currentLayout.addItemOn(
+              newItem: _buildTimelineItem(),
+              targetArea: adjacentItem,
+              dropPosition: position
+            );
+          } else {
+            // Adjacent item not found, fall back to default position
+            _addTimelineDefaultPosition(currentLayout);
+          }
         } else {
-          // Adjacent item not found, fall back to default position
+          // No last position, use default positioning
           _addTimelineDefaultPosition(currentLayout);
         }
-      } else {
-        // No last position, use default positioning
-        _addTimelineDefaultPosition(currentLayout);
       }
     }
     
@@ -537,15 +547,24 @@ class EditorViewModel with Disposable {
   
   // Helper for default timeline positioning
   void _addTimelineDefaultPosition(DockingLayout layout) {
-    final previewItem = layout.findDockingItem('preview');
-    if (previewItem != null) {
+    DockingItem? targetItem = layout.findDockingItem('preview');
+    DropPosition position = DropPosition.bottom;
+
+    // If preview isn't found, try adding below inspector
+    if (targetItem == null) {
+      targetItem = layout.findDockingItem('inspector');
+      // Position remains bottom, assuming inspector is typically on the right
+    }
+
+    if (targetItem != null) {
       layout.addItemOn(
         newItem: _buildTimelineItem(),
-        targetArea: previewItem,
-        dropPosition: DropPosition.bottom
+        targetArea: targetItem,
+        dropPosition: position
       );
     } else {
-      // Fallback - add to root
+      // Fallback - add to root if no suitable target found
+      debugPrint("Timeline: No suitable target (Preview/Inspector) found, adding to root.");
       layout.addItemOnRoot(newItem: _buildTimelineItem());
     }
   }
@@ -558,32 +577,44 @@ class EditorViewModel with Disposable {
     debugPrint("Toggle Inspector visibility. Currently visible: $isCurrentlyVisible");
     
     if (isCurrentlyVisible) {
-      // Remove Inspector, its position will be auto-stored via layout change listener
+      // Store position *before* removing the item via menu toggle
+      _storePanelPositions();
       currentLayout.removeItemByIds(['inspector']);
     } else {
-      // Try to restore to last position if we have one stored
-      final lastPosition = _lastPanelPositions['inspector'];
-      
-      if (lastPosition != null) {
-        final adjacentId = lastPosition['adjacentId'] as String;
-        final position = lastPosition['position'] as DropPosition;
+      // Check if the layout is effectively empty (no core panels found)
+      bool isLayoutEmpty = currentLayout.findDockingItem('preview') == null &&
+                           currentLayout.findDockingItem('inspector') == null &&
+                           currentLayout.findDockingItem('timeline') == null;
+
+      if (isLayoutEmpty) {
+        debugPrint("Layout is empty. Resetting layout with Inspector as root.");
+        // IMPORTANT: Assign to the layout property to trigger notifier and listener attachment
+        this.layout = DockingLayout(root: _buildInspectorItem());
+      } else {
+        // Layout is not empty, proceed with restoring/adding
+        final lastPosition = _lastPanelPositions['inspector'];
         
-        final adjacentItem = currentLayout.findDockingItem(adjacentId);
-        if (adjacentItem != null) {
-          // Restore to its last position relative to the adjacent item
-          debugPrint("Restoring inspector next to $adjacentId in position $position");
-          currentLayout.addItemOn(
-            newItem: _buildInspectorItem(),
-            targetArea: adjacentItem,
-            dropPosition: position
-          );
+        if (lastPosition != null) {
+          final adjacentId = lastPosition['adjacentId'] as String;
+          final position = lastPosition['position'] as DropPosition;
+          
+          final adjacentItem = currentLayout.findDockingItem(adjacentId);
+          if (adjacentItem != null) {
+            // Restore to its last position relative to the adjacent item
+            debugPrint("Restoring inspector next to $adjacentId in position $position");
+            currentLayout.addItemOn(
+              newItem: _buildInspectorItem(),
+              targetArea: adjacentItem,
+              dropPosition: position
+            );
+          } else {
+            // Adjacent item not found, fall back to default position
+            _addInspectorDefaultPosition(currentLayout);
+          }
         } else {
-          // Adjacent item not found, fall back to default position
+          // No last position, use default positioning
           _addInspectorDefaultPosition(currentLayout);
         }
-      } else {
-        // No last position, use default positioning
-        _addInspectorDefaultPosition(currentLayout);
       }
     }
     
@@ -593,45 +624,40 @@ class EditorViewModel with Disposable {
   
   // Helper for default inspector positioning
   void _addInspectorDefaultPosition(DockingLayout layout) {
-    final previewItem = layout.findDockingItem('preview');
-    if (previewItem != null) {
+    DockingItem? targetItem = layout.findDockingItem('preview');
+    DropPosition position = DropPosition.right;
+
+    // If preview isn't found, try adding to the right of timeline
+    if (targetItem == null) {
+      targetItem = layout.findDockingItem('timeline');
+      // Position remains right
+    }
+    
+    if (targetItem != null) {
       layout.addItemOn(
         newItem: _buildInspectorItem(),
-        targetArea: previewItem,
-        dropPosition: DropPosition.right
+        targetArea: targetItem,
+        dropPosition: position
       );
     } else {
-      // Fallback - add to root
+      // Fallback - add to root if no suitable target found
+      debugPrint("Inspector: No suitable target (Preview/Timeline) found, adding to root.");
       layout.addItemOnRoot(newItem: _buildInspectorItem());
     }
   }
 
   // These are called by Docking widget when the close button on an item is clicked
   void markInspectorClosed() {
-    // Make sure to capture the position before the panel is fully closed
-    final currentLayout = layoutNotifier.value;
-    if (currentLayout != null) {
-      final inspectorItem = currentLayout.findDockingItem('inspector');
-      if (inspectorItem != null) {
-        // Store position explicitly since we're manually closing
-        _storePanelPositions();
-      }
-    }
+    // Store position *before* the item is removed by the library
+    _storePanelPositions(); 
     
     isInspectorVisibleNotifier.value = false; // Update menu state
     _saveLayoutState(); // Also explicitly trigger save for robustness
   }
   
   void markTimelineClosed() {
-    // Make sure to capture the position before the panel is fully closed
-    final currentLayout = layoutNotifier.value;
-    if (currentLayout != null) {
-      final timelineItem = currentLayout.findDockingItem('timeline');
-      if (timelineItem != null) {
-        // Store position explicitly since we're manually closing
-        _storePanelPositions();
-      }
-    }
+    // Store position *before* the item is removed by the library
+    _storePanelPositions();
     
     isTimelineVisibleNotifier.value = false; // Update menu state
     _saveLayoutState(); // Also explicitly trigger save for robustness
