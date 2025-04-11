@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart' show Widget;
 import 'package:flipedit/viewmodels/app_viewmodel.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
+import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/views/screens/editor_screen.dart';
 import 'package:flipedit/views/screens/welcome_screen.dart';
 import 'package:watch_it/watch_it.dart';
@@ -21,6 +22,7 @@ class FlipEditApp extends fluent.StatelessWidget with WatchItMixin {
     // Get ViewModels needed for menu actions
     final editorVm = di<EditorViewModel>();
     final projectVm = di<ProjectViewModel>();
+    final timelineVm = di<TimelineViewModel>();
 
     // Determine the root widget based on Platform
     Widget homeWidget; 
@@ -33,6 +35,7 @@ class FlipEditApp extends fluent.StatelessWidget with WatchItMixin {
         isTimelineVisible: isTimelineVisible,
         editorVm: editorVm,
         projectVm: projectVm,
+        timelineVm: timelineVm,
         child: mainContent, // Pass main content as child
       );
     } else {
@@ -43,10 +46,9 @@ class FlipEditApp extends fluent.StatelessWidget with WatchItMixin {
             title: const fluent.Text('FlipEdit'),
             // Instantiate FluentAppMenuBar for the actions
             actions: FluentAppMenuBar(
-              isInspectorVisible: isInspectorVisible,
-              isTimelineVisible: isTimelineVisible,
               editorVm: editorVm,
               projectVm: projectVm,
+              timelineVm: timelineVm,
             ),
           ),
           content: mainContent, // Place main content here
