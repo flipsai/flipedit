@@ -1,29 +1,20 @@
-import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
-import 'package:watch_it/watch_it.dart';
 
-class VideoPlayerWidget extends StatelessWidget with WatchItMixin {
+class VideoPlayerWidget extends StatelessWidget {
   final double opacity;
   final VoidCallback? onTap;
+  final VideoPlayerController controller;
 
-  const VideoPlayerWidget({super.key, this.opacity = 1.0, this.onTap});
+  const VideoPlayerWidget({
+    super.key, 
+    this.opacity = 1.0, 
+    this.onTap,
+    required this.controller,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final controller = watchValue(
-      (TimelineViewModel vm) => vm.videoPlayerControllerNotifier,
-    );
-
-    if (controller == null) {
-      return Container(
-        color: Colors.black,
-        child: const Center(
-          child: Text('No video loaded', style: TextStyle(color: Colors.white)),
-        ),
-      );
-    }
-
     return ValueListenableBuilder<VideoPlayerValue>(
       valueListenable: controller,
       builder: (context, VideoPlayerValue value, child) {

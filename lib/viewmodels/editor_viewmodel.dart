@@ -1,12 +1,19 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart'; // Import for WidgetsBinding
 import 'package:flipedit/views/widgets/inspector/inspector_panel.dart';
 import 'package:flipedit/views/widgets/timeline/timeline.dart';
 import 'package:flipedit/views/widgets/preview/preview_panel.dart';
 import 'package:docking/docking.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/services/video_player_manager.dart';
-import 'package:flipedit/services/layout_service.dart'; // Import LayoutService
+// import 'package:flipedit/services/layout_service.dart'; // Temporarily commented out
+import 'package:flipedit/models/project.dart'; // Assuming Project model exists
+import 'package:flipedit/viewmodels/timeline_viewmodel.dart'; // Import TimelineViewModel
+import 'dart:async'; // Import for StreamSubscription
+import 'package:flipedit/models/clip.dart'; // Import Clip model
+import 'package:flipedit/models/enums/clip_type.dart'; // Import ClipType enum
+import 'package:video_player/video_player.dart'; // Import for VideoPlayerController
 
 // Define typedefs for the function types expected by DockingLayout
 typedef DockingAreaParser = dynamic Function(DockingArea area);
@@ -15,8 +22,13 @@ typedef DockingAreaBuilder = DockingArea? Function(dynamic data);
 /// Manages the editor layout and currently selected panels, tools, etc.
 /// Now uses stringify/load for basic layout structure persistence.
 class EditorViewModel with Disposable {
-  // Inject LayoutService
-  final LayoutService _layoutService = di<LayoutService>();
+  // Temporarily commented out LayoutService injection
+  // final LayoutService _layoutService = di<LayoutService>();
+  
+  // Inject TimelineViewModel
+  final TimelineViewModel _timelineViewModel = di<TimelineViewModel>();
+  // Keep VideoPlayerManager for potential future use (preloading etc)
+  final VideoPlayerManager _videoPlayerManager = di<VideoPlayerManager>();
 
   // --- State Notifiers ---
   final ValueNotifier<String> selectedExtensionNotifier = ValueNotifier<String>('video');
@@ -25,8 +37,8 @@ class EditorViewModel with Disposable {
   // Keep visibility notifiers for backwards compatibility
   final ValueNotifier<bool> isTimelineVisibleNotifier = ValueNotifier<bool>(true);
   final ValueNotifier<bool> isInspectorVisibleNotifier = ValueNotifier<bool>(true);
-  final ValueNotifier<List<String>> videoUrlsNotifier = ValueNotifier<List<String>>([]);
-  final ValueNotifier<List<double>> opacitiesNotifier = ValueNotifier<List<double>>([]);
+  // Notifier for the video URL currently under the playhead
+  final ValueNotifier<String?> currentPreviewVideoUrlNotifier = ValueNotifier<String?>(null);
 
   // Last known parent and position for panels, used to restore them to their previous positions
   final Map<String, Map<String, dynamic>> _lastPanelPositions = {};
@@ -37,6 +49,14 @@ class EditorViewModel with Disposable {
   // Flag to prevent saving during initial load
   bool _isInitialLoad = true;
 
+  // Store the current project (replace with actual project loading logic)
+  late Project _currentProject; // Added Project field
+
+  // Subscription to timeline changes
+  VoidCallback? _timelineFrameListener;
+  VoidCallback? _timelineClipsListener;
+  VoidCallback? _timelinePlayStateListener; // Listener for play state
+
   // --- Getters ---
   String get selectedExtension => selectedExtensionNotifier.value;
   String? get selectedClipId => selectedClipIdNotifier.value;
@@ -44,8 +64,7 @@ class EditorViewModel with Disposable {
   // Continue to derive visibility from layout
   bool get isTimelineVisible => layoutNotifier.value?.findDockingItem('timeline') != null;
   bool get isInspectorVisible => layoutNotifier.value?.findDockingItem('inspector') != null;
-  List<String> get videoUrls => videoUrlsNotifier.value;
-  List<double> get opacities => opacitiesNotifier.value;
+  String? get currentPreviewVideoUrl => currentPreviewVideoUrlNotifier.value; // Getter for new notifier
 
   // --- Setters ---
   set selectedExtension(String value) {
@@ -87,19 +106,44 @@ class EditorViewModel with Disposable {
      }
   }
   
-  set videoUrls(List<String> value) {
-    if (listEquals(videoUrlsNotifier.value, value)) return;
-    videoUrlsNotifier.value = value;
+  EditorViewModel() {
+    // Initialize with a dummy project or load from storage
+    _currentProject = Project(
+      id: 'temp',
+      name: 'Temp Project',
+      path: '/temp/project', // Added dummy path
+      createdAt: DateTime.now(), // Added dummy timestamp
+      lastModifiedAt: DateTime.now(), // Added dummy timestamp
+      clips: [], 
+    ); 
+    _buildInitialLayout(); // Use simplified initial build
+    _subscribeToTimelineChanges(); // Subscribe to timeline
   }
 
-  set opacities(List<double> value) {
-    if (listEquals(opacitiesNotifier.value, value)) return;
-    opacitiesNotifier.value = value;
-  }
-  
-  EditorViewModel() {
-    _initializeSampleVideos();
-    _loadAndBuildInitialLayout();
+  @override
+  void onDispose() {
+    selectedExtensionNotifier.dispose();
+    selectedClipIdNotifier.dispose();
+    layoutNotifier.dispose();
+    isTimelineVisibleNotifier.dispose();
+    isInspectorVisibleNotifier.dispose();
+    currentPreviewVideoUrlNotifier.dispose(); // Dispose new notifier
+    
+    // Remove timeline listeners
+    if (_timelineFrameListener != null) {
+      _timelineViewModel.currentFrameNotifier.removeListener(_timelineFrameListener!);
+    }
+    if (_timelineClipsListener != null) {
+       _timelineViewModel.clipsNotifier.removeListener(_timelineClipsListener!); // Assuming clipsNotifier is Listenable
+    }
+    if (_timelinePlayStateListener != null) { // Remove play state listener
+       _timelineViewModel.isPlayingNotifier.removeListener(_timelinePlayStateListener!);
+    }
+    
+    // Remove layout listener
+    if (layoutNotifier.value != null && _layoutListener != null) {
+      layoutNotifier.value!.removeListener(_layoutListener!);
+    }
   }
 
   // --- Layout Persistence & Handling ---
@@ -108,14 +152,10 @@ class EditorViewModel with Disposable {
   void _onLayoutChanged() {
     print("DockingLayout changed internally.");
     
-    if (_isInitialLoad) {
-      // Skip saving during initial load
-      print("Skipping save during initial load.");
-      return;
-    }
-    
-    // Always save the visibility state when it changes
-    _saveLayoutState();
+    // Temporarily disable saving
+    // if (!_isInitialLoad) {
+    //   _saveLayoutState(); 
+    // }
     
     // Update visibility notifiers for compatibility with menus
     final currentLayout = layoutNotifier.value;
@@ -144,6 +184,7 @@ class EditorViewModel with Disposable {
       if (item.id == 'timeline' || item.id == 'inspector') {
         // Store adjacent item (sibling) ID and relative position
         String adjacentId = 'preview'; // Default fallback
+        DropPosition relativePosition = DropPosition.right; // Default
         
         if (parent is DockingRow || parent is DockingColumn) {
           // Use safer method to get children
@@ -155,15 +196,16 @@ class EditorViewModel with Disposable {
           if (index > 0) {
             final prevArea = children[index - 1];
             referenceItem = _findReferenceItem(prevArea);
-            position = parent is DockingRow ? DropPosition.right : DropPosition.bottom;
+            relativePosition = parent is DockingRow ? DropPosition.right : DropPosition.bottom;
           } else if (index < children.length - 1) {
             final nextArea = children[index + 1];
             referenceItem = _findReferenceItem(nextArea);
-            position = parent is DockingRow ? DropPosition.left : DropPosition.top;
+            relativePosition = parent is DockingRow ? DropPosition.left : DropPosition.top;
           }
           
           if (referenceItem != null) {
             adjacentId = referenceItem.id;
+            position = relativePosition;
           }
         } else if (parent is DockingTabs) {
           // Use safer method for tabs
@@ -175,7 +217,7 @@ class EditorViewModel with Disposable {
             }
           }
           // For tabs, using center/tab behavior (right is a common fallback)
-          position = DropPosition.right;
+          position = DropPosition.right; // Use right for tabs as default drop
         }
         
         _lastPanelPositions[item.id] = {
@@ -264,187 +306,192 @@ class EditorViewModel with Disposable {
     return null;
   }
 
-  Future<void> _loadAndBuildInitialLayout() async {
-    _isInitialLoad = true;
-    print("Attempting to load panel layout state...");
-    
-    try {
-      // Try to load saved visibility state
-      final visibilityState = await _layoutService.loadVisibilityState();
-      
-      // Start with default layout
-      layout = _buildDefaultLayout();
-      
-      // Apply visibility state if available
-      if (visibilityState != null) {
-        final isTimelineVisible = visibilityState['isTimelineVisible'] ?? true;
-        final isInspectorVisible = visibilityState['isInspectorVisible'] ?? true;
-        
-        // Apply visibility settings to the layout
-        final currentLayout = layoutNotifier.value;
-        if (currentLayout != null) {
-          if (!isTimelineVisible) {
-            currentLayout.removeItemByIds(['timeline']);
-            isTimelineVisibleNotifier.value = false;
-          }
-          
-          if (!isInspectorVisible) {
-            currentLayout.removeItemByIds(['inspector']);
-            isInspectorVisibleNotifier.value = false;
-          }
-        }
-        
-        print("Applied visibility state: timeline=$isTimelineVisible, inspector=$isInspectorVisible");
-      } else {
-        print("No saved visibility state found. Using default layout.");
-      }
-    } catch (e) {
-      print("Error during layout initialization: $e");
-      layout = _buildDefaultLayout();
-    } finally {
-      // Set flag after a brief delay to ensure loading is complete
-      Future.delayed(const Duration(milliseconds: 500), () {
-        _isInitialLoad = false;
-        print("Initial load complete. Layout changes will now be saved.");
-      });
-    }
+  // Simplified initial layout build (no loading)
+  void _buildInitialLayout() {
+     _isInitialLoad = true; 
+     layout = _buildDefaultLayout();
+     print("Built default layout.");
+     // Set flag after a delay
+     Future.delayed(const Duration(milliseconds: 100), () {
+      _isInitialLoad = false;
+      print("Initial load complete. Layout saving disabled (commented out).");
+    });
   }
   
-  Future<void> _saveLayoutState() async {
-    if (_isInitialLoad) return; // Don't save during initial load
+  // Future<void> _saveLayoutState() async {
+  //   final currentLayout = layoutNotifier.value;
+  //   if (currentLayout == null) {
+  //     print("Save requested but layout is null, clearing saved state.");
+  //     await _layoutService.clearLayout();
+  //     await _layoutService.clearPanelPositions();
+  //     return;
+  //   } 
+
+  //   if (_isInitialLoad) {
+  //     print("Save requested during initial load, skipping.");
+  //     return; // Don't save during initial load phase
+  //   }
     
-    // Just save visibility state
-    try {
-      final visibilityState = {
-        'isTimelineVisible': isTimelineVisible,
-        'isInspectorVisible': isInspectorVisible,
-      };
-      await _layoutService.saveVisibilityState(visibilityState);
-      print("Panel visibility state saved.");
-    } catch (e) {
-      print("Error saving visibility state: $e");
+  //   try {
+  //     // Save the current layout structure
+  //     final layoutJson = currentLayout.toJson(
+  //       itemEncoder: (item) => item.id, // Save only the ID for item reference
+  //     );
+  //     await _layoutService.saveLayout(layoutJson);
+  //     print("Layout state saved successfully.");
+      
+  //     // Store current positions before saving them
+  //     _storePanelPositions(); 
+  //     await _layoutService.savePanelPositions(_lastPanelPositions);
+  //     print("Panel positions saved: $_lastPanelPositions");
+      
+  //   } catch (e) {
+  //     print("Error saving layout state: $e");
+  //   }
+  // }
+
+  // --- Timeline Integration ---
+  void _subscribeToTimelineChanges() {
+    // Listen to changes in the timeline ViewModel (clips and current frame)
+    _timelineFrameListener = _updatePreviewVideo; // Store the listener
+    _timelineViewModel.currentFrameNotifier.addListener(_timelineFrameListener!);
+
+    // Also listen to clip changes, as adding/removing clips affects the preview
+    _timelineClipsListener = _updatePreviewVideo; // Store the listener
+    _timelineViewModel.clipsNotifier.addListener(_timelineClipsListener!); // Assuming clipsNotifier is Listenable
+    
+    // Add listener for play state changes
+    _timelinePlayStateListener = _updatePreviewPlaybackState;
+    _timelineViewModel.isPlayingNotifier.addListener(_timelinePlayStateListener!); 
+    
+    // Initial update
+    _updatePreviewVideo(); 
+    _updatePreviewPlaybackState(); // Initial check for playback state
+  }
+
+  // Calculate the target frame within the clip's local timeline
+  int _calculateLocalFrame(Clip clip, int globalFrame) {
+      // Ensure the frame is within the clip's duration
+      return (globalFrame - clip.startFrame).clamp(0, clip.durationFrames - 1);
+  }
+
+  // Updated to accept isPlaying state
+  Future<void> _seekController(VideoPlayerController controller, int frame, bool isPlaying) async {
+    const double frameRate = 30.0; 
+    final targetPosition = Duration(
+      milliseconds: (frame * 1000 / frameRate).round(),
+    );
+    
+    if (controller.value.isInitialized && 
+        (controller.value.position - targetPosition).abs() > const Duration(milliseconds: 50)) {
+       print("[_seekController] Seeking controller for ${controller.dataSource} to frame $frame (pos: $targetPosition). Timeline playing: $isPlaying");
+       await controller.seekTo(targetPosition);
+       
+       // Only pause if the timeline is NOT playing
+       if (!isPlaying && controller.value.isPlaying) {
+          print("[_seekController] Pausing controller after seek because timeline is paused.");
+          await controller.pause(); 
+       }
+       // If timeline IS playing, we assume the play command will come separately 
+       // or is already handled, so we don't explicitly play here after seeking.
     }
   }
 
-  // --- Basic Parser and Builder ---
-  
-  // Very simple parser that captures just the structure and IDs
-  dynamic _basicParser(DockingArea area) {
-    // Create a basic map with the type
-    final Map<String, dynamic> result = {'type': area.runtimeType.toString()};
-    
-    try {
-      // Add type-specific properties
-      if (area is DockingRow || area is DockingColumn) {
-        // Use our safer method to get children
-        final children = <dynamic>[];
-        final safeChildren = _getChildrenSafely(area);
-        for (final child in safeChildren) {
-          children.add(_basicParser(child));
-        }
-        result['children'] = children;
-      } else if (area is DockingTabs) {
-        // For DockingTabs, just save the IDs of tab items
-        final tabItems = <Map<String, dynamic>>[];
-        final safeChildren = _getChildrenSafely(area);
-        for (final child in safeChildren) {
-          if (child is DockingItem) {
-            tabItems.add({'id': child.id, 'name': child.name});
-          }
-        }
-        result['items'] = tabItems;
-      } else if (area is DockingItem) {
-        // For DockingItem, just save ID and name
-        result['id'] = area.id;
-        result['name'] = area.name;
-      }
-    } catch (e) {
-      print("Error in basicParser for ${area.runtimeType}: $e");
-      // If error occurs, at least save the type
-    }
-    
-    return result;
+  // New method to handle play/pause commands based on timeline state
+  Future<void> _updatePreviewPlaybackState() async {
+     final bool isPlaying = _timelineViewModel.isPlaying;
+     final String? currentUrl = currentPreviewVideoUrlNotifier.value;
+     print("[_updatePreviewPlaybackState] Called. Timeline playing: $isPlaying, Current URL: $currentUrl");
+
+     if (currentUrl == null) return; // No video to control
+
+     try {
+       // Get the controller (don't necessarily need isNew here)
+       final (controller, _) = await _videoPlayerManager.getOrCreatePlayerController(currentUrl);
+
+       if (!controller.value.isInitialized) {
+          print("[_updatePreviewPlaybackState] Controller for $currentUrl not initialized yet.");
+          // Could potentially add a listener here similar to _updatePreviewVideo, but 
+          // it might be simpler to rely on the next frame/seek update to handle playback.
+          return;
+       }
+
+       // Apply the correct state
+       if (isPlaying && !controller.value.isPlaying) {
+          print("[_updatePreviewPlaybackState] Playing controller for $currentUrl");
+          await controller.play();
+       } else if (!isPlaying && controller.value.isPlaying) {
+          print("[_updatePreviewPlaybackState] Pausing controller for $currentUrl");
+          await controller.pause();
+       }
+     } catch (e) {
+        print("[_updatePreviewPlaybackState] Error getting/controlling controller for $currentUrl: $e");
+     }
   }
-  
-  // Very simple builder that creates a basic layout
-  DockingArea? _areaBuilder(dynamic data) {
-    if (data == null) return null;
-    
-    try {
-      final type = data['type'];
-      switch (type) {
-        case 'DockingRow':
-          final childrenData = data['children'] as List<dynamic>?;
-          final children = <DockingArea>[];
-          
-          if (childrenData != null) {
-            for (final childData in childrenData) {
-              final child = _areaBuilder(childData);
-              if (child != null) {
-                children.add(child);
-              }
-            }
-          }
-          return children.isEmpty ? null : DockingRow(children);
-        
-        case 'DockingColumn':
-          final childrenData = data['children'] as List<dynamic>?;
-          final children = <DockingArea>[];
-          
-          if (childrenData != null) {
-            for (final childData in childrenData) {
-              final child = _areaBuilder(childData);
-              if (child != null) {
-                children.add(child);
-              }
-            }
-          }
-          return children.isEmpty ? null : DockingColumn(children);
-        
-        case 'DockingTabs':
-          final items = data['items'] as List<dynamic>?;
-          final tabItems = <DockingItem>[];
-          
-          if (items != null) {
-            for (final itemData in items) {
-              final id = itemData['id'];
-              // Create the appropriate panel item based on ID
-              switch (id) {
-                case 'preview':
-                  tabItems.add(_buildPreviewItem());
-                  break;
-                case 'timeline':
-                  tabItems.add(_buildTimelineItem());
-                  break;
-                case 'inspector':
-                  tabItems.add(_buildInspectorItem());
-                  break;
-              }
-            }
-          }
-          return tabItems.isEmpty ? null : DockingTabs(tabItems);
-        
-        case 'DockingItem':
-          final id = data['id'];
-          // Create the appropriate panel item based on ID
-          switch (id) {
-            case 'preview':
-              return _buildPreviewItem();
-            case 'timeline':
-              return _buildTimelineItem();
-            case 'inspector':
-              return _buildInspectorItem();
-            default:
-              return null;
-          }
-        
-        default:
-          print("Unknown area type: $type");
-          return null;
+
+  void _updatePreviewVideo() {
+    final globalFrame = _timelineViewModel.currentFrame;
+    final clips = _timelineViewModel.clips; 
+    final bool isPlaying = _timelineViewModel.isPlaying; // Get current play state
+    String? videoUrlToShow;
+    Clip? foundClip;
+
+    for (var clip in clips.reversed) { 
+      final int endFrame = clip.startFrame + clip.durationFrames;
+      if ((clip.type == ClipType.video || clip.type == ClipType.image) &&
+          globalFrame >= clip.startFrame &&
+          globalFrame < endFrame) {
+        foundClip = clip;
+        videoUrlToShow = clip.filePath;
+        break; 
       }
-    } catch (e) {
-      print("Error building area from data: $e");
-      return null;
+    }
+
+    bool urlChanged = currentPreviewVideoUrlNotifier.value != videoUrlToShow;
+    if (urlChanged) {
+      currentPreviewVideoUrlNotifier.value = videoUrlToShow;
+    }
+
+    if (foundClip != null && videoUrlToShow != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        try {
+          final (controller, _) = await _videoPlayerManager.getOrCreatePlayerController(videoUrlToShow!);
+          final localFrame = _calculateLocalFrame(foundClip!, globalFrame);
+
+          if (!controller.value.isInitialized) {
+             print("[_updatePreviewVideo post-frame] Waiting for controller initialization for seek...");
+             void Function()? initListener;
+             initListener = () {
+                if(controller.value.isInitialized){
+                  print("[_updatePreviewVideo post-frame] Controller initialized, seeking now.");
+                   // Seek and apply correct initial play state
+                  _seekController(controller, localFrame, isPlaying);
+                  // Ensure playback state is correct *after* potential seek
+                  _updatePreviewPlaybackState(); 
+                  controller.removeListener(initListener!); 
+                }
+             };
+             controller.addListener(initListener);
+             if(controller.value.isInitialized) initListener();
+             
+          } else {
+             // Seek and apply correct initial play state
+             await _seekController(controller, localFrame, isPlaying);
+             // Ensure playback state is correct *after* potential seek
+             _updatePreviewPlaybackState(); 
+          }
+        } catch (e) {
+            print("[_updatePreviewVideo post-frame] Error getting/seeking/controlling controller: $e");
+        }
+      });
+    } else if (urlChanged && videoUrlToShow == null) {
+       // If the URL changed to null (no clip at this frame), ensure any previously playing video is paused
+       final previousUrl = currentPreviewVideoUrlNotifier.value; // This is now null, need the value *before* the change
+       // We might need to store the previous URL temporarily if we want precise pausing
+       // For now, let's assume pausing the *current* (null) is harmless or rely on player manager disposal later
+       print("[_updatePreviewVideo] No clip found at frame $globalFrame. Ensuring no playback (if possible).");
+       // Potentially call _updatePreviewPlaybackState here, which will find no URL and do nothing
+       // Or, more robustly, explicitly pause the controller associated with the *previous* URL if known.
     }
   }
 
@@ -455,6 +502,10 @@ class EditorViewModel with Disposable {
     final previewItem = _buildPreviewItem();
     final timelineItem = _buildTimelineItem();
     final inspectorItem = _buildInspectorItem();
+    
+    // Ensure visibility notifiers match the default layout state
+    isTimelineVisibleNotifier.value = true;
+    isInspectorVisibleNotifier.value = true;
     
     return DockingLayout(
       root: DockingRow([
@@ -470,10 +521,7 @@ class EditorViewModel with Disposable {
       id: 'preview',
       name: 'Preview',
       maximizable: false, 
-      widget: PreviewPanel(
-        videoUrls: videoUrlsNotifier.value, 
-        opacities: opacitiesNotifier.value,
-      ),
+      widget: const PreviewPanel(), // Correct: No params needed
     );
   }
   
@@ -642,7 +690,7 @@ class EditorViewModel with Disposable {
     _storePanelPositions(); 
     
     isInspectorVisibleNotifier.value = false; // Update menu state
-    _saveLayoutState(); // Also explicitly trigger save for robustness
+    // _saveLayoutState(); // Temporarily disabled
   }
   
   void markTimelineClosed() {
@@ -650,70 +698,7 @@ class EditorViewModel with Disposable {
     _storePanelPositions();
     
     isTimelineVisibleNotifier.value = false; // Update menu state
-    _saveLayoutState(); // Also explicitly trigger save for robustness
+    // _saveLayoutState(); // Temporarily disabled
   }
-
-  // --- Sample Data & Video Management (remain the same) ---
-  void _initializeSampleVideos() {
-    videoUrls = [];
-    opacities = []; 
-    addVideo("http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4");
-    addVideo("http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4");
-    addVideo("http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4");
-    setVideoOpacity(1, 0.5);
-    setVideoOpacity(2, 0.5);
-  }
-
-  void addVideo(String url) {
-    final newUrls = List<String>.from(videoUrlsNotifier.value)..add(url);
-    final newOpacities = List<double>.from(opacitiesNotifier.value)..add(1.0);
-    videoUrls = newUrls;
-    opacities = newOpacities;
-  }
-
-  void removeVideo(int index) {
-    if (index < 0 || index >= videoUrlsNotifier.value.length) return;
-    final urlToRemove = videoUrlsNotifier.value[index];
-    di<VideoPlayerManager>().disposeController(urlToRemove);
-    final newUrls = List<String>.from(videoUrlsNotifier.value)..removeAt(index);
-    final newOpacities = List<double>.from(opacitiesNotifier.value)..removeAt(index);
-    videoUrls = newUrls;
-    opacities = newOpacities;
-  }
-
-  void setVideoOpacity(int index, double opacity) {
-    if (index < 0 || index >= opacitiesNotifier.value.length) return;
-    final newOpacities = List<double>.from(opacitiesNotifier.value);
-    newOpacities[index] = opacity.clamp(0.0, 1.0);
-    opacities = newOpacities;
-  }
-
-  // --- Cleanup ---
-  @override
-  void onDispose() {
-     print("Disposing EditorViewModel and removing layout listener.");
-     if (layoutNotifier.value != null && _layoutListener != null) {
-       layoutNotifier.value!.removeListener(_layoutListener!);
-       _layoutListener = null;
-     }
-     selectedExtensionNotifier.dispose();
-     selectedClipIdNotifier.dispose();
-     layoutNotifier.dispose(); 
-     isTimelineVisibleNotifier.dispose();
-     isInspectorVisibleNotifier.dispose();
-     videoUrlsNotifier.dispose();
-     opacitiesNotifier.dispose();
-  }
-}
-
-// Helper function for list equality check
-bool listEquals<T>(List<T>? a, List<T>? b) {
-  if (a == null) return b == null;
-  if (b == null || a.length != b.length) return false;
-  if (identical(a, b)) return true;
-  for (int index = 0; index < a.length; index += 1) {
-    if (a[index] != b[index]) return false;
-  }
-  return true;
 }
 
