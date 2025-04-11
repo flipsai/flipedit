@@ -1,5 +1,3 @@
-import 'dart:convert'; // Add for jsonEncode/Decode
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flipedit/views/widgets/inspector/inspector_panel.dart';
@@ -9,7 +7,6 @@ import 'package:docking/docking.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/services/video_player_manager.dart';
 import 'package:flipedit/services/layout_service.dart'; // Import LayoutService
-import 'package:flipedit/di/service_locator.dart'; // Import di
 
 // Define typedefs for the function types expected by DockingLayout
 typedef DockingAreaParser = dynamic Function(DockingArea area);

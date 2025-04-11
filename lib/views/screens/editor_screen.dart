@@ -1,6 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/material.dart' as material;
-import 'package:flipedit/di/service_locator.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/views/widgets/extensions/extension_panel_container.dart';
 import 'package:flipedit/views/widgets/extensions/extension_sidebar.dart';

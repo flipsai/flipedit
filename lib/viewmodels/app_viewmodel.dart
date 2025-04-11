@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:flipedit/services/uv_manager.dart';
-import 'package:flipedit/di/service_locator.dart';
 import 'package:watch_it/watch_it.dart';
 
 class AppViewModel {
@@ -41,7 +40,7 @@ class AppViewModel {
     statusMessage = "Environment ready";
     
     // If you want to enable the Python environment setup again, use this:
-    // _initialize();
+    _initialize();
   }
   
   Future<void> _initialize() async {
