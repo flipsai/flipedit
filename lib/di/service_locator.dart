@@ -23,5 +23,5 @@ void setupServiceLocator() {
   di.registerLazySingleton<AppViewModel>(() => AppViewModel());
   di.registerLazySingleton<ProjectViewModel>(() => ProjectViewModel());
   di.registerLazySingleton<EditorViewModel>(() => EditorViewModel());
-  di.registerLazySingleton<TimelineViewModel>(() => TimelineViewModel());
+  di.registerSingleton<TimelineViewModel>(TimelineViewModel());
 }
