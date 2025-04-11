@@ -3,6 +3,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
+import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/views/screens/settings_screen.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flutter/material.dart' show Material, pointerDragAnchorStrategy;
@@ -114,8 +115,9 @@ class _MediaExtensionPanel extends WatchingWidget {
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
-    // Access the view model and watch the project media list
-    final projectMedia = watchValue((EditorViewModel vm) => vm.projectMediaNotifier);
+    // Use watchValue to observe the ValueListenable (clipsNotifier) 
+    // and get its current value (the List<Clip>)
+    final projectMedia = watchValue((TimelineViewModel vm) => vm.clipsNotifier);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -195,13 +197,14 @@ class _MediaExtensionPanel extends WatchingWidget {
               );
 
               if (result != null) {
-                final editorViewModel = di<EditorViewModel>();
+                // Get TimelineViewModel instead of EditorViewModel
+                final timelineViewModel = di<TimelineViewModel>(); 
                 for (var file in result.files) {
                   if (file.path != null) {
                     final clip = _createClipFromFile(file);
                     if (clip != null) {
-                      // TODO: Add clip to project media pool instead of directly to timeline
-                      editorViewModel.addClip(clip);
+                      // Add clip using TimelineViewModel
+                      timelineViewModel.addClip(clip); 
                     }
                   }
                 }

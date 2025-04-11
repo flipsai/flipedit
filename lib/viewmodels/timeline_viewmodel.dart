@@ -9,6 +9,7 @@ import 'package:video_player/video_player.dart';
 import 'package:watch_it/watch_it.dart';
 
 const double _defaultFrameRate = 30.0;
+const int _defaultTimelineDurationFrames = 90; // Default 3 seconds at 30fps
 
 // Simple debounce utility
 void Function() _debounce(VoidCallback func, Duration delay) {
@@ -37,6 +38,13 @@ class TimelineViewModel implements Disposable {
     if (currentFrameNotifier.value == clampedValue) return;
     currentFrameNotifier.value = clampedValue;
 
+    // If playing via timer, pause it when manually seeking
+    if (_playbackTimer?.isActive ?? false) {
+       _stopPlaybackTimer();
+       // Optional: Decide if seeking should resume playback. Currently, it stops.
+       isPlayingNotifier.value = false; 
+    }
+
     _seekControllerToFrame(clampedValue);
   }
 
@@ -63,9 +71,35 @@ class TimelineViewModel implements Disposable {
   Timer? _playbackTimer;
   StreamSubscription? _controllerPositionSubscription;
 
+  // Debounce the frame update from timer to avoid excessive state changes
+  late final VoidCallback _debouncedFrameUpdate;
+
   TimelineViewModel() {
     // Setup scroll synchronization listeners
     _setupScrollSync();
+    _recalculateTotalFrames(); // Initialize total frames
+
+    // Initialize debounced frame update
+    _debouncedFrameUpdate = _debounce(() {
+      if (!isPlayingNotifier.value) return; // Check if still playing
+
+      final nextFrame = currentFrame + 1;
+      if (nextFrame <= _totalFrames) {
+        currentFrameNotifier.value = nextFrame; // Update frame directly
+        // Restart timer for next frame if not at the end
+        if (nextFrame < _totalFrames) {
+          _startPlaybackTimer(); 
+        } else {
+          // Reached end, stop playback
+          _stopPlaybackTimer();
+          isPlayingNotifier.value = false;
+        }
+      } else {
+        // Should not happen if check above is correct, but safety stop
+        _stopPlaybackTimer();
+        isPlayingNotifier.value = false;
+      }
+    }, Duration(milliseconds: (1000 / _defaultFrameRate).round()));
   }
 
   void _setupScrollSync() {
@@ -112,17 +146,15 @@ class TimelineViewModel implements Disposable {
       await _videoPlayerController!.initialize();
       _videoPlayerController!.setLooping(false);
 
-      _totalFrames =
-          (_videoPlayerController!.value.duration.inMilliseconds *
-                  _defaultFrameRate /
-                  1000)
-              .round();
-      totalFramesNotifier.value = _totalFrames;
+      _recalculateTotalFrames(); // Recalculate based on video potentially
       currentFrame = 0;
 
       _videoPlayerController!.addListener(_updateFrameFromController);
-
       videoPlayerControllerNotifier.value = _videoPlayerController;
+
+      // Stop timer playback if video takes over
+      _stopPlaybackTimer();
+      isPlayingNotifier.value = false; 
 
       print('Video loaded. Total frames: $_totalFrames');
     } catch (e) {
@@ -173,6 +205,9 @@ class TimelineViewModel implements Disposable {
     _recalculateTotalFrames();
 
     if (_videoPlayerController == null && clip.type == ClipType.video) {
+      // Stop timer playback before loading video
+      _stopPlaybackTimer(); 
+      isPlayingNotifier.value = false;
       loadVideo(clip.filePath);
     }
   }
@@ -259,17 +294,38 @@ class TimelineViewModel implements Disposable {
   }
 
   void togglePlayback() {
-    if (_videoPlayerController == null ||
-        !_videoPlayerController!.value.isInitialized) {
-      return;
+    // Case 1: Video controller exists and is initialized
+    if (_videoPlayerController != null &&
+        _videoPlayerController!.value.isInitialized) {
+      if (_videoPlayerController!.value.isPlaying) {
+        _videoPlayerController!.pause();
+      } else {
+        // If paused at the end, seek to start before playing
+        if (currentFrame >= _totalFrames) {
+           currentFrame = 0; // Seek to beginning
+        }
+        _seekControllerToFrame(currentFrame); // Ensure controller matches frame
+        _videoPlayerController!.play();
+      }
+      isPlayingNotifier.value = _videoPlayerController!.value.isPlaying;
+    } 
+    // Case 2: No video controller, use timer
+    else if (_totalFrames > 0) { // Only play if there's some duration
+       if (isPlayingNotifier.value) {
+         // Currently playing with timer, so pause
+         _stopPlaybackTimer();
+         isPlayingNotifier.value = false;
+       } else {
+         // Currently paused or stopped, start timer playback
+         // If paused at the end, seek to start before playing
+         if (currentFrame >= _totalFrames) {
+           currentFrame = 0; // Seek to beginning
+         }
+         isPlayingNotifier.value = true;
+         _startPlaybackTimer(); // Start the timer
+       }
     }
-
-    if (_videoPlayerController!.value.isPlaying) {
-      _videoPlayerController!.pause();
-    } else {
-      _seekControllerToFrame(currentFrame);
-      _videoPlayerController!.play();
-    }
+    // Case 3: No controller and zero duration - do nothing
   }
 
   void setZoom(double newZoom) {
@@ -284,21 +340,41 @@ class TimelineViewModel implements Disposable {
           .reduce((a, b) => a > b ? a : b);
     }
 
+    // Use video duration if controller exists and is longer than clips
     int videoFrames = 0;
     if (_videoPlayerController != null &&
         _videoPlayerController!.value.isInitialized) {
-      videoFrames =
-          (_videoPlayerController!.value.duration.inMilliseconds *
-                  _defaultFrameRate /
-                  1000)
-              .round();
+      videoFrames = (_videoPlayerController!.value.duration.inMilliseconds *
+              _defaultFrameRate /
+              1000)
+          .round();
+    }
+    
+    // If no clips and no video, use default duration. Otherwise use the max of clips/video.
+    int newTotalFrames;
+    if (clipsNotifier.value.isEmpty && videoFrames == 0) {
+       newTotalFrames = _defaultTimelineDurationFrames;
+    } else {
+       newTotalFrames = maxClipFrame > videoFrames ? maxClipFrame : videoFrames;
     }
 
-    _totalFrames = maxClipFrame > videoFrames ? maxClipFrame : videoFrames;
-    totalFramesNotifier.value = _totalFrames;
+    // Ensure total frames doesn't decrease if playback is active near the old end
+    // (This might need adjustment based on desired behavior when clips are shortened)
+    if (newTotalFrames < _totalFrames && currentFrame >= newTotalFrames) {
+        currentFrame = newTotalFrames; // Clamp current frame if needed
+    }
 
-    if (currentFrame > _totalFrames) {
-      currentFrame = _totalFrames;
+    if (_totalFrames != newTotalFrames) {
+      _totalFrames = newTotalFrames;
+      totalFramesNotifier.value = _totalFrames;
+      print("Recalculated total frames: $_totalFrames");
+
+      // Stop playback if the new duration is 0 or current frame is now out of bounds
+      if (_totalFrames == 0 || currentFrame > _totalFrames) {
+         _stopPlaybackTimer();
+         isPlayingNotifier.value = false;
+         currentFrame = _totalFrames; // Clamp frame
+      }
     }
   }
 
@@ -375,6 +451,45 @@ class TimelineViewModel implements Disposable {
     addClip(newClip);
   }
 
+  // --- Playback Timer Logic ---
+
+  void _startPlaybackTimer() {
+    _stopPlaybackTimer(); // Ensure any existing timer is cancelled
+    if (currentFrame >= _totalFrames) {
+       isPlayingNotifier.value = false;
+       return; // Don't start if already at the end
+    }
+    _playbackTimer = Timer(
+      Duration(milliseconds: (1000 / _defaultFrameRate).round()),
+      _handleTimerTick,
+    );
+  }
+
+  void _stopPlaybackTimer() {
+    _playbackTimer?.cancel();
+    _playbackTimer = null;
+  }
+
+  void _handleTimerTick() {
+    // This function will now be called by the Timer
+     final nextFrame = currentFrame + 1;
+      if (nextFrame <= _totalFrames) {
+        currentFrameNotifier.value = nextFrame; // Update frame directly
+        // Restart timer for next frame if not at the end
+        if (nextFrame < _totalFrames) {
+          _startPlaybackTimer(); 
+        } else {
+          // Reached end, stop playback
+          _stopPlaybackTimer();
+          isPlayingNotifier.value = false;
+        }
+      } else {
+        // Should not happen if check above is correct, but safety stop
+        _stopPlaybackTimer();
+        isPlayingNotifier.value = false;
+      }
+  }
+
   @override
   void onDispose() {
     // Dispose controllers - this automatically removes listeners
@@ -387,7 +502,8 @@ class TimelineViewModel implements Disposable {
     currentFrameNotifier.dispose();
     isPlayingNotifier.dispose();
     totalFramesNotifier.dispose();
-    videoPlayerControllerNotifier.dispose();
+    videoPlayerControllerNotifier.dispose(); // Dispose this notifier too
+    
     _playbackTimer?.cancel();
     _controllerPositionSubscription?.cancel();
     _videoPlayerController?.dispose(); // Ensure video controller is disposed
