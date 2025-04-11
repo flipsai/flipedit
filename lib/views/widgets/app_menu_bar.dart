@@ -142,17 +142,26 @@ Future<void> _handleImportMedia(TimelineViewModel timelineVm) async {
         if (filePath != null) {
           // TODO: Get actual duration and potentially other metadata
           // For now, using placeholder values
-          const uuid = Uuid();
-          final newClip = Clip(
-            id: uuid.v4(), 
-            name: filePath.split(Platform.pathSeparator).last, // Use filename as name
-            type: ClipType.video, // TODO: Detect type based on file extension
-            filePath: filePath, 
-            startFrame: timelineVm.currentFrame, // Add at current playhead position
-            durationFrames: 150, // Placeholder: 5 seconds at 30fps
-            trackIndex: 0, // Placeholder: Add to first video track
+          // Create ClipModel instead of Clip
+          // Needs source start/end times instead of durationFrames
+          final dummyClipData = ClipModel(
+            databaseId: null, // No ID yet
+            trackId: 1, // TODO: Determine target track ID dynamically
+            name: filePath.split(Platform.pathSeparator).last, 
+            type: ClipType.video, // TODO: Detect type
+            sourcePath: filePath,
+            startTimeInSourceMs: 0, // Placeholder
+            endTimeInSourceMs: 5000, // Placeholder: 5 seconds
+            startTimeOnTrackMs: 0, // Placeholder, set by addClipAtPosition
           );
-          timelineVm.addClip(newClip);
+          // Use addClipAtPosition
+          await timelineVm.addClipAtPosition(
+             clipData: dummyClipData,
+             trackId: 1, // TODO: Determine target track ID
+             startTimeInSourceMs: dummyClipData.startTimeInSourceMs,
+             endTimeInSourceMs: dummyClipData.endTimeInSourceMs,
+             // Let addClipAtPosition handle placement at playhead
+          );
         } else {
           print("File path is null after picking.");
         }
