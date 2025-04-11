@@ -40,7 +40,7 @@ class EffectTree extends StatelessWidget {
           ),
           
           // Effects
-          ...effects.expand((effect) => _buildEffectItems(effect, 1)).toList(),
+          ...effects.expand((effect) => _buildEffectItems(effect, 1)),
         ],
       ),
     );

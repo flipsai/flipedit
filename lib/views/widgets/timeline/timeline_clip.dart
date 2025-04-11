@@ -2,16 +2,34 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
+import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:watch_it/watch_it.dart';
 import 'dart:math' as math;
 
 /// A clip in the timeline track
-class TimelineClip extends StatelessWidget with WatchItMixin {
+class TimelineClip extends StatefulWidget {
   final Clip clip;
   final int trackIndex;
+  final bool isDragging;
 
-  const TimelineClip({super.key, required this.clip, required this.trackIndex});
+  const TimelineClip({
+    super.key,
+    required this.clip,
+    required this.trackIndex,
+    this.isDragging = false,
+  });
 
+  @override
+  State<TimelineClip> createState() => _TimelineClipState();
+}
+
+class _TimelineClipState extends State<TimelineClip> {
+  // Track dragging state
+  bool _isDragging = false;
+  double _dragStartX = 0;
+  int _originalStartFrame = 0;
+  int _currentDragFrame = 0; // Track current drag position for smooth preview
+  
   // Define base colors for clip types (consider making these theme-dependent later)
   static const Map<ClipType, Color> _clipTypeColors = {
     ClipType.video: Color(0xFF264F78), // Blueish
@@ -35,17 +53,26 @@ class TimelineClip extends StatelessWidget with WatchItMixin {
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
-    // Use watch_it's data binding to observe the selectedClipId property
-    final selectedClipId = watchValue(
-      (EditorViewModel vm) => vm.selectedClipIdNotifier,
-    );
-    final isSelected = selectedClipId == clip.id;
+    
+    // Get view models
+    final editorVm = di<EditorViewModel>();
+    final timelineVm = di<TimelineViewModel>();
+    
+    // Get the current selected clip
+    final selectedClipId = editorVm.selectedClipId;
+    final isSelected = selectedClipId == widget.clip.id;
+    
+    // Get zoom factor from TimelineViewModel for drag calculations
+    final zoom = timelineVm.zoom;
+
+    // Calculate the visual offset for smooth dragging preview
+    final double dragOffset = _isDragging 
+        ? (_currentDragFrame - widget.clip.startFrame) * 5.0 * zoom
+        : 0.0;
 
     // Get base color for clip type
     final baseClipColor =
-        _clipTypeColors[clip.type] ?? Colors.grey; // Default grey
-    // Adjust color based on theme brightness maybe? (Optional)
-    // final clipColor = theme.brightness == Brightness.dark ? baseClipColor : baseClipColor.withOpacity(0.8);
+        _clipTypeColors[widget.clip.type] ?? Colors.grey; // Default grey
     final clipColor = baseClipColor;
     final contrastColor = _getContrastColor(
       clipColor,
@@ -54,90 +81,163 @@ class TimelineClip extends StatelessWidget with WatchItMixin {
     // Use theme accent color for selection border
     final selectionBorderColor = theme.accentColor.normal;
 
-    return GestureDetector(
-      onTap: () {
-        di<EditorViewModel>().selectedClipId = clip.id;
-      },
-      onHorizontalDragUpdate: (details) {
-        // TODO: Implement clip dragging logic
-        // Convert details.delta.dx based on zoom from TimelineViewModel
-        // Update clip.startFrame via EditorViewModel or TimelineViewModel
-      },
-      child: Container(
-        // Add margin for spacing between clips
-        margin: const EdgeInsets.only(right: 2),
-        decoration: BoxDecoration(
-          color: clipColor,
-          border: Border.all(
-            // Use theme accent for selection, transparent otherwise
-            color: isSelected ? selectionBorderColor : Colors.transparent,
-            width: isSelected ? 2 : 1, // Thicker border when selected
-          ),
-          borderRadius: BorderRadius.circular(4),
-          // Add a subtle shadow for depth (optional)
-          // boxShadow: kElevationToShadow[1],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return Transform.translate(
+      offset: Offset(dragOffset, 0), // Apply the drag offset for smooth visual movement
+      child: GestureDetector(
+        onTap: () {
+          editorVm.selectedClipId = widget.clip.id;
+        },
+        onHorizontalDragStart: (details) {
+          setState(() {
+            _isDragging = true;
+            _dragStartX = details.localPosition.dx;
+            _originalStartFrame = widget.clip.startFrame;
+            _currentDragFrame = _originalStartFrame;
+          });
+          // Select the clip when starting to drag
+          editorVm.selectedClipId = widget.clip.id;
+        },
+        onHorizontalDragUpdate: (details) {
+          if (!_isDragging) return;
+          
+          // Calculate frame movement based on horizontal drag distance and zoom
+          final pixelsPerFrame = 5.0 * zoom; // Same logic as in TimelineViewModel
+          final dragDeltaInFrames = (details.localPosition.dx - _dragStartX) ~/ pixelsPerFrame;
+          
+          // Calculate new start frame
+          final newStartFrame = _originalStartFrame + dragDeltaInFrames;
+          
+          // Clamp to prevent negative frames
+          final clampedStartFrame = newStartFrame < 0 ? 0 : newStartFrame;
+          
+          // Update the visual state for smooth drag preview
+          if (_currentDragFrame != clampedStartFrame) {
+            setState(() {
+              _currentDragFrame = clampedStartFrame;
+            });
+          }
+        },
+        onHorizontalDragEnd: (details) {
+          if (!_isDragging) return;
+          
+          // Move the clip in the ViewModel to the current preview position
+          if (_originalStartFrame != _currentDragFrame) {
+            timelineVm.moveClip(widget.clip.id, _currentDragFrame);
+          }
+          
+          setState(() {
+            _isDragging = false;
+          });
+        },
+        child: Stack(
           children: [
-            // Clip header with title
             Container(
-              height: 18,
-              padding: const EdgeInsets.symmetric(horizontal: 4),
+              // Add margin for spacing between clips
+              margin: const EdgeInsets.only(right: 2),
               decoration: BoxDecoration(
-                // Slightly darker/lighter shade for header background
-                color: clipColor.withOpacity(0.8),
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(
-                    3,
-                  ), // Match container radius slightly
-                  topRight: Radius.circular(3),
+                // Use lighter color and maybe less opacity when dragging
+                color: _isDragging || widget.isDragging ? clipColor.withOpacity(0.5) : clipColor,
+                border: Border.all(
+                  // Use theme accent for selection, different color for dragging feedback
+                  color:
+                      _isDragging || widget.isDragging
+                          ? theme.accentColor.light
+                          : (isSelected ? selectionBorderColor : Colors.transparent),
+                  width: _isDragging || widget.isDragging ? 1 : (isSelected ? 2 : 1), // Adjust width
                 ),
+                borderRadius: BorderRadius.circular(4),
               ),
-              child: Row(
-                // No need for min size, let it fill
-                children: [
-                  Expanded(
-                    // Allow title to take available space
-                    child: Text(
-                      clip.name,
-                      // Use theme caption style with contrast color
-                      style: theme.typography.caption?.copyWith(
-                        color: contrastColor,
-                        fontWeight: FontWeight.bold,
+              // Slightly reduce opacity of content when dragging
+              child: Opacity(
+                opacity: _isDragging || widget.isDragging ? 0.8 : 1.0,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Clip header with title
+                    Container(
+                      height: 18,
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(
+                        // Slightly darker/lighter shade for header background
+                        color: clipColor.withOpacity(0.8),
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(
+                            3,
+                          ), // Match container radius slightly
+                          topRight: Radius.circular(3),
+                        ),
                       ),
-                      overflow: TextOverflow.ellipsis, // Prevent overflow
-                      maxLines: 1,
+                      child: Row(
+                        // No need for min size, let it fill
+                        children: [
+                          Expanded(
+                            // Allow title to take available space
+                            child: Text(
+                              widget.clip.name,
+                              // Use theme caption style with contrast color
+                              style: theme.typography.caption?.copyWith(
+                                color: contrastColor,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              overflow: TextOverflow.ellipsis, // Prevent overflow
+                              maxLines: 1,
+                            ),
+                          ),
+                          // Display frame position when dragging, otherwise duration
+                          Text(
+                            _isDragging 
+                                ? 'Frame: $_currentDragFrame' 
+                                : '${widget.clip.durationFrames}f',
+                            // Use theme caption style with contrast color
+                            style: theme.typography.caption?.copyWith(
+                              color: contrastColor,
+                              fontSize: 9,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  // Display duration at the end
-                  Text(
-                    '${clip.durationFrames}f',
-                    // Use theme caption style with contrast color
-                    style: theme.typography.caption?.copyWith(
-                      color: contrastColor,
-                      fontSize: 9,
-                    ),
-                  ),
-                ],
-              ),
-            ),
 
-            // Clip content area
-            Expanded(
-              // Use ShapeBorderClipper for rounded corners on the bottom
-              child: ClipPath(
-                clipper: const ShapeBorderClipper(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.only(
-                      bottomLeft: Radius.circular(3),
-                      bottomRight: Radius.circular(3),
+                    // Clip content area
+                    Expanded(
+                      // Use ShapeBorderClipper for rounded corners on the bottom
+                      child: ClipPath(
+                        clipper: const ShapeBorderClipper(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.only(
+                              bottomLeft: Radius.circular(3),
+                              bottomRight: Radius.circular(3),
+                            ),
+                          ),
+                        ),
+                        child: _buildClipContent(clipColor, contrastColor, theme),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
-                child: _buildClipContent(clipColor, contrastColor, theme),
               ),
             ),
+            // Show edge indicators when dragging
+            if (_isDragging)
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                child: Container(
+                  width: 2,
+                  color: theme.accentColor.darker,
+                ),
+              ),
+            if (_isDragging)
+              Positioned(
+                right: 0,
+                top: 0,
+                bottom: 0,
+                child: Container(
+                  width: 2,
+                  color: theme.accentColor.darker,
+                ),
+              ),
           ],
         ),
       ),
@@ -154,7 +254,7 @@ class TimelineClip extends StatelessWidget with WatchItMixin {
     // Use a slightly transparent version of the base color for backgrounds
     final contentBackgroundColor = clipColor.withOpacity(0.6);
 
-    switch (clip.type) {
+    switch (widget.clip.type) {
       case ClipType.video:
         return Container(
           color: contentBackgroundColor,
@@ -170,7 +270,7 @@ class TimelineClip extends StatelessWidget with WatchItMixin {
             // Pass the content color for the waveform
             color: contentColor,
             // Pass clip hashcode for deterministic random waveform
-            seed: clip.hashCode,
+            seed: widget.clip.hashCode,
           ),
           child: Container(
             color: contentBackgroundColor.withOpacity(0.5),
@@ -217,8 +317,9 @@ class _AudioWaveformPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (size.width <= 0 || size.height <= 0)
+    if (size.width <= 0 || size.height <= 0) {
       return; // Avoid painting on zero size
+    }
 
     final paint =
         Paint()
@@ -239,8 +340,6 @@ class _AudioWaveformPainter extends CustomPainter {
       final y = middleY + (random.nextDouble() * 2 - 1) * (waveHeight / 2);
       path.lineTo(x, y);
     }
-    // Ensure path ends at the edge
-    // path.lineTo(size.width, middleY);
 
     canvas.drawPath(path, paint);
   }
@@ -249,8 +348,4 @@ class _AudioWaveformPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _AudioWaveformPainter oldDelegate) =>
       oldDelegate.color != color || oldDelegate.seed != seed;
-}
-
-// Helper to get EditorViewModel instance (assuming watch_it/get_it setup)
-EditorViewModel get _editorVm => di<EditorViewModel>();
-// Ensure di is properly initialized in your app.
+} 

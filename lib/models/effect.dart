@@ -62,7 +62,7 @@ class Effect {
       parameters: json['parameters'] ?? {},
       childEffects: (json['childEffects'] as List?)
           ?.map((effectJson) => Effect.fromJson(effectJson))
-          ?.toList() ?? [],
+          .toList() ?? [],
       startFrame: json['startFrame'],
       durationFrames: json['durationFrames'],
     );

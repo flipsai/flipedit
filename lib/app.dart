@@ -1,13 +1,15 @@
 import 'dart:io' show Platform;
 import 'package:fluent_ui/fluent_ui.dart' as fluent;
-import 'package:flutter/widgets.dart' show Widget;
+import 'package:flutter/widgets.dart'; // Import WidgetsBinding
 import 'package:flipedit/viewmodels/app_viewmodel.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
+import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/views/screens/editor_screen.dart';
 import 'package:flipedit/views/screens/welcome_screen.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/views/widgets/app_menu_bar.dart';
+import 'package:window_manager/window_manager.dart'; // Import window_manager
 
 class FlipEditApp extends fluent.StatelessWidget with WatchItMixin {
   FlipEditApp({super.key});
@@ -18,9 +20,24 @@ class FlipEditApp extends fluent.StatelessWidget with WatchItMixin {
     final isInitialized = watchValue((AppViewModel vm) => vm.isInitializedNotifier);
     final isInspectorVisible = watchValue((EditorViewModel vm) => vm.isInspectorVisibleNotifier);
     final isTimelineVisible = watchValue((EditorViewModel vm) => vm.isTimelineVisibleNotifier);
-    // Get ViewModels needed for menu actions
+    // Get ViewModels needed for menu actions and title
     final editorVm = di<EditorViewModel>();
     final projectVm = di<ProjectViewModel>();
+    final timelineVm = di<TimelineViewModel>();
+
+    // Watch the current project
+    final currentProject = watchValue((ProjectViewModel vm) => vm.currentProjectNotifier);
+
+    // Determine the window title and update the native window
+    final String windowTitle = currentProject != null
+        ? '${currentProject.name} - FlipEdit'
+        : 'FlipEdit';
+    
+    // Use window_manager to set the actual window title
+    // We use a post-frame callback to avoid setting state during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      windowManager.setTitle(windowTitle);
+    });
 
     // Determine the root widget based on Platform
     Widget homeWidget; 
@@ -33,6 +50,7 @@ class FlipEditApp extends fluent.StatelessWidget with WatchItMixin {
         isTimelineVisible: isTimelineVisible,
         editorVm: editorVm,
         projectVm: projectVm,
+        timelineVm: timelineVm,
         child: mainContent, // Pass main content as child
       );
     } else {
@@ -43,10 +61,9 @@ class FlipEditApp extends fluent.StatelessWidget with WatchItMixin {
             title: const fluent.Text('FlipEdit'),
             // Instantiate FluentAppMenuBar for the actions
             actions: FluentAppMenuBar(
-              isInspectorVisible: isInspectorVisible,
-              isTimelineVisible: isTimelineVisible,
               editorVm: editorVm,
               projectVm: projectVm,
+              timelineVm: timelineVm,
             ),
           ),
           content: mainContent, // Place main content here
@@ -54,9 +71,9 @@ class FlipEditApp extends fluent.StatelessWidget with WatchItMixin {
       );
     }
 
-    // Return the FluentApp with the determined home widget
+    // Return the FluentApp with the determined home widget and dynamic title
     return fluent.FluentApp(
-      title: 'FlipEdit',
+      title: windowTitle, // Keep this for fallback/other platforms
       theme: fluent.FluentThemeData(
         accentColor: fluent.Colors.blue,
         brightness: fluent.Brightness.light,
