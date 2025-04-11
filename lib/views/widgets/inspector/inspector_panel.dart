@@ -89,6 +89,7 @@ class InspectorPanel extends StatelessWidget with WatchItMixin {
             filePath: '',
             startFrame: 0,
             durationFrames: 0,
+            trackIndex: 0,
           ),
     );
 
