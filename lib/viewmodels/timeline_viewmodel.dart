@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io'; // Added for File access
+import 'dart:ui'; // Required for lerpDouble
 
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
@@ -8,6 +9,15 @@ import 'package:video_player/video_player.dart';
 import 'package:watch_it/watch_it.dart';
 
 const double _defaultFrameRate = 30.0;
+
+// Simple debounce utility
+void Function() _debounce(VoidCallback func, Duration delay) {
+  Timer? debounceTimer;
+  return () {
+    debounceTimer?.cancel();
+    debounceTimer = Timer(delay, func);
+  };
+}
 
 class TimelineViewModel implements Disposable {
   final ValueNotifier<List<Clip>> clipsNotifier = ValueNotifier<List<Clip>>([]);
@@ -42,8 +52,51 @@ class TimelineViewModel implements Disposable {
   final ValueNotifier<VideoPlayerController?> videoPlayerControllerNotifier =
       ValueNotifier<VideoPlayerController?>(null);
 
+  // Scroll Controllers for synchronized scrolling
+  final ScrollController trackLabelScrollController = ScrollController();
+  final ScrollController trackContentScrollController = ScrollController();
+
+  // Flags to prevent recursive listener calls
+  bool _isSyncingLabels = false;
+  bool _isSyncingContent = false;
+
   Timer? _playbackTimer;
   StreamSubscription? _controllerPositionSubscription;
+
+  TimelineViewModel() {
+    // Setup scroll synchronization listeners
+    _setupScrollSync();
+  }
+
+  void _setupScrollSync() {
+    // Debounced functions to avoid excessive updates during fast scrolls
+    final debouncedSyncToContent = _debounce(() {
+      if (!_isSyncingLabels &&
+          trackLabelScrollController.hasClients &&
+          trackContentScrollController.hasClients) {
+        _isSyncingContent = true;
+        trackContentScrollController
+            .jumpTo(trackLabelScrollController.offset);
+        // Use Future.delayed to reset the flag after the jump completes
+        Future.delayed(Duration.zero, () => _isSyncingContent = false);
+      }
+    }, const Duration(milliseconds: 10)); // Short debounce delay
+
+    final debouncedSyncToLabels = _debounce(() {
+      if (!_isSyncingContent &&
+          trackContentScrollController.hasClients &&
+          trackLabelScrollController.hasClients) {
+        _isSyncingLabels = true;
+        trackLabelScrollController
+            .jumpTo(trackContentScrollController.offset);
+        // Use Future.delayed to reset the flag after the jump completes
+        Future.delayed(Duration.zero, () => _isSyncingLabels = false);
+      }
+    }, const Duration(milliseconds: 10)); // Short debounce delay
+
+    trackLabelScrollController.addListener(debouncedSyncToContent);
+    trackContentScrollController.addListener(debouncedSyncToLabels);
+  }
 
   Future<void> loadVideo(String videoPath) async {
     await _videoPlayerController?.dispose();
@@ -84,8 +137,9 @@ class TimelineViewModel implements Disposable {
 
   void _updateFrameFromController() {
     if (_videoPlayerController == null ||
-        !_videoPlayerController!.value.isInitialized)
+        !_videoPlayerController!.value.isInitialized) {
       return;
+    }
 
     final position = _videoPlayerController!.value.position;
     final frame = (position.inMilliseconds * _defaultFrameRate / 1000).round();
@@ -206,8 +260,9 @@ class TimelineViewModel implements Disposable {
 
   void togglePlayback() {
     if (_videoPlayerController == null ||
-        !_videoPlayerController!.value.isInitialized)
+        !_videoPlayerController!.value.isInitialized) {
       return;
+    }
 
     if (_videoPlayerController!.value.isPlaying) {
       _videoPlayerController!.pause();
@@ -322,17 +377,19 @@ class TimelineViewModel implements Disposable {
 
   @override
   void onDispose() {
-    _videoPlayerController?.dispose();
-    _controllerPositionSubscription?.cancel();
-    _playbackTimer?.cancel();
+    // Dispose controllers - this automatically removes listeners
+    trackLabelScrollController.dispose();
+    trackContentScrollController.dispose();
 
+    // Dispose ValueNotifiers and other resources
     clipsNotifier.dispose();
     zoomNotifier.dispose();
     currentFrameNotifier.dispose();
-    totalFramesNotifier.dispose();
     isPlayingNotifier.dispose();
+    totalFramesNotifier.dispose();
     videoPlayerControllerNotifier.dispose();
-
-    trackScrollController.dispose();
+    _playbackTimer?.cancel();
+    _controllerPositionSubscription?.cancel();
+    _videoPlayerController?.dispose(); // Ensure video controller is disposed
   }
 }

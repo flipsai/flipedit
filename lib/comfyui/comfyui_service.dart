@@ -90,7 +90,7 @@ class ComfyUIService {
       }
       
       // Command to start ComfyUI
-      final mainPyPath = '${comfyUIPath}/main.py';
+      final mainPyPath = '$comfyUIPath/main.py';
       
       // Start ComfyUI process
       _comfyProcess = await Process.start(

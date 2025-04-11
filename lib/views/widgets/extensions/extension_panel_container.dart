@@ -415,7 +415,7 @@ class _ObjectTrackingPanel extends StatelessWidget {
             height: 100,
             decoration: BoxDecoration(
               color: Colors.white,
-              border: Border.all(color: Colors.grey[50]!),
+              border: Border.all(color: Colors.grey[50]),
               borderRadius: BorderRadius.circular(4),
             ),
             child: const Center(child: Text('No objects tracked yet')),

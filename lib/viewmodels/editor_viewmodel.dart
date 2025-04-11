@@ -29,7 +29,7 @@ class EditorViewModel with Disposable {
   final ValueNotifier<List<double>> opacitiesNotifier = ValueNotifier<List<double>>([]);
 
   // Last known parent and position for panels, used to restore them to their previous positions
-  Map<String, Map<String, dynamic>> _lastPanelPositions = {};
+  final Map<String, Map<String, dynamic>> _lastPanelPositions = {};
   
   // Listener for layout changes
   VoidCallback? _layoutListener;
@@ -57,10 +57,10 @@ class EditorViewModel with Disposable {
     if (selectedClipIdNotifier.value == value) return;
     selectedClipIdNotifier.value = value;
   }
-
+  
   // Layout setter manages the listener
   set layout(DockingLayout? value) {
-     if (layoutNotifier.value == value) return;
+    if (layoutNotifier.value == value) return;
 
      // Remove listener from old layout
      if (layoutNotifier.value != null && _layoutListener != null) {
@@ -183,7 +183,7 @@ class EditorViewModel with Disposable {
           'position': position,
         };
         
-        print("Stored position for ${item.id}: adjacent=${adjacentId}, pos=${position}");
+        print("Stored position for ${item.id}: adjacent=$adjacentId, pos=$position");
       }
     }
     
@@ -202,10 +202,9 @@ class EditorViewModel with Disposable {
           if (child is DockingItem) {
             // For items, process them with their actual parent
             processItem(child, area, position);
-          } else if (child is DockingArea) {
-            // For sub-containers, visit them recursively
-            visitArea(child, position);
-          }
+          } else          // For sub-containers, visit them recursively
+          visitArea(child, position);
+        
         }
       } else if (area is DockingTabs) {
         // Use safer method for tabs
@@ -509,7 +508,7 @@ class EditorViewModel with Disposable {
       if (isLayoutEmpty) {
         debugPrint("Layout is empty. Resetting layout with Timeline as root.");
         // IMPORTANT: Assign to the layout property to trigger notifier and listener attachment
-        this.layout = DockingLayout(root: _buildTimelineItem());
+        layout = DockingLayout(root: _buildTimelineItem());
       } else {
         // Layout is not empty, proceed with restoring/adding
         final lastPosition = _lastPanelPositions['timeline'];
@@ -548,10 +547,7 @@ class EditorViewModel with Disposable {
     DropPosition position = DropPosition.bottom;
 
     // If preview isn't found, try adding below inspector
-    if (targetItem == null) {
-      targetItem = layout.findDockingItem('inspector');
-      // Position remains bottom, assuming inspector is typically on the right
-    }
+    targetItem ??= layout.findDockingItem('inspector');
 
     if (targetItem != null) {
       layout.addItemOn(
@@ -586,7 +582,7 @@ class EditorViewModel with Disposable {
       if (isLayoutEmpty) {
         debugPrint("Layout is empty. Resetting layout with Inspector as root.");
         // IMPORTANT: Assign to the layout property to trigger notifier and listener attachment
-        this.layout = DockingLayout(root: _buildInspectorItem());
+        layout = DockingLayout(root: _buildInspectorItem());
       } else {
         // Layout is not empty, proceed with restoring/adding
         final lastPosition = _lastPanelPositions['inspector'];
@@ -625,10 +621,7 @@ class EditorViewModel with Disposable {
     DropPosition position = DropPosition.right;
 
     // If preview isn't found, try adding to the right of timeline
-    if (targetItem == null) {
-      targetItem = layout.findDockingItem('timeline');
-      // Position remains right
-    }
+    targetItem ??= layout.findDockingItem('timeline');
     
     if (targetItem != null) {
       layout.addItemOn(

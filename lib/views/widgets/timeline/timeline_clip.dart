@@ -231,8 +231,9 @@ class _AudioWaveformPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (size.width <= 0 || size.height <= 0)
+    if (size.width <= 0 || size.height <= 0) {
       return; // Avoid painting on zero size
+    }
 
     final paint =
         Paint()
