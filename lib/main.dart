@@ -4,10 +4,15 @@ import 'package:flipedit/di/service_locator.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:fvp/fvp.dart';
+import 'package:window_manager/window_manager.dart';
 // import 'package:flutter/rendering.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Ensure window_manager is initialized for desktop platforms
+  await windowManager.ensureInitialized();
+
 
   // Initialize FVP/MDK with registerWith
   try {
