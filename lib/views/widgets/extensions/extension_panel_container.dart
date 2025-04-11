@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
@@ -106,12 +107,16 @@ class ExtensionPanelContainer extends StatelessWidget {
   }
 }
 
-class _MediaExtensionPanel extends StatelessWidget {
+// Make _MediaExtensionPanel reactive using WatchItBuilder
+class _MediaExtensionPanel extends WatchingWidget {
   const _MediaExtensionPanel();
 
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
+    // Access the view model and watch the project media list
+    final projectMedia = watchValue((EditorViewModel vm) => vm.projectMediaNotifier);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -123,6 +128,7 @@ class _MediaExtensionPanel extends StatelessWidget {
               padding: EdgeInsets.only(left: 8.0),
               child: Icon(FluentIcons.search, size: 16),
             ),
+            // TODO: Implement search filtering
           ),
         ),
         Padding(
@@ -136,28 +142,38 @@ class _MediaExtensionPanel extends StatelessWidget {
           ),
         ),
         Expanded(
-          child: ListView(
+          child: ListView.builder(
             padding: const EdgeInsets.all(8.0),
-            children: <Widget>[
-              _buildMediaItem(
+            itemCount: projectMedia.length,
+            itemBuilder: (context, index) {
+              final clip = projectMedia[index];
+              return _buildMediaItem(
                 context: context,
-                title: 'Video 1.mp4',
-                duration: '00:03:24',
-                icon: FluentIcons.video,
-              ),
-              _buildMediaItem(
-                context: context,
-                title: 'Audio 1.mp3',
-                duration: '00:02:30',
-                icon: FluentIcons.music_in_collection,
-              ),
-              _buildMediaItem(
-                context: context,
-                title: 'Image 1.jpg',
-                duration: '',
-                icon: FluentIcons.photo2,
-              ),
-            ],
+                clip: clip, // Pass the actual clip
+                // Remove static title, duration, icon
+              );
+            },
+            // Old static ListView:
+            // children: <Widget>[
+            //   _buildMediaItem(
+            //     context: context,
+            //     title: 'Video 1.mp4',
+            //     duration: '00:03:24',
+            //     icon: FluentIcons.video,
+            //   ),
+            //   _buildMediaItem(
+            //     context: context,
+            //     title: 'Audio 1.mp3',
+            //     duration: '00:02:30',
+            //     icon: FluentIcons.music_in_collection,
+            //   ),
+            //   _buildMediaItem(
+            //     context: context,
+            //     title: 'Image 1.jpg',
+            //     duration: '',
+            //     icon: FluentIcons.photo2,
+            //   ),
+            // ],
           ),
         ),
         Padding(
@@ -171,8 +187,25 @@ class _MediaExtensionPanel extends StatelessWidget {
                 Text('Import Media'),
               ],
             ),
-            onPressed: () {
+            onPressed: () async {
               // Handle import
+              FilePickerResult? result = await FilePicker.platform.pickFiles(
+                type: FileType.media, // Allow video, audio, images
+                allowMultiple: true,
+              );
+
+              if (result != null) {
+                final editorViewModel = di<EditorViewModel>();
+                for (var file in result.files) {
+                  if (file.path != null) {
+                    final clip = _createClipFromFile(file);
+                    if (clip != null) {
+                      // TODO: Add clip to project media pool instead of directly to timeline
+                      editorViewModel.addClip(clip);
+                    }
+                  }
+                }
+              }
             },
           ),
         ),
@@ -180,38 +213,40 @@ class _MediaExtensionPanel extends StatelessWidget {
     );
   }
 
+  // Updated _buildMediaItem to accept a Clip object
   Widget _buildMediaItem({
     required BuildContext context,
-    required String title,
-    required String duration,
-    required IconData icon,
+    required Clip clip, // Now takes a Clip object
+    // Removed title, duration, icon parameters
   }) {
     final theme = FluentTheme.of(context);
-    // Create a mock clip based on the media item type
-    final ClipType clipType =
-        icon == FluentIcons.video
-            ? ClipType.video
-            : (icon == FluentIcons.music_in_collection
-                ? ClipType.audio
-                : ClipType.image);
+    // Determine icon based on clip type
+    IconData icon;
+    switch (clip.type) {
+      case ClipType.video:
+        icon = FluentIcons.video;
+        break;
+      case ClipType.audio:
+        icon = FluentIcons.music_in_collection;
+        break;
+      case ClipType.image:
+        icon = FluentIcons.photo2;
+        break;
+      default:
+        icon = FluentIcons.unknown; // Default case
+    }
 
-    // Create a clip for dragging
-    final clip = Clip(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      name: title,
-      type: clipType,
-      filePath: '/path/to/dummy/$title', // Placeholder path
-      startFrame: 0,
-      durationFrames: clipType == ClipType.image ? 90 : 150, // Default duration
-      trackIndex:
-          clipType == ClipType.audio
-              ? 1
-              : 0, // Audio on track 1, video/image on track 0
-    );
+    // TODO: Format duration properly based on clip.durationFrames and project FPS
+    final String durationString = clip.type == ClipType.image
+        ? '' // Images don't have a duration in the same way
+        : '${(clip.durationFrames / 30).toStringAsFixed(1)}s'; // Placeholder duration display (assuming 30fps)
+
+    // Create a copy of the clip for dragging to avoid modifying the original in the pool
+    final draggableClip = clip.copyWith(); 
 
     return Draggable<Clip>(
       // Data is the clip to be dragged
-      data: clip,
+      data: draggableClip,
       // Center the feedback at the cursor position
       dragAnchorStrategy: pointerDragAnchorStrategy,
       // What is shown when dragging
@@ -230,7 +265,7 @@ class _MediaExtensionPanel extends StatelessWidget {
               Icon(icon, color: Colors.white, size: 16),
               const SizedBox(width: 8),
               Text(
-                title,
+                clip.name,
                 style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -251,15 +286,15 @@ class _MediaExtensionPanel extends StatelessWidget {
         child: ListTile(
           leading: Icon(icon, color: theme.resources.textFillColorSecondary),
           title: Text(
-            title,
+            clip.name,
             style: theme.typography.body?.copyWith(
               color: theme.resources.textFillColorSecondary,
             ),
           ),
           subtitle:
-              duration.isNotEmpty
+              durationString.isNotEmpty
                   ? Text(
-                    duration,
+                    durationString,
                     style: theme.typography.caption?.copyWith(
                       color: theme.resources.textFillColorSecondary,
                     ),
@@ -278,10 +313,10 @@ class _MediaExtensionPanel extends StatelessWidget {
         ),
         child: ListTile(
           leading: Icon(icon, color: theme.resources.textFillColorPrimary),
-          title: Text(title, style: theme.typography.body),
+          title: Text(clip.name, style: theme.typography.body), // Use clip name
           subtitle:
-              duration.isNotEmpty
-                  ? Text(duration, style: theme.typography.caption)
+              durationString.isNotEmpty
+                  ? Text(durationString, style: theme.typography.caption) // Use calculated duration string
                   : null,
           trailing: Icon(
             FluentIcons.move,
@@ -289,10 +324,50 @@ class _MediaExtensionPanel extends StatelessWidget {
             color: theme.resources.textFillColorSecondary,
           ),
           onPressed: () {
-            // Handle media item selection
+            // Handle media item selection (e.g., select in preview or show properties)
+            di<EditorViewModel>().selectedClipId = clip.id;
           },
         ),
       ),
+    );
+  }
+
+  // Helper function to determine ClipType from file extension
+  ClipType? _getClipTypeFromPath(String path) {
+    final extension = path.split('.').last.toLowerCase();
+    if (['mp4', 'mov', 'avi', 'mkv', 'webm'].contains(extension)) {
+      return ClipType.video;
+    } else if (['mp3', 'wav', 'aac', 'flac', 'ogg'].contains(extension)) {
+      return ClipType.audio;
+    } else if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].contains(extension)) {
+      return ClipType.image;
+    }
+    return null; // Unknown type
+  }
+
+  // Helper function to create a Clip object from a PlatformFile
+  Clip? _createClipFromFile(PlatformFile file) {
+    if (file.path == null) return null;
+
+    final clipType = _getClipTypeFromPath(file.path!);
+    if (clipType == null) return null; // Skip unknown file types
+
+    // TODO: Get actual duration for video/audio files
+    // This requires a media processing library (e.g., ffmpeg_kit_flutter)
+    final int durationFrames = clipType == ClipType.image
+        ? 90 // Default duration for images (e.g., 3 seconds at 30fps)
+        : 150; // Placeholder duration for video/audio
+
+    final int trackIndex = clipType == ClipType.audio ? 1 : 0; // Default track
+
+    return Clip(
+      id: DateTime.now().millisecondsSinceEpoch.toString() + file.name, // Basic unique ID
+      name: file.name,
+      type: clipType,
+      filePath: file.path!,
+      startFrame: 0,
+      durationFrames: durationFrames,
+      trackIndex: trackIndex,
     );
   }
 }
