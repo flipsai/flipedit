@@ -1,7 +1,8 @@
-import 'package:flutter/foundation.dart';
 import 'package:flipedit/models/clip.dart';
+import 'package:fluent_ui/fluent_ui.dart';
+import 'package:watch_it/watch_it.dart';
 
-class TimelineViewModel {
+class TimelineViewModel implements Disposable {
   final ValueNotifier<List<Clip>> clipsNotifier = ValueNotifier<List<Clip>>([]);
   List<Clip> get clips => List.unmodifiable(clipsNotifier.value);
 
@@ -160,5 +161,22 @@ class TimelineViewModel {
   void _startPlayback() {
     // In a real implementation, this would set up a timer to advance frames
     // and coordinate with a player service
+  }
+
+  // --- Scroll Controller ---
+  final ScrollController trackScrollController = ScrollController();
+
+  // --- Dispose ---
+  @override
+  void onDispose() {
+    // Dispose all value notifiers
+    clipsNotifier.dispose();
+    zoomNotifier.dispose();
+    currentFrameNotifier.dispose();
+    totalFramesNotifier.dispose();
+    isPlayingNotifier.dispose();
+
+    // Dispose the scroll controller
+    trackScrollController.dispose();
   }
 }
