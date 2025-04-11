@@ -147,9 +147,20 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
     return FilledButton(
       onPressed: () async {
         print("Add Media button pressed - Placeholder");
+        
+        // Get the first track ID or default/error if none
+        final int targetTrackId;
+        if (timelineViewModel.currentTrackIds.isNotEmpty) {
+           targetTrackId = timelineViewModel.currentTrackIds.first;
+        } else {
+           print("Error: No tracks loaded to add clip to.");
+           // Optionally show a user message
+           return; // Don't proceed if no track is available
+        }
+
         final dummyClipData = ClipModel(
           databaseId: null,
-          trackId: 1, // TODO: Determine target track ID
+          trackId: targetTrackId, // Use determined track ID
           name: 'New Video Clip',
           type: ClipType.video,
           sourcePath: 'https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4',
@@ -159,7 +170,7 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
         );
         await timelineViewModel.addClipAtPosition(
           clipData: dummyClipData,
-          trackId: 1, // TODO: Determine target track ID
+          trackId: targetTrackId, // Use determined track ID
           startTimeInSourceMs: dummyClipData.startTimeInSourceMs,
           endTimeInSourceMs: dummyClipData.endTimeInSourceMs,
         );

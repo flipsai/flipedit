@@ -31,6 +31,8 @@ class TimelineViewModel implements Disposable {
   final ValueNotifier<List<ClipModel>> clipsNotifier = ValueNotifier<List<ClipModel>>([]);
   List<ClipModel> get clips => List.unmodifiable(clipsNotifier.value);
 
+  List<int> currentTrackIds = [];
+
   final ValueNotifier<double> zoomNotifier = ValueNotifier<double>(1.0);
   double get zoom => zoomNotifier.value;
   set zoom(double value) {
@@ -137,6 +139,10 @@ class TimelineViewModel implements Disposable {
   Future<void> loadClipsForProject(int projectId) async {
     print('Loading clips for project $projectId');
     final tracks = await _trackDao.getTracksForProject(projectId);
+    
+    currentTrackIds = tracks.map((t) => t.id).toList();
+    print('Loaded track IDs: $currentTrackIds');
+
     if (tracks.isEmpty) {
       print('No tracks found for project $projectId');
       clipsNotifier.value = [];
@@ -146,7 +152,9 @@ class TimelineViewModel implements Disposable {
 
     final List<ClipModel> allClips = [];
     for (final track in tracks) {
+      print('Processing track ID: ${track.id}');
       final trackClipsData = await _clipDao.getClipsForTrack(track.id);
+      print('Found ${trackClipsData.length} clips for track ID: ${track.id}');
       allClips.addAll(trackClipsData.map((dbData) => ClipModel.fromDbData(dbData)));
     }
 

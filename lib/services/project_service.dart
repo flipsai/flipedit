@@ -7,9 +7,12 @@ import 'package:watch_it/watch_it.dart';
 import 'package:window_manager/window_manager.dart';
 import 'dart:async'; // Import for StreamSubscription
 
+import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
+
 class ProjectService {
   final ProjectDao _projectDao = di<ProjectDao>();
   final TrackDao _trackDao = di<TrackDao>();
+  final TimelineViewModel _timelineViewModel = di<TimelineViewModel>();
 
   /// Notifier for the currently loaded project.
   /// Other services/viewmodels can watch this.
@@ -42,6 +45,24 @@ class ProjectService {
     if (project != null) {
       print("Loaded project: ${project.name}");
       windowManager.setTitle('${project.name} - FlipEdit');
+
+      // Watch tracks for the loaded project
+      _tracksSubscription = _trackDao.watchTracksForProject(projectId).listen((tracks) {
+        currentProjectTracksNotifier.value = tracks;
+        print("Updated tracks for project ${project.id}: ${tracks.length} tracks");
+        
+        // TODO: Decide if clips should reload every time tracks change, or just on initial load.
+        // For now, let's load clips *after* tracks are loaded.
+        // _timelineViewModel.loadClipsForProject(projectId); 
+        
+      }, onError: (error) {
+        print("Error watching tracks for project $projectId: $error");
+        // Handle error appropriately
+      });
+
+      // --- Load Clips using TimelineViewModel --- 
+      // Call this *after* setting the project notifier and confirming project is not null.
+      await _timelineViewModel.loadClipsForProject(projectId);
 
       // Watch tracks for the loaded project
       _tracksSubscription = _trackDao.watchTracksForProject(projectId).listen((tracks) {
