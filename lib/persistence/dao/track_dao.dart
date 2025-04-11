@@ -18,6 +18,16 @@ class TrackDao extends DatabaseAccessor<AppDatabase> with _$TrackDaoMixin {
         .watch();
   }
 
+  // Get all tracks for a specific project, ordered by their 'order' field (non-streaming)
+  Future<List<Track>> getTracksForProject(int projectId) {
+    return (select(tracks)
+      ..where((t) => t.projectId.equals(projectId))
+      ..orderBy([
+        (t) => OrderingTerm(expression: t.order, mode: OrderingMode.asc),
+      ]))
+    .get();
+  }
+
   // Insert a new track
   Future<int> insertTrack(TracksCompanion track) {
     return into(tracks).insert(track);

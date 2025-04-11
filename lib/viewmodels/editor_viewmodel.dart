@@ -370,9 +370,9 @@ class EditorViewModel with Disposable {
   }
 
   // Calculate the target frame within the clip's local timeline
-  int _calculateLocalFrame(Clip clip, int globalFrame) {
+  int _calculateLocalFrame(ClipModel clip, int globalFrame) {
       // Ensure the frame is within the clip's duration
-      return (globalFrame - clip.startFrame).clamp(0, clip.durationFrames - 1);
+      return (globalFrame - clip.startFrame).clamp(0, clip.durationFrames - 1).toInt();
   }
 
   // Updated to accept isPlaying state
@@ -434,7 +434,7 @@ class EditorViewModel with Disposable {
     final clips = _timelineViewModel.clips; 
     final bool isPlaying = _timelineViewModel.isPlaying; // Get current play state
     String? videoUrlToShow;
-    Clip? foundClip;
+    ClipModel? foundClip;
 
     for (var clip in clips.reversed) { 
       final int endFrame = clip.startFrame + clip.durationFrames;
@@ -442,7 +442,7 @@ class EditorViewModel with Disposable {
           globalFrame >= clip.startFrame &&
           globalFrame < endFrame) {
         foundClip = clip;
-        videoUrlToShow = clip.filePath;
+        videoUrlToShow = clip.sourcePath;
         break; 
       }
     }

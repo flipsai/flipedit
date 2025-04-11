@@ -36,6 +36,14 @@ class Timeline extends StatelessWidget with WatchItMixin {
     final trackLabelScrollController = timelineViewModel.trackLabelScrollController;
     final trackContentScrollController = timelineViewModel.trackContentScrollController;
 
+    // Determine track count differently - maybe from a dedicated track list in a ViewModel
+    // For now, let's derive it from unique track IDs present in the clips
+    final uniqueTrackIds = clips.map((clip) => clip.trackId).toSet();
+    final trackCount = uniqueTrackIds.isNotEmpty ? uniqueTrackIds.length : 1; // Default to 1 track if no clips
+    // It's better to get tracks from a dedicated source (e.g., ProjectService or TrackDao)
+
+    const double trackHeaderWidth = 100.0; // Placeholder width, remove LayoutService dependency
+
     return Container(
       // Use a standard dark background from the theme resources
       color: theme.resources.cardBackgroundFillColorDefault,
@@ -151,7 +159,7 @@ class Timeline extends StatelessWidget with WatchItMixin {
                                               final track = tracks[index];
                                               // Filter clips for this specific track (using track.id)
                                               // TODO: Update Clip model/logic to include trackId
-                                              final trackClips = clips.where((clip) => clip.trackIndex == index).toList(); // Placeholder logic using trackIndex
+                                              final trackClips = clips.where((clip) => clip.trackId == index + 1).toList();
 
                                               return TimelineTrack(
                                                 trackIndex: index, // Keep trackIndex for layout/clip assignment for now

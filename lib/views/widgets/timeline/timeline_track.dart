@@ -9,7 +9,7 @@ import 'dart:developer' as developer;
 /// A track in the timeline which contains clips
 class TimelineTrack extends StatefulWidget {
   final int trackIndex;
-  final List<Clip> clips;
+  final List<ClipModel> clips;
 
   const TimelineTrack({
     super.key,
@@ -76,11 +76,17 @@ class _TimelineTrackState extends State<TimelineTrack> {
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
 
-    return DragTarget<Clip>(
+    return DragTarget<ClipModel>(
       key: _trackKey,
       onAcceptWithDetails: (details) {
         // Get the dragged clip
         final draggedClip = details.data;
+
+        // Check if draggedClip is not null before proceeding
+        if (draggedClip == null) {
+           developer.log('Error: Dragged data is null');
+           return;
+        }
 
         // Convert global position to local position with highest precision
         final RenderBox renderBox =
@@ -110,12 +116,13 @@ class _TimelineTrackState extends State<TimelineTrack> {
         );
 
         // Call the new ViewModel method to handle duration fetching
-        timelineViewModel.addClipFromFile(
-          draggedClip.filePath,
-          targetFrame,
-          widget.trackIndex,
-          draggedClip.type,
-          draggedClip.name,
+        timelineViewModel.addClipAtPosition(
+          clipData: draggedClip,
+          trackId: widget.trackIndex + 1,
+          startTimeInSourceMs: draggedClip.startTimeInSourceMs,
+          endTimeInSourceMs: draggedClip.endTimeInSourceMs,
+          localPositionX: posX,
+          scrollOffsetX: scrollPosition,
         );
 
         // Reset the hover position
@@ -207,7 +214,8 @@ class _TimelineTrackState extends State<TimelineTrack> {
                     return const SizedBox.shrink();
                   }
 
-                  final draggedClip = candidateData.first as Clip;
+                  final draggedClip = candidateData.first;
+                  if (draggedClip == null) return const SizedBox.shrink();
 
                   // For preview, use the cursor X position directly
                   final previewRawX = hoverPosition.dx;
@@ -222,6 +230,14 @@ class _TimelineTrackState extends State<TimelineTrack> {
 
                   return Stack(
                     children: [
+                      // Vertical line indicator at the drop frame
+                      Positioned(
+                        left: previewLeftPosition,
+                        top: 0,
+                        bottom: 0,
+                        width: 1,
+                        child: Container(color: theme.accentColor.lighter),
+                      ),
                       // The clip preview
                       Positioned(
                         left: previewLeftPosition,

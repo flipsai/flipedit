@@ -39,23 +39,27 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
           Tooltip(
             message: 'Zoom Out',
             child: IconButton(
-              icon: Icon(
-                FluentIcons.remove,
-                size: 16,
-                color: controlsContentColor,
-              ),
-              onPressed: () => timelineViewModel.setZoom(zoom / 1.2),
+              icon: Icon(FluentIcons.remove, size: 16, color: controlsContentColor),
+              onPressed: timelineViewModel.zoom > 0.2
+                  ? () => timelineViewModel.zoom = zoom / 1.2
+                  : null,
+            ),
+          ),
+          Tooltip(
+            message: 'Zoom Level Display (Optional)',
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+              child: Text('${(zoom * 100).toStringAsFixed(0)}%',
+                  style: theme.typography.caption?.copyWith(fontSize: 10)),
             ),
           ),
           Tooltip(
             message: 'Zoom In',
             child: IconButton(
-              icon: Icon(
-                FluentIcons.add,
-                size: 16,
-                color: controlsContentColor,
-              ),
-              onPressed: () => timelineViewModel.setZoom(zoom * 1.2),
+              icon: Icon(FluentIcons.add, size: 16, color: controlsContentColor),
+              onPressed: timelineViewModel.zoom < 5.0
+                  ? () => timelineViewModel.zoom = zoom * 1.2
+                  : null,
             ),
           ),
 
@@ -64,34 +68,25 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
           Tooltip(
             message: 'Go to Start',
             child: IconButton(
-              icon: Icon(
-                FluentIcons.previous,
-                size: 16,
-                color: controlsContentColor,
-              ),
-              onPressed: () => timelineViewModel.seekTo(0),
+              icon: Icon(FluentIcons.previous, size: 16, color: controlsContentColor),
+              onPressed: () => timelineViewModel.currentFrame = 0,
             ),
           ),
           Tooltip(
             message: isPlaying ? 'Pause' : 'Play',
             child: IconButton(
               icon: Icon(
-                isPlaying ? FluentIcons.pause : FluentIcons.play_solid,
+                isPlaying ? FluentIcons.pause : FluentIcons.play,
                 size: 16,
-                color: controlsContentColor,
               ),
-              onPressed: () => timelineViewModel.togglePlayback(),
+              onPressed: () => timelineViewModel.togglePlayPause(),
             ),
           ),
           Tooltip(
             message: 'Go to End',
             child: IconButton(
-              icon: Icon(
-                FluentIcons.next,
-                size: 16,
-                color: controlsContentColor,
-              ),
-              onPressed: () => timelineViewModel.seekTo(totalFrames),
+              icon: Icon(FluentIcons.next, size: 16, color: controlsContentColor),
+              onPressed: () => timelineViewModel.currentFrame = totalFrames,
             ),
           ),
 
@@ -134,48 +129,57 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
           const Spacer(),
 
           Tooltip(
-            message: 'Add a new clip at the current frame',
-            child: FilledButton(
-              onPressed: () => _showAddClipDialog(context),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(FluentIcons.add, size: 12),
-                  const SizedBox(width: 4),
-                  Text('Add Clip', style: theme.typography.caption),
-                ],
-              ),
-            ),
+            message: 'Add Media',
+            child: _buildAddMediaButton(context, timelineViewModel, theme, controlsContentColor),
           ),
         ],
       ),
     );
   }
 
-  void _showAddClipDialog(BuildContext context) {
-    final timelineViewModel = di<TimelineViewModel>();
-
-    final newClip = Clip(
-      trackIndex: 0,
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      name: 'New Dummy Clip',
-      type: ClipType.video,
-      filePath: '/path/to/dummy/file.mp4',
-      startFrame: timelineViewModel.currentFrame,
-      durationFrames: 150,
+  // Helper method for Add Media button
+  Widget _buildAddMediaButton(
+    BuildContext context,
+    TimelineViewModel timelineViewModel,
+    FluentThemeData theme,
+    Color controlsContentColor,
+  ) {
+    return FilledButton(
+      onPressed: () async {
+        print("Add Media button pressed - Placeholder");
+        final dummyClipData = ClipModel(
+          databaseId: null,
+          trackId: 1, // TODO: Determine target track ID
+          name: 'New Video Clip',
+          type: ClipType.video,
+          sourcePath: 'https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4',
+          startTimeInSourceMs: 0,
+          endTimeInSourceMs: 5000,
+          startTimeOnTrackMs: 0,
+        );
+        await timelineViewModel.addClipAtPosition(
+          clipData: dummyClipData,
+          trackId: 1, // TODO: Determine target track ID
+          startTimeInSourceMs: dummyClipData.startTimeInSourceMs,
+          endTimeInSourceMs: dummyClipData.endTimeInSourceMs,
+        );
+      },
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(FluentIcons.add, size: 12, color: controlsContentColor),
+          const SizedBox(width: 4),
+          Text('Add Clip', style: theme.typography.caption?.copyWith(color: controlsContentColor)),
+        ],
+      ),
     );
-
-    timelineViewModel.addClip(newClip);
   }
 
   String _formatDuration(Duration d) {
-    final minutes = d.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final seconds = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-    final milliseconds = d.inMilliseconds
-        .remainder(1000)
-        .toString()
-        .padLeft(3, '0')
-        .substring(0, 2);
-    return '$minutes:$seconds.$milliseconds';
+    String twoDigits(int n) => n.toString().padLeft(2, "0");
+    String twoDigitMinutes = twoDigits(d.inMinutes.remainder(60));
+    String twoDigitSeconds = twoDigits(d.inSeconds.remainder(60));
+    String twoDigitMilliseconds = twoDigits(d.inMilliseconds.remainder(1000));
+    return '$twoDigitMinutes:$twoDigitSeconds.$twoDigitMilliseconds';
   }
 }

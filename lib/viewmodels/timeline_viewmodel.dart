@@ -1,9 +1,13 @@
 import 'dart:async';
 import 'dart:io'; // Added for File access
 import 'dart:ui'; // Required for lerpDouble
+import 'package:drift/drift.dart' show Value; // Added Value import
 
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
+import 'package:flipedit/persistence/dao/clip_dao.dart';
+import 'package:flipedit/persistence/dao/track_dao.dart';
+import 'package:flipedit/persistence/database/app_database.dart' show Track;
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:video_player/video_player.dart';
 import 'package:watch_it/watch_it.dart';
@@ -21,8 +25,11 @@ void Function() _debounce(VoidCallback func, Duration delay) {
 }
 
 class TimelineViewModel implements Disposable {
-  final ValueNotifier<List<Clip>> clipsNotifier = ValueNotifier<List<Clip>>([]);
-  List<Clip> get clips => List.unmodifiable(clipsNotifier.value);
+  final ClipDao _clipDao;
+  final TrackDao _trackDao;
+
+  final ValueNotifier<List<ClipModel>> clipsNotifier = ValueNotifier<List<ClipModel>>([]);
+  List<ClipModel> get clips => List.unmodifiable(clipsNotifier.value);
 
   final ValueNotifier<double> zoomNotifier = ValueNotifier<double>(1.0);
   double get zoom => zoomNotifier.value;
@@ -34,14 +41,13 @@ class TimelineViewModel implements Disposable {
   final ValueNotifier<int> currentFrameNotifier = ValueNotifier<int>(0);
   int get currentFrame => currentFrameNotifier.value;
   set currentFrame(int value) {
-    final clampedValue = value.clamp(0, _totalFrames);
+    final totalFrames = _calculateTotalFrames();
+    final clampedValue = value.clamp(0, totalFrames);
     if (currentFrameNotifier.value == clampedValue) return;
     currentFrameNotifier.value = clampedValue;
 
-    // If playing via timer, pause it when manually seeking
     if (_playbackTimer?.isActive ?? false) {
        _stopPlaybackTimer();
-       // Optional: Decide if seeking should resume playback. Currently, it stops.
        isPlayingNotifier.value = false; 
     }
 
@@ -60,42 +66,39 @@ class TimelineViewModel implements Disposable {
   final ValueNotifier<VideoPlayerController?> videoPlayerControllerNotifier =
       ValueNotifier<VideoPlayerController?>(null);
 
-  // Scroll Controllers for synchronized scrolling
   final ScrollController trackLabelScrollController = ScrollController();
   final ScrollController trackContentScrollController = ScrollController();
 
-  // Flags to prevent recursive listener calls
   bool _isSyncingLabels = false;
   bool _isSyncingContent = false;
 
   Timer? _playbackTimer;
   StreamSubscription? _controllerPositionSubscription;
+  StreamSubscription? _clipStreamSubscription;
 
-  // Debounce the frame update from timer to avoid excessive state changes
   late final VoidCallback _debouncedFrameUpdate;
 
-  TimelineViewModel() {
-    // Setup scroll synchronization listeners
+  TimelineViewModel(this._clipDao, this._trackDao) {
     _setupScrollSync();
-    _recalculateTotalFrames(); // Initialize total frames
+    _recalculateAndUpdateTotalFrames();
 
-    // Initialize debounced frame update
     _debouncedFrameUpdate = _debounce(() {
-      if (!isPlayingNotifier.value) return; // Check if still playing
+      if (!isPlayingNotifier.value) return;
 
-      final nextFrame = currentFrame + 1;
-      if (nextFrame <= _totalFrames) {
-        currentFrameNotifier.value = nextFrame; // Update frame directly
-        // Restart timer for next frame if not at the end
-        if (nextFrame < _totalFrames) {
+      final currentMs = ClipModel.framesToMs(currentFrame);
+      final nextFrameMs = currentMs + (1000 / _defaultFrameRate);
+      final nextFrame = ClipModel.msToFrames(nextFrameMs.round());
+
+      final totalFrames = _calculateTotalFrames();
+      if (nextFrame <= totalFrames) {
+        currentFrameNotifier.value = nextFrame;
+        if (nextFrame < totalFrames) {
           _startPlaybackTimer(); 
         } else {
-          // Reached end, stop playback
           _stopPlaybackTimer();
           isPlayingNotifier.value = false;
         }
       } else {
-        // Should not happen if check above is correct, but safety stop
         _stopPlaybackTimer();
         isPlayingNotifier.value = false;
       }
@@ -103,68 +106,70 @@ class TimelineViewModel implements Disposable {
   }
 
   void _setupScrollSync() {
-    // Debounced functions to avoid excessive updates during fast scrolls
     final debouncedSyncToContent = _debounce(() {
       if (!_isSyncingLabels &&
           trackLabelScrollController.hasClients &&
-          trackContentScrollController.hasClients) {
+          trackContentScrollController.hasClients &&
+          trackLabelScrollController.position.hasPixels &&
+          trackContentScrollController.position.hasPixels) {
         _isSyncingContent = true;
-        trackContentScrollController
-            .jumpTo(trackLabelScrollController.offset);
-        // Use Future.delayed to reset the flag after the jump completes
+        trackContentScrollController.jumpTo(trackLabelScrollController.offset);
         Future.delayed(Duration.zero, () => _isSyncingContent = false);
       }
-    }, const Duration(milliseconds: 10)); // Short debounce delay
+    }, const Duration(milliseconds: 10));
 
     final debouncedSyncToLabels = _debounce(() {
       if (!_isSyncingContent &&
           trackContentScrollController.hasClients &&
-          trackLabelScrollController.hasClients) {
+          trackLabelScrollController.hasClients &&
+          trackLabelScrollController.position.hasPixels &&
+          trackContentScrollController.position.hasPixels) {
         _isSyncingLabels = true;
-        trackLabelScrollController
-            .jumpTo(trackContentScrollController.offset);
-        // Use Future.delayed to reset the flag after the jump completes
+        trackLabelScrollController.jumpTo(trackContentScrollController.offset);
         Future.delayed(Duration.zero, () => _isSyncingLabels = false);
       }
-    }, const Duration(milliseconds: 10)); // Short debounce delay
+    }, const Duration(milliseconds: 10));
 
     trackLabelScrollController.addListener(debouncedSyncToContent);
     trackContentScrollController.addListener(debouncedSyncToLabels);
   }
 
-  Future<void> loadVideo(String videoPath) async {
-    await _videoPlayerController?.dispose();
-    _controllerPositionSubscription?.cancel();
-
-    _videoPlayerController = VideoPlayerController.networkUrl(
-      Uri.parse(
-        'https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4',
-      ),
-    );
-
-    try {
-      await _videoPlayerController!.initialize();
-      _videoPlayerController!.setLooping(false);
-
-      _recalculateTotalFrames(); // Recalculate based on video potentially
-      currentFrame = 0;
-
-      _videoPlayerController!.addListener(_updateFrameFromController);
-      videoPlayerControllerNotifier.value = _videoPlayerController;
-
-      // Stop timer playback if video takes over
-      _stopPlaybackTimer();
-      isPlayingNotifier.value = false; 
-
-      print('Video loaded. Total frames: $_totalFrames');
-    } catch (e) {
-      print("Error initializing video player: $e");
-      _videoPlayerController = null;
-      videoPlayerControllerNotifier.value = null;
-      _totalFrames = 0;
-      totalFramesNotifier.value = _totalFrames;
+  Future<void> loadClipsForProject(int projectId) async {
+    print('Loading clips for project $projectId');
+    final tracks = await _trackDao.getTracksForProject(projectId);
+    if (tracks.isEmpty) {
+      print('No tracks found for project $projectId');
+      clipsNotifier.value = [];
+      _recalculateAndUpdateTotalFrames();
+      return;
     }
-    isPlayingNotifier.value = false;
+
+    final List<ClipModel> allClips = [];
+    for (final track in tracks) {
+      final trackClipsData = await _clipDao.getClipsForTrack(track.id);
+      allClips.addAll(trackClipsData.map((dbData) => ClipModel.fromDbData(dbData)));
+    }
+
+    print('Loaded ${allClips.length} clips');
+    clipsNotifier.value = allClips;
+    _recalculateAndUpdateTotalFrames();
+
+    ClipModel? firstVideo; // Use nullable type
+    try {
+      firstVideo = allClips.firstWhere((c) => c.type == ClipType.video);
+    } catch (e) {
+       // Handle stateError if no element is found (no video clips)
+       firstVideo = null;
+    }
+
+    if (firstVideo != null) {
+       // await loadVideo(firstVideo.sourcePath); // Decide if auto-loading is desired
+    } else {
+       // Ensure player is cleared if no video clips
+       // await _videoPlayerController?.dispose();
+       // _videoPlayerController = null;
+       // videoPlayerControllerNotifier.value = null;
+    }
   }
 
   void _updateFrameFromController() {
@@ -174,23 +179,26 @@ class TimelineViewModel implements Disposable {
     }
 
     final position = _videoPlayerController!.value.position;
-    final frame = (position.inMilliseconds * _defaultFrameRate / 1000).round();
+    final frame = ClipModel.msToFrames(position.inMilliseconds);
 
-    if (currentFrameNotifier.value != frame && frame <= _totalFrames) {
+    final totalFrames = _calculateTotalFrames();
+    if (currentFrameNotifier.value != frame && frame <= totalFrames) {
       currentFrameNotifier.value = frame;
     }
 
     if (isPlayingNotifier.value != _videoPlayerController!.value.isPlaying) {
       isPlayingNotifier.value = _videoPlayerController!.value.isPlaying;
+      if (!isPlayingNotifier.value) {
+         _stopPlaybackTimer();
+      }
     }
   }
 
   void _seekControllerToFrame(int frame) {
     if (_videoPlayerController != null &&
         _videoPlayerController!.value.isInitialized) {
-      final targetPosition = Duration(
-        milliseconds: (frame * 1000 / _defaultFrameRate).round(),
-      );
+      final targetPosition = Duration(milliseconds: ClipModel.framesToMs(frame));
+
       final currentPosition = _videoPlayerController!.value.position;
       if ((targetPosition - currentPosition).abs() >
           const Duration(milliseconds: 50)) {
@@ -199,16 +207,15 @@ class TimelineViewModel implements Disposable {
     }
   }
 
-  void addClip(Clip clip) {
-    final newClips = List<Clip>.from(clipsNotifier.value)..add(clip);
+  void addClip(ClipModel clip) {
+    final newClips = List<ClipModel>.from(clipsNotifier.value)..add(clip);
     clipsNotifier.value = newClips;
-    _recalculateTotalFrames();
+    _recalculateAndUpdateTotalFrames();
 
     if (_videoPlayerController == null && clip.type == ClipType.video) {
-      // Stop timer playback before loading video
       _stopPlaybackTimer(); 
       isPlayingNotifier.value = false;
-      loadVideo(clip.filePath);
+      loadVideo(clip.sourcePath);
     }
   }
 
@@ -224,245 +231,199 @@ class TimelineViewModel implements Disposable {
     return framePosition < 0 ? 0 : framePosition;
   }
 
-  void addClipAtPosition(
-    Clip clip, {
+  Future<void> addClipAtPosition({
+    required ClipModel clipData,
+    required int trackId,
+    required int startTimeInSourceMs,
+    required int endTimeInSourceMs,
     double? localPositionX,
     double? scrollOffsetX,
-  }) {
-    int targetFrame = currentFrame;
+  }) async {
+    int targetStartTimeMs;
 
     if (localPositionX != null && scrollOffsetX != null) {
-      targetFrame = calculateFramePositionFromDrop(
+      targetStartTimeMs = calculateMsPositionFromDrop(
         localPositionX,
         scrollOffsetX,
         zoom,
       );
-    }
-
-    final newClip = clip.copyWith(startFrame: targetFrame);
-    addClip(newClip);
-  }
-
-  void removeClip(String clipId) {
-    if (clipId.isEmpty) return;
-
-    final initialLength = clipsNotifier.value.length;
-    final newClips =
-        clipsNotifier.value.where((clip) => clip.id != clipId).toList();
-
-    if (newClips.length != initialLength) {
-      clipsNotifier.value = newClips;
-      _recalculateTotalFrames();
-
-      if (clipsNotifier.value.isEmpty ||
-          clipsNotifier.value.every((c) => c.type != ClipType.video)) {
-        _unloadVideo();
-      }
-    }
-  }
-
-  void updateClip(String clipId, Clip updatedClip) {
-    if (clipId.isEmpty) return;
-
-    final index = clipsNotifier.value.indexWhere((clip) => clip.id == clipId);
-    if (index >= 0) {
-      final newClips = List<Clip>.from(clipsNotifier.value);
-      newClips[index] = updatedClip;
-      clipsNotifier.value = newClips;
-      _recalculateTotalFrames();
-    }
-  }
-
-  void moveClip(String clipId, int newStartFrame) {
-    if (clipId.isEmpty || newStartFrame < 0) return;
-
-    final index = clipsNotifier.value.indexWhere((clip) => clip.id == clipId);
-    if (index >= 0) {
-      final clip = clipsNotifier.value[index];
-      if (clip.startFrame == newStartFrame) return;
-
-      final updatedClip = clip.copyWith(startFrame: newStartFrame);
-      final newClips = List<Clip>.from(clipsNotifier.value);
-      newClips[index] = updatedClip;
-      clipsNotifier.value = newClips;
-      _recalculateTotalFrames();
-    }
-  }
-
-  void seekTo(int frame) {
-    currentFrame = frame;
-  }
-
-  void togglePlayback() {
-    // Case 1: Video controller exists and is initialized
-    if (_videoPlayerController != null &&
-        _videoPlayerController!.value.isInitialized) {
-      if (_videoPlayerController!.value.isPlaying) {
-        _videoPlayerController!.pause();
-      } else {
-        // If paused at the end, seek to start before playing
-        if (currentFrame >= _totalFrames) {
-           currentFrame = 0; // Seek to beginning
-        }
-        _seekControllerToFrame(currentFrame); // Ensure controller matches frame
-        _videoPlayerController!.play();
-      }
-      isPlayingNotifier.value = _videoPlayerController!.value.isPlaying;
-    } 
-    // Case 2: No video controller, use timer
-    else if (_totalFrames > 0) { // Only play if there's some duration
-       if (isPlayingNotifier.value) {
-         // Currently playing with timer, so pause
-         _stopPlaybackTimer();
-         isPlayingNotifier.value = false;
-       } else {
-         // Currently paused or stopped, start timer playback
-         // If paused at the end, seek to start before playing
-         if (currentFrame >= _totalFrames) {
-           currentFrame = 0; // Seek to beginning
-         }
-         isPlayingNotifier.value = true;
-         _startPlaybackTimer(); // Start the timer
-       }
-    }
-    // Case 3: No controller and zero duration - do nothing
-  }
-
-  void setZoom(double newZoom) {
-    zoom = newZoom;
-  }
-
-  void _recalculateTotalFrames() {
-    int maxClipFrame = 0;
-    if (clipsNotifier.value.isNotEmpty) {
-      maxClipFrame = clipsNotifier.value
-          .map((clip) => clip.startFrame + clip.durationFrames)
-          .reduce((a, b) => a > b ? a : b);
-    }
-
-    // Use video duration if controller exists and is longer than clips
-    int videoFrames = 0;
-    if (_videoPlayerController != null &&
-        _videoPlayerController!.value.isInitialized) {
-      videoFrames = (_videoPlayerController!.value.duration.inMilliseconds *
-              _defaultFrameRate /
-              1000)
-          .round();
-    }
-    
-    // If no clips and no video, use default duration. Otherwise use the max of clips/video.
-    int newTotalFrames;
-    if (clipsNotifier.value.isEmpty && videoFrames == 0) {
-       newTotalFrames = _defaultTimelineDurationFrames;
     } else {
-       newTotalFrames = maxClipFrame > videoFrames ? maxClipFrame : videoFrames;
+      targetStartTimeMs = ClipModel.framesToMs(currentFrame);
     }
 
-    // Ensure total frames doesn't decrease if playback is active near the old end
-    // (This might need adjustment based on desired behavior when clips are shortened)
-    if (newTotalFrames < _totalFrames && currentFrame >= newTotalFrames) {
-        currentFrame = newTotalFrames; // Clamp current frame if needed
-    }
-
-    if (_totalFrames != newTotalFrames) {
-      _totalFrames = newTotalFrames;
-      totalFramesNotifier.value = _totalFrames;
-      print("Recalculated total frames: $_totalFrames");
-
-      // Stop playback if the new duration is 0 or current frame is now out of bounds
-      if (_totalFrames == 0 || currentFrame > _totalFrames) {
-         _stopPlaybackTimer();
-         isPlayingNotifier.value = false;
-         currentFrame = _totalFrames; // Clamp frame
-      }
-    }
-  }
-
-  Future<void> _unloadVideo() async {
-    await _videoPlayerController?.dispose();
-    _controllerPositionSubscription?.cancel();
-    _videoPlayerController = null;
-    videoPlayerControllerNotifier.value = null;
-    isPlayingNotifier.value = false;
-    _recalculateTotalFrames();
-  }
-
-  final ScrollController trackScrollController = ScrollController();
-
-  // Add a clip from a file path, calculating duration
-  Future<void> addClipFromFile(
-    String filePath,
-    int targetFrame,
-    int trackIndex,
-    ClipType type,
-    String name,
-  ) async {
-    int durationFrames = 150; // Default duration if fetching fails
-
-    if (type == ClipType.video || type == ClipType.audio) {
-      VideoPlayerController? tempController;
-      try {
-        // Use networkUrl for testing if filePath is a URL, otherwise use file
-        // Adapt this based on how file paths are handled (local vs network)
-        if (Uri.tryParse(filePath)?.isAbsolute ?? false) {
-          tempController = VideoPlayerController.networkUrl(
-            Uri.parse(filePath),
-          );
-        } else {
-          // Assuming filePath is a local path
-          tempController = VideoPlayerController.file(File(filePath));
-        }
-
-        await tempController.initialize();
-        final duration = tempController.value.duration;
-        durationFrames =
-            (duration.inMilliseconds * _defaultFrameRate / 1000).round();
-        print(
-          'Fetched duration for $filePath: $duration -> $durationFrames frames',
-        );
-      } catch (e) {
-        print(
-          "Error getting duration for $filePath: $e. Using default duration.",
-        );
-        // Keep default durationFrames
-      } finally {
-        // Ensure the temporary controller is disposed
-        // Use ?.await to handle potential null if initialization failed early
-        await tempController?.dispose();
-      }
-    }
-    // Handle other types like images differently if needed (e.g., fixed duration)
-    else if (type == ClipType.image) {
-      durationFrames = 150; // Example fixed duration for images
-    }
-
-    // Create the clip with calculated (or default) duration
-    final newClip = Clip(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      name: name.isNotEmpty ? name : 'Clip', // Use provided name or default
-      type: type,
-      filePath: filePath,
-      startFrame: targetFrame,
-      trackIndex: trackIndex,
-      durationFrames: durationFrames,
+    final newClipModel = ClipModel(
+       trackId: trackId,
+       name: clipData.name.isNotEmpty ? clipData.name : 'Clip ${DateTime.now().millisecondsSinceEpoch}',
+       type: clipData.type,
+       sourcePath: clipData.sourcePath,
+       startTimeInSourceMs: startTimeInSourceMs,
+       endTimeInSourceMs: endTimeInSourceMs,
+       startTimeOnTrackMs: targetStartTimeMs,
     );
 
-    // Add the clip using the existing method
-    addClip(newClip);
+    try {
+        final companion = newClipModel.toDbCompanion();
+        final newDbId = await _clipDao.insertClip(companion);
+
+        final clipWithId = newClipModel.copyWith(databaseId: Value(newDbId));
+
+        final currentClips = List<ClipModel>.from(clipsNotifier.value);
+        currentClips.add(clipWithId);
+        clipsNotifier.value = currentClips;
+
+        _recalculateAndUpdateTotalFrames();
+
+        if (_videoPlayerController == null && clipWithId.type == ClipType.video) {
+           _stopPlaybackTimer();
+           isPlayingNotifier.value = false;
+        }
+        print('Clip added with ID: $newDbId at ${clipWithId.startTimeOnTrackMs}ms');
+
+    } catch (e) {
+       print("Error adding clip to database: $e");
+    }
   }
 
-  // --- Playback Timer Logic ---
+  Future<void> removeClip(int databaseId) async {
+    if (databaseId <= 0) return;
+
+    try {
+      final successCount = await _clipDao.deleteClip(databaseId);
+
+      if (successCount > 0) {
+        final currentClips = List<ClipModel>.from(clipsNotifier.value);
+        final initialLength = currentClips.length;
+        currentClips.removeWhere((clip) => clip.databaseId == databaseId);
+
+        if (currentClips.length < initialLength) {
+           clipsNotifier.value = currentClips;
+           _recalculateAndUpdateTotalFrames();
+           print('Clip removed with ID: $databaseId');
+
+        } else {
+           print('Warning: Clip with ID $databaseId not found in local state after successful DB delete.');
+        }
+      } else {
+         print('Error: Clip with ID $databaseId not found in database or could not be deleted.');
+      }
+    } catch (e) {
+      print("Error removing clip from database: $e");
+    }
+  }
+
+  Future<void> updateClipPosition(int databaseId, int newStartTimeOnTrackMs) async {
+     if (databaseId <= 0) return;
+
+     try {
+        final successCount = await _clipDao.updateClipStartTimeOnTrack(databaseId, newStartTimeOnTrackMs);
+
+        if (successCount > 0) {
+            final currentClips = List<ClipModel>.from(clipsNotifier.value);
+            final index = currentClips.indexWhere((clip) => clip.databaseId == databaseId);
+            if (index != -1) {
+               final updatedClip = currentClips[index].copyWith(startTimeOnTrackMs: newStartTimeOnTrackMs);
+               currentClips[index] = updatedClip;
+               clipsNotifier.value = currentClips;
+               _recalculateAndUpdateTotalFrames();
+               print('Clip $databaseId position updated to ${newStartTimeOnTrackMs}ms');
+            } else {
+               print('Warning: Clip $databaseId not found locally after successful DB update.');
+            }
+        } else {
+           print('Error: Clip $databaseId not found in DB or failed to update position.');
+        }
+     } catch (e) {
+        print("Error updating clip position in database: $e");
+     }
+  }
+
+  Future<void> updateClipTrim(int databaseId, int newStartTimeInSourceMs, int newEndTimeInSourceMs) async {
+      if (databaseId <= 0 || newEndTimeInSourceMs < newStartTimeInSourceMs) return;
+
+       try {
+        final successCount = await _clipDao.updateClipTrimTimes(databaseId, newStartTimeInSourceMs, newEndTimeInSourceMs);
+
+        if (successCount > 0) {
+            final currentClips = List<ClipModel>.from(clipsNotifier.value);
+            final index = currentClips.indexWhere((clip) => clip.databaseId == databaseId);
+            if (index != -1) {
+               final updatedClip = currentClips[index].copyWith(
+                   startTimeInSourceMs: newStartTimeInSourceMs,
+                   endTimeInSourceMs: newEndTimeInSourceMs,
+               );
+               currentClips[index] = updatedClip;
+               clipsNotifier.value = currentClips;
+               _recalculateAndUpdateTotalFrames();
+               print('Clip $databaseId trim updated');
+            } else {
+               print('Warning: Clip $databaseId not found locally after successful DB update.');
+            }
+        } else {
+           print('Error: Clip $databaseId not found in DB or failed to update trim.');
+        }
+     } catch (e) {
+        print("Error updating clip trim in database: $e");
+     }
+  }
+
+  int calculateMsPositionFromDrop(
+    double localPositionX,
+    double scrollOffsetX,
+    double zoom,
+  ) {
+    final frame = calculateFramePositionFromDrop(localPositionX, scrollOffsetX, zoom);
+    return ClipModel.framesToMs(frame);
+  }
+
+  void play() {
+    if (isPlayingNotifier.value) return;
+
+    if (_videoPlayerController != null &&
+        _videoPlayerController!.value.isInitialized) {
+      final totalDuration = _videoPlayerController!.value.duration;
+      final currentPosition = _videoPlayerController!.value.position;
+      if (currentPosition >= totalDuration) {
+         _videoPlayerController!.seekTo(Duration.zero);
+      }
+      _videoPlayerController!.play();
+      isPlayingNotifier.value = true;
+    } else {
+      final totalFrames = _calculateTotalFrames();
+      if (currentFrame >= totalFrames) {
+         currentFrame = 0;
+      }
+      isPlayingNotifier.value = true;
+      _startPlaybackTimer();
+    }
+  }
+
+  void pause() {
+    if (!isPlayingNotifier.value) return;
+
+    if (_videoPlayerController != null &&
+        _videoPlayerController!.value.isPlaying) {
+      _videoPlayerController!.pause();
+    }
+    _stopPlaybackTimer();
+    isPlayingNotifier.value = false;
+  }
+
+  void togglePlayPause() {
+    if (isPlayingNotifier.value) {
+      pause();
+    } else {
+      play();
+    }
+  }
 
   void _startPlaybackTimer() {
-    _stopPlaybackTimer(); // Ensure any existing timer is cancelled
-    if (currentFrame >= _totalFrames) {
-       isPlayingNotifier.value = false;
-       return; // Don't start if already at the end
+    _stopPlaybackTimer();
+    if (isPlayingNotifier.value) {
+      _playbackTimer = Timer(
+        Duration(milliseconds: (1000 / _defaultFrameRate).round()),
+        _debouncedFrameUpdate,
+      );
     }
-    _playbackTimer = Timer(
-      Duration(milliseconds: (1000 / _defaultFrameRate).round()),
-      _handleTimerTick,
-    );
   }
 
   void _stopPlaybackTimer() {
@@ -470,42 +431,90 @@ class TimelineViewModel implements Disposable {
     _playbackTimer = null;
   }
 
-  void _handleTimerTick() {
-    // This function will now be called by the Timer
-     final nextFrame = currentFrame + 1;
-      if (nextFrame <= _totalFrames) {
-        currentFrameNotifier.value = nextFrame; // Update frame directly
-        // Restart timer for next frame if not at the end
-        if (nextFrame < _totalFrames) {
-          _startPlaybackTimer(); 
-        } else {
-          // Reached end, stop playback
-          _stopPlaybackTimer();
-          isPlayingNotifier.value = false;
+  Future<void> loadVideo(String videoPath) async {
+    await _videoPlayerController?.dispose();
+    _controllerPositionSubscription?.cancel();
+    videoPlayerControllerNotifier.value = null;
+
+    Uri videoUri;
+    if (videoPath.startsWith('http') || videoPath.startsWith('https')) {
+        videoUri = Uri.parse(videoPath);
+         _videoPlayerController = VideoPlayerController.networkUrl(videoUri);
+    } else {
+        final file = File(videoPath);
+        if (!await file.exists()) {
+           print("Error: Video file not found at $videoPath");
+            _recalculateAndUpdateTotalFrames();
+            return;
         }
-      } else {
-        // Should not happen if check above is correct, but safety stop
-        _stopPlaybackTimer();
-        isPlayingNotifier.value = false;
+        videoUri = Uri.file(videoPath);
+         _videoPlayerController = VideoPlayerController.file(file);
+    }
+
+    try {
+      await _videoPlayerController!.initialize();
+      _videoPlayerController!.setLooping(false);
+
+      _recalculateAndUpdateTotalFrames();
+      currentFrame = 0;
+
+      _videoPlayerController!.addListener(_updateFrameFromController);
+      videoPlayerControllerNotifier.value = _videoPlayerController;
+
+      _stopPlaybackTimer();
+      isPlayingNotifier.value = false;
+
+      print('Video loaded for preview: $videoPath');
+    } catch (e) {
+      print("Error initializing video player: $e");
+      _videoPlayerController = null;
+      videoPlayerControllerNotifier.value = null;
+      _recalculateAndUpdateTotalFrames();
+    }
+    isPlayingNotifier.value = false;
+  }
+
+  int _calculateTotalFrames() {
+    if (clipsNotifier.value.isEmpty) {
+      return 0;
+    }
+    int maxEndTimeMs = 0;
+    for (final clip in clipsNotifier.value) {
+      final clipEndTimeMs = clip.startTimeOnTrackMs + clip.durationMs;
+      if (clipEndTimeMs > maxEndTimeMs) {
+        maxEndTimeMs = clipEndTimeMs;
       }
+    }
+    return ClipModel.msToFrames(maxEndTimeMs);
+  }
+
+  void _recalculateAndUpdateTotalFrames() {
+    final newTotalFrames = _calculateTotalFrames();
+    if (totalFramesNotifier.value != newTotalFrames) {
+      totalFramesNotifier.value = newTotalFrames;
+      if (currentFrame > newTotalFrames) {
+         currentFrame = newTotalFrames;
+      }
+    }
   }
 
   @override
   void onDispose() {
-    // Dispose controllers - this automatically removes listeners
-    trackLabelScrollController.dispose();
-    trackContentScrollController.dispose();
-
-    // Dispose ValueNotifiers and other resources
+    print('Disposing TimelineViewModel');
     clipsNotifier.dispose();
     zoomNotifier.dispose();
     currentFrameNotifier.dispose();
-    isPlayingNotifier.dispose();
     totalFramesNotifier.dispose();
-    videoPlayerControllerNotifier.dispose(); // Dispose this notifier too
-    
-    _playbackTimer?.cancel();
+    isPlayingNotifier.dispose();
+    videoPlayerControllerNotifier.dispose();
+
+    trackLabelScrollController.dispose();
+    trackContentScrollController.dispose();
+
+    _stopPlaybackTimer();
     _controllerPositionSubscription?.cancel();
-    _videoPlayerController?.dispose(); // Ensure video controller is disposed
+    _clipStreamSubscription?.cancel();
+
+    _videoPlayerController?.dispose();
   }
 }

@@ -6,7 +6,7 @@ class Project {
   final String path;
   final DateTime createdAt;
   final DateTime lastModifiedAt;
-  final List<Clip> clips;
+  final List<ClipModel> clips;
   final Map<String, dynamic> settings;
   
   Project({
@@ -25,7 +25,7 @@ class Project {
     String? path,
     DateTime? createdAt,
     DateTime? lastModifiedAt,
-    List<Clip>? clips,
+    List<ClipModel>? clips,
     Map<String, dynamic>? settings,
   }) {
     return Project(
@@ -46,7 +46,6 @@ class Project {
       'path': path,
       'createdAt': createdAt.toIso8601String(),
       'lastModifiedAt': lastModifiedAt.toIso8601String(),
-      'clips': clips.map((clip) => clip.toJson()).toList(),
       'settings': settings,
     };
   }
@@ -58,7 +57,7 @@ class Project {
       path: json['path'],
       createdAt: DateTime.parse(json['createdAt']),
       lastModifiedAt: DateTime.parse(json['lastModifiedAt']),
-      clips: (json['clips'] as List).map((clipJson) => Clip.fromJson(clipJson)).toList(),
+      clips: [],
       settings: json['settings'] ?? {},
     );
   }

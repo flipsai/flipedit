@@ -127,7 +127,7 @@ class _ExtensionPanelInternal extends StatelessWidget with WatchItMixin {
         children: [
           SizedBox(
             width: width, // Use width passed from parent stateful widget
-            child: ExtensionPanelContainer(extensionId: selectedExtension),
+            child: ExtensionPanelContainer(selectedExtension: selectedExtension),
           ),
           ResizableDivider(
             onDragUpdate: onResize, // Use callback passed from parent
