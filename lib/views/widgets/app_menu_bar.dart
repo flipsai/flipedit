@@ -188,6 +188,28 @@ void _handleToggleTimeline(EditorViewModel editorVm) {
    editorVm.toggleTimeline();
 }
 
+// --- New Action Handlers for Tracks ---
+void _handleAddVideoTrack() {
+  final projectService = di<ProjectService>();
+  final currentProject = projectService.currentProjectNotifier.value;
+  if (currentProject != null) {
+    projectService.addTrack(type: 'video');
+  } else {
+    // TODO: Show message - cannot add track without open project
+    print("Cannot add video track: No project loaded.");
+  }
+}
+
+void _handleAddAudioTrack() {
+  final projectService = di<ProjectService>();
+  final currentProject = projectService.currentProjectNotifier.value;
+  if (currentProject != null) {
+    projectService.addTrack(type: 'audio');
+  } else {
+    // TODO: Show message - cannot add track without open project
+    print("Cannot add audio track: No project loaded.");
+  }
+}
 
 // --- Widget for macOS / Windows ---
 class PlatformAppMenuBar extends fluent.StatelessWidget {
@@ -210,6 +232,10 @@ class PlatformAppMenuBar extends fluent.StatelessWidget {
 
   @override
   fluent.Widget build(fluent.BuildContext context) {
+    // Get project service to check if a project is loaded
+    final projectService = di<ProjectService>();
+    final isProjectLoaded = projectService.currentProjectNotifier.value != null;
+
     return material.PlatformMenuBar(
        menus: [
             material.PlatformMenu(
@@ -225,11 +251,11 @@ class PlatformAppMenuBar extends fluent.StatelessWidget {
                 ),
                 material.PlatformMenuItem(
                   label: 'Import Media...',
-                  onSelected: () => _handleImportMedia(timelineVm),
+                  onSelected: isProjectLoaded ? () => _handleImportMedia(timelineVm) : null,
                 ),
                 material.PlatformMenuItem(
                   label: 'Save Project',
-                  onSelected: () => _handleSaveProject(projectVm),
+                  onSelected: isProjectLoaded ? () => _handleSaveProject(projectVm) : null,
                 ),
               ],
             ),
@@ -243,6 +269,19 @@ class PlatformAppMenuBar extends fluent.StatelessWidget {
                 material.PlatformMenuItem(
                   label: 'Redo',
                   onSelected: _handleRedo
+                ),
+              ],
+            ),
+            material.PlatformMenu(
+              label: 'Track',
+              menus: [
+                material.PlatformMenuItem(
+                  label: 'Add Video Track',
+                  onSelected: isProjectLoaded ? _handleAddVideoTrack : null,
+                ),
+                material.PlatformMenuItem(
+                  label: 'Add Audio Track',
+                  onSelected: isProjectLoaded ? _handleAddAudioTrack : null,
                 ),
               ],
             ),
@@ -281,6 +320,10 @@ class FluentAppMenuBar extends fluent.StatelessWidget {
 
   @override
   fluent.Widget build(fluent.BuildContext context) {
+    // Get project service to check if a project is loaded
+    // Use ValueListenableBuilder to reactively enable/disable menus
+    final projectService = di<ProjectService>();
+
      return fluent.Row(
         mainAxisSize: fluent.MainAxisSize.min,
         children: [
@@ -289,9 +332,23 @@ class FluentAppMenuBar extends fluent.StatelessWidget {
             items: [
               fluent.MenuFlyoutItem(text: const fluent.Text('New Project'), onPressed: () => _handleNewProject(context)),
               fluent.MenuFlyoutItem(text: const fluent.Text('Open Project...'), onPressed: () => _handleOpenProject(context)),
-              fluent.MenuFlyoutItem(text: const fluent.Text('Import Media...'), onPressed: () => _handleImportMedia(timelineVm)),
               fluent.MenuFlyoutSeparator(),
-              fluent.MenuFlyoutItem(text: const fluent.Text('Save Project'), onPressed: () => _handleSaveProject(projectVm)),
+              fluent.MenuFlyoutItem(
+                text: const fluent.Text('Import Media...'),
+                onPressed: () {
+                  if (projectService.currentProjectNotifier.value != null) {
+                     _handleImportMedia(timelineVm);
+                  }
+                }
+              ),
+              fluent.MenuFlyoutItem(
+                text: const fluent.Text('Save Project'),
+                onPressed: () {
+                  if (projectService.currentProjectNotifier.value != null) {
+                    _handleSaveProject(projectVm);
+                  }
+                }
+              ),
             ],
           ),
           const fluent.SizedBox(width: 8),
@@ -301,6 +358,27 @@ class FluentAppMenuBar extends fluent.StatelessWidget {
                fluent.MenuFlyoutItem(text: const fluent.Text('Undo'), onPressed: _handleUndo),
                fluent.MenuFlyoutItem(text: const fluent.Text('Redo'), onPressed: _handleRedo),
             ]
+          ),
+          const fluent.SizedBox(width: 8),
+          // --- Track Menu (using ValueListenableBuilder for enabling) ---
+          ValueListenableBuilder<Project?>(
+             valueListenable: projectService.currentProjectNotifier,
+             builder: (context, currentProject, _) {
+               final enabled = currentProject != null;
+               return fluent.DropDownButton(
+                 title: const fluent.Text('Track'),
+                 items: [
+                   fluent.MenuFlyoutItem(
+                     text: const fluent.Text('Add Video Track'),
+                     onPressed: enabled ? _handleAddVideoTrack : null,
+                   ),
+                   fluent.MenuFlyoutItem(
+                     text: const fluent.Text('Add Audio Track'),
+                     onPressed: enabled ? _handleAddAudioTrack : null,
+                   ),
+                 ],
+               );
+            }
           ),
           const fluent.SizedBox(width: 8),
           ValueListenableBuilder<bool>(
