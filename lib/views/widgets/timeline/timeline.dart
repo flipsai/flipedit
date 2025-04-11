@@ -30,8 +30,9 @@ class Timeline extends StatelessWidget with WatchItMixin {
     final totalFrames = watchValue(
       (TimelineViewModel vm) => vm.totalFramesNotifier,
     );
-    // Get the shared scroll controller
-    final scrollController = timelineViewModel.trackScrollController;
+    // Get the separate scroll controllers from the ViewModel
+    final trackLabelScrollController = timelineViewModel.trackLabelScrollController;
+    final trackContentScrollController = timelineViewModel.trackContentScrollController;
 
     return Container(
       // Use a standard dark background from the theme resources
@@ -55,7 +56,7 @@ class Timeline extends StatelessWidget with WatchItMixin {
                           .resources
                           .subtleFillColorTransparent, // A slightly different, subtle background
                   child: ListView(
-                    controller: scrollController, // Assign shared controller
+                    controller: trackLabelScrollController, // Use label controller
                     padding: const EdgeInsets.symmetric(
                       vertical: 4,
                     ), // Consistent padding
@@ -114,7 +115,7 @@ class Timeline extends StatelessWidget with WatchItMixin {
                                     Expanded(
                                       child: ListView(
                                         controller:
-                                            scrollController, // Assign shared controller
+                                            trackContentScrollController, // Use content controller
                                         padding: const EdgeInsets.symmetric(
                                           vertical: 4,
                                         ), // Consistent padding

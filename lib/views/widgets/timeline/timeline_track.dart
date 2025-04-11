@@ -97,7 +97,7 @@ class _TimelineTrackState extends State<TimelineTrack> {
 
         // Debug info
         developer.log(
-          'Accepting drop at: local=${posX}, scroll=$scrollPosition, zoom=$zoom',
+          'Accepting drop at: local=$posX, scroll=$scrollPosition, zoom=$zoom',
         );
 
         // Calculate the frame position at the drop point
@@ -123,9 +123,6 @@ class _TimelineTrackState extends State<TimelineTrack> {
       },
       onWillAcceptWithDetails: (details) {
         // Only accept clip objects
-        if (details.data is! Clip) return false;
-
-        // Convert global position to local position for preview
         final RenderBox? renderBox =
             _trackKey.currentContext?.findRenderObject() as RenderBox?;
         if (renderBox != null) {
@@ -317,8 +314,9 @@ class _TrackBackgroundPainter extends CustomPainter {
     const int framesPerTick = 30; // Draw line every 30 frames (e.g., 1 second)
     final tickDistance = framesPerTick * zoom * frameWidth;
 
-    if (tickDistance <= 0)
+    if (tickDistance <= 0) {
       return; // Avoid infinite loop if zoom is zero or negative
+    }
 
     // Draw vertical frame markers
     for (double x = 0; x < size.width; x += tickDistance) {

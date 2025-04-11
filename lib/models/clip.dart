@@ -77,7 +77,7 @@ class Clip {
       effects:
           (json['effects'] as List?)
               ?.map((effectJson) => Effect.fromJson(effectJson))
-              ?.toList() ??
+              .toList() ??
           [],
       metadata: json['metadata'] ?? {},
     );
