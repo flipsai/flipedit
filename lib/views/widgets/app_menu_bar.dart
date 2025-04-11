@@ -141,12 +141,23 @@ Future<void> _handleImportMedia(TimelineViewModel timelineVm) async {
         String? filePath = result.files.single.path;
         if (filePath != null) {
           // TODO: Get actual duration and potentially other metadata
+          
+           // Get the first track ID or default/error if none
+           final int targetTrackId;
+           if (timelineVm.currentTrackIds.isNotEmpty) {
+              targetTrackId = timelineVm.currentTrackIds.first;
+           } else {
+              print("Error: No tracks loaded to import media into.");
+              // Optionally show a user message
+              return; // Don't proceed if no track is available
+           }
+
           // For now, using placeholder values
           // Create ClipModel instead of Clip
           // Needs source start/end times instead of durationFrames
           final dummyClipData = ClipModel(
             databaseId: null, // No ID yet
-            trackId: 1, // TODO: Determine target track ID dynamically
+            trackId: targetTrackId, // Use determined track ID
             name: filePath.split(Platform.pathSeparator).last, 
             type: ClipType.video, // TODO: Detect type
             sourcePath: filePath,
@@ -157,7 +168,7 @@ Future<void> _handleImportMedia(TimelineViewModel timelineVm) async {
           // Use addClipAtPosition
           await timelineVm.addClipAtPosition(
              clipData: dummyClipData,
-             trackId: 1, // TODO: Determine target track ID
+             trackId: targetTrackId, // Use determined track ID
              startTimeInSourceMs: dummyClipData.startTimeInSourceMs,
              endTimeInSourceMs: dummyClipData.endTimeInSourceMs,
              // Let addClipAtPosition handle placement at playhead

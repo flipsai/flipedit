@@ -5,7 +5,8 @@ class Clips extends Table {
   IntColumn get id => integer().autoIncrement()();
 
   // Foreign key to the Tracks table
-  IntColumn get trackId => integer().references(Tracks, #id)();
+  IntColumn get trackId => integer()
+      .references(Tracks, #id, onDelete: KeyAction.cascade)();
 
   // Clip metadata
   TextColumn get name => text().withDefault(const Constant('Untitled Clip'))(); // Added name
