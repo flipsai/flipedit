@@ -276,6 +276,7 @@ class Timeline extends StatelessWidget with WatchItMixin {
     final timelineViewModel = di<TimelineViewModel>();
 
     final newClip = Clip(
+      trackIndex: 0,
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       name: 'New Dummy Clip', // More descriptive dummy name
       type: ClipType.video,

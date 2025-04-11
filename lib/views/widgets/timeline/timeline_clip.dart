@@ -9,8 +9,14 @@ import 'dart:math' as math;
 class TimelineClip extends StatelessWidget with WatchItMixin {
   final Clip clip;
   final int trackIndex;
+  final bool isDragging;
 
-  const TimelineClip({super.key, required this.clip, required this.trackIndex});
+  const TimelineClip({
+    super.key,
+    required this.clip,
+    required this.trackIndex,
+    this.isDragging = false,
+  });
 
   // Define base colors for clip types (consider making these theme-dependent later)
   static const Map<ClipType, Color> _clipTypeColors = {
@@ -59,7 +65,7 @@ class TimelineClip extends StatelessWidget with WatchItMixin {
         di<EditorViewModel>().selectedClipId = clip.id;
       },
       onHorizontalDragUpdate: (details) {
-        // TODO: Implement clip dragging logic
+        // TODO: Implement clip dragging logic (horizontal only)
         // Convert details.delta.dx based on zoom from TimelineViewModel
         // Update clip.startFrame via EditorViewModel or TimelineViewModel
       },
@@ -67,78 +73,86 @@ class TimelineClip extends StatelessWidget with WatchItMixin {
         // Add margin for spacing between clips
         margin: const EdgeInsets.only(right: 2),
         decoration: BoxDecoration(
-          color: clipColor,
+          // Use lighter color and maybe less opacity when dragging
+          color: isDragging ? clipColor.withOpacity(0.5) : clipColor,
           border: Border.all(
-            // Use theme accent for selection, transparent otherwise
-            color: isSelected ? selectionBorderColor : Colors.transparent,
-            width: isSelected ? 2 : 1, // Thicker border when selected
+            // Use theme accent for selection, different color for dragging feedback
+            color:
+                isDragging
+                    ? theme.accentColor.light
+                    : (isSelected ? selectionBorderColor : Colors.transparent),
+            width: isDragging ? 1 : (isSelected ? 2 : 1), // Adjust width
           ),
           borderRadius: BorderRadius.circular(4),
           // Add a subtle shadow for depth (optional)
           // boxShadow: kElevationToShadow[1],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Clip header with title
-            Container(
-              height: 18,
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              decoration: BoxDecoration(
-                // Slightly darker/lighter shade for header background
-                color: clipColor.withOpacity(0.8),
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(
-                    3,
-                  ), // Match container radius slightly
-                  topRight: Radius.circular(3),
+        // Slightly reduce opacity of content when dragging maybe?
+        child: Opacity(
+          opacity: isDragging ? 0.8 : 1.0,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Clip header with title
+              Container(
+                height: 18,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                decoration: BoxDecoration(
+                  // Slightly darker/lighter shade for header background
+                  color: clipColor.withOpacity(0.8),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(
+                      3,
+                    ), // Match container radius slightly
+                    topRight: Radius.circular(3),
+                  ),
                 ),
-              ),
-              child: Row(
-                // No need for min size, let it fill
-                children: [
-                  Expanded(
-                    // Allow title to take available space
-                    child: Text(
-                      clip.name,
+                child: Row(
+                  // No need for min size, let it fill
+                  children: [
+                    Expanded(
+                      // Allow title to take available space
+                      child: Text(
+                        clip.name,
+                        // Use theme caption style with contrast color
+                        style: theme.typography.caption?.copyWith(
+                          color: contrastColor,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        overflow: TextOverflow.ellipsis, // Prevent overflow
+                        maxLines: 1,
+                      ),
+                    ),
+                    // Display duration at the end
+                    Text(
+                      '${clip.durationFrames}f',
                       // Use theme caption style with contrast color
                       style: theme.typography.caption?.copyWith(
                         color: contrastColor,
-                        fontWeight: FontWeight.bold,
+                        fontSize: 9,
                       ),
-                      overflow: TextOverflow.ellipsis, // Prevent overflow
-                      maxLines: 1,
                     ),
-                  ),
-                  // Display duration at the end
-                  Text(
-                    '${clip.durationFrames}f',
-                    // Use theme caption style with contrast color
-                    style: theme.typography.caption?.copyWith(
-                      color: contrastColor,
-                      fontSize: 9,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Clip content area
-            Expanded(
-              // Use ShapeBorderClipper for rounded corners on the bottom
-              child: ClipPath(
-                clipper: const ShapeBorderClipper(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.only(
-                      bottomLeft: Radius.circular(3),
-                      bottomRight: Radius.circular(3),
-                    ),
-                  ),
+                  ],
                 ),
-                child: _buildClipContent(clipColor, contrastColor, theme),
               ),
-            ),
-          ],
+
+              // Clip content area
+              Expanded(
+                // Use ShapeBorderClipper for rounded corners on the bottom
+                child: ClipPath(
+                  clipper: const ShapeBorderClipper(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.only(
+                        bottomLeft: Radius.circular(3),
+                        bottomRight: Radius.circular(3),
+                      ),
+                    ),
+                  ),
+                  child: _buildClipContent(clipColor, contrastColor, theme),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

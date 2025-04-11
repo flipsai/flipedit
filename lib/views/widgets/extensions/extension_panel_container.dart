@@ -1,8 +1,10 @@
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flipedit/di/service_locator.dart';
+import 'package:flipedit/models/clip.dart';
+import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/views/screens/settings_screen.dart';
 import 'package:watch_it/watch_it.dart';
+import 'package:flutter/material.dart' show Material, pointerDragAnchorStrategy;
 
 /// Container that displays the content of a selected extension
 /// Similar to VS Code's sidebar panels
@@ -123,6 +125,16 @@ class _MediaExtensionPanel extends StatelessWidget {
             ),
           ),
         ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
+          child: Text(
+            'Drag media items to add them to the timeline',
+            style: theme.typography.caption?.copyWith(
+              color: theme.resources.textFillColorSecondary,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ),
         Expanded(
           child: ListView(
             padding: const EdgeInsets.all(8.0),
@@ -175,22 +187,111 @@ class _MediaExtensionPanel extends StatelessWidget {
     required IconData icon,
   }) {
     final theme = FluentTheme.of(context);
-    return Container(
-      margin: const EdgeInsets.only(bottom: 4.0),
-      decoration: BoxDecoration(
-        color: theme.resources.subtleFillColorSecondary,
+    // Create a mock clip based on the media item type
+    final ClipType clipType =
+        icon == FluentIcons.video
+            ? ClipType.video
+            : (icon == FluentIcons.music_in_collection
+                ? ClipType.audio
+                : ClipType.image);
+
+    // Create a clip for dragging
+    final clip = Clip(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      name: title,
+      type: clipType,
+      filePath: '/path/to/dummy/$title', // Placeholder path
+      startFrame: 0,
+      durationFrames: clipType == ClipType.image ? 90 : 150, // Default duration
+      trackIndex:
+          clipType == ClipType.audio
+              ? 1
+              : 0, // Audio on track 1, video/image on track 0
+    );
+
+    return Draggable<Clip>(
+      // Data is the clip to be dragged
+      data: clip,
+      // Center the feedback at the cursor position
+      dragAnchorStrategy: pointerDragAnchorStrategy,
+      // What is shown when dragging
+      feedback: Material(
+        elevation: 4.0,
         borderRadius: BorderRadius.circular(4.0),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: theme.accentColor.light,
+            borderRadius: BorderRadius.circular(4.0),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: Colors.white, size: 16),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
-      child: ListTile(
-        leading: Icon(icon, color: theme.resources.textFillColorPrimary),
-        title: Text(title, style: theme.typography.body),
-        subtitle:
-            duration.isNotEmpty
-                ? Text(duration, style: theme.typography.caption)
-                : null,
-        onPressed: () {
-          // Handle media item selection
-        },
+      // What is shown at the original position during dragging
+      childWhenDragging: Container(
+        margin: const EdgeInsets.only(bottom: 4.0),
+        decoration: BoxDecoration(
+          color: theme.resources.subtleFillColorSecondary.withOpacity(0.5),
+          borderRadius: BorderRadius.circular(4.0),
+          border: Border.all(color: theme.accentColor.lightest, width: 1),
+        ),
+        child: ListTile(
+          leading: Icon(icon, color: theme.resources.textFillColorSecondary),
+          title: Text(
+            title,
+            style: theme.typography.body?.copyWith(
+              color: theme.resources.textFillColorSecondary,
+            ),
+          ),
+          subtitle:
+              duration.isNotEmpty
+                  ? Text(
+                    duration,
+                    style: theme.typography.caption?.copyWith(
+                      color: theme.resources.textFillColorSecondary,
+                    ),
+                  )
+                  : null,
+        ),
+      ),
+      // Set cursor to 'grabbing' when dragging starts
+      onDragStarted: () {},
+      // The container that stays in place when dragging
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 4.0),
+        decoration: BoxDecoration(
+          color: theme.resources.subtleFillColorSecondary,
+          borderRadius: BorderRadius.circular(4.0),
+        ),
+        child: ListTile(
+          leading: Icon(icon, color: theme.resources.textFillColorPrimary),
+          title: Text(title, style: theme.typography.body),
+          subtitle:
+              duration.isNotEmpty
+                  ? Text(duration, style: theme.typography.caption)
+                  : null,
+          trailing: Icon(
+            FluentIcons.move,
+            size: 16,
+            color: theme.resources.textFillColorSecondary,
+          ),
+          onPressed: () {
+            // Handle media item selection
+          },
+        ),
       ),
     );
   }
