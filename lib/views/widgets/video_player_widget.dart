@@ -1,54 +1,46 @@
+import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
+import 'package:watch_it/watch_it.dart';
 
-class VideoPlayerWidget extends StatefulWidget {
-  final VideoPlayerController controller;
+class VideoPlayerWidget extends StatelessWidget with WatchItMixin {
   final double opacity;
   final VoidCallback? onTap;
 
-  const VideoPlayerWidget({
-    super.key,
-    required this.controller,
-    this.opacity = 1.0,
-    this.onTap,
-  });
-
-  @override
-  State<VideoPlayerWidget> createState() => _VideoPlayerWidgetState();
-}
-
-class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
-  @override
-  void initState() {
-    super.initState();
-  }
+  const VideoPlayerWidget({super.key, this.opacity = 1.0, this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder(
-      valueListenable: widget.controller,
+    final controller = watchValue(
+      (TimelineViewModel vm) => vm.videoPlayerControllerNotifier,
+    );
+
+    if (controller == null) {
+      return Container(
+        color: Colors.black,
+        child: const Center(
+          child: Text('No video loaded', style: TextStyle(color: Colors.white)),
+        ),
+      );
+    }
+
+    return ValueListenableBuilder<VideoPlayerValue>(
+      valueListenable: controller,
       builder: (context, VideoPlayerValue value, child) {
         return GestureDetector(
-          onTap: widget.onTap ?? () {
-            if (value.isPlaying) {
-              widget.controller.pause();
-            } else {
-              widget.controller.play();
-            }
-          },
+          onTap: onTap,
           child: Opacity(
-            opacity: widget.opacity,
+            opacity: opacity,
             child: Container(
               color: Colors.black,
               child: Center(
-                child: value.isInitialized
-                    ? AspectRatio(
-                        aspectRatio: value.aspectRatio,
-                        child: VideoPlayer(widget.controller),
-                      )
-                    : const CircularProgressIndicator(
-                        color: Colors.white,
-                      ),
+                child:
+                    value.isInitialized
+                        ? AspectRatio(
+                          aspectRatio: value.aspectRatio,
+                          child: VideoPlayer(controller),
+                        )
+                        : const CircularProgressIndicator(color: Colors.white),
               ),
             ),
           ),
@@ -56,4 +48,4 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       },
     );
   }
-} 
+}

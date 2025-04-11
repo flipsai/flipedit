@@ -40,11 +40,8 @@ class Timeline extends StatelessWidget with WatchItMixin {
       // border: Border(top: BorderSide(color: theme.resources.controlStrokeColorDefault)),
       child: Column(
         children: [
-          TimelineControls(
-            isPlaying: isPlaying,
-            currentFrame: currentFrame,
-            zoom: zoom,
-          ),
+          // Now uses WatchingWidget, no params needed
+          const TimelineControls(),
 
           // Timeline content
           Expanded(
