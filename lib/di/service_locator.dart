@@ -1,6 +1,9 @@
 import 'package:flipedit/comfyui/comfyui_service.dart';
+import 'package:flipedit/persistence/dao/project_dao.dart';
+import 'package:flipedit/persistence/database/app_database.dart';
 import 'package:flipedit/services/uv_manager.dart';
 import 'package:flipedit/services/layout_service.dart';
+import 'package:flipedit/services/project_service.dart';
 import 'package:flipedit/viewmodels/app_viewmodel.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
@@ -13,7 +16,12 @@ import 'package:watch_it/watch_it.dart';
 
 /// Setup all service locator registrations
 void setupServiceLocator() {
+  // Database
+  di.registerLazySingleton<AppDatabase>(() => AppDatabase());
+  di.registerLazySingleton<ProjectDao>(() => di<AppDatabase>().projectDao);
+
   // Services
+  di.registerLazySingleton<ProjectService>(() => ProjectService());
   di.registerLazySingleton<UvManager>(() => UvManager());
   di.registerLazySingleton<ComfyUIService>(() => ComfyUIService());
   di.registerLazySingleton<VideoPlayerManager>(() => VideoPlayerManager());
@@ -23,5 +31,5 @@ void setupServiceLocator() {
   di.registerLazySingleton<AppViewModel>(() => AppViewModel());
   di.registerLazySingleton<ProjectViewModel>(() => ProjectViewModel());
   di.registerLazySingleton<EditorViewModel>(() => EditorViewModel());
-  di.registerLazySingleton<TimelineViewModel>(() => TimelineViewModel());
+  di.registerSingleton<TimelineViewModel>(TimelineViewModel());
 }

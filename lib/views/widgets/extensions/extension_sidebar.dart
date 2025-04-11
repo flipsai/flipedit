@@ -1,5 +1,4 @@
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flipedit/di/service_locator.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:watch_it/watch_it.dart';
 

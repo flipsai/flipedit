@@ -18,7 +18,7 @@ class UvManager {
       print('App data directory: $_appDataDir');
       
       // Create a bin directory for our executables
-      final binDir = Directory('${_appDataDir}/bin');
+      final binDir = Directory('$_appDataDir/bin');
       if (!await binDir.exists()) {
         print('Creating bin directory: ${binDir.path}');
         await binDir.create(recursive: true);
@@ -61,8 +61,8 @@ class UvManager {
   
   Future<bool> doesEnvExist(String envName) async {
     final envPath = Platform.isWindows
-        ? '${_appDataDir}\\venvs\\$envName'
-        : '${_appDataDir}/venvs/$envName';
+        ? '$_appDataDir\\venvs\\$envName'
+        : '$_appDataDir/venvs/$envName';
     
     final pythonPath = Platform.isWindows 
         ? '$envPath\\Scripts\\python.exe'
@@ -87,8 +87,8 @@ class UvManager {
   Future<ProcessResult> createVenv(String envName) async {
     // Create virtual environments within app directory
     final venvsDir = Platform.isWindows
-        ? Directory('${_appDataDir}\\venvs')
-        : Directory('${_appDataDir}/venvs');
+        ? Directory('$_appDataDir\\venvs')
+        : Directory('$_appDataDir/venvs');
     
     if (!await venvsDir.exists()) {
       await venvsDir.create(recursive: true);
@@ -129,8 +129,8 @@ class UvManager {
   
   Future<ProcessResult> installPackage(String packageName, String envName) async {
     final envPath = Platform.isWindows
-        ? '${_appDataDir}\\venvs\\$envName'
-        : '${_appDataDir}/venvs/$envName';
+        ? '$_appDataDir\\venvs\\$envName'
+        : '$_appDataDir/venvs/$envName';
     
     // Get path to python within the virtual environment
     String pythonPath;
@@ -174,9 +174,9 @@ class UvManager {
   
   String getActivationScript(String envName) {
     if (Platform.isWindows) {
-      return '${_appDataDir}\\venvs\\$envName\\Scripts\\activate.bat';
+      return '$_appDataDir\\venvs\\$envName\\Scripts\\activate.bat';
     } else {
-      return '${_appDataDir}/venvs/$envName/bin/activate';
+      return '$_appDataDir/venvs/$envName/bin/activate';
     }
   }
   
@@ -184,9 +184,9 @@ class UvManager {
   Future<ProcessResult> runPythonScript(String envName, String scriptPath, List<String> args) async {
     String pythonExe;
     if (Platform.isWindows) {
-      pythonExe = '${_appDataDir}\\venvs\\$envName\\Scripts\\python.exe';
+      pythonExe = '$_appDataDir\\venvs\\$envName\\Scripts\\python.exe';
     } else {
-      pythonExe = '${_appDataDir}/venvs/$envName/bin/python';
+      pythonExe = '$_appDataDir/venvs/$envName/bin/python';
     }
     
     print('Running script with Python at: $pythonExe');
@@ -195,8 +195,8 @@ class UvManager {
 
   Future<List<String>> listVenvs() async {
     final venvsDir = Platform.isWindows
-        ? Directory('${_appDataDir}\\venvs')
-        : Directory('${_appDataDir}/venvs');
+        ? Directory('$_appDataDir\\venvs')
+        : Directory('$_appDataDir/venvs');
     
     print('Looking for venvs in: ${venvsDir.path}');
     
