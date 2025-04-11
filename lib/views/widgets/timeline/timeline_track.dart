@@ -109,15 +109,14 @@ class _TimelineTrackState extends State<TimelineTrack> {
           'Placing clip at frame: $targetFrame (exact: $exactFrame)',
         );
 
-        // Create the new clip at the calculated position
-        final newClip = draggedClip.copyWith(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          startFrame: targetFrame,
-          trackIndex: widget.trackIndex,
+        // Call the new ViewModel method to handle duration fetching
+        timelineViewModel.addClipFromFile(
+          draggedClip.filePath,
+          targetFrame,
+          widget.trackIndex,
+          draggedClip.type,
+          draggedClip.name,
         );
-
-        // Add the clip to the timeline
-        timelineViewModel.addClip(newClip);
 
         // Reset the hover position
         hoverPositionNotifier.value = null;
