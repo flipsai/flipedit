@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:flipedit/models/clip.dart';
-import 'package:flipedit/models/enums/clip_type.dart';
 
 class TimelineViewModel {
   final ValueNotifier<List<Clip>> clipsNotifier = ValueNotifier<List<Clip>>([]);

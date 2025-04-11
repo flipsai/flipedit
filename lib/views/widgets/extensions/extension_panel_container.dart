@@ -107,7 +107,7 @@ class ExtensionPanelContainer extends StatelessWidget {
 }
 
 class _MediaExtensionPanel extends StatelessWidget {
-  _MediaExtensionPanel();
+  const _MediaExtensionPanel();
 
   @override
   Widget build(BuildContext context) {
@@ -298,7 +298,7 @@ class _MediaExtensionPanel extends StatelessWidget {
 }
 
 class _BackgroundRemovalPanel extends StatelessWidget {
-  _BackgroundRemovalPanel();
+  const _BackgroundRemovalPanel();
 
   @override
   Widget build(BuildContext context) {

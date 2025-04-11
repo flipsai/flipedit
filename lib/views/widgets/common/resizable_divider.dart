@@ -1,5 +1,4 @@
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flutter/material.dart' as material;
 
 /// A divider that can be dragged horizontally or vertically to resize adjacent widgets.
 class ResizableDivider extends StatefulWidget {
