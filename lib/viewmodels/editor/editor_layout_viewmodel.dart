@@ -8,7 +8,7 @@ import 'package:flipedit/views/widgets/preview/preview_panel.dart';
 import 'package:flipedit/utils/logger.dart'; // Add logger import
 
 /// Manages the editor's docking layout state and visibility toggles.
-class EditorLayoutViewModel with Disposable { // Remove LoggerExtension
+class EditorLayoutViewModel { // Remove LoggerExtension
   // --- State Notifiers ---
   final ValueNotifier<DockingLayout?> layoutNotifier = ValueNotifier<DockingLayout?>(null);
   // Keep visibility notifiers for backwards compatibility/menu state

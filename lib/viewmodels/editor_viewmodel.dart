@@ -1,5 +1,4 @@
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flipedit/views/widgets/inspector/inspector_panel.dart';
 import 'package:flipedit/views/widgets/timeline/timeline.dart';
 import 'package:flipedit/views/widgets/preview/preview_panel.dart';
@@ -22,7 +21,7 @@ typedef DockingAreaBuilder = DockingArea? Function(dynamic data);
 
 /// Acts as a coordinator for editor-related view models and state.
 /// Delegates layout management to [EditorLayoutManager] and preview control to [EditorPreviewController].
-class EditorViewModel with Disposable {
+class EditorViewModel {
   // Add a tag for logging within this class
   String get _logTag => runtimeType.toString();
 

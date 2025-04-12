@@ -25,7 +25,7 @@ void Function() _debounce(VoidCallback func, Duration delay) {
   };
 }
 
-class TimelineViewModel implements Disposable {
+class TimelineViewModel {
   // Add a tag for logging within this class
   String get _logTag => runtimeType.toString();
 

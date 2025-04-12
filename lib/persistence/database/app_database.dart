@@ -2,10 +2,13 @@ import 'dart:io';
 
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
+import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/persistence/dao/clip_dao.dart';
+import 'package:flipedit/persistence/dao/project_asset_dao.dart';
 import 'package:flipedit/persistence/dao/project_dao.dart';
 import 'package:flipedit/persistence/dao/track_dao.dart';
 import 'package:flipedit/persistence/tables/clips.dart';
+import 'package:flipedit/persistence/tables/project_assets.dart';
 import 'package:flipedit/persistence/tables/projects.dart';
 import 'package:flipedit/persistence/tables/tracks.dart';
 import 'package:path_provider/path_provider.dart';
@@ -13,12 +16,15 @@ import 'package:path/path.dart' as p;
 
 part 'app_database.g.dart';
 
-@DriftDatabase(tables: [Projects, Tracks, Clips], daos: [ProjectDao, TrackDao, ClipDao])
+@DriftDatabase(
+  tables: [Projects, Tracks, Clips, ProjectAssets],
+  daos: [ProjectDao, TrackDao, ClipDao, ProjectAssetDao],
+)
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration {
@@ -49,6 +55,10 @@ class AppDatabase extends _$AppDatabase {
           await m.addColumn(clips, clips.type);
         }
 
+        if (from < 6) {
+          await m.createTable(projectAssets);
+        }
+
         // Add further migrations for future schema versions here using 'if (from < X)' blocks
       },
     );
@@ -60,6 +70,6 @@ LazyDatabase _openConnection() {
   return LazyDatabase(() async {
     final dbFolder = await getApplicationDocumentsDirectory();
     final file = File(p.join(dbFolder.path, 'flipedit_db.sqlite'));
-    return NativeDatabase.createInBackground(file);
+    return NativeDatabase.createInBackground(file, logStatements: true);
   });
 } 

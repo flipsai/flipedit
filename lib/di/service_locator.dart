@@ -1,6 +1,7 @@
 import 'package:flipedit/comfyui/comfyui_service.dart';
 import 'package:flipedit/persistence/dao/clip_dao.dart';
 import 'package:flipedit/persistence/dao/project_dao.dart';
+import 'package:flipedit/persistence/dao/project_asset_dao.dart';
 import 'package:flipedit/persistence/dao/track_dao.dart';
 import 'package:flipedit/persistence/database/app_database.dart';
 import 'package:flipedit/services/uv_manager.dart';
@@ -23,6 +24,7 @@ void setupServiceLocator() {
   di.registerLazySingleton<ProjectDao>(() => di<AppDatabase>().projectDao);
   di.registerLazySingleton<TrackDao>(() => di<AppDatabase>().trackDao);
   di.registerLazySingleton<ClipDao>(() => di<AppDatabase>().clipDao);
+  di.registerLazySingleton<ProjectAssetDao>(() => di<AppDatabase>().projectAssetDao);
 
   // Services
   di.registerLazySingleton<ProjectService>(() => ProjectService());

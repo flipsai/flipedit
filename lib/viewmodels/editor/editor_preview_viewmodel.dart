@@ -9,7 +9,7 @@ import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/utils/logger.dart'; // Add logger import
 
 /// Handles synchronization between the timeline and the preview player.
-class EditorPreviewViewModel with Disposable { // Remove LoggerExtension
+class EditorPreviewViewModel { // Remove LoggerExtension
   // Dependencies (injected)
   final TimelineViewModel _timelineViewModel = di<TimelineViewModel>();
   final VideoPlayerManager _videoPlayerManager = di<VideoPlayerManager>();

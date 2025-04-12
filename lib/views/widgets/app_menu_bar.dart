@@ -51,8 +51,11 @@ Future<void> _handleNewProject(
         );
         logInfo(_logTag, "Created new project with ID: $newProjectId");
         // TODO: Optionally load the newly created project using projectVm.loadProjectCommand(newProjectId)
+        // Load the newly created project
+        await projectVm.loadProjectCommand(newProjectId);
+        logInfo(_logTag, "Loaded newly created project ID: $newProjectId");
       } catch (e) {
-        logError(_logTag, "Error creating project: $e");
+        logError(_logTag, "Error creating or loading project: $e");
         // TODO: Show error dialog to user (e.g., using context)
       }
     } else if (projectName != null) {
@@ -146,8 +149,10 @@ Future<void> _handleOpenProject(
   });
 }
 
-// Updated to use TimelineViewModel
-Future<void> _handleImportMedia(TimelineViewModel timelineVm) async {
+// Updated to use ProjectViewModel for importing assets
+Future<void> _handleImportMedia(
+  ProjectViewModel projectVm, // Change to ProjectViewModel
+) async {
   try {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.video, // Or FileType.media for audio/images too
@@ -156,39 +161,10 @@ Future<void> _handleImportMedia(TimelineViewModel timelineVm) async {
     if (result != null && result.files.isNotEmpty) {
       String? filePath = result.files.single.path;
       if (filePath != null) {
-        // TODO: Get actual duration and potentially other metadata
-
-        // Get the first track ID or default/error if none
-        final int targetTrackId;
-        if (timelineVm.currentTrackIds.isNotEmpty) {
-          targetTrackId = timelineVm.currentTrackIds.first;
-        } else {
-          logError(_logTag, "Error: No tracks loaded to import media into.");
-          // Optionally show a user message
-          return; // Don't proceed if no track is available
-        }
-
-        // For now, using placeholder values
-        // Create ClipModel instead of Clip
-        // Needs source start/end times instead of durationFrames
-        final dummyClipData = ClipModel(
-          databaseId: null, // No ID yet
-          trackId: targetTrackId, // Use determined track ID
-          name: filePath.split(Platform.pathSeparator).last,
-          type: ClipType.video, // TODO: Detect type
-          sourcePath: filePath,
-          startTimeInSourceMs: 0, // Placeholder
-          endTimeInSourceMs: 5000, // Placeholder: 5 seconds
-          startTimeOnTrackMs: 0, // Placeholder, set by addClipAtPosition
-        );
-        // Use addClipAtPosition
-        await timelineVm.addClipAtPosition(
-          clipData: dummyClipData,
-          trackId: targetTrackId, // Use determined track ID
-          startTimeInSourceMs: dummyClipData.startTimeInSourceMs,
-          endTimeInSourceMs: dummyClipData.endTimeInSourceMs,
-          // Let addClipAtPosition handle placement at playhead
-        );
+        // Use the new ProjectViewModel command
+        await projectVm.importMediaAssetCommand(filePath);
+        logInfo(_logTag, "Imported media: $filePath");
+        // No longer adding directly to timeline here
       } else {
         logWarning(_logTag, "File path is null after picking.");
       }
@@ -196,8 +172,8 @@ Future<void> _handleImportMedia(TimelineViewModel timelineVm) async {
       logInfo(_logTag, "File picking cancelled or no file selected.");
     }
   } catch (e) {
-    logError(_logTag, "Error picking file: $e");
-    // TODO: Show user-friendly error message
+    logError(_logTag, "Error picking file or importing asset: $e");
+    // TODO: Show user-friendly error message (using context if available/needed)
   }
 }
 
@@ -295,8 +271,7 @@ class PlatformAppMenuBar extends StatelessWidget with WatchItMixin {
             ),
             PlatformMenuItem(
               label: 'Import Media...',
-              onSelected:
-                  isProjectLoaded ? () => _handleImportMedia(timelineVm) : null,
+              onSelected: isProjectLoaded ? () => _handleImportMedia(projectVm) : null,
             ),
             PlatformMenuItem(
               label: 'Save Project',
@@ -397,11 +372,9 @@ class FluentAppMenuBar extends StatelessWidget with WatchItMixin {
               text: const Text('Open Project...'),
               onPressed: () => _handleOpenProject(context, projectVm),
             ),
-            MenuFlyoutSeparator(),
             MenuFlyoutItem(
               text: const Text('Import Media...'),
-              onPressed:
-                  isProjectLoaded ? () => _handleImportMedia(timelineVm) : null,
+              onPressed: isProjectLoaded ? () => _handleImportMedia(projectVm) : null,
             ),
             MenuFlyoutItem(
               text: const Text('Save Project'),
