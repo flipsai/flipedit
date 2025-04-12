@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:video_player/video_player.dart';
 
 class VideoPlayerWidget extends StatelessWidget {
@@ -31,7 +31,7 @@ class VideoPlayerWidget extends StatelessWidget {
                           aspectRatio: value.aspectRatio,
                           child: VideoPlayer(controller),
                         )
-                        : const CircularProgressIndicator(color: Colors.white),
+                        : const ProgressRing(),
               ),
             ),
           ),

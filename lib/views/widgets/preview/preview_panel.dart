@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flipedit/services/video_player_manager.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/views/widgets/video_player_widget.dart';
@@ -26,18 +26,18 @@ class PreviewPanel extends StatelessWidget with WatchItMixin {
     if (currentVideoUrl == null || currentVideoUrl.isEmpty) {
       print("[PreviewPanel.build] No video URL, showing fallback text.");
       return Container(
-        color: Colors.blueGrey,
-        child: const Center(
+        color: const Color(0xFF546E7A), // FluentUI equivalent of blueGrey
+        child: Center(
           child: Text(
             'No video loaded or at current frame',
-            style: TextStyle(color: Colors.white),
+            style: const TextStyle(color: Colors.white),
           ),
         ),
       );
     }
 
     return Container(
-      color: Colors.blueGrey,
+      color: const Color(0xFF546E7A), // FluentUI equivalent of blueGrey
       child: FutureBuilder<(VideoPlayerController, bool)>(
         future: playerManager.getOrCreatePlayerController(currentVideoUrl),
         builder: (context, snapshot) {
@@ -58,15 +58,16 @@ class PreviewPanel extends StatelessWidget with WatchItMixin {
 
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
-              child: CircularProgressIndicator(
-                color: Colors.white,
+              child: ProgressRing(
+                activeColor: Colors.white,
               ),
             );
           } else if (snapshot.hasError) {
             return Center(
               child: Icon(
-                Icons.error_outline,
-                color: Colors.redAccent.withOpacity(opacity),
+                FluentIcons.error,
+                color: Colors.red.withOpacity(opacity),
+                size: 24,
               ),
             );
           } else if (snapshot.hasData) {
@@ -80,8 +81,8 @@ class PreviewPanel extends StatelessWidget with WatchItMixin {
             } else {
               print("[PreviewPanel.build] Controller received but not yet initialized. Showing spinner.");
               return const Center(
-                child: CircularProgressIndicator(
-                  color: Colors.white,
+                child: ProgressRing(
+                  activeColor: Colors.white,
                 ),
               );
             }
@@ -91,8 +92,9 @@ class PreviewPanel extends StatelessWidget with WatchItMixin {
             );
             return Center(
               child: Icon(
-                Icons.question_mark,
-                color: Colors.orangeAccent.withOpacity(opacity),
+                FluentIcons.help,
+                color: Colors.orange.withOpacity(opacity),
+                size: 24,
               ),
             );
           }

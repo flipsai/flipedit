@@ -1,13 +1,9 @@
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flutter/material.dart' show ReorderableListView;
 import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/models/clip.dart';
-import 'package:flipedit/models/effect.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
-import 'package:flipedit/views/widgets/inspector/effect_tree.dart';
-import 'dart:ui' as ui show Clip;
 
 /// Inspector panel to display and edit properties of selected clips and effects
 /// Similar to VS Code's property panel
