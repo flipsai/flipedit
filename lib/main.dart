@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart';
 import 'package:flipedit/app.dart';
 import 'package:flipedit/di/service_locator.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:fvp/fvp.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 // import 'package:flutter/rendering.dart';
 
 Future<void> main() async {

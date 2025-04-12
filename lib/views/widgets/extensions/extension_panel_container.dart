@@ -1,14 +1,9 @@
-import 'dart:io';
-import 'package:file_picker/file_picker.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
-import 'package:flipedit/views/screens/settings_screen.dart';
 import 'package:watch_it/watch_it.dart';
-import 'package:flutter/material.dart' show Material, pointerDragAnchorStrategy;
-import 'package:path/path.dart' as path;
 
 /// Container that displays the content of a selected extension
 /// Similar to VS Code's sidebar panels
@@ -214,9 +209,8 @@ class _ExtensionPanelContainerState extends State<ExtensionPanelContainer> {
 
     return LongPressDraggable<ClipModel>(
       data: draggableClip,
-      feedback: Material(
+      feedback: Acrylic(
         elevation: 4.0,
-        color: Colors.transparent,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(

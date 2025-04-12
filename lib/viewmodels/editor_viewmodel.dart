@@ -1,5 +1,4 @@
-import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/widgets.dart'; // Import for WidgetsBinding
 import 'package:flipedit/views/widgets/inspector/inspector_panel.dart';
 import 'package:flipedit/views/widgets/timeline/timeline.dart';
