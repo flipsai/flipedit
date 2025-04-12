@@ -11,14 +11,13 @@ class ProjectViewModel extends ChangeNotifier implements Disposable {
   late final ValueNotifier<Project?> currentProjectNotifier;
   late final ValueNotifier<bool> isProjectLoadedNotifier;
 
-  StreamSubscription? _projectSubscription;
-
   ProjectViewModel() {
     currentProjectNotifier = _projectService.currentProjectNotifier;
-    isProjectLoadedNotifier = ValueNotifier(currentProjectNotifier.value != null);
+    isProjectLoadedNotifier = ValueNotifier(
+      currentProjectNotifier.value != null,
+    );
 
     currentProjectNotifier.addListener(_onProjectChanged);
-    _projectSubscription = null;
   }
 
   void _onProjectChanged() {
@@ -32,13 +31,20 @@ class ProjectViewModel extends ChangeNotifier implements Disposable {
     if (name.trim().isEmpty) {
       throw ArgumentError('Project name cannot be empty.');
     }
-    final newProjectId = await _projectService.createNewProject(name: name.trim());
+    final newProjectId = await _projectService.createNewProject(
+      name: name.trim(),
+    );
     await _projectService.loadProject(newProjectId);
     return newProjectId;
   }
 
   Future<List<Project>> getAllProjects() async {
-    return _projectService.watchAllProjects().first;
+    try {
+      return await _projectService.watchAllProjects().first;
+    } catch (e) {
+      debugPrint('Error getting projects: $e');
+      return [];
+    }
   }
 
   Future<void> loadProjectCommand(int projectId) async {
