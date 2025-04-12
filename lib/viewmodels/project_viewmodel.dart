@@ -1,58 +1,66 @@
-import 'package:flutter/foundation.dart';
-import 'package:flipedit/models/project.dart';
+import 'dart:async';
 
-class ProjectViewModel {
-  final ValueNotifier<Project?> currentProjectNotifier = ValueNotifier<Project?>(null);
+import 'package:flipedit/persistence/database/app_database.dart';
+import 'package:flipedit/services/project_service.dart';
+import 'package:flutter/foundation.dart';
+import 'package:watch_it/watch_it.dart';
+
+class ProjectViewModel extends ChangeNotifier implements Disposable {
+  final ProjectService _projectService = di<ProjectService>();
+
+  late final ValueNotifier<Project?> currentProjectNotifier;
+  late final ValueNotifier<bool> isProjectLoadedNotifier;
+
+  StreamSubscription? _projectSubscription;
+
+  ProjectViewModel() {
+    currentProjectNotifier = _projectService.currentProjectNotifier;
+    isProjectLoadedNotifier = ValueNotifier(currentProjectNotifier.value != null);
+
+    currentProjectNotifier.addListener(_onProjectChanged);
+    _projectSubscription = null;
+  }
+
+  void _onProjectChanged() {
+    isProjectLoadedNotifier.value = currentProjectNotifier.value != null;
+    notifyListeners();
+  }
+
   Project? get currentProject => currentProjectNotifier.value;
-  set currentProject(Project? value) {
-    if (currentProjectNotifier.value == value) return;
-    currentProjectNotifier.value = value;
+  bool get isProjectLoaded => isProjectLoadedNotifier.value;
+
+  Future<int> createNewProjectCommand(String name) async {
+    if (name.trim().isEmpty) {
+      throw ArgumentError('Project name cannot be empty.');
+    }
+    final newProjectId = await _projectService.createNewProject(name: name.trim());
+    return newProjectId;
   }
-  
-  bool get hasProject => currentProject != null;
-  
-  final ValueNotifier<List<Project>> recentProjectsNotifier = ValueNotifier<List<Project>>([]);
-  List<Project> get recentProjects => List.unmodifiable(recentProjectsNotifier.value);
-  set recentProjects(List<Project> value) {
-    if (recentProjectsNotifier.value == value) return;
-    recentProjectsNotifier.value = value;
+
+  Future<List<Project>> getAllProjects() async {
+    return _projectService.watchAllProjects().first;
   }
-  
-  void createNewProject(String name, String path) {
-    if (name.isEmpty || path.isEmpty) return;
-    
-    currentProject = Project(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      name: name,
-      path: path,
-      createdAt: DateTime.now(),
-      lastModifiedAt: DateTime.now(),
-    );
-    
-    // In a real application, we would save this to a database using Drift
+
+  Future<void> loadProjectCommand(int projectId) async {
+    await _projectService.loadProject(projectId);
   }
-  
-  void openProject(Project project) {
-    currentProject = project;
-    // Load project data from disk
+
+  Future<void> addTrackCommand({required String type}) async {
+    await _projectService.addTrack(type: type);
   }
-  
-  void closeProject() {
-    currentProject = null;
+
+  Future<void> saveProjectCommand() async {
+    if (isProjectLoaded) {
+      await _projectService.saveProject();
+    } else {
+      print("ProjectViewModel: No project loaded to save.");
+    }
   }
-  
-  void saveProject() {
-    if (currentProject == null) return;
-    
-    currentProject = currentProject!.copyWith(
-      lastModifiedAt: DateTime.now(),
-    );
-    
-    // In a real application, we would save to disk
-  }
-  
-  void loadRecentProjects() {
-    // In a real application, load from Drift database
-    recentProjects = [];
+
+  @override
+  void onDispose() {
+    currentProjectNotifier.removeListener(_onProjectChanged);
+    isProjectLoadedNotifier.dispose();
+    super.dispose();
   }
 }
