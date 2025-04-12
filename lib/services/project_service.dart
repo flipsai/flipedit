@@ -148,7 +148,42 @@ class ProjectService {
     }
   }
 
-  // --- Add methods for saving the current project later ---
+  // --- Method for saving the current project ---
+  Future<void> saveProject() async {
+    final currentProject = currentProjectNotifier.value;
+    if (currentProject == null) {
+      print("Cannot save: No project loaded.");
+      return;
+    }
+
+    try {
+      // Removed the attempt to update lastModifiedAt as it's not needed/
+      // causing issues for now.
+
+      // Placeholder for actual save logic:
+      print("Project ${currentProject.id} save action triggered (no data saved yet).");
+
+      // Example: If you needed to update the project name (assuming DAO supports it)
+      // final updateCompanion = ProjectsCompanion(id: Value(currentProject.id), name: Value("New Name"));
+      // final success = await _projectDao.updateProject(updateCompanion);
+      // if (success) { ... } else { ... }
+
+      // TODO: Implement saving of tracks, clips, effects, etc., when needed.
+      // For now, we simulate success.
+      bool success = true; // Assume success for now
+
+      if (success) {
+         // If other data were saved and the project object needed updating in memory,
+         // you might fetch it again or update the notifier manually here.
+         // For now, no changes to the in-memory project object.
+      } else {
+        print("Failed to save project ${currentProject.id} (simulated or actual failure).");
+      }
+    } catch (e) {
+      print("Error during save project ${currentProject.id}: $e");
+      // Handle error
+    }
+  }
 
   // --- Add methods for managing clips/tracks associated with the current project later ---
 } 

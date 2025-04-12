@@ -6,7 +6,6 @@ import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/views/screens/editor_screen.dart';
-import 'package:flipedit/views/screens/welcome_screen.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/views/widgets/app_menu_bar.dart';
 import 'package:window_manager/window_manager.dart'; // Import window_manager
@@ -41,7 +40,6 @@ class FlipEditApp extends fluent.StatelessWidget with WatchItMixin {
 
     // Determine the root widget based on Platform
     Widget homeWidget; 
-    final Widget mainContent = isInitialized ? const EditorScreen() : const WelcomeScreen();
 
     if (Platform.isMacOS || Platform.isWindows) {
       // --- macOS / Windows: Use PlatformAppMenuBar --- 
@@ -51,7 +49,7 @@ class FlipEditApp extends fluent.StatelessWidget with WatchItMixin {
         editorVm: editorVm,
         projectVm: projectVm,
         timelineVm: timelineVm,
-        child: mainContent, // Pass main content as child
+        child: const EditorScreen(), // Pass main content as child
       );
     } else {
        // --- Linux / Other: Use Fluent UI Structure with FluentAppMenuBar ---
@@ -66,7 +64,7 @@ class FlipEditApp extends fluent.StatelessWidget with WatchItMixin {
               timelineVm: timelineVm,
             ),
           ),
-          content: mainContent, // Place main content here
+          content: const EditorScreen(), // Place main content here
         ),
       );
     }
