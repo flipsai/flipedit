@@ -352,10 +352,11 @@ packages:
   fvp:
     dependency: "direct main"
     description:
-      path: fvp
-      relative: true
-    source: path
-    version: "0.31.0"
+      name: fvp
+      sha256: b2f5ef635deb1683a441e9a3d466bca2f96448599486b3288189af4957cef6b3
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.31.1"
   get_it:
     dependency: transitive
     description:

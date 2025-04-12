@@ -159,7 +159,7 @@ class Timeline extends StatelessWidget with WatchItMixin {
                                               final track = tracks[index];
                                               // Filter clips for this specific track (using track.id)
                                               // TODO: Update Clip model/logic to include trackId
-                                              final trackClips = clips.where((clip) => clip.trackId == index + 1).toList();
+                                             final trackClips = clips.where((clip) => clip.trackId == track.id).toList();
 
                                               return TimelineTrack(
                                                 trackIndex: index, // Keep trackIndex for layout/clip assignment for now

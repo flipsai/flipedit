@@ -63,15 +63,6 @@ class ProjectService {
       // --- Load Clips using TimelineViewModel --- 
       // Call this *after* setting the project notifier and confirming project is not null.
       await _timelineViewModel.loadClipsForProject(projectId);
-
-      // Watch tracks for the loaded project
-      _tracksSubscription = _trackDao.watchTracksForProject(projectId).listen((tracks) {
-        currentProjectTracksNotifier.value = tracks;
-        print("Updated tracks for project ${project.id}: ${tracks.length} tracks");
-      }, onError: (error) {
-        print("Error watching tracks for project $projectId: $error");
-        // Handle error appropriately
-      });
     } else {
       print("Failed to load project with ID: $projectId");
       windowManager.setTitle('FlipEdit');

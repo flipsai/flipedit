@@ -23,7 +23,6 @@ class ProjectViewModel extends ChangeNotifier implements Disposable {
 
   void _onProjectChanged() {
     isProjectLoadedNotifier.value = currentProjectNotifier.value != null;
-    notifyListeners();
   }
 
   Project? get currentProject => currentProjectNotifier.value;
@@ -34,6 +33,7 @@ class ProjectViewModel extends ChangeNotifier implements Disposable {
       throw ArgumentError('Project name cannot be empty.');
     }
     final newProjectId = await _projectService.createNewProject(name: name.trim());
+    await _projectService.loadProject(newProjectId);
     return newProjectId;
   }
 
