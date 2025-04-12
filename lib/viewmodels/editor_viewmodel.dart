@@ -36,6 +36,7 @@ class EditorViewModel with Disposable {
   // Keep visibility notifiers for backwards compatibility
   final ValueNotifier<bool> isTimelineVisibleNotifier = ValueNotifier<bool>(true);
   final ValueNotifier<bool> isInspectorVisibleNotifier = ValueNotifier<bool>(true);
+  final ValueNotifier<bool> isPreviewVisibleNotifier = ValueNotifier<bool>(true);
   // Notifier for the video URL currently under the playhead
   final ValueNotifier<String?> currentPreviewVideoUrlNotifier = ValueNotifier<String?>(null);
 
@@ -63,6 +64,7 @@ class EditorViewModel with Disposable {
   // Continue to derive visibility from layout
   bool get isTimelineVisible => layoutNotifier.value?.findDockingItem('timeline') != null;
   bool get isInspectorVisible => layoutNotifier.value?.findDockingItem('inspector') != null;
+  bool get isPreviewVisible => layoutNotifier.value?.findDockingItem('preview') != null;
   String? get currentPreviewVideoUrl => currentPreviewVideoUrlNotifier.value; // Getter for new notifier
 
   // --- Setters ---
@@ -102,6 +104,7 @@ class EditorViewModel with Disposable {
      if (layoutNotifier.value != null) {
        isTimelineVisibleNotifier.value = isTimelineVisible;
        isInspectorVisibleNotifier.value = isInspectorVisible;
+       isPreviewVisibleNotifier.value = isPreviewVisible;
      }
   }
   
@@ -126,6 +129,7 @@ class EditorViewModel with Disposable {
     layoutNotifier.dispose();
     isTimelineVisibleNotifier.dispose();
     isInspectorVisibleNotifier.dispose();
+    isPreviewVisibleNotifier.dispose();
     currentPreviewVideoUrlNotifier.dispose(); // Dispose new notifier
     
     // Remove timeline listeners
@@ -150,17 +154,12 @@ class EditorViewModel with Disposable {
   // Called when the layout object notifies listeners (drag, resize, close)
   void _onLayoutChanged() {
     print("DockingLayout changed internally.");
-    
-    // Temporarily disable saving
-    // if (!_isInitialLoad) {
-    //   _saveLayoutState(); 
-    // }
-    
     // Update visibility notifiers for compatibility with menus
     final currentLayout = layoutNotifier.value;
     if (currentLayout != null) {
       bool timelineFound = currentLayout.findDockingItem('timeline') != null;
       bool inspectorFound = currentLayout.findDockingItem('inspector') != null;
+      bool previewFound = currentLayout.findDockingItem('preview') != null;
       
       if (isTimelineVisibleNotifier.value != timelineFound) {
         isTimelineVisibleNotifier.value = timelineFound;
@@ -171,6 +170,11 @@ class EditorViewModel with Disposable {
         isInspectorVisibleNotifier.value = inspectorFound;
         print("Inspector visibility flag updated to $inspectorFound");
       }
+      
+      if (isPreviewVisibleNotifier.value != previewFound) {
+        isPreviewVisibleNotifier.value = previewFound;
+        print("Preview visibility flag updated to $previewFound");
+      }
     }
   }
   
@@ -180,7 +184,7 @@ class EditorViewModel with Disposable {
     if (currentLayout == null) return;
     
     void processItem(DockingItem item, DockingArea parent, DropPosition position) {
-      if (item.id == 'timeline' || item.id == 'inspector') {
+      if (item.id == 'timeline' || item.id == 'inspector' || item.id == 'preview') {
         // Store adjacent item (sibling) ID and relative position
         String adjacentId = 'preview'; // Default fallback
         DropPosition relativePosition = DropPosition.right; // Default
@@ -316,38 +320,6 @@ class EditorViewModel with Disposable {
       print("Initial load complete. Layout saving disabled (commented out).");
     });
   }
-  
-  // Future<void> _saveLayoutState() async {
-  //   final currentLayout = layoutNotifier.value;
-  //   if (currentLayout == null) {
-  //     print("Save requested but layout is null, clearing saved state.");
-  //     await _layoutService.clearLayout();
-  //     await _layoutService.clearPanelPositions();
-  //     return;
-  //   } 
-
-  //   if (_isInitialLoad) {
-  //     print("Save requested during initial load, skipping.");
-  //     return; // Don't save during initial load phase
-  //   }
-    
-  //   try {
-  //     // Save the current layout structure
-  //     final layoutJson = currentLayout.toJson(
-  //       itemEncoder: (item) => item.id, // Save only the ID for item reference
-  //     );
-  //     await _layoutService.saveLayout(layoutJson);
-  //     print("Layout state saved successfully.");
-      
-  //     // Store current positions before saving them
-  //     _storePanelPositions(); 
-  //     await _layoutService.savePanelPositions(_lastPanelPositions);
-  //     print("Panel positions saved: $_lastPanelPositions");
-      
-  //   } catch (e) {
-  //     print("Error saving layout state: $e");
-  //   }
-  // }
 
   // --- Timeline Integration ---
   void _subscribeToTimelineChanges() {
@@ -505,10 +477,14 @@ class EditorViewModel with Disposable {
     // Ensure visibility notifiers match the default layout state
     isTimelineVisibleNotifier.value = true;
     isInspectorVisibleNotifier.value = true;
+    isPreviewVisibleNotifier.value = true;
     
     return DockingLayout(
       root: DockingRow([
-        DockingColumn([previewItem, timelineItem]),
+        DockingColumn([
+          previewItem, 
+          timelineItem
+        ]),
         inspectorItem
       ])
     );
@@ -520,7 +496,7 @@ class EditorViewModel with Disposable {
       id: 'preview',
       name: 'Preview',
       maximizable: false, 
-      widget: const PreviewPanel(), // Correct: No params needed
+      widget: const PreviewPanel(),
     );
   }
   
@@ -534,31 +510,37 @@ class EditorViewModel with Disposable {
 
   // --- Actions ---
   
-  // Toggle actions now modify the layout directly
-  void toggleTimeline() {
+  // Generic method to toggle panel visibility
+  void _togglePanel({
+    required String panelId, 
+    required bool isCurrentlyVisible,
+    required ValueNotifier<bool> visibilityNotifier,
+    required DockingItem Function() itemBuilder,
+    required void Function(DockingLayout) defaultPositionHandler
+  }) {
     final currentLayout = layoutNotifier.value;
     if (currentLayout == null) return;
     
-    final isCurrentlyVisible = isTimelineVisible;
-    debugPrint("Toggle Timeline visibility. Currently visible: $isCurrentlyVisible");
+    debugPrint("Toggle $panelId visibility. Currently visible: $isCurrentlyVisible");
     
     if (isCurrentlyVisible) {
       // Store position *before* removing the item via menu toggle
       _storePanelPositions(); 
-      currentLayout.removeItemByIds(['timeline']);
+      currentLayout.removeItemByIds([panelId]);
     } else {
       // Check if the layout is effectively empty (no core panels found)
       bool isLayoutEmpty = currentLayout.findDockingItem('preview') == null &&
                            currentLayout.findDockingItem('inspector') == null &&
-                           currentLayout.findDockingItem('timeline') == null;
+                           currentLayout.findDockingItem('timeline') == null &&
+                           currentLayout.findDockingItem('player') == null;
 
       if (isLayoutEmpty) {
-        debugPrint("Layout is empty. Resetting layout with Timeline as root.");
+        debugPrint("Layout is empty. Resetting layout with $panelId as root.");
         // IMPORTANT: Assign to the layout property to trigger notifier and listener attachment
-        layout = DockingLayout(root: _buildTimelineItem());
+        layout = DockingLayout(root: itemBuilder());
       } else {
         // Layout is not empty, proceed with restoring/adding
-        final lastPosition = _lastPanelPositions['timeline'];
+        final lastPosition = _lastPanelPositions[panelId];
         
         if (lastPosition != null) {
           final adjacentId = lastPosition['adjacentId'] as String;
@@ -567,25 +549,57 @@ class EditorViewModel with Disposable {
           final adjacentItem = currentLayout.findDockingItem(adjacentId);
           if (adjacentItem != null) {
             // Restore to its last position relative to the adjacent item
-            debugPrint("Restoring timeline next to $adjacentId in position $position");
+            debugPrint("Restoring $panelId next to $adjacentId in position $position");
             currentLayout.addItemOn(
-              newItem: _buildTimelineItem(),
+              newItem: itemBuilder(),
               targetArea: adjacentItem,
               dropPosition: position
             );
           } else {
             // Adjacent item not found, fall back to default position
-            _addTimelineDefaultPosition(currentLayout);
+            defaultPositionHandler(currentLayout);
           }
         } else {
           // No last position, use default positioning
-          _addTimelineDefaultPosition(currentLayout);
+          defaultPositionHandler(currentLayout);
         }
       }
     }
     
     // Layout listener will trigger save
-    isTimelineVisibleNotifier.value = !isCurrentlyVisible; // Update for menu state
+    visibilityNotifier.value = !isCurrentlyVisible; // Update for menu state
+  }
+  
+  // Toggle timeline visibility using generic method
+  void toggleTimeline() {
+    _togglePanel(
+      panelId: 'timeline',
+      isCurrentlyVisible: isTimelineVisible,
+      visibilityNotifier: isTimelineVisibleNotifier,
+      itemBuilder: _buildTimelineItem,
+      defaultPositionHandler: _addTimelineDefaultPosition
+    );
+  }
+  
+  // Toggle inspector visibility using generic method
+  void toggleInspector() {
+    _togglePanel(
+      panelId: 'inspector',
+      isCurrentlyVisible: isInspectorVisible,
+      visibilityNotifier: isInspectorVisibleNotifier,
+      itemBuilder: _buildInspectorItem,
+      defaultPositionHandler: _addInspectorDefaultPosition
+    );
+  }
+
+  void togglePreview() {
+    _togglePanel(
+      panelId: 'preview',
+      isCurrentlyVisible: isPreviewVisible,
+      visibilityNotifier: isPreviewVisibleNotifier,
+      itemBuilder: _buildPreviewItem,
+      defaultPositionHandler: _addPreviewDefaultPosition
+    );
   }
   
   // Helper for default timeline positioning
@@ -609,59 +623,6 @@ class EditorViewModel with Disposable {
     }
   }
   
-  void toggleInspector() {
-    final currentLayout = layoutNotifier.value;
-    if (currentLayout == null) return;
-    
-    final isCurrentlyVisible = isInspectorVisible;
-    debugPrint("Toggle Inspector visibility. Currently visible: $isCurrentlyVisible");
-    
-    if (isCurrentlyVisible) {
-      // Store position *before* removing the item via menu toggle
-      _storePanelPositions();
-      currentLayout.removeItemByIds(['inspector']);
-    } else {
-      // Check if the layout is effectively empty (no core panels found)
-      bool isLayoutEmpty = currentLayout.findDockingItem('preview') == null &&
-                           currentLayout.findDockingItem('inspector') == null &&
-                           currentLayout.findDockingItem('timeline') == null;
-
-      if (isLayoutEmpty) {
-        debugPrint("Layout is empty. Resetting layout with Inspector as root.");
-        // IMPORTANT: Assign to the layout property to trigger notifier and listener attachment
-        layout = DockingLayout(root: _buildInspectorItem());
-      } else {
-        // Layout is not empty, proceed with restoring/adding
-        final lastPosition = _lastPanelPositions['inspector'];
-        
-        if (lastPosition != null) {
-          final adjacentId = lastPosition['adjacentId'] as String;
-          final position = lastPosition['position'] as DropPosition;
-          
-          final adjacentItem = currentLayout.findDockingItem(adjacentId);
-          if (adjacentItem != null) {
-            // Restore to its last position relative to the adjacent item
-            debugPrint("Restoring inspector next to $adjacentId in position $position");
-            currentLayout.addItemOn(
-              newItem: _buildInspectorItem(),
-              targetArea: adjacentItem,
-              dropPosition: position
-            );
-          } else {
-            // Adjacent item not found, fall back to default position
-            _addInspectorDefaultPosition(currentLayout);
-          }
-        } else {
-          // No last position, use default positioning
-          _addInspectorDefaultPosition(currentLayout);
-        }
-      }
-    }
-    
-    // Layout listener will trigger save
-    isInspectorVisibleNotifier.value = !isCurrentlyVisible; // Update for menu state
-  }
-  
   // Helper for default inspector positioning
   void _addInspectorDefaultPosition(DockingLayout layout) {
     DockingItem? targetItem = layout.findDockingItem('preview');
@@ -683,6 +644,27 @@ class EditorViewModel with Disposable {
     }
   }
 
+  void _addPreviewDefaultPosition(DockingLayout layout) {
+    DockingItem? targetItem = layout.findDockingItem('timeline');
+    DropPosition position = DropPosition.right;
+
+    // If timeline isn't found, try adding to the right of inspector
+    targetItem ??= layout.findDockingItem('inspector');
+
+    if (targetItem != null) {
+      layout.addItemOn(
+        newItem: _buildPreviewItem(),
+        targetArea: targetItem,
+        dropPosition: position
+      );
+    } else {
+      // Fallback - add to root if no suitable target found
+      debugPrint("Preview: No suitable target (Timeline/Inspector) found, adding to root.");
+      layout.addItemOnRoot(newItem: _buildPreviewItem());
+    }
+  }
+  
+
   // These are called by Docking widget when the close button on an item is clicked
   void markInspectorClosed() {
     // Store position *before* the item is removed by the library
@@ -697,6 +679,14 @@ class EditorViewModel with Disposable {
     _storePanelPositions();
     
     isTimelineVisibleNotifier.value = false; // Update menu state
+    // _saveLayoutState(); // Temporarily disabled
+  }
+
+  void markPreviewClosed() {
+    // Store position *before* the item is removed by the library
+    _storePanelPositions();
+    
+    isPreviewVisibleNotifier.value = false; // Update menu state
     // _saveLayoutState(); // Temporarily disabled
   }
 }

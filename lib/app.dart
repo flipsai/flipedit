@@ -44,8 +44,6 @@ class FlipEditApp extends fluent.StatelessWidget with WatchItMixin {
     if (Platform.isMacOS || Platform.isWindows) {
       // --- macOS / Windows: Use PlatformAppMenuBar --- 
       homeWidget = PlatformAppMenuBar(
-        isInspectorVisible: isInspectorVisible,
-        isTimelineVisible: isTimelineVisible,
         editorVm: editorVm,
         projectVm: projectVm,
         timelineVm: timelineVm,
