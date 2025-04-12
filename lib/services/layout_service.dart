@@ -1,7 +1,11 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flipedit/utils/logger.dart';
 
 class LayoutService {
+  // Add a tag for logging within this class
+  String get _logTag => runtimeType.toString();
+
   static const String _visibilityStateKey = 'editor_panel_visibility';
   static const String _layoutStringKey = 'editor_layout_string';
 
@@ -10,9 +14,9 @@ class LayoutService {
       final prefs = await SharedPreferences.getInstance();
       final jsonState = jsonEncode(visibilityState);
       await prefs.setString(_visibilityStateKey, jsonState);
-      print('Panel visibility state saved: $jsonState');
+      logDebug(_logTag, 'Panel visibility state saved: $jsonState');
     } catch (e) {
-      print('Error saving visibility state: $e');
+      logError(_logTag, 'Error saving visibility state: $e');
     }
   }
 
@@ -23,14 +27,14 @@ class LayoutService {
       if (jsonState != null && jsonState.isNotEmpty) {
         final Map<String, dynamic> decodedMap = jsonDecode(jsonState);
         final visibilityState = decodedMap.map((key, value) => MapEntry(key, value as bool));
-        print('Panel visibility state loaded: $visibilityState');
+        logDebug(_logTag, 'Panel visibility state loaded: $visibilityState');
         return visibilityState;
       } else {
-        print('No saved visibility state found.');
+        logDebug(_logTag, 'No saved visibility state found.');
         return null;
       }
     } catch (e) {
-      print('Error loading visibility state: $e');
+      logError(_logTag, 'Error loading visibility state: $e');
       return null;
     }
   }
@@ -39,9 +43,9 @@ class LayoutService {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_layoutStringKey, layoutString);
-      print('Layout string saved. Length: ${layoutString.length}');
+      logDebug(_logTag, 'Layout string saved. Length: ${layoutString.length}');
     } catch (e) {
-      print('Error saving layout string: $e');
+      logError(_logTag, 'Error saving layout string: $e');
     }
   }
 
@@ -50,14 +54,14 @@ class LayoutService {
       final prefs = await SharedPreferences.getInstance();
       final layoutString = prefs.getString(_layoutStringKey);
       if (layoutString != null && layoutString.isNotEmpty) {
-        print('Layout string loaded. Length: ${layoutString.length}');
+        logDebug(_logTag, 'Layout string loaded. Length: ${layoutString.length}');
         return layoutString;
       } else {
-        print('No saved layout string found.');
+        logDebug(_logTag, 'No saved layout string found.');
         return null;
       }
     } catch (e) {
-      print('Error loading layout string: $e');
+      logError(_logTag, 'Error loading layout string: $e');
       return null;
     }
   }

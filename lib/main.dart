@@ -5,6 +5,7 @@ import 'package:watch_it/watch_it.dart';
 import 'package:fvp/fvp.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flipedit/utils/logger.dart';
 // import 'package:flutter/rendering.dart';
 
 Future<void> main() async {
@@ -16,12 +17,12 @@ Future<void> main() async {
 
   // Initialize FVP/MDK with registerWith
   try {
-    print("Initializing FVP/MDK...");
+    logInfo('main', "Initializing FVP/MDK...");
     // Register FVP to be used as the backend for video_player
     registerWith(); // Use default options when integrating with video_player
-    print("FVP/MDK Initialized Successfully!");
+    logInfo('main', "FVP/MDK Initialized Successfully!");
   } catch (e) {
-    print("Error initializing FVP/MDK: $e");
+    logError('main', "Error initializing FVP/MDK: $e");
   }
 
   // Set up dependency injection
