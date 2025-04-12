@@ -5,6 +5,7 @@ import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:video_player/video_player.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/services/project_service.dart';
+import 'package:flipedit/utils/logger.dart';
 
 /// Controls widget for the timeline including playback controls and zoom
 class TimelineControls extends StatelessWidget with WatchItMixin {
@@ -125,7 +126,7 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
     final projectService = di<ProjectService>();
     return FilledButton(
       onPressed: () async {
-        print("Add Media button pressed - Placeholder");
+        logInfo(runtimeType.toString(), "Add Media button pressed - Placeholder");
         
         // Get the first track ID or default/error if none
         final int targetTrackId;
@@ -134,7 +135,7 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
         if (currentTracks.isNotEmpty) {
            targetTrackId = currentTracks.first.id;
         } else {
-           print("Error: No tracks loaded to add clip to.");
+           logError(runtimeType.toString(), "Error: No tracks loaded to add clip to.");
            // Optionally show a user message
            return; // Don't proceed if no track is available
         }

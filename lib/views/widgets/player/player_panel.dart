@@ -13,16 +13,16 @@ class PlayerPanel extends StatelessWidget with WatchItMixin {
 
   @override
   Widget build(BuildContext context) {
-    logDebug("Rebuilding PlayerPanel...");
+    logDebug("Rebuilding PlayerPanel...", 'PlayerPanel');
 
     final currentVideoUrl = watchValue(
       (EditorViewModel vm) => vm.currentPreviewVideoUrlNotifier,
     );
-    logDebug("PlayerPanel Received URL: $currentVideoUrl");
+    logDebug("PlayerPanel Received URL: $currentVideoUrl", 'PlayerPanel');
     const double opacity = 1.0;
 
     if (currentVideoUrl == null || currentVideoUrl.isEmpty) {
-      logDebug("PlayerPanel: No video URL, showing fallback text.");
+      logDebug("PlayerPanel: No video URL, showing fallback text.", 'PlayerPanel');
       return Container(
         color: const Color(0xFF333333),
         child: const Center(
@@ -41,18 +41,21 @@ class PlayerPanel extends StatelessWidget with WatchItMixin {
 
      logDebug(
        "PlayerPanel watchFuture [$currentVideoUrl]: State=${playerFuture.connectionState}",
+       'PlayerPanel',
      );
      if (playerFuture.hasError) {
         logError(
            "PlayerPanel watchFuture [$currentVideoUrl]: ERROR=${playerFuture.error}",
            playerFuture.error,
            playerFuture.stackTrace,
+           'PlayerPanel',
         );
      }
       if (playerFuture.hasData && playerFuture.data != null) {
          final controller = playerFuture.data!.$1;
          logDebug(
            "PlayerPanel watchFuture [$currentVideoUrl]: Data received. Controller initialized: ${controller.value.isInitialized}",
+           'PlayerPanel',
          );
       }
 
@@ -75,7 +78,7 @@ class PlayerPanel extends StatelessWidget with WatchItMixin {
         ),
       );
     } else if (playerFuture.hasError) {
-      logError("PlayerPanel watchFuture Error: ${playerFuture.error}");
+      logError("PlayerPanel watchFuture Error: ${playerFuture.error}", null, null, 'PlayerPanel');
       return Center(
         child: Icon(
           FluentIcons.error,
@@ -98,7 +101,7 @@ class PlayerPanel extends StatelessWidget with WatchItMixin {
           ],
         );
       } else {
-        logDebug("PlayerPanel: Controller received but not yet initialized. Showing spinner.");
+        logDebug("PlayerPanel: Controller received but not yet initialized. Showing spinner.", 'PlayerPanel');
         return const Center(
           child: ProgressRing(
             activeColor: Colors.white,
@@ -108,6 +111,7 @@ class PlayerPanel extends StatelessWidget with WatchItMixin {
     } else {
       logWarning(
         "PlayerPanel watchFuture [$currentVideoUrl]: Snapshot has no data and no error. State: ${playerFuture.connectionState}. Showing fallback help icon.",
+        'PlayerPanel',
       );
       return Center(
         child: Icon(

@@ -8,8 +8,10 @@ import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:watch_it/watch_it.dart';
+import 'package:flipedit/utils/logger.dart';
 
 // --- Action Handlers (Now using ProjectViewModel) ---
+const _logTag = 'AppMenuBarActions'; // Define tag for top-level functions
 
 // Updated to accept BuildContext and ProjectViewModel
 Future<void> _handleNewProject(
@@ -47,15 +49,15 @@ Future<void> _handleNewProject(
         final newProjectId = await projectVm.createNewProjectCommand(
           projectName.trim(),
         );
-        print("Created new project with ID: $newProjectId");
+        logInfo(_logTag, "Created new project with ID: $newProjectId");
         // TODO: Optionally load the newly created project using projectVm.loadProjectCommand(newProjectId)
       } catch (e) {
-        print("Error creating project: $e");
+        logError(_logTag, "Error creating project: $e");
         // TODO: Show error dialog to user (e.g., using context)
       }
     } else if (projectName != null) {
       // Handle empty name case if needed (e.g., show validation in dialog)
-      print("Project name cannot be empty.");
+      logWarning(_logTag, "Project name cannot be empty.");
       // TODO: Show validation error to user
     }
   });
@@ -72,7 +74,7 @@ Future<void> _handleOpenProject(
     // Get the current list of projects via ViewModel
     projects = await projectVm.getAllProjects();
   } catch (e) {
-    print("Error fetching projects: $e");
+    logError(_logTag, "Error fetching projects: $e");
     // TODO: Show error dialog
     return;
   }
@@ -134,10 +136,10 @@ Future<void> _handleOpenProject(
     },
   ).then((selectedProjectId) {
     if (selectedProjectId != null) {
-      print("Attempting to load project ID: $selectedProjectId");
+      logInfo(_logTag, "Attempting to load project ID: $selectedProjectId");
       // Use ViewModel command
       projectVm.loadProjectCommand(selectedProjectId).catchError((e) {
-        print("Error loading project $selectedProjectId: $e");
+        logError(_logTag, "Error loading project $selectedProjectId: $e");
         // TODO: Show error to user
       });
     }
@@ -161,7 +163,7 @@ Future<void> _handleImportMedia(TimelineViewModel timelineVm) async {
         if (timelineVm.currentTrackIds.isNotEmpty) {
           targetTrackId = timelineVm.currentTrackIds.first;
         } else {
-          print("Error: No tracks loaded to import media into.");
+          logError(_logTag, "Error: No tracks loaded to import media into.");
           // Optionally show a user message
           return; // Don't proceed if no track is available
         }
@@ -188,13 +190,13 @@ Future<void> _handleImportMedia(TimelineViewModel timelineVm) async {
           // Let addClipAtPosition handle placement at playhead
         );
       } else {
-        print("File path is null after picking.");
+        logWarning(_logTag, "File path is null after picking.");
       }
     } else {
-      print("File picking cancelled or no file selected.");
+      logInfo(_logTag, "File picking cancelled or no file selected.");
     }
   } catch (e) {
-    print("Error picking file: $e");
+    logError(_logTag, "Error picking file: $e");
     // TODO: Show user-friendly error message
   }
 }
@@ -204,21 +206,21 @@ void _handleSaveProject(ProjectViewModel projectVm) {
   projectVm
       .saveProjectCommand()
       .then((_) {
-        print("Action: Save Project initiated.");
+        logInfo(_logTag, "Action: Save Project initiated.");
       })
       .catchError((e) {
-        print("Error saving project: $e");
+        logError(_logTag, "Error saving project: $e");
         // TODO: Show error to user
       });
 }
 
 void _handleUndo() {
-  print("Action: Undo");
+  logInfo(_logTag, "Action: Undo");
   // TODO: Implement undo logic (likely via a dedicated Undo/Redo Service/ViewModel)
 }
 
 void _handleRedo() {
-  print("Action: Redo");
+  logInfo(_logTag, "Action: Redo");
   // TODO: Implement redo logic
 }
 
@@ -227,10 +229,10 @@ void _handleAddVideoTrack(ProjectViewModel projectVm) {
   projectVm
       .addTrackCommand(type: 'video')
       .then((_) {
-        print("Action: Add Video Track initiated.");
+        logInfo(_logTag, "Action: Add Video Track initiated.");
       })
       .catchError((e) {
-        print("Error adding video track: $e");
+        logError(_logTag, "Error adding video track: $e");
         // TODO: Show error to user
       });
 }
@@ -239,10 +241,10 @@ void _handleAddAudioTrack(ProjectViewModel projectVm) {
   projectVm
       .addTrackCommand(type: 'audio')
       .then((_) {
-        print("Action: Add Audio Track initiated.");
+        logInfo(_logTag, "Action: Add Audio Track initiated.");
       })
       .catchError((e) {
-        print("Error adding audio track: $e");
+        logError(_logTag, "Error adding audio track: $e");
         // TODO: Show error to user
       });
 }

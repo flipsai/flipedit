@@ -4,6 +4,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:crypto/crypto.dart';
 import '../models/uv_release.dart';
 import 'package:archive/archive.dart';
+import 'package:flipedit/utils/logger.dart';
 
 class UvDownloader {
   static const String uvVersion = "0.6.11";
@@ -52,13 +53,13 @@ class UvDownloader {
 
   static String _getCurrentPlatform() {
     if (Platform.isWindows) {
-      print('Detected Windows platform');
+      logInfo('UvDownloader', 'Detected Windows platform');
       return "windows-x64"; // Add more specific detection if needed
     } else if (Platform.isMacOS) {
       try {
         final result = Process.runSync('uname', ['-m']);
         final arch = result.stdout.toString().trim();
-        print('Detected macOS platform with architecture: $arch');
+        logInfo('UvDownloader', 'Detected macOS platform with architecture: $arch');
         
         if (arch == 'arm64') {
           return "macos-arm64";
@@ -66,10 +67,10 @@ class UvDownloader {
           return "macos-x64";
         }
         
-        print('Unsupported macOS architecture: $arch');
+        logWarning('UvDownloader', 'Unsupported macOS architecture: $arch');
         throw UnsupportedError('Unsupported macOS architecture: $arch');
       } catch (e) {
-        print('Error detecting macOS architecture: $e');
+        logError('UvDownloader', 'Error detecting macOS architecture: $e');
         throw UnsupportedError('Failed to detect macOS architecture');
       }
     } else if (Platform.isLinux) {
@@ -77,7 +78,7 @@ class UvDownloader {
       try {
         final result = Process.runSync('uname', ['-m']);
         final arch = result.stdout.toString().trim();
-        print('Detected Linux platform with architecture: $arch');
+        logInfo('UvDownloader', 'Detected Linux platform with architecture: $arch');
         
         if (arch == 'x86_64') {
           return "linux-x64";
@@ -85,18 +86,18 @@ class UvDownloader {
           return "linux-arm64";
         }
         
-        print('Unsupported Linux architecture: $arch');
+        logWarning('UvDownloader', 'Unsupported Linux architecture: $arch');
       } catch (e) {
-        print('Error detecting Linux architecture: $e');
+        logError('UvDownloader', 'Error detecting Linux architecture: $e');
       }
       
       // Fallback to x64 if detection fails
-      print('Falling back to linux-x64');
+      logWarning('UvDownloader', 'Falling back to linux-x64');
       return "linux-x64";
     }
     
     final error = 'Unsupported platform: ${Platform.operatingSystem}';
-    print(error);
+    logError('UvDownloader', error);
     throw UnsupportedError(error);
   }
 
@@ -107,17 +108,17 @@ class UvDownloader {
 
   static Future<void> downloadAndInstallUv() async {
     final platform = _getCurrentPlatform();
-    print('Getting UV release for platform: $platform');
+    logInfo('UvDownloader', 'Getting UV release for platform: $platform');
     
     final release = _releases[platform];
     if (release == null) {
       final error = 'No UV release available for platform: $platform';
-      print(error);
-      print('Available platforms: ${_releases.keys.join(', ')}');
+      logError('UvDownloader', error);
+      logError('UvDownloader', 'Available platforms: ${_releases.keys.join(', ')}');
       throw UnsupportedError(error);
     }
 
-    print('Downloading UV from: ${release.url}');
+    logInfo('UvDownloader', 'Downloading UV from: ${release.url}');
     final directory = await getApplicationSupportDirectory();
     final downloadPath = '${directory.path}/${release.fileName}';
     
@@ -141,11 +142,11 @@ class UvDownloader {
       throw Exception('Checksum verification failed');
     }
     
-    print('Checksum verified successfully');
+    logInfo('UvDownloader', 'Checksum verified successfully');
     
     // Save the downloaded file
     await File(downloadPath).writeAsBytes(response.bodyBytes);
-    print('Downloaded file saved to: $downloadPath');
+    logInfo('UvDownloader', 'Downloaded file saved to: $downloadPath');
     
     // Extract the archive
     final bytes = response.bodyBytes;
@@ -160,7 +161,7 @@ class UvDownloader {
       _extractArchive(archive, directory.path);
     }
     
-    print('Archive extracted successfully');
+    logInfo('UvDownloader', 'Archive extracted successfully');
     
     // Find the UV executable in the extracted files
     String? extractedUvPath;
@@ -177,7 +178,7 @@ class UvDownloader {
       throw Exception('Could not find UV executable in extracted files');
     }
     
-    print('Found UV executable at: $extractedUvPath');
+    logInfo('UvDownloader', 'Found UV executable at: $extractedUvPath');
     
     // Ensure the target directory exists
     final uvPath = await getUvPath();
@@ -187,18 +188,18 @@ class UvDownloader {
     }
     
     // Move the UV executable to the final location
-    print('Moving UV executable from $extractedUvPath to $uvPath');
+    logInfo('UvDownloader', 'Moving UV executable from $extractedUvPath to $uvPath');
     try {
       await File(extractedUvPath).copy(uvPath);
-      print('UV executable copied to: $uvPath');
+      logInfo('UvDownloader', 'UV executable copied to: $uvPath');
     } catch (e) {
-      print('Error copying UV executable: $e');
+      logError('UvDownloader', 'Error copying UV executable: $e');
       // Try renaming instead
       try {
         await File(extractedUvPath).rename(uvPath);
-        print('UV executable moved to: $uvPath');
+        logInfo('UvDownloader', 'UV executable moved to: $uvPath');
       } catch (e) {
-        print('Error moving UV executable: $e');
+        logError('UvDownloader', 'Error moving UV executable: $e');
         rethrow;
       }
     }
@@ -206,7 +207,7 @@ class UvDownloader {
     // Make the file executable on Unix systems
     if (!Platform.isWindows) {
       await Process.run('chmod', ['+x', uvPath]);
-      print('Made UV executable');
+      logInfo('UvDownloader', 'Made UV executable');
     }
     
     // Verify the executable exists at target location
@@ -216,7 +217,7 @@ class UvDownloader {
     
     // Clean up extracted files
     await _cleanupExtractedFiles(directory.path);
-    print('Cleaned up extracted files');
+    logInfo('UvDownloader', 'Cleaned up extracted files');
   }
   
   static Future<String?> _findFile(String directory, String filename) async {
@@ -229,7 +230,7 @@ class UvDownloader {
         }
       }
     } catch (e) {
-      print('Error searching for file: $e');
+      logError('UvDownloader', 'Error searching for file: $e');
     }
     
     return null;
@@ -248,7 +249,7 @@ class UvDownloader {
         }
       }
     } catch (e) {
-      print('Error cleaning up files: $e');
+      logError('UvDownloader', 'Error cleaning up files: $e');
     }
   }
 
@@ -258,7 +259,7 @@ class UvDownloader {
       if (file.isFile) {
         final data = file.content as List<int>;
         final filePath = '$outputPath/$filename';
-        print('Extracting: $filePath');
+        logDebug('UvDownloader', 'Extracting: $filePath');
         File(filePath)
           ..createSync(recursive: true)
           ..writeAsBytesSync(data);

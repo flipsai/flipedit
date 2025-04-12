@@ -14,6 +14,7 @@ import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:video_player/video_player.dart';
 import 'package:flipedit/viewmodels/editor/editor_layout_viewmodel.dart';
 import 'package:flipedit/viewmodels/editor/editor_preview_viewmodel.dart';
+import 'package:flipedit/utils/logger.dart';
 
 // Define typedefs for the function types expected by DockingLayout
 typedef DockingAreaParser = dynamic Function(DockingArea area);
@@ -22,6 +23,9 @@ typedef DockingAreaBuilder = DockingArea? Function(dynamic data);
 /// Acts as a coordinator for editor-related view models and state.
 /// Delegates layout management to [EditorLayoutManager] and preview control to [EditorPreviewController].
 class EditorViewModel with Disposable {
+  // Add a tag for logging within this class
+  String get _logTag => runtimeType.toString();
+
   // Temporarily commented out LayoutService injection
   // final LayoutService _layoutService = di<LayoutService>();
   
@@ -90,12 +94,12 @@ class EditorViewModel with Disposable {
       clips: [], 
     ); 
     // Initialization of layout and preview is handled within their respective classes' constructors
-    print("EditorViewModel initialized. Layout and Preview controllers created.");
+    logInfo(_logTag, "EditorViewModel initialized. Layout and Preview controllers created.");
   }
 
   @override
   void onDispose() {
-    print("Disposing EditorViewModel...");
+    logInfo(_logTag, "Disposing EditorViewModel...");
     // Dispose local notifiers
     selectedExtensionNotifier.dispose();
     selectedClipIdNotifier.dispose();
@@ -123,7 +127,7 @@ class EditorViewModel with Disposable {
     // Dispose child controllers/managers
     layoutManager.onDispose();
     previewController.onDispose();
-    print("EditorViewModel disposed.");
+    logInfo(_logTag, "EditorViewModel disposed.");
   }
 
   // Helper function to safely get children from various container types
@@ -139,7 +143,7 @@ class EditorViewModel with Disposable {
         }
       }
     } catch (e) {
-      print("Error accessing children of ${container.runtimeType}: $e");
+      logError(_logTag, "Error accessing children of ${container.runtimeType}: $e");
     }
     
     return result;
@@ -181,12 +185,12 @@ class EditorViewModel with Disposable {
     
     if (controller.value.isInitialized && 
         (controller.value.position - targetPosition).abs() > const Duration(milliseconds: 50)) {
-       print("[_seekController] Seeking controller for ${controller.dataSource} to frame $frame (pos: $targetPosition). Timeline playing: $isPlaying");
+       logDebug(_logTag, "[_seekController] Seeking controller for ${controller.dataSource} to frame $frame (pos: $targetPosition). Timeline playing: $isPlaying");
        await controller.seekTo(targetPosition);
        
        // Only pause if the timeline is NOT playing
        if (!isPlaying && controller.value.isPlaying) {
-          print("[_seekController] Pausing controller after seek because timeline is paused.");
+          logDebug(_logTag, "[_seekController] Pausing controller after seek because timeline is paused.");
           await controller.pause(); 
        }
        // If timeline IS playing, we assume the play command will come separately 
@@ -198,7 +202,7 @@ class EditorViewModel with Disposable {
   Future<void> _updatePreviewPlaybackState() async {
      final bool isPlaying = _timelineViewModel.isPlaying;
      final String? currentUrl = currentPreviewVideoUrlNotifier.value;
-     print("[_updatePreviewPlaybackState] Called. Timeline playing: $isPlaying, Current URL: $currentUrl");
+     logDebug(_logTag, "[_updatePreviewPlaybackState] Called. Timeline playing: $isPlaying, Current URL: $currentUrl");
 
      if (currentUrl == null) return; // No video to control
 
@@ -207,7 +211,7 @@ class EditorViewModel with Disposable {
        final (controller, _) = await _videoPlayerManager.getOrCreatePlayerController(currentUrl);
 
        if (!controller.value.isInitialized) {
-          print("[_updatePreviewPlaybackState] Controller for $currentUrl not initialized yet.");
+          logDebug(_logTag, "[_updatePreviewPlaybackState] Controller for $currentUrl not initialized yet.");
           // Could potentially add a listener here similar to _updatePreviewVideo, but 
           // it might be simpler to rely on the next frame/seek update to handle playback.
           return;
@@ -215,14 +219,14 @@ class EditorViewModel with Disposable {
 
        // Apply the correct state
        if (isPlaying && !controller.value.isPlaying) {
-          print("[_updatePreviewPlaybackState] Playing controller for $currentUrl");
+          logDebug(_logTag, "[_updatePreviewPlaybackState] Playing controller for $currentUrl");
           await controller.play();
        } else if (!isPlaying && controller.value.isPlaying) {
-          print("[_updatePreviewPlaybackState] Pausing controller for $currentUrl");
+          logDebug(_logTag, "[_updatePreviewPlaybackState] Pausing controller for $currentUrl");
           await controller.pause();
        }
      } catch (e) {
-        print("[_updatePreviewPlaybackState] Error getting/controlling controller for $currentUrl: $e");
+        logError(_logTag, "[_updatePreviewPlaybackState] Error getting/controlling controller for $currentUrl: $e");
      }
   }
 
@@ -256,11 +260,11 @@ class EditorViewModel with Disposable {
           final localFrame = _calculateLocalFrame(foundClip!, globalFrame);
 
           if (!controller.value.isInitialized) {
-             print("[_updatePreviewVideo post-frame] Waiting for controller initialization for seek...");
+             logDebug(_logTag, "[_updatePreviewVideo post-frame] Waiting for controller initialization for seek...");
              void Function()? initListener;
              initListener = () {
                 if(controller.value.isInitialized){
-                  print("[_updatePreviewVideo post-frame] Controller initialized, seeking now.");
+                  logDebug(_logTag, "[_updatePreviewVideo post-frame] Controller initialized, seeking now.");
                    // Seek and apply correct initial play state
                   _seekController(controller, localFrame, isPlaying);
                   // Ensure playback state is correct *after* potential seek
@@ -278,7 +282,7 @@ class EditorViewModel with Disposable {
              _updatePreviewPlaybackState(); 
           }
         } catch (e) {
-            print("[_updatePreviewVideo post-frame] Error getting/seeking/controlling controller: $e");
+            logError(_logTag, "[_updatePreviewVideo post-frame] Error getting/seeking/controlling controller: $e");
         }
       });
     } else if (urlChanged && videoUrlToShow == null) {
@@ -286,7 +290,7 @@ class EditorViewModel with Disposable {
        final previousUrl = currentPreviewVideoUrlNotifier.value; // This is now null, need the value *before* the change
        // We might need to store the previous URL temporarily if we want precise pausing
        // For now, let's assume pausing the *current* (null) is harmless or rely on player manager disposal later
-       print("[_updatePreviewVideo] No clip found at frame $globalFrame. Ensuring no playback (if possible).");
+       logDebug(_logTag, "[_updatePreviewVideo] No clip found at frame $globalFrame. Ensuring no playback (if possible).");
        // Potentially call _updatePreviewPlaybackState here, which will find no URL and do nothing
        // Or, more robustly, explicitly pause the controller associated with the *previous* URL if known.
     }

@@ -11,6 +11,7 @@ import 'package:flipedit/persistence/database/app_database.dart' show Track;
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:video_player/video_player.dart';
 import 'package:watch_it/watch_it.dart';
+import 'package:flipedit/utils/logger.dart'; // Add logger import
 
 const double _defaultFrameRate = 30.0;
 const int _defaultTimelineDurationFrames = 90; // Default 3 seconds at 30fps
@@ -25,6 +26,9 @@ void Function() _debounce(VoidCallback func, Duration delay) {
 }
 
 class TimelineViewModel implements Disposable {
+  // Add a tag for logging within this class
+  String get _logTag => runtimeType.toString();
+
   final ClipDao _clipDao;
   final TrackDao _trackDao;
 
@@ -137,14 +141,14 @@ class TimelineViewModel implements Disposable {
   }
 
   Future<void> loadClipsForProject(int projectId) async {
-    print('Loading clips for project $projectId');
+    logInfo(_logTag, 'Loading clips for project $projectId'); // Use top-level function with tag
     final tracks = await _trackDao.getTracksForProject(projectId);
     
     currentTrackIds = tracks.map((t) => t.id).toList();
-    print('Loaded track IDs: $currentTrackIds');
+    logInfo(_logTag, 'Loaded track IDs: $currentTrackIds'); // Use top-level function with tag
 
     if (tracks.isEmpty) {
-      print('No tracks found for project $projectId');
+      logInfo(_logTag, 'No tracks found for project $projectId'); // Use top-level function with tag
       clipsNotifier.value = [];
       _recalculateAndUpdateTotalFrames();
       return;
@@ -152,13 +156,13 @@ class TimelineViewModel implements Disposable {
 
     final List<ClipModel> allClips = [];
     for (final track in tracks) {
-      print('Processing track ID: ${track.id}');
+      logDebug(_logTag, 'Processing track ID: ${track.id}'); // Use top-level function with tag
       final trackClipsData = await _clipDao.getClipsForTrack(track.id);
-      print('Found ${trackClipsData.length} clips for track ID: ${track.id}');
+      logDebug(_logTag, 'Found ${trackClipsData.length} clips for track ID: ${track.id}'); // Use top-level function with tag
       allClips.addAll(trackClipsData.map((dbData) => ClipModel.fromDbData(dbData)));
     }
 
-    print('Loaded ${allClips.length} clips');
+    logInfo(_logTag, 'Loaded ${allClips.length} clips'); // Use top-level function with tag
     clipsNotifier.value = allClips;
     _recalculateAndUpdateTotalFrames();
 
@@ -285,10 +289,10 @@ class TimelineViewModel implements Disposable {
            _stopPlaybackTimer();
            isPlayingNotifier.value = false;
         }
-        print('Clip added with ID: $newDbId at ${clipWithId.startTimeOnTrackMs}ms');
+        logInfo(_logTag, 'Clip added with ID: $newDbId at ${clipWithId.startTimeOnTrackMs}ms'); // Use top-level function with tag
 
     } catch (e) {
-       print("Error adding clip to database: $e");
+       logError(_logTag, "Error adding clip to database: $e"); // Use top-level function with tag
     }
   }
 
@@ -306,16 +310,16 @@ class TimelineViewModel implements Disposable {
         if (currentClips.length < initialLength) {
            clipsNotifier.value = currentClips;
            _recalculateAndUpdateTotalFrames();
-           print('Clip removed with ID: $databaseId');
+           logInfo(_logTag, 'Clip removed with ID: $databaseId'); // Use top-level function with tag
 
         } else {
-           print('Warning: Clip with ID $databaseId not found in local state after successful DB delete.');
+           logWarning(_logTag, 'Warning: Clip with ID $databaseId not found in local state after successful DB delete.'); // Use top-level function with tag
         }
       } else {
-         print('Error: Clip with ID $databaseId not found in database or could not be deleted.');
+         logError(_logTag, 'Error: Clip with ID $databaseId not found in database or could not be deleted.'); // Use top-level function with tag
       }
     } catch (e) {
-      print("Error removing clip from database: $e");
+      logError(_logTag, "Error removing clip from database: $e"); // Use top-level function with tag
     }
   }
 
@@ -333,15 +337,15 @@ class TimelineViewModel implements Disposable {
                currentClips[index] = updatedClip;
                clipsNotifier.value = currentClips;
                _recalculateAndUpdateTotalFrames();
-               print('Clip $databaseId position updated to ${newStartTimeOnTrackMs}ms');
+               logInfo(_logTag, 'Clip $databaseId position updated to ${newStartTimeOnTrackMs}ms'); // Use top-level function with tag
             } else {
-               print('Warning: Clip $databaseId not found locally after successful DB update.');
+               logWarning(_logTag, 'Warning: Clip $databaseId not found locally after successful DB update.'); // Use top-level function with tag
             }
         } else {
-           print('Error: Clip $databaseId not found in DB or failed to update position.');
+           logError(_logTag, 'Error: Clip $databaseId not found in DB or failed to update position.'); // Use top-level function with tag
         }
      } catch (e) {
-        print("Error updating clip position in database: $e");
+        logError(_logTag, "Error updating clip position in database: $e"); // Use top-level function with tag
      }
   }
 
@@ -362,15 +366,15 @@ class TimelineViewModel implements Disposable {
                currentClips[index] = updatedClip;
                clipsNotifier.value = currentClips;
                _recalculateAndUpdateTotalFrames();
-               print('Clip $databaseId trim updated');
+               logInfo(_logTag, 'Clip $databaseId trim updated'); // Use top-level function with tag
             } else {
-               print('Warning: Clip $databaseId not found locally after successful DB update.');
+               logWarning(_logTag, 'Warning: Clip $databaseId not found locally after successful DB update.'); // Use top-level function with tag
             }
         } else {
-           print('Error: Clip $databaseId not found in DB or failed to update trim.');
+           logError(_logTag, 'Error: Clip $databaseId not found in DB or failed to update trim.'); // Use top-level function with tag
         }
      } catch (e) {
-        print("Error updating clip trim in database: $e");
+        logError(_logTag, "Error updating clip trim in database: $e"); // Use top-level function with tag
      }
   }
 
@@ -451,7 +455,7 @@ class TimelineViewModel implements Disposable {
     } else {
         final file = File(videoPath);
         if (!await file.exists()) {
-           print("Error: Video file not found at $videoPath");
+           logError(_logTag, "Error: Video file not found at $videoPath"); // Use top-level function with tag
             _recalculateAndUpdateTotalFrames();
             return;
         }
@@ -472,9 +476,9 @@ class TimelineViewModel implements Disposable {
       _stopPlaybackTimer();
       isPlayingNotifier.value = false;
 
-      print('Video loaded for preview: $videoPath');
+      logInfo(_logTag, 'Video loaded for preview: $videoPath'); // Use top-level function with tag
     } catch (e) {
-      print("Error initializing video player: $e");
+      logError(_logTag, "Error initializing video player: $e"); // Use top-level function with tag
       _videoPlayerController = null;
       videoPlayerControllerNotifier.value = null;
       _recalculateAndUpdateTotalFrames();
@@ -508,7 +512,7 @@ class TimelineViewModel implements Disposable {
 
   @override
   void onDispose() {
-    print('Disposing TimelineViewModel');
+    logInfo(_logTag, 'Disposing TimelineViewModel'); // Use top-level function with tag
     clipsNotifier.dispose();
     zoomNotifier.dispose();
     currentFrameNotifier.dispose();

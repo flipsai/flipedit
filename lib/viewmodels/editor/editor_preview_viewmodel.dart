@@ -6,9 +6,10 @@ import 'package:flipedit/services/video_player_manager.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
+import 'package:flipedit/utils/logger.dart'; // Add logger import
 
 /// Handles synchronization between the timeline and the preview player.
-class EditorPreviewViewModel with Disposable {
+class EditorPreviewViewModel with Disposable { // Remove LoggerExtension
   // Dependencies (injected)
   final TimelineViewModel _timelineViewModel = di<TimelineViewModel>();
   final VideoPlayerManager _videoPlayerManager = di<VideoPlayerManager>();
@@ -25,6 +26,9 @@ class EditorPreviewViewModel with Disposable {
 
   // --- Getters ---
   String? get currentPreviewVideoUrl => currentPreviewVideoUrlNotifier.value;
+
+  // Add a tag for logging within this class
+  String get _logTag => runtimeType.toString();
 
   EditorPreviewViewModel() {
     _subscribeToTimelineChanges();
@@ -78,23 +82,23 @@ class EditorPreviewViewModel with Disposable {
 
     if (controller.value.isInitialized &&
         (controller.value.position - targetPosition).abs() > const Duration(milliseconds: 50)) { // Tolerance for seeking
-       print("[PreviewController._seekController] Seeking ${controller.dataSource} to frame $frame (pos: $targetPosition). Timeline playing: $isPlaying");
+       logDebug(_logTag, "[PreviewController._seekController] Seeking ${controller.dataSource} to frame $frame (pos: $targetPosition). Timeline playing: $isPlaying"); // Use top-level function with tag
        await controller.seekTo(targetPosition);
 
        // Only pause if the timeline is NOT playing
        if (!isPlaying && controller.value.isPlaying) {
-          print("[PreviewController._seekController] Pausing controller after seek because timeline is paused.");
+          logDebug(_logTag, "[PreviewController._seekController] Pausing controller after seek because timeline is paused."); // Use top-level function with tag
           await controller.pause();
        }
        // If timeline IS playing, we assume the play command will come separately
        // or is already handled by _updatePreviewPlaybackState, so we don't explicitly play here.
     } else if (controller.value.isInitialized && !isPlaying && controller.value.isPlaying) {
         // Ensure controller is paused if timeline isn't playing, even if no seek happened
-        print("[PreviewController._seekController] Pausing controller as timeline is paused (no seek needed).");
+        logDebug(_logTag, "[PreviewController._seekController] Pausing controller as timeline is paused (no seek needed)."); // Use top-level function with tag
         await controller.pause();
     } else if (controller.value.isInitialized && isPlaying && !controller.value.isPlaying) {
         // Ensure controller is playing if timeline is playing, even if no seek happened
-        print("[PreviewController._seekController] Playing controller as timeline is playing (no seek needed).");
+        logDebug(_logTag, "[PreviewController._seekController] Playing controller as timeline is playing (no seek needed)."); // Use top-level function with tag
         await controller.play();
     }
   }
@@ -103,7 +107,7 @@ class EditorPreviewViewModel with Disposable {
   Future<void> _updatePreviewPlaybackState() async {
      final bool isPlaying = _timelineViewModel.isPlaying;
      final String? currentUrl = currentPreviewVideoUrlNotifier.value;
-     print("[PreviewController._updatePreviewPlaybackState] Called. Timeline playing: $isPlaying, Current URL: $currentUrl");
+     logDebug(_logTag, "[PreviewController._updatePreviewPlaybackState] Called. Timeline playing: $isPlaying, Current URL: $currentUrl"); // Use top-level function with tag
 
      if (currentUrl == null) return; // No video to control
 
@@ -112,12 +116,12 @@ class EditorPreviewViewModel with Disposable {
        final (controller, _) = await _videoPlayerManager.getOrCreatePlayerController(currentUrl);
 
        if (!controller.value.isInitialized) {
-          print("[PreviewController._updatePreviewPlaybackState] Controller for $currentUrl not initialized yet. Waiting for init.");
+          logDebug(_logTag, "[PreviewController._updatePreviewPlaybackState] Controller for $currentUrl not initialized yet. Waiting for init."); // Use top-level function with tag
           // Add a listener to apply state once initialized
           void Function()? initListener;
           initListener = () {
               if (controller.value.isInitialized) {
-                  print("[PreviewController._updatePreviewPlaybackState] Controller initialized. Applying play state: $isPlaying");
+                  logDebug(_logTag, "[PreviewController._updatePreviewPlaybackState] Controller initialized. Applying play state: $isPlaying"); // Use top-level function with tag
                   if (isPlaying && !controller.value.isPlaying) {
                       controller.play();
                   } else if (!isPlaying && controller.value.isPlaying) {
@@ -135,14 +139,14 @@ class EditorPreviewViewModel with Disposable {
 
        // Apply the correct state if already initialized
        if (isPlaying && !controller.value.isPlaying) {
-          print("[PreviewController._updatePreviewPlaybackState] Playing controller for $currentUrl");
+          logDebug(_logTag, "[PreviewController._updatePreviewPlaybackState] Playing controller for $currentUrl"); // Use top-level function with tag
           await controller.play();
        } else if (!isPlaying && controller.value.isPlaying) {
-          print("[PreviewController._updatePreviewPlaybackState] Pausing controller for $currentUrl");
+          logDebug(_logTag, "[PreviewController._updatePreviewPlaybackState] Pausing controller for $currentUrl"); // Use top-level function with tag
           await controller.pause();
        }
      } catch (e) {
-        print("[PreviewController._updatePreviewPlaybackState] Error getting/controlling controller for $currentUrl: $e");
+        logError(_logTag, "[PreviewController._updatePreviewPlaybackState] Error getting/controlling controller for $currentUrl: $e"); // Use top-level function with tag
      }
   }
 
@@ -178,11 +182,11 @@ class EditorPreviewViewModel with Disposable {
                try {
                    final (oldController, _) = await _videoPlayerManager.getOrCreatePlayerController(oldUrl);
                    if (oldController.value.isInitialized && oldController.value.isPlaying) {
-                       print("[PreviewController._updatePreviewVideo] Pausing previous controller for $oldUrl");
+                       logDebug(_logTag, "[PreviewController._updatePreviewVideo] Pausing previous controller for $oldUrl"); // Use top-level function with tag
                        await oldController.pause();
                    }
                } catch (e) {
-                   print("[PreviewController._updatePreviewVideo] Error pausing previous controller for $oldUrl: $e");
+                   logError(_logTag, "[PreviewController._updatePreviewVideo] Error pausing previous controller for $oldUrl: $e"); // Use top-level function with tag
                }
            });
        }
@@ -199,11 +203,11 @@ class EditorPreviewViewModel with Disposable {
           final localFrame = _calculateLocalFrame(foundClip!, globalFrame);
 
           if (!controller.value.isInitialized) {
-             print("[PreviewController._updatePreviewVideo post-frame] Waiting for controller initialization for seek/state...");
+             logDebug(_logTag, "[PreviewController._updatePreviewVideo post-frame] Waiting for controller initialization for seek/state..."); // Use top-level function with tag
              void Function()? initListener;
              initListener = () {
                 if (controller.value.isInitialized) {
-                  print("[PreviewController._updatePreviewVideo post-frame] Controller initialized, seeking now.");
+                  logDebug(_logTag, "[PreviewController._updatePreviewVideo post-frame] Controller initialized, seeking now."); // Use top-level function with tag
                   // Seek and apply correct initial play state after init
                   _seekController(controller, localFrame, isPlaying);
                   // Don't need _updatePreviewPlaybackState here as _seekController handles it
@@ -220,13 +224,13 @@ class EditorPreviewViewModel with Disposable {
              // Don't need _updatePreviewPlaybackState here as _seekController handles it
           }
         } catch (e) {
-            print("[PreviewController._updatePreviewVideo post-frame] Error getting/seeking/controlling controller: $e");
+            logError(_logTag, "[PreviewController._updatePreviewVideo post-frame] Error getting/seeking/controlling controller: $e"); // Use top-level function with tag
         }
       });
     } else if (urlChanged && videoUrlToShow == null) {
        // If the URL changed to null (no clip at this frame)
        // The logic above already paused the previous controller if it existed.
-       print("[PreviewController._updatePreviewVideo] No clip found at frame $globalFrame. Preview URL is now null.");
+       logDebug(_logTag, "[PreviewController._updatePreviewVideo] No clip found at frame $globalFrame. Preview URL is now null."); // Use top-level function with tag
     }
   }
 } 

@@ -5,9 +5,10 @@ import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/views/widgets/inspector/inspector_panel.dart';
 import 'package:flipedit/views/widgets/timeline/timeline.dart';
 import 'package:flipedit/views/widgets/preview/preview_panel.dart';
+import 'package:flipedit/utils/logger.dart'; // Add logger import
 
 /// Manages the editor's docking layout state and visibility toggles.
-class EditorLayoutViewModel with Disposable {
+class EditorLayoutViewModel with Disposable { // Remove LoggerExtension
   // --- State Notifiers ---
   final ValueNotifier<DockingLayout?> layoutNotifier = ValueNotifier<DockingLayout?>(null);
   // Keep visibility notifiers for backwards compatibility/menu state
@@ -24,6 +25,9 @@ class EditorLayoutViewModel with Disposable {
   // Flag to prevent saving during initial load (if needed later)
   bool _isInitialLoad = true;
 
+  // Add a tag for logging within this class
+  String get _logTag => runtimeType.toString();
+
   // --- Getters ---
   DockingLayout? get layout => layoutNotifier.value;
   // Derive visibility from layout
@@ -39,7 +43,7 @@ class EditorLayoutViewModel with Disposable {
      // Remove listener from old layout
      if (layoutNotifier.value != null && _layoutListener != null) {
        layoutNotifier.value!.removeListener(_layoutListener!);
-       print("LayoutManager: Removed listener from old layout.");
+       logDebug(_logTag, "LayoutManager: Removed listener from old layout."); // Use top-level function with tag
      }
 
      layoutNotifier.value = value;
@@ -48,10 +52,10 @@ class EditorLayoutViewModel with Disposable {
      if (layoutNotifier.value != null) {
        _layoutListener = _onLayoutChanged;
        layoutNotifier.value!.addListener(_layoutListener!);
-       print("LayoutManager: Added listener to new layout.");
+       logDebug(_logTag, "LayoutManager: Added listener to new layout."); // Use top-level function with tag
      } else {
        _layoutListener = null;
-       print("LayoutManager: Layout set to null, listener removed.");
+       logDebug(_logTag, "LayoutManager: Layout set to null, listener removed."); // Use top-level function with tag
      }
 
      // Update visibility flags for compatibility (for menu item state)
@@ -83,7 +87,7 @@ class EditorLayoutViewModel with Disposable {
 
   // Called when the layout object notifies listeners (drag, resize, close)
   void _onLayoutChanged() {
-    print("LayoutManager: DockingLayout changed internally.");
+    logDebug(_logTag, "LayoutManager: DockingLayout changed internally."); // Use top-level function with tag
     // Update visibility notifiers for compatibility with menus
     final currentLayout = layoutNotifier.value;
     if (currentLayout != null) {
@@ -93,17 +97,17 @@ class EditorLayoutViewModel with Disposable {
 
       if (isTimelineVisibleNotifier.value != timelineFound) {
         isTimelineVisibleNotifier.value = timelineFound;
-        print("LayoutManager: Timeline visibility flag updated to $timelineFound");
+        logDebug(_logTag, "LayoutManager: Timeline visibility flag updated to $timelineFound"); // Use top-level function with tag
       }
 
       if (isInspectorVisibleNotifier.value != inspectorFound) {
         isInspectorVisibleNotifier.value = inspectorFound;
-        print("LayoutManager: Inspector visibility flag updated to $inspectorFound");
+        logDebug(_logTag, "LayoutManager: Inspector visibility flag updated to $inspectorFound"); // Use top-level function with tag
       }
 
       if (isPreviewVisibleNotifier.value != previewFound) {
         isPreviewVisibleNotifier.value = previewFound;
-        print("LayoutManager: Preview visibility flag updated to $previewFound");
+        logDebug(_logTag, "LayoutManager: Preview visibility flag updated to $previewFound"); // Use top-level function with tag
       }
     }
     // Future: Call layout saving logic here if re-enabled
@@ -155,13 +159,13 @@ class EditorLayoutViewModel with Disposable {
           'position': position,
         };
 
-        print("LayoutManager: Stored position for ${item.id}: adjacent=$adjacentId, pos=$position");
+        logDebug(_logTag, "LayoutManager: Stored position for ${item.id}: adjacent=$adjacentId, pos=$position"); // Use top-level function with tag
       }
     }
 
     void visitArea(DockingArea area, DropPosition position) {
       if (area is DockingItem) {
-        print("LayoutManager: Skipping position storage for root DockingItem: ${area.id}");
+        logDebug(_logTag, "LayoutManager: Skipping position storage for root DockingItem: ${area.id}"); // Use top-level function with tag
         return;
       } else if (area is DockingRow || area is DockingColumn) {
         final List<DockingArea> children = _getChildrenSafely(area);
@@ -199,7 +203,7 @@ class EditorLayoutViewModel with Disposable {
         }
       }
     } catch (e) {
-      print("LayoutManager: Error accessing children of ${container.runtimeType}: $e");
+      logError(_logTag, "LayoutManager: Error accessing children of ${container.runtimeType}: $e"); // Use top-level function with tag
     }
     return result;
   }
@@ -224,11 +228,11 @@ class EditorLayoutViewModel with Disposable {
   void _buildInitialLayout() {
      _isInitialLoad = true;
      layout = _buildDefaultLayout();
-     print("LayoutManager: Built default layout.");
+     logDebug(_logTag, "LayoutManager: Built default layout."); // Use top-level function with tag
      // Set flag after a delay if needed for saving logic later
      Future.delayed(const Duration(milliseconds: 100), () {
       _isInitialLoad = false;
-      print("LayoutManager: Initial load complete.");
+      logDebug(_logTag, "LayoutManager: Initial load complete."); // Use top-level function with tag
     });
   }
 
@@ -296,7 +300,7 @@ class EditorLayoutViewModel with Disposable {
     final currentLayout = layoutNotifier.value;
     if (currentLayout == null) return;
 
-    debugPrint("LayoutManager: Toggle $panelId visibility. Currently visible: $isCurrentlyVisible");
+    logDebug(_logTag, "LayoutManager: Toggle $panelId visibility. Currently visible: $isCurrentlyVisible"); // Use top-level function with tag
 
     if (isCurrentlyVisible) {
       // Store position *before* removing the item via menu toggle
@@ -309,7 +313,7 @@ class EditorLayoutViewModel with Disposable {
                            currentLayout.findDockingItem('timeline') == null;
 
       if (isLayoutEmpty) {
-        debugPrint("LayoutManager: Layout is empty. Resetting layout with $panelId as root.");
+        logDebug(_logTag, "LayoutManager: Layout is empty. Resetting layout with $panelId as root."); // Use top-level function with tag
         // IMPORTANT: Assign using the setter to trigger notifier and listener attachment
         layout = DockingLayout(root: itemBuilder());
       } else {
@@ -322,7 +326,7 @@ class EditorLayoutViewModel with Disposable {
 
           final adjacentItem = currentLayout.findDockingItem(adjacentId);
           if (adjacentItem != null) {
-            debugPrint("LayoutManager: Restoring $panelId next to $adjacentId in position $position");
+            logDebug(_logTag, "LayoutManager: Restoring $panelId next to $adjacentId in position $position"); // Use top-level function with tag
             currentLayout.addItemOn(
               newItem: itemBuilder(),
               targetArea: adjacentItem,
@@ -379,7 +383,7 @@ class EditorLayoutViewModel with Disposable {
     if (targetItem != null) {
       layout.addItemOn(newItem: _buildTimelineItem(), targetArea: targetItem, dropPosition: position);
     } else {
-      debugPrint("LayoutManager: Timeline - No suitable target, adding to root.");
+      logDebug(_logTag, "LayoutManager: Timeline - No suitable target, adding to root."); // Use top-level function with tag
       layout.addItemOnRoot(newItem: _buildTimelineItem());
     }
   }
@@ -392,7 +396,7 @@ class EditorLayoutViewModel with Disposable {
     if (targetItem != null) {
       layout.addItemOn(newItem: _buildInspectorItem(), targetArea: targetItem, dropPosition: position);
     } else {
-      debugPrint("LayoutManager: Inspector - No suitable target, adding to root.");
+      logDebug(_logTag, "LayoutManager: Inspector - No suitable target, adding to root."); // Use top-level function with tag
       layout.addItemOnRoot(newItem: _buildInspectorItem());
     }
   }
@@ -405,7 +409,7 @@ class EditorLayoutViewModel with Disposable {
     if (targetItem != null) {
       layout.addItemOn(newItem: _buildPreviewItem(), targetArea: targetItem, dropPosition: position);
     } else {
-      debugPrint("LayoutManager: Preview - No suitable target, adding to root.");
+      logDebug(_logTag, "LayoutManager: Preview - No suitable target, adding to root."); // Use top-level function with tag
       layout.addItemOnRoot(newItem: _buildPreviewItem());
     }
   }

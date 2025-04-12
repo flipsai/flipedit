@@ -5,6 +5,7 @@ import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:watch_it/watch_it.dart';
 import 'dart:math' as math;
+import 'package:flipedit/utils/logger.dart';
 
 /// A clip in the timeline track
 class TimelineClip extends StatefulWidget with WatchItStatefulWidgetMixin {
@@ -127,7 +128,7 @@ class _TimelineClipState extends State<TimelineClip> {
                final newStartTimeMs = ClipModel.framesToMs(_currentDragFrame);
                timelineVm.updateClipPosition(widget.clip.databaseId!, newStartTimeMs);
             } else {
-               print("Warning: Cannot move clip - databaseId is null.");
+               logWarning(runtimeType.toString(), "Warning: Cannot move clip - databaseId is null.");
             }
           }
           

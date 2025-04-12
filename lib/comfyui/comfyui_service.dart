@@ -7,9 +7,13 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:watch_it/watch_it.dart';
+import 'package:flipedit/utils/logger.dart';
 
 /// Service for interacting with ComfyUI
 class ComfyUIService {
+  // Add a tag for logging within this class
+  String get _logTag => runtimeType.toString();
+
   final UvManager _uvManager = di<UvManager>();
   
   final ValueNotifier<String?> comfyUIPathNotifier = ValueNotifier<String?>(null);
@@ -101,7 +105,7 @@ class ComfyUIService {
       
       // Listen for stdout and stderr
       _comfyProcess!.stdout.transform(utf8.decoder).listen((data) {
-        print('ComfyUI stdout: $data');
+        logInfo(_logTag, 'ComfyUI stdout: $data');
         if (data.contains('Starting server')) {
           isRunning = true;
           status = 'ComfyUI running on $serverUrl';
@@ -109,7 +113,7 @@ class ComfyUIService {
       });
       
       _comfyProcess!.stderr.transform(utf8.decoder).listen((data) {
-        print('ComfyUI stderr: $data');
+        logError(_logTag, 'ComfyUI stderr: $data');
         if (data.contains('Error')) {
           status = 'ComfyUI error: $data';
         }

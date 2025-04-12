@@ -4,6 +4,7 @@ import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
+import 'package:flipedit/utils/logger.dart';
 
 /// Inspector panel using WatchItMixin for reactive updates
 class InspectorPanel extends StatelessWidget with WatchItMixin {
@@ -28,7 +29,7 @@ class InspectorPanel extends StatelessWidget with WatchItMixin {
         selectedClip = null;
       } catch (e) {
         // Catch any other potential errors during search
-        print("Error finding selected clip in build: $e");
+        logError(runtimeType.toString(), "Error finding selected clip in build: $e");
         selectedClip = null;
       }
     }
@@ -134,7 +135,7 @@ class InspectorPanel extends StatelessWidget with WatchItMixin {
                   icon: const Icon(FluentIcons.delete), // Consider styling
                   onPressed: () {
                     // TODO: Implement effect removal via ViewModel
-                    print('Remove effect: ${effect.name} (ID: ${effect.id})');
+                    logInfo(runtimeType.toString(), 'Remove effect: ${effect.name} (ID: ${effect.id})');
                     // Example: timelineVm.removeEffectFromClip(clip.databaseId!, effect.id);
                   },
                 ),
@@ -147,7 +148,7 @@ class InspectorPanel extends StatelessWidget with WatchItMixin {
           child: const Text('Add Effect'),
           onPressed: () {
             // TODO: Implement add effect functionality (e.g., show a dialog)
-            print('Add Effect button pressed for clip: ${clip.databaseId}');
+            logInfo(runtimeType.toString(), 'Add Effect button pressed for clip: ${clip.databaseId}');
           },
         ),
       ],
