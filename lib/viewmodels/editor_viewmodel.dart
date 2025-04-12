@@ -30,7 +30,7 @@ class EditorViewModel with Disposable {
   final VideoPlayerManager _videoPlayerManager = di<VideoPlayerManager>();
 
   // --- State Notifiers ---
-  final ValueNotifier<String> selectedExtensionNotifier = ValueNotifier<String>('video');
+  final ValueNotifier<String> selectedExtensionNotifier = ValueNotifier<String>('media');
   final ValueNotifier<String?> selectedClipIdNotifier = ValueNotifier<String?>(null);
   final ValueNotifier<DockingLayout?> layoutNotifier = ValueNotifier<DockingLayout?>(null);
   // Keep visibility notifiers for backwards compatibility
