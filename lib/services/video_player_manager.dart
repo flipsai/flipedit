@@ -1,8 +1,12 @@
 import 'package:video_player/video_player.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:async';
+import 'package:flipedit/utils/logger.dart';
 
 class VideoPlayerManager {
+  // Add a tag for logging within this class
+  String get _logTag => runtimeType.toString();
+
   // Store VideoPlayerControllers instead of mdk.Players
   final Map<String, VideoPlayerController> _controllers = {};
 
@@ -35,10 +39,10 @@ class VideoPlayerManager {
         return (controller, true); // Return new controller
       } catch (e) {
         if (kDebugMode) {
-            print("Error initializing VideoPlayerController for $videoUrl: $e");
+            logError(_logTag, "Error initializing VideoPlayerController for $videoUrl: $e");
         }
         controller.dispose(); // Clean up failed controller
-        rethrow; // Re-throw the error to be handled by the caller (e.g., FutureBuilder)
+        rethrow;
       }
     }
   }
@@ -61,7 +65,7 @@ class VideoPlayerManager {
           }
       } catch (e) {
            if (kDebugMode) {
-             print("Error setting state for controller with URL ${controller.dataSource}: $e");
+             logError(_logTag, "Error setting state for controller with URL ${controller.dataSource}: $e");
            }
       }
     }

@@ -2,9 +2,13 @@ import 'dart:convert';
 import 'dart:io';
 import 'node.dart';
 import 'connection.dart';
+import 'package:flipedit/utils/logger.dart';
 
 /// Represents a ComfyUI workflow
 class Workflow {
+  // Add a tag for logging within this class
+  String get _logTag => runtimeType.toString();
+
   final String id;
   final String name;
   final List<Node> nodes;
@@ -75,7 +79,7 @@ class Workflow {
       final json = jsonDecode(file);
       return Workflow.fromJson(json);
     } catch (e) {
-      print('Error loading workflow: $e');
+      logError('Workflow', 'Error loading workflow: $e');
       return null;
     }
   }
@@ -87,7 +91,7 @@ class Workflow {
       await file.writeAsString(jsonEncode(toJson()));
       return true;
     } catch (e) {
-      print('Error saving workflow: $e');
+      logError(_logTag, 'Error saving workflow: $e');
       return false;
     }
   }

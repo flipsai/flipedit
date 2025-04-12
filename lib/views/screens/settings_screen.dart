@@ -3,7 +3,9 @@ import 'package:flipedit/comfyui/comfyui_service.dart';
 import 'package:flipedit/services/uv_manager.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:watch_it/watch_it.dart';
-class SettingsScreen extends StatefulWidget {
+import 'package:flipedit/utils/logger.dart';
+
+class SettingsScreen extends StatefulWidget with WatchItStatefulWidgetMixin {
   const SettingsScreen({super.key});
 
   @override
@@ -48,7 +50,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
       });
     } catch (e) {
-      print("Error refreshing environments: $e");
+      logError(runtimeType.toString(), "Error refreshing environments: $e");
     }
   }
   
@@ -133,8 +135,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   
   @override
   Widget build(BuildContext context) {
-    final comfyStatus = _comfyUIService.status;
-    final isComfyRunning = _comfyUIService.isRunning;
+    final comfyStatus = watchValue((ComfyUIService s) => s.statusNotifier);
+    final isComfyRunning = watchValue((ComfyUIService s) => s.isRunningNotifier);
     
     return ScaffoldPage(
       header: const PageHeader(

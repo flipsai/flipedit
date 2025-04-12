@@ -8,8 +8,12 @@ import 'package:window_manager/window_manager.dart';
 import 'dart:async'; // Import for StreamSubscription
 
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
+import 'package:flipedit/utils/logger.dart';
 
 class ProjectService {
+  // Add a tag for logging within this class
+  String get _logTag => runtimeType.toString();
+
   final ProjectDao _projectDao = di<ProjectDao>();
   final TrackDao _trackDao = di<TrackDao>();
   final TimelineViewModel _timelineViewModel = di<TimelineViewModel>();
@@ -43,20 +47,20 @@ class ProjectService {
     currentProjectNotifier.value = project;
 
     if (project != null) {
-      print("Loaded project: ${project.name}");
+      logInfo(_logTag, "Loaded project: ${project.name}"); // Use top-level function with tag
       windowManager.setTitle('${project.name} - FlipEdit');
 
       // Watch tracks for the loaded project
       _tracksSubscription = _trackDao.watchTracksForProject(projectId).listen((tracks) {
         currentProjectTracksNotifier.value = tracks;
-        print("Updated tracks for project ${project.id}: ${tracks.length} tracks");
+        logInfo(_logTag, "Updated tracks for project ${project.id}: ${tracks.length} tracks"); // Use top-level function with tag
         
         // TODO: Decide if clips should reload every time tracks change, or just on initial load.
         // For now, let's load clips *after* tracks are loaded.
         // _timelineViewModel.loadClipsForProject(projectId); 
         
       }, onError: (error) {
-        print("Error watching tracks for project $projectId: $error");
+        logError(_logTag, "Error watching tracks for project $projectId: $error"); // Use top-level function with tag
         // Handle error appropriately
       });
 
@@ -64,7 +68,7 @@ class ProjectService {
       // Call this *after* setting the project notifier and confirming project is not null.
       await _timelineViewModel.loadClipsForProject(projectId);
     } else {
-      print("Failed to load project with ID: $projectId");
+      logWarning(_logTag, "Failed to load project with ID: $projectId"); // Use top-level function with tag
       windowManager.setTitle('FlipEdit');
       _tracksSubscription = null; // Ensure no lingering subscription
     }
@@ -76,7 +80,7 @@ class ProjectService {
     _tracksSubscription = null;
     currentProjectNotifier.value = null;
     currentProjectTracksNotifier.value = []; // Clear tracks
-    print("Closed current project and cleared tracks.");
+    logInfo(_logTag, "Closed current project and cleared tracks."); // Use top-level function with tag
     windowManager.setTitle('FlipEdit');
   }
 
@@ -86,7 +90,7 @@ class ProjectService {
   Future<void> addTrack({required String type}) async {
     final currentProjectId = currentProjectNotifier.value?.id;
     if (currentProjectId == null) {
-      print("Cannot add track: No project loaded.");
+      logWarning(_logTag, "Cannot add track: No project loaded."); // Use top-level function with tag
       return;
     }
 
@@ -103,9 +107,9 @@ class ProjectService {
 
     try {
       final trackId = await _trackDao.insertTrack(companion);
-      print("Added new '$type' track with ID: $trackId to project $currentProjectId");
+      logInfo(_logTag, "Added new '$type' track with ID: $trackId to project $currentProjectId"); // Use top-level function with tag
     } catch (e) {
-      print("Error adding track: $e");
+      logError(_logTag, "Error adding track: $e"); // Use top-level function with tag
       // Handle error (e.g., show a message to the user)
     }
   }
@@ -114,7 +118,7 @@ class ProjectService {
   Future<void> removeTrack(int trackId) async {
     final currentProjectId = currentProjectNotifier.value?.id;
     if (currentProjectId == null) {
-      print("Cannot remove track: No project loaded.");
+      logWarning(_logTag, "Cannot remove track: No project loaded."); // Use top-level function with tag
       return;
     }
 
@@ -128,13 +132,13 @@ class ProjectService {
     try {
       final deletedCount = await _trackDao.deleteTrack(trackId);
       if (deletedCount > 0) {
-        print("Removed track with ID: $trackId");
+        logInfo(_logTag, "Removed track with ID: $trackId"); // Use top-level function with tag
         // Note: The watcher (`currentProjectTracksNotifier`) will automatically update the list.
       } else {
-        print("Could not remove track with ID: $trackId (maybe it was already deleted?)");
+        logWarning(_logTag, "Could not remove track with ID: $trackId (maybe it was already deleted?)"); // Use top-level function with tag
       }
     } catch (e) {
-      print("Error removing track $trackId: $e");
+      logError(_logTag, "Error removing track $trackId: $e"); // Use top-level function with tag
       // Handle error
     }
   }
@@ -143,7 +147,7 @@ class ProjectService {
   Future<void> saveProject() async {
     final currentProject = currentProjectNotifier.value;
     if (currentProject == null) {
-      print("Cannot save: No project loaded.");
+      logWarning(_logTag, "Cannot save: No project loaded."); // Use top-level function with tag
       return;
     }
 
@@ -152,7 +156,7 @@ class ProjectService {
       // causing issues for now.
 
       // Placeholder for actual save logic:
-      print("Project ${currentProject.id} save action triggered (no data saved yet).");
+      logInfo(_logTag, "Project ${currentProject.id} save action triggered (no data saved yet)."); // Use top-level function with tag
 
       // Example: If you needed to update the project name (assuming DAO supports it)
       // final updateCompanion = ProjectsCompanion(id: Value(currentProject.id), name: Value("New Name"));
@@ -168,10 +172,10 @@ class ProjectService {
          // you might fetch it again or update the notifier manually here.
          // For now, no changes to the in-memory project object.
       } else {
-        print("Failed to save project ${currentProject.id} (simulated or actual failure).");
+        logError(_logTag, "Failed to save project ${currentProject.id} (simulated or actual failure)."); // Use top-level function with tag
       }
     } catch (e) {
-      print("Error during save project ${currentProject.id}: $e");
+      logError(_logTag, "Error during save project ${currentProject.id}: $e"); // Use top-level function with tag
       // Handle error
     }
   }

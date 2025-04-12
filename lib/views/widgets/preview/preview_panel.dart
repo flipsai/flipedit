@@ -4,6 +4,7 @@ import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/views/widgets/video_player_widget.dart';
 import 'package:video_player/video_player.dart';
 import 'package:watch_it/watch_it.dart';
+import 'package:flipedit/utils/logger.dart';
 
 class PreviewPanel extends StatelessWidget with WatchItMixin {
   const PreviewPanel({
@@ -12,19 +13,16 @@ class PreviewPanel extends StatelessWidget with WatchItMixin {
 
   @override
   Widget build(BuildContext context) {
-    final editorViewModel = di<EditorViewModel>();
-    final playerManager = di<VideoPlayerManager>();
-
-    print("[PreviewPanel.build] Rebuilding...");
+    logDebug("Rebuilding...");
 
     final currentVideoUrl = watchValue(
       (EditorViewModel vm) => vm.currentPreviewVideoUrlNotifier,
     );
-    print("[PreviewPanel.build] Received URL: $currentVideoUrl");
+    logDebug("Received URL: $currentVideoUrl");
     const double opacity = 1.0;
 
     if (currentVideoUrl == null || currentVideoUrl.isEmpty) {
-      print("[PreviewPanel.build] No video URL, showing fallback text.");
+      logDebug("No video URL, showing fallback text.");
       return Container(
         color: const Color(0xFF546E7A), // FluentUI equivalent of blueGrey
         child: Center(
@@ -36,70 +34,79 @@ class PreviewPanel extends StatelessWidget with WatchItMixin {
       );
     }
 
+    final playerFuture = watchFuture(
+      (VideoPlayerManager m) => m.getOrCreatePlayerController(currentVideoUrl!),
+      // Provide a default value. The type needs to match the Future's result.
+      // Using null for the controller and false for the bool initially.
+      initialValue: null, 
+    );
+
+    logDebug(
+      "PreviewPanel watchFuture [$currentVideoUrl]: State=${playerFuture.connectionState}",
+    );
+    if (playerFuture.hasError) {
+       logError(
+          "PreviewPanel watchFuture [$currentVideoUrl]: ERROR=${playerFuture.error}",
+          playerFuture.error,
+          playerFuture.stackTrace,
+       );
+    }
+    if (playerFuture.hasData && playerFuture.data != null) {
+       final controller = playerFuture.data!.$1;
+       logDebug(
+         "PreviewPanel watchFuture [$currentVideoUrl]: Data received. Controller initialized: ${controller.value.isInitialized}",
+       );
+    }
+
     return Container(
       color: const Color(0xFF546E7A), // FluentUI equivalent of blueGrey
-      child: FutureBuilder<(VideoPlayerController, bool)>(
-        future: playerManager.getOrCreatePlayerController(currentVideoUrl),
-        builder: (context, snapshot) {
-          print(
-            "PreviewPanel FutureBuilder [$currentVideoUrl]: State=${snapshot.connectionState}",
-          );
-          if (snapshot.hasError) {
-            print(
-              "PreviewPanel FutureBuilder [$currentVideoUrl]: ERROR=${snapshot.error}",
-            );
-          }
-          if (snapshot.hasData) {
-            final controller = snapshot.data!.$1;
-            print(
-              "PreviewPanel FutureBuilder [$currentVideoUrl]: Data received. Controller initialized: ${controller.value.isInitialized}",
-            );
-          }
-
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: ProgressRing(
-                activeColor: Colors.white,
-              ),
-            );
-          } else if (snapshot.hasError) {
-            return Center(
-              child: Icon(
-                FluentIcons.error,
-                color: Colors.red.withOpacity(opacity),
-                size: 24,
-              ),
-            );
-          } else if (snapshot.hasData) {
-            final controller = snapshot.data!.$1;
-            if (controller.value.isInitialized) {
-              print("[PreviewPanel.build] Controller is initialized. Passing to VideoPlayerWidget.");
-              return VideoPlayerWidget(
-                opacity: opacity,
-                controller: controller,
-              );
-            } else {
-              print("[PreviewPanel.build] Controller received but not yet initialized. Showing spinner.");
-              return const Center(
-                child: ProgressRing(
-                  activeColor: Colors.white,
-                ),
-              );
-            }
-          } else {
-            print(
-              "PreviewPanel FutureBuilder [$currentVideoUrl]: Snapshot has no data and no error. State: ${snapshot.connectionState}. Showing fallback error icon.",
-            );
-            return Center(
-              child: Icon(
-                FluentIcons.help,
-                color: Colors.orange.withOpacity(opacity),
-                size: 24,
-              ),
-            );
-          }
-        },
-      ),
+      child: _buildContent(playerFuture, opacity, currentVideoUrl),
     );
+  }
+
+  // Helper method to build the content based on playerFuture state
+  Widget _buildContent(AsyncSnapshot<(VideoPlayerController, bool)?> playerFuture, double opacity, String? currentVideoUrl) {
+    if (playerFuture.connectionState == ConnectionState.waiting || playerFuture.data == null) {
+      return const Center(
+        child: ProgressRing(
+          activeColor: Colors.white,
+        ),
+      );
+    } else if (playerFuture.hasError) {
+      return Center(
+        child: Icon(
+          FluentIcons.error,
+          color: Colors.red.withOpacity(opacity),
+          size: 24,
+        ),
+      );
+    } else if (playerFuture.hasData) {
+      final controller = playerFuture.data!.$1;
+      if (controller.value.isInitialized) {
+        logDebug("Controller is initialized. Passing to VideoPlayerWidget.");
+        return VideoPlayerWidget(
+          opacity: opacity,
+          controller: controller,
+        );
+      } else {
+        logDebug("Controller received but not yet initialized. Showing spinner.");
+        return const Center(
+          child: ProgressRing(
+            activeColor: Colors.white,
+          ),
+        );
+      }
+    } else {
+      logWarning(
+        "PreviewPanel watchFuture [$currentVideoUrl]: Snapshot has no data and no error. State: ${playerFuture.connectionState}. Showing fallback help icon.",
+      );
+      return Center(
+        child: Icon(
+          FluentIcons.help,
+          color: Colors.orange.withOpacity(opacity),
+          size: 24,
+        ),
+      );
+    }
   }
 }
