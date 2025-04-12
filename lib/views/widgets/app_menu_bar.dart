@@ -1,6 +1,4 @@
 import 'package:fluent_ui/fluent_ui.dart' as fluent;
-import 'package:flutter/material.dart' as material;
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
@@ -10,16 +8,12 @@ import 'package:flipedit/viewmodels/project_viewmodel.dart';
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
-import 'package:uuid/uuid.dart';
-import 'package:watch_it/watch_it.dart';
-import 'package:flipedit/services/project_service.dart';
 
-// --- Action Handlers (Shared Logic) ---
+// --- Action Handlers (Now using ProjectViewModel) ---
 
-// Updated to accept BuildContext and use ProjectService
-Future<void> _handleNewProject(fluent.BuildContext context) async {
-  final projectNameController = material.TextEditingController();
-  final projectService = di<ProjectService>();
+// Updated to accept BuildContext and ProjectViewModel
+Future<void> _handleNewProject(fluent.BuildContext context, ProjectViewModel projectVm) async {
+  final projectNameController = fluent.TextEditingController();
 
   await fluent.showDialog<String>(
     context: context,
@@ -45,28 +39,29 @@ Future<void> _handleNewProject(fluent.BuildContext context) async {
   ).then((projectName) async {
     if (projectName != null && projectName.trim().isNotEmpty) {
       try {
-        final newProjectId = await projectService.createNewProject(name: projectName.trim());
+        // Use ViewModel command
+        final newProjectId = await projectVm.createNewProjectCommand(projectName.trim());
         print("Created new project with ID: $newProjectId");
-        // TODO: Optionally load the newly created project
+        // TODO: Optionally load the newly created project using projectVm.loadProjectCommand(newProjectId)
       } catch (e) {
         print("Error creating project: $e");
-        // TODO: Show error dialog to user
+        // TODO: Show error dialog to user (e.g., using context)
       }
     } else if (projectName != null) {
       // Handle empty name case if needed (e.g., show validation in dialog)
       print("Project name cannot be empty.");
+      // TODO: Show validation error to user
     }
   });
 }
 
-// Updated to accept BuildContext and show a project list dialog
-Future<void> _handleOpenProject(fluent.BuildContext context) async {
-  final projectService = di<ProjectService>();
+// Updated to accept BuildContext and ProjectViewModel
+Future<void> _handleOpenProject(fluent.BuildContext context, ProjectViewModel projectVm) async {
   List<Project> projects = [];
 
   try {
-    // Get the current list of projects once
-    projects = await projectService.watchAllProjects().first;
+    // Get the current list of projects via ViewModel
+    projects = await projectVm.getAllProjects();
   } catch (e) {
     print("Error fetching projects: $e");
     // TODO: Show error dialog
@@ -105,7 +100,8 @@ Future<void> _handleOpenProject(fluent.BuildContext context) async {
               final project = projects[index];
               return fluent.ListTile.selectable(
                 title: fluent.Text(project.name),
-                subtitle: fluent.Text('Created: ${project.createdAt.toLocal()}'),
+                // Ensure createdAt is not null before formatting
+                subtitle: fluent.Text(project.createdAt != null ? 'Created: ${project.createdAt!.toLocal()}' : 'Created: Unknown'),
                 selected: false, // Selection handled by tapping
                 onPressed: () {
                   Navigator.of(context).pop(project.id);
@@ -125,7 +121,11 @@ Future<void> _handleOpenProject(fluent.BuildContext context) async {
   ).then((selectedProjectId) {
     if (selectedProjectId != null) {
       print("Attempting to load project ID: $selectedProjectId");
-      projectService.loadProject(selectedProjectId);
+      // Use ViewModel command
+      projectVm.loadProjectCommand(selectedProjectId).catchError((e) {
+         print("Error loading project $selectedProjectId: $e");
+         // TODO: Show error to user
+      });
     }
   });
 }
@@ -141,18 +141,38 @@ Future<void> _handleImportMedia(TimelineViewModel timelineVm) async {
         String? filePath = result.files.single.path;
         if (filePath != null) {
           // TODO: Get actual duration and potentially other metadata
+
+           // Get the first track ID or default/error if none
+           final int targetTrackId;
+           if (timelineVm.currentTrackIds.isNotEmpty) {
+              targetTrackId = timelineVm.currentTrackIds.first;
+           } else {
+              print("Error: No tracks loaded to import media into.");
+              // Optionally show a user message
+              return; // Don't proceed if no track is available
+           }
+
           // For now, using placeholder values
-          const uuid = Uuid();
-          final newClip = Clip(
-            id: uuid.v4(), 
-            name: filePath.split(Platform.pathSeparator).last, // Use filename as name
-            type: ClipType.video, // TODO: Detect type based on file extension
-            filePath: filePath, 
-            startFrame: timelineVm.currentFrame, // Add at current playhead position
-            durationFrames: 150, // Placeholder: 5 seconds at 30fps
-            trackIndex: 0, // Placeholder: Add to first video track
+          // Create ClipModel instead of Clip
+          // Needs source start/end times instead of durationFrames
+          final dummyClipData = ClipModel(
+            databaseId: null, // No ID yet
+            trackId: targetTrackId, // Use determined track ID
+            name: filePath.split(Platform.pathSeparator).last,
+            type: ClipType.video, // TODO: Detect type
+            sourcePath: filePath,
+            startTimeInSourceMs: 0, // Placeholder
+            endTimeInSourceMs: 5000, // Placeholder: 5 seconds
+            startTimeOnTrackMs: 0, // Placeholder, set by addClipAtPosition
           );
-          timelineVm.addClip(newClip);
+          // Use addClipAtPosition
+          await timelineVm.addClipAtPosition(
+             clipData: dummyClipData,
+             trackId: targetTrackId, // Use determined track ID
+             startTimeInSourceMs: dummyClipData.startTimeInSourceMs,
+             endTimeInSourceMs: dummyClipData.endTimeInSourceMs,
+             // Let addClipAtPosition handle placement at playhead
+          );
         } else {
           print("File path is null after picking.");
         }
@@ -165,14 +185,19 @@ Future<void> _handleImportMedia(TimelineViewModel timelineVm) async {
     }
 }
 
+// Updated to use ProjectViewModel command
 void _handleSaveProject(ProjectViewModel projectVm) {
-  projectVm.saveProject();
-  print("Action: Save Project");
+  projectVm.saveProjectCommand().then((_) {
+    print("Action: Save Project initiated.");
+  }).catchError((e) {
+    print("Error saving project: $e");
+    // TODO: Show error to user
+  });
 }
 
 void _handleUndo() {
   print("Action: Undo");
-  // TODO: Implement undo logic
+  // TODO: Implement undo logic (likely via a dedicated Undo/Redo Service/ViewModel)
 }
 
 void _handleRedo() {
@@ -188,15 +213,33 @@ void _handleToggleTimeline(EditorViewModel editorVm) {
    editorVm.toggleTimeline();
 }
 
+// --- New Action Handlers for Tracks (using ProjectViewModel) ---
+void _handleAddVideoTrack(ProjectViewModel projectVm) {
+  projectVm.addTrackCommand(type: 'video').then((_) {
+    print("Action: Add Video Track initiated.");
+  }).catchError((e) {
+    print("Error adding video track: $e");
+    // TODO: Show error to user
+  });
+}
+
+void _handleAddAudioTrack(ProjectViewModel projectVm) {
+  projectVm.addTrackCommand(type: 'audio').then((_) {
+    print("Action: Add Audio Track initiated.");
+  }).catchError((e) {
+    print("Error adding audio track: $e");
+    // TODO: Show error to user
+  });
+}
 
 // --- Widget for macOS / Windows ---
 class PlatformAppMenuBar extends fluent.StatelessWidget {
-  final bool isInspectorVisible;
-  final bool isTimelineVisible;
+  final bool isInspectorVisible; // Consider moving these to EditorViewModel
+  final bool isTimelineVisible;  // Consider moving these to EditorViewModel
   final EditorViewModel editorVm;
   final ProjectViewModel projectVm;
-  final TimelineViewModel timelineVm; // Add TimelineViewModel
-  final fluent.Widget child; 
+  final TimelineViewModel timelineVm;
+  final fluent.Widget child;
 
   const PlatformAppMenuBar({
     super.key,
@@ -204,63 +247,89 @@ class PlatformAppMenuBar extends fluent.StatelessWidget {
     required this.isTimelineVisible,
     required this.editorVm,
     required this.projectVm,
-    required this.timelineVm, // Add timelineVm
+    required this.timelineVm,
     required this.child,
   });
 
   @override
   fluent.Widget build(fluent.BuildContext context) {
-    return material.PlatformMenuBar(
-       menus: [
-            material.PlatformMenu(
-              label: 'File',
-              menus: [
-                material.PlatformMenuItem(
-                  label: 'New Project',
-                  onSelected: () => _handleNewProject(context),
+    // Use ValueListenableBuilder to react to project loaded state
+    return ValueListenableBuilder<bool>(
+      valueListenable: projectVm.isProjectLoadedNotifier,
+      builder: (context, isProjectLoaded, _) {
+        return fluent.PlatformMenuBar(
+           menus: [
+                fluent.PlatformMenu(
+                  label: 'File',
+                  menus: [
+                    fluent.PlatformMenuItem(
+                      label: 'New Project',
+                      // Pass context and projectVm
+                      onSelected: () => _handleNewProject(context, projectVm),
+                    ),
+                    fluent.PlatformMenuItem(
+                      label: 'Open Project...',
+                      // Pass context and projectVm
+                      onSelected: () => _handleOpenProject(context, projectVm),
+                    ),
+                    fluent.PlatformMenuItem(
+                      label: 'Import Media...',
+                      // Enable based on isProjectLoaded from builder
+                      onSelected: isProjectLoaded ? () => _handleImportMedia(timelineVm) : null,
+                    ),
+                    fluent.PlatformMenuItem(
+                      label: 'Save Project',
+                      // Enable based on isProjectLoaded from builder
+                      onSelected: isProjectLoaded ? () => _handleSaveProject(projectVm) : null,
+                    ),
+                  ],
                 ),
-                material.PlatformMenuItem(
-                  label: 'Open Project...',
-                  onSelected: () => _handleOpenProject(context),
+                fluent.PlatformMenu(
+                  label: 'Edit',
+                  menus: [
+                    fluent.PlatformMenuItem(
+                      label: 'Undo',
+                      onSelected: _handleUndo // Assuming Undo/Redo is independent of project
+                    ),
+                    fluent.PlatformMenuItem(
+                      label: 'Redo',
+                      onSelected: _handleRedo
+                    ),
+                  ],
                 ),
-                material.PlatformMenuItem(
-                  label: 'Import Media...',
-                  onSelected: () => _handleImportMedia(timelineVm),
+                fluent.PlatformMenu(
+                  label: 'Track',
+                  menus: [
+                    fluent.PlatformMenuItem(
+                      label: 'Add Video Track',
+                      // Enable based on isProjectLoaded, pass projectVm
+                      onSelected: isProjectLoaded ? () => _handleAddVideoTrack(projectVm) : null,
+                    ),
+                    fluent.PlatformMenuItem(
+                      label: 'Add Audio Track',
+                      // Enable based on isProjectLoaded, pass projectVm
+                      onSelected: isProjectLoaded ? () => _handleAddAudioTrack(projectVm) : null,
+                    ),
+                  ],
                 ),
-                material.PlatformMenuItem(
-                  label: 'Save Project',
-                  onSelected: () => _handleSaveProject(projectVm),
+                fluent.PlatformMenu(
+                  label: 'View',
+                  menus: [
+                    fluent.PlatformMenuItem(
+                      // isInspectorVisible/isTimelineVisible might be better sourced from editorVm directly
+                      label: isInspectorVisible ? '✓ Inspector' : '  Inspector',
+                      onSelected: () => _handleToggleInspector(editorVm),
+                    ),
+                    fluent.PlatformMenuItem(
+                      label: isTimelineVisible ? '✓ Timeline' : '  Timeline',
+                      onSelected: () => _handleToggleTimeline(editorVm),
+                    ),
+                  ],
                 ),
               ],
-            ),
-            material.PlatformMenu(
-              label: 'Edit',
-              menus: [
-                material.PlatformMenuItem(
-                  label: 'Undo',
-                  onSelected: _handleUndo
-                ),
-                material.PlatformMenuItem(
-                  label: 'Redo',
-                  onSelected: _handleRedo
-                ),
-              ],
-            ),
-            material.PlatformMenu(
-              label: 'View',
-              menus: [
-                material.PlatformMenuItem(
-                  label: isInspectorVisible ? '✓ Inspector' : '  Inspector',
-                  onSelected: () => _handleToggleInspector(editorVm),
-                ),
-                material.PlatformMenuItem(
-                  label: isTimelineVisible ? '✓ Timeline' : '  Timeline',
-                  onSelected: () => _handleToggleTimeline(editorVm),
-                ),
-              ],
-            ),
-          ],
-      child: child, 
+          child: child,
+        );
+      }
     );
   }
 }
@@ -270,66 +339,98 @@ class PlatformAppMenuBar extends fluent.StatelessWidget {
 class FluentAppMenuBar extends fluent.StatelessWidget {
   final EditorViewModel editorVm;
   final ProjectViewModel projectVm;
-  final TimelineViewModel timelineVm; 
+  final TimelineViewModel timelineVm;
 
   const FluentAppMenuBar({
     super.key,
     required this.editorVm,
     required this.projectVm,
-    required this.timelineVm, 
+    required this.timelineVm,
   });
 
   @override
   fluent.Widget build(fluent.BuildContext context) {
-     return fluent.Row(
-        mainAxisSize: fluent.MainAxisSize.min,
-        children: [
-          fluent.DropDownButton(
-            title: const fluent.Text('File'),
-            items: [
-              fluent.MenuFlyoutItem(text: const fluent.Text('New Project'), onPressed: () => _handleNewProject(context)),
-              fluent.MenuFlyoutItem(text: const fluent.Text('Open Project...'), onPressed: () => _handleOpenProject(context)),
-              fluent.MenuFlyoutItem(text: const fluent.Text('Import Media...'), onPressed: () => _handleImportMedia(timelineVm)),
-              fluent.MenuFlyoutSeparator(),
-              fluent.MenuFlyoutItem(text: const fluent.Text('Save Project'), onPressed: () => _handleSaveProject(projectVm)),
-            ],
-          ),
-          const fluent.SizedBox(width: 8),
-          fluent.DropDownButton(
-            title: const fluent.Text('Edit'),
-            items: [
-               fluent.MenuFlyoutItem(text: const fluent.Text('Undo'), onPressed: _handleUndo),
-               fluent.MenuFlyoutItem(text: const fluent.Text('Redo'), onPressed: _handleRedo),
-            ]
-          ),
-          const fluent.SizedBox(width: 8),
-          ValueListenableBuilder<bool>(
-            valueListenable: editorVm.isInspectorVisibleNotifier,
-            builder: (context, isInspectorVisible, _) {
-              return ValueListenableBuilder<bool>(
-                valueListenable: editorVm.isTimelineVisibleNotifier,
-                builder: (context, isTimelineVisible, _) {
-                  return fluent.DropDownButton(
-                    title: const fluent.Text('View'),
-                    items: [
-                       fluent.MenuFlyoutItem(
-                         leading: isInspectorVisible ? const fluent.Icon(fluent.FluentIcons.check_mark) : null,
-                         text: const fluent.Text('Inspector'),
-                         onPressed: () => _handleToggleInspector(editorVm),
-                       ),
-                       fluent.MenuFlyoutItem(
-                         leading: isTimelineVisible ? const fluent.Icon(fluent.FluentIcons.check_mark) : null,
-                         text: const fluent.Text('Timeline'),
-                         onPressed: () => _handleToggleTimeline(editorVm),
-                       ),
-                    ]
+    // Use ValueListenableBuilder to reactively enable/disable menus
+    return ValueListenableBuilder<bool>(
+      valueListenable: projectVm.isProjectLoadedNotifier,
+      builder: (context, isProjectLoaded, _) {
+         return fluent.Row(
+            mainAxisSize: fluent.MainAxisSize.min,
+            children: [
+              fluent.DropDownButton(
+                title: const fluent.Text('File'),
+                items: [
+                  fluent.MenuFlyoutItem(text: const fluent.Text('New Project'), onPressed: () => _handleNewProject(context, projectVm)),
+                  fluent.MenuFlyoutItem(text: const fluent.Text('Open Project...'), onPressed: () => _handleOpenProject(context, projectVm)),
+                  fluent.MenuFlyoutSeparator(),
+                  fluent.MenuFlyoutItem(
+                    text: const fluent.Text('Import Media...'),
+                    // Enable based on isProjectLoaded from builder
+                    onPressed: isProjectLoaded ? () => _handleImportMedia(timelineVm) : null,
+                  ),
+                  fluent.MenuFlyoutItem(
+                    text: const fluent.Text('Save Project'),
+                    // Enable based on isProjectLoaded from builder
+                    onPressed: isProjectLoaded ? () => _handleSaveProject(projectVm) : null,
+                  ),
+                ],
+              ),
+              const fluent.SizedBox(width: 8),
+              fluent.DropDownButton(
+                title: const fluent.Text('Edit'),
+                items: [
+                   fluent.MenuFlyoutItem(text: const fluent.Text('Undo'), onPressed: _handleUndo),
+                   fluent.MenuFlyoutItem(text: const fluent.Text('Redo'), onPressed: _handleRedo),
+                ]
+              ),
+              const fluent.SizedBox(width: 8),
+              // --- Track Menu --- Already uses ValueListenableBuilder, just update handlers
+              fluent.DropDownButton(
+                 title: const fluent.Text('Track'),
+                 items: [
+                   fluent.MenuFlyoutItem(
+                     text: const fluent.Text('Add Video Track'),
+                     // Enable based on isProjectLoaded, pass projectVm
+                     onPressed: isProjectLoaded ? () => _handleAddVideoTrack(projectVm) : null,
+                   ),
+                   fluent.MenuFlyoutItem(
+                     text: const fluent.Text('Add Audio Track'),
+                     // Enable based on isProjectLoaded, pass projectVm
+                     onPressed: isProjectLoaded ? () => _handleAddAudioTrack(projectVm) : null,
+                   ),
+                 ],
+               ),
+              const fluent.SizedBox(width: 8),
+              // View menu uses EditorViewModel state, no changes needed for project loading
+              ValueListenableBuilder<bool>(
+                valueListenable: editorVm.isInspectorVisibleNotifier,
+                builder: (context, isInspectorVisible, _) {
+                  return ValueListenableBuilder<bool>(
+                    valueListenable: editorVm.isTimelineVisibleNotifier,
+                    builder: (context, isTimelineVisible, _) {
+                      return fluent.DropDownButton(
+                        title: const fluent.Text('View'),
+                        items: [
+                           fluent.MenuFlyoutItem(
+                             leading: isInspectorVisible ? const fluent.Icon(fluent.FluentIcons.check_mark) : null,
+                             text: const fluent.Text('Inspector'),
+                             onPressed: () => _handleToggleInspector(editorVm),
+                           ),
+                           fluent.MenuFlyoutItem(
+                             leading: isTimelineVisible ? const fluent.Icon(fluent.FluentIcons.check_mark) : null,
+                             text: const fluent.Text('Timeline'),
+                             onPressed: () => _handleToggleTimeline(editorVm),
+                           ),
+                        ]
+                      );
+                    },
                   );
                 },
-              );
-            },
-          ),
-        ]
-      );
+              ),
+            ]
+          );
+      }
+    );
   }
 }
 
