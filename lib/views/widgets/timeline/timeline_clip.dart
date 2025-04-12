@@ -7,7 +7,7 @@ import 'package:watch_it/watch_it.dart';
 import 'dart:math' as math;
 
 /// A clip in the timeline track
-class TimelineClip extends StatefulWidget {
+class TimelineClip extends StatefulWidget with WatchItStatefulWidgetMixin {
   final ClipModel clip;
   final int trackIndex;
   final bool isDragging;
@@ -58,13 +58,12 @@ class _TimelineClipState extends State<TimelineClip> {
     final editorVm = di<EditorViewModel>();
     final timelineVm = di<TimelineViewModel>();
     
-    // Get the current selected clip
-    final selectedClipId = editorVm.selectedClipId;
+    // Use watchValue here in the State's build method
+    final selectedClipId = watchValue((EditorViewModel vm) => vm.selectedClipIdNotifier);
+    final zoom = watchValue((TimelineViewModel vm) => vm.zoomNotifier);
+
     final isSelected = selectedClipId == widget.clip.databaseId?.toString();
     
-    // Get zoom factor from TimelineViewModel for drag calculations
-    final zoom = timelineVm.zoom;
-
     // Calculate the visual offset for smooth dragging preview
     final double dragOffset = _isDragging 
         ? (_currentDragFrame - widget.clip.startFrame) * 5.0 * zoom
@@ -85,6 +84,7 @@ class _TimelineClipState extends State<TimelineClip> {
       offset: Offset(dragOffset, 0), // Apply the drag offset for smooth visual movement
       child: GestureDetector(
         onTap: () {
+          // Use databaseId for selection
           editorVm.selectedClipId = widget.clip.databaseId?.toString();
         },
         onHorizontalDragStart: (details) {
@@ -101,7 +101,7 @@ class _TimelineClipState extends State<TimelineClip> {
           if (!_isDragging) return;
           
           // Calculate frame movement based on horizontal drag distance and zoom
-          final pixelsPerFrame = 5.0 * zoom; // Same logic as in TimelineViewModel
+          final pixelsPerFrame = 5.0 * zoom; // Use watched zoom
           final dragDeltaInFrames = (details.localPosition.dx - _dragStartX) ~/ pixelsPerFrame;
           
           // Calculate new start frame

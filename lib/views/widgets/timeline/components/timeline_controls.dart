@@ -4,6 +4,7 @@ import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:video_player/video_player.dart';
 import 'package:watch_it/watch_it.dart';
+import 'package:flipedit/services/project_service.dart';
 
 /// Controls widget for the timeline including playback controls and zoom
 class TimelineControls extends StatelessWidget with WatchItMixin {
@@ -15,20 +16,14 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
     final controlsContentColor = theme.resources.textFillColorPrimary;
     final timelineViewModel = di<TimelineViewModel>();
 
-    final isPlaying = watchValue(
-      (TimelineViewModel vm) => vm.isPlayingNotifier,
-    );
-    final currentFrame = watchValue(
-      (TimelineViewModel vm) => vm.currentFrameNotifier,
-    );
-    final totalFrames = watchValue(
-      (TimelineViewModel vm) => vm.totalFramesNotifier,
-    );
+    // Watch basic values
+    final isPlaying = watchValue((TimelineViewModel vm) => vm.isPlayingNotifier);
+    final currentFrame = watchValue((TimelineViewModel vm) => vm.currentFrameNotifier);
+    final totalFrames = watchValue((TimelineViewModel vm) => vm.totalFramesNotifier);
     final zoom = watchValue((TimelineViewModel vm) => vm.zoomNotifier);
 
-    final controller = watchValue(
-      (TimelineViewModel vm) => vm.videoPlayerControllerNotifier,
-    );
+    // Watch the controller itself (can be null)
+    final controller = watchValue((TimelineViewModel vm) => vm.videoPlayerControllerNotifier);
 
     return Container(
       height: 40,
@@ -40,16 +35,16 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
             message: 'Zoom Out',
             child: IconButton(
               icon: Icon(FluentIcons.remove, size: 16, color: controlsContentColor),
-              onPressed: timelineViewModel.zoom > 0.2
+              onPressed: zoom > 0.2 // Use watched zoom directly
                   ? () => timelineViewModel.zoom = zoom / 1.2
                   : null,
             ),
           ),
           Tooltip(
-            message: 'Zoom Level Display (Optional)',
+            message: 'Zoom Level',
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8.0),
-              child: Text('${(zoom * 100).toStringAsFixed(0)}%',
+              child: Text('${(zoom * 100).toStringAsFixed(0)}%', // Use watched zoom
                   style: theme.typography.caption?.copyWith(fontSize: 10)),
             ),
           ),
@@ -57,7 +52,7 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
             message: 'Zoom In',
             child: IconButton(
               icon: Icon(FluentIcons.add, size: 16, color: controlsContentColor),
-              onPressed: timelineViewModel.zoom < 5.0
+              onPressed: zoom < 5.0 // Use watched zoom directly
                   ? () => timelineViewModel.zoom = zoom * 1.2
                   : null,
             ),
@@ -73,11 +68,12 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
             ),
           ),
           Tooltip(
-            message: isPlaying ? 'Pause' : 'Play',
+            message: isPlaying ? 'Pause' : 'Play', // Use watched isPlaying
             child: IconButton(
               icon: Icon(
-                isPlaying ? FluentIcons.pause : FluentIcons.play,
+                isPlaying ? FluentIcons.pause : FluentIcons.play, // Use watched isPlaying
                 size: 16,
+                color: controlsContentColor, // Ensure color consistency
               ),
               onPressed: () => timelineViewModel.togglePlayPause(),
             ),
@@ -86,48 +82,29 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
             message: 'Go to End',
             child: IconButton(
               icon: Icon(FluentIcons.next, size: 16, color: controlsContentColor),
+              // Use watched totalFrames
               onPressed: () => timelineViewModel.currentFrame = totalFrames,
             ),
           ),
 
           const SizedBox(width: 16),
 
+          // Timecode Display
           if (controller != null)
-            ValueListenableBuilder<VideoPlayerValue>(
-              valueListenable: controller,
-              builder: (context, value, child) {
-                if (!value.isInitialized) {
-                  return Text(
-                    '--:--.-- / --:--.--',
-                    style: theme.typography.caption?.copyWith(
-                      color: controlsContentColor,
-                      fontFamily: 'monospace',
-                    ),
-                  );
-                }
-                final position = value.position;
-                final duration = value.duration;
-                final positionString = _formatDuration(position);
-                final durationString = _formatDuration(duration);
-                return Text(
-                  '$positionString / $durationString',
-                  style: theme.typography.caption?.copyWith(
-                    color: controlsContentColor,
-                    fontFamily: 'monospace',
-                  ),
-                );
-              },
-            )
+            _TimecodeDisplay(controller: controller) // Use the new widget
           else
+            // Fallback display when no controller is available
             Text(
-              'Frame: $currentFrame / $totalFrames',
+              'Frame: $currentFrame / $totalFrames', // Use watched values
               style: theme.typography.caption?.copyWith(
                 color: controlsContentColor,
+                fontFamily: 'monospace', // Use monospace for frame count too
               ),
             ),
 
           const Spacer(),
 
+          // Add Media Button
           Tooltip(
             message: 'Add Media',
             child: _buildAddMediaButton(context, timelineViewModel, theme, controlsContentColor),
@@ -144,14 +121,18 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
     FluentThemeData theme,
     Color controlsContentColor,
   ) {
+    // Get ProjectService instance
+    final projectService = di<ProjectService>();
     return FilledButton(
       onPressed: () async {
         print("Add Media button pressed - Placeholder");
         
         // Get the first track ID or default/error if none
         final int targetTrackId;
-        if (timelineViewModel.currentTrackIds.isNotEmpty) {
-           targetTrackId = timelineViewModel.currentTrackIds.first;
+        // Access tracks directly from the ProjectService notifier
+        final currentTracks = projectService.currentProjectTracksNotifier.value;
+        if (currentTracks.isNotEmpty) {
+           targetTrackId = currentTracks.first.id;
         } else {
            print("Error: No tracks loaded to add clip to.");
            // Optionally show a user message
@@ -185,12 +166,55 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
       ),
     );
   }
+}
+
+// New widget for timecode display using watch_it
+class _TimecodeDisplay extends StatelessWidget with WatchItMixin {
+  final VideoPlayerController controller;
+
+  const _TimecodeDisplay({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    final controlsContentColor = theme.resources.textFillColorPrimary;
+
+    // Watch the controller - this widget rebuilds when controller notifies changes
+    watch(controller);
+
+    // Access value directly after watching
+    final value = controller.value;
+
+    if (!value.isInitialized) {
+      return Text(
+        '--:--.-- / --:--.--',
+        style: theme.typography.caption?.copyWith(
+          color: controlsContentColor,
+          fontFamily: 'monospace',
+        ),
+      );
+    }
+    
+    final position = value.position;
+    final duration = value.duration;
+    final positionString = _formatDuration(position);
+    final durationString = _formatDuration(duration);
+    
+    return Text(
+      '$positionString / $durationString',
+      style: theme.typography.caption?.copyWith(
+        color: controlsContentColor,
+        fontFamily: 'monospace',
+      ),
+    );
+  }
 
   String _formatDuration(Duration d) {
     String twoDigits(int n) => n.toString().padLeft(2, "0");
     String twoDigitMinutes = twoDigits(d.inMinutes.remainder(60));
     String twoDigitSeconds = twoDigits(d.inSeconds.remainder(60));
-    String twoDigitMilliseconds = twoDigits(d.inMilliseconds.remainder(1000));
-    return '$twoDigitMinutes:$twoDigitSeconds.$twoDigitMilliseconds';
+    // Ensure milliseconds are padded to 3 digits for consistency
+    String threeDigitMilliseconds = (d.inMilliseconds.remainder(1000)).toString().padLeft(3, "0");
+    return '$twoDigitMinutes:$twoDigitSeconds.$threeDigitMilliseconds';
   }
 }

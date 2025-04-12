@@ -3,4 +3,4 @@ description:
 globs: 
 alwaysApply: true
 ---
-A file needs to be 500 lines max. If it reaches more lines it needs to be splitted into smaller files.
+A file needs to be 500 lines max. If it reaches more lines it needs to be split into smaller files.

@@ -38,7 +38,7 @@ class VideoPlayerManager {
             print("Error initializing VideoPlayerController for $videoUrl: $e");
         }
         controller.dispose(); // Clean up failed controller
-        rethrow; // Re-throw the error to be handled by the caller (e.g., FutureBuilder)
+        rethrow;
       }
     }
   }

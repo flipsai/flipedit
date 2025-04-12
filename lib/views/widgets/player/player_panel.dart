@@ -4,6 +4,7 @@ import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/views/widgets/video_player_widget.dart';
 import 'package:video_player/video_player.dart';
 import 'package:watch_it/watch_it.dart';
+import 'package:flipedit/utils/logger.dart';
 
 class PlayerPanel extends StatelessWidget with WatchItMixin {
   const PlayerPanel({
@@ -12,52 +13,16 @@ class PlayerPanel extends StatelessWidget with WatchItMixin {
 
   @override
   Widget build(BuildContext context) {
-    final editorViewModel = di<EditorViewModel>();
-    final playerManager = di<VideoPlayerManager>();
-
-    print("[PlayerPanel.build] Rebuilding...");
+    logDebug("Rebuilding PlayerPanel...");
 
     final currentVideoUrl = watchValue(
       (EditorViewModel vm) => vm.currentPreviewVideoUrlNotifier,
     );
-    print("[PlayerPanel.build] Received URL: $currentVideoUrl");
+    logDebug("PlayerPanel Received URL: $currentVideoUrl");
     const double opacity = 1.0;
 
-    // Add playback controls
-    Widget buildControls(VideoPlayerController controller) {
-      return Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          IconButton(
-            icon: Icon(
-              controller.value.isPlaying 
-                ? FluentIcons.pause 
-                : FluentIcons.play,
-              color: Colors.white,
-            ),
-            onPressed: () {
-              if (controller.value.isPlaying) {
-                controller.pause();
-              } else {
-                controller.play();
-              }
-            },
-          ),
-          IconButton(
-            icon: const Icon(
-              FluentIcons.rewind,
-              color: Colors.white,
-            ),
-            onPressed: () {
-              controller.seekTo(const Duration(seconds: 0));
-            },
-          ),
-        ],
-      );
-    }
-
     if (currentVideoUrl == null || currentVideoUrl.isEmpty) {
-      print("[PlayerPanel.build] No video URL, showing fallback text.");
+      logDebug("PlayerPanel: No video URL, showing fallback text.");
       return Container(
         color: const Color(0xFF333333),
         child: const Center(
@@ -69,61 +34,133 @@ class PlayerPanel extends StatelessWidget with WatchItMixin {
       );
     }
 
+    final playerFuture = watchFuture(
+      (VideoPlayerManager m) => m.getOrCreatePlayerController(currentVideoUrl!),
+      initialValue: null, // Assuming null works or PlayerManager handles default
+    );
+
+     logDebug(
+       "PlayerPanel watchFuture [$currentVideoUrl]: State=${playerFuture.connectionState}",
+     );
+     if (playerFuture.hasError) {
+        logError(
+           "PlayerPanel watchFuture [$currentVideoUrl]: ERROR=${playerFuture.error}",
+           playerFuture.error,
+           playerFuture.stackTrace,
+        );
+     }
+      if (playerFuture.hasData && playerFuture.data != null) {
+         final controller = playerFuture.data!.$1;
+         logDebug(
+           "PlayerPanel watchFuture [$currentVideoUrl]: Data received. Controller initialized: ${controller.value.isInitialized}",
+         );
+      }
+
     return Container(
       color: const Color(0xFF333333),
-      child: FutureBuilder<(VideoPlayerController, bool)>(
-        future: playerManager.getOrCreatePlayerController(currentVideoUrl),
-        builder: (context, snapshot) {
-          print(
-            "PlayerPanel FutureBuilder [$currentVideoUrl]: State=${snapshot.connectionState}",
-          );
-          
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: ProgressRing(
-                activeColor: Colors.white,
+      child: _buildContent(playerFuture, opacity, currentVideoUrl),
+    );
+  }
+
+  // Helper method to build the content based on playerFuture state
+  Widget _buildContent(
+    AsyncSnapshot<(VideoPlayerController, bool)?> playerFuture,
+    double opacity,
+    String? currentVideoUrl,
+  ) {
+    if (playerFuture.connectionState == ConnectionState.waiting || playerFuture.data == null) {
+      return const Center(
+        child: ProgressRing(
+          activeColor: Colors.white,
+        ),
+      );
+    } else if (playerFuture.hasError) {
+      logError("PlayerPanel watchFuture Error: ${playerFuture.error}");
+      return Center(
+        child: Icon(
+          FluentIcons.error,
+          color: Colors.red.withOpacity(opacity),
+          size: 24,
+        ),
+      );
+    } else if (playerFuture.hasData) {
+      final controller = playerFuture.data!.$1;
+      if (controller.value.isInitialized) {
+        return Column(
+          children: [
+            Expanded(
+              child: VideoPlayerWidget(
+                opacity: opacity,
+                controller: controller,
               ),
-            );
-          } else if (snapshot.hasError) {
-            return Center(
-              child: Icon(
-                FluentIcons.error,
-                color: Colors.red.withOpacity(opacity),
-                size: 24,
-              ),
-            );
-          } else if (snapshot.hasData) {
-            final controller = snapshot.data!.$1;
-            if (controller.value.isInitialized) {
-              return Column(
-                children: [
-                  Expanded(
-                    child: VideoPlayerWidget(
-                      opacity: opacity,
-                      controller: controller,
-                    ),
-                  ),
-                  buildControls(controller),
-                ],
-              );
+            ),
+            _PlayerControls(controller: controller),
+          ],
+        );
+      } else {
+        logDebug("PlayerPanel: Controller received but not yet initialized. Showing spinner.");
+        return const Center(
+          child: ProgressRing(
+            activeColor: Colors.white,
+          ),
+        );
+      }
+    } else {
+      logWarning(
+        "PlayerPanel watchFuture [$currentVideoUrl]: Snapshot has no data and no error. State: ${playerFuture.connectionState}. Showing fallback help icon.",
+      );
+      return Center(
+        child: Icon(
+          FluentIcons.help,
+          color: Colors.orange.withOpacity(opacity),
+          size: 24,
+        ),
+      );
+    }
+  }
+}
+
+// New private widget for player controls using WatchItMixin
+class _PlayerControls extends StatelessWidget with WatchItMixin {
+  final VideoPlayerController controller;
+
+  const _PlayerControls({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    // Watch the controller directly. This widget will rebuild when the controller notifies.
+    watch(controller); 
+    
+    // Access the state needed for the UI (e.g., isPlaying)
+    final isPlaying = controller.value.isPlaying;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        IconButton(
+          icon: Icon(
+            isPlaying ? FluentIcons.pause : FluentIcons.play,
+            color: Colors.white,
+          ),
+          onPressed: () {
+            if (isPlaying) {
+              controller.pause();
             } else {
-              return const Center(
-                child: ProgressRing(
-                  activeColor: Colors.white,
-                ),
-              );
+              controller.play();
             }
-          } else {
-            return Center(
-              child: Icon(
-                FluentIcons.help,
-                color: Colors.orange.withOpacity(opacity),
-                size: 24,
-              ),
-            );
-          }
-        },
-      ),
+          },
+        ),
+        IconButton(
+          icon: const Icon(
+            FluentIcons.rewind,
+            color: Colors.white,
+          ),
+          onPressed: () {
+            controller.seekTo(const Duration(seconds: 0));
+          },
+        ),
+        // TODO: Add more controls like volume, seek bar, etc.
+      ],
     );
   }
 } 

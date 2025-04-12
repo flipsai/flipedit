@@ -5,90 +5,42 @@ import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 
-/// Inspector panel to display and edit properties of selected clips and effects
-/// Similar to VS Code's property panel
-class InspectorPanel extends StatefulWidget {
+/// Inspector panel using WatchItMixin for reactive updates
+class InspectorPanel extends StatelessWidget with WatchItMixin {
   const InspectorPanel({super.key});
 
   @override
-  State<InspectorPanel> createState() => _InspectorPanelState();
-}
+  Widget build(BuildContext context) {
+    // Watch the selected clip ID
+    final selectedClipId = watchValue((EditorViewModel vm) => vm.selectedClipIdNotifier);
+    // Watch the list of clips to find the selected one
+    final clips = watchValue((TimelineViewModel vm) => vm.clipsNotifier);
 
-class _InspectorPanelState extends State<InspectorPanel> {
-  final EditorViewModel editorVm = di<EditorViewModel>();
-  final TimelineViewModel timelineVm = di<TimelineViewModel>();
-
-  String? _selectedClipId;
-  ClipModel? _selectedClip;
-
-  @override
-  void initState() {
-    super.initState();
-    _selectedClipId = editorVm.selectedClipId;
-    _updateSelectedClip();
-    editorVm.selectedClipIdNotifier.addListener(_handleSelectedClipChange);
-    timelineVm.clipsNotifier.addListener(_updateSelectedClip);
-  }
-
-  @override
-  void dispose() {
-    editorVm.selectedClipIdNotifier.removeListener(_handleSelectedClipChange);
-    timelineVm.clipsNotifier.removeListener(_updateSelectedClip);
-    super.dispose();
-  }
-
-  void _handleSelectedClipChange() {
-    if (mounted) {
-      setState(() {
-        _selectedClipId = editorVm.selectedClipId;
-        _updateSelectedClip();
-      });
-    }
-  }
-
-  void _updateSelectedClip() {
-    if (_selectedClipId == null) {
-      if (mounted) {
-        setState(() {
-          _selectedClip = null;
-        });
-      }
-      return;
-    }
-    try {
-      ClipModel? foundClip;
+    ClipModel? selectedClip;
+    if (selectedClipId != null) {
       try {
-        foundClip = timelineVm.clips.firstWhere(
-          (clip) => clip.databaseId?.toString() == _selectedClipId,
+        // Use firstWhere without orElse, catch StateError if not found
+        selectedClip = clips.firstWhere(
+          (clip) => clip.databaseId?.toString() == selectedClipId,
         );
       } on StateError {
-        foundClip = null;
+        // Not found exception - expected if ID doesn't match any clip
+        selectedClip = null;
+      } catch (e) {
+        // Catch any other potential errors during search
+        print("Error finding selected clip in build: $e");
+        selectedClip = null;
       }
-
-      if (mounted) {
-        setState(() {
-          _selectedClip = foundClip;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _selectedClip = null;
-        });
-      }
-      print("Error finding selected clip: $e");
     }
-  }
 
-  @override
-  Widget build(BuildContext context) {
-    final selectedClip = _selectedClip;
-
+    // Display message if no clip is selected or found
     if (selectedClip == null || selectedClip.databaseId == null) {
-      return const Center(child: Text('No clip selected or clip not saved'));
+      return const Center(child: Text('No clip selected or clip data unavailable'));
     }
 
+    // Build the UI using the found selectedClip
     return ScaffoldPage(
+      padding: const EdgeInsets.all(12), // Add some padding
       content: ListView(
         children: [
           Text('Inspector: ${selectedClip.name}', style: FluentTheme.of(context).typography.subtitle),
@@ -109,34 +61,13 @@ class _InspectorPanelState extends State<InspectorPanel> {
       children: [
         Text('Common Properties', style: FluentTheme.of(context).typography.bodyStrong),
         const SizedBox(height: 8),
-        InfoLabel(
-          label: 'Name:',
-          child: Text(clip.name),
-        ),
-        InfoLabel(
-          label: 'Source Path:',
-          child: Text(clip.sourcePath),
-        ),
-        InfoLabel(
-          label: 'Duration (ms):',
-          child: Text('${clip.durationMs} ms'),
-        ),
-         InfoLabel(
-          label: 'Duration (Frames):',
-          child: Text('${clip.durationFrames} frames'),
-        ),
-         InfoLabel(
-          label: 'Start Time (Track):',
-          child: Text('${clip.startTimeOnTrackMs} ms'),
-        ),
-        InfoLabel(
-          label: 'Trim Start (Source):',
-          child: Text('${clip.startTimeInSourceMs} ms'),
-        ),
-        InfoLabel(
-          label: 'Trim End (Source):',
-          child: Text('${clip.endTimeInSourceMs} ms'),
-        ),
+        InfoLabel(label: 'Name:', child: Text(clip.name)),
+        InfoLabel(label: 'Source Path:', child: Text(clip.sourcePath, overflow: TextOverflow.ellipsis)),
+        InfoLabel(label: 'Duration (ms):', child: Text('${clip.durationMs} ms')),
+        InfoLabel(label: 'Duration (Frames):', child: Text('${clip.durationFrames} frames')),
+        InfoLabel(label: 'Start Time (Track):', child: Text('${clip.startTimeOnTrackMs} ms')),
+        InfoLabel(label: 'Trim Start (Source):', child: Text('${clip.startTimeInSourceMs} ms')),
+        InfoLabel(label: 'Trim End (Source):', child: Text('${clip.endTimeInSourceMs} ms')),
       ],
     );
   }
@@ -175,7 +106,10 @@ class _InspectorPanelState extends State<InspectorPanel> {
   }
 
   Widget _buildEffectsSection(BuildContext context, ClipModel clip) {
+    // Access timelineVm via di() if needed for effects modification
+    final timelineVm = di<TimelineViewModel>();
     final effects = clip.effects;
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -184,33 +118,36 @@ class _InspectorPanelState extends State<InspectorPanel> {
         if (effects.isEmpty)
           const Text('No effects applied.')
         else
-          ReorderableListView.builder(
+          // Note: ReorderableListView might need state management if complex interactions are added
+          // For simple display and delete, this is okay in StatelessWidget
+          ListView.builder( // Using ListView.builder instead of Reorderable for simplicity here
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: effects.length,
             itemBuilder: (context, index) {
               final effect = effects[index];
               return ListTile(
-                key: ValueKey(effect.id),
+                key: ValueKey(effect.id), // Ensure effects have unique IDs
                 title: Text(effect.name),
                 subtitle: Text(effect.type.toString().split('.').last),
                 trailing: IconButton(
-                  icon: const Icon(FluentIcons.delete),
+                  icon: const Icon(FluentIcons.delete), // Consider styling
                   onPressed: () {
-                    print('Remove effect: ${effect.name}');
+                    // TODO: Implement effect removal via ViewModel
+                    print('Remove effect: ${effect.name} (ID: ${effect.id})');
+                    // Example: timelineVm.removeEffectFromClip(clip.databaseId!, effect.id);
                   },
                 ),
               );
             },
-            onReorder: (oldIndex, newIndex) {
-              print('Reorder effects: $oldIndex -> $newIndex');
-            },
+            // onReorder callback removed as we switched to ListView.builder
           ),
         const SizedBox(height: 8),
         Button(
           child: const Text('Add Effect'),
           onPressed: () {
-            print('Add Effect button pressed');
+            // TODO: Implement add effect functionality (e.g., show a dialog)
+            print('Add Effect button pressed for clip: ${clip.databaseId}');
           },
         ),
       ],
