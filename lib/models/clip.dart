@@ -1,85 +1,104 @@
 import 'package:flipedit/models/effect.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
+import 'package:flipedit/persistence/database/app_database.dart' show Clip, ClipsCompanion;
+import 'package:drift/drift.dart' show Value;
 
-class Clip {
-  final String id;
+class ClipModel {
+  final int? databaseId;
+  final int trackId;
   final String name;
   final ClipType type;
-  final String filePath;
-  final int startFrame;
-  final int durationFrames;
-  final int trackIndex;
+  final String sourcePath;
+  final int startTimeInSourceMs;
+  final int endTimeInSourceMs;
+  final int startTimeOnTrackMs;
   final List<Effect> effects;
   final Map<String, dynamic> metadata;
 
-  Clip({
-    required this.id,
+  int get durationMs => endTimeInSourceMs - startTimeInSourceMs;
+
+  ClipModel({
+    this.databaseId,
+    required this.trackId,
     required this.name,
     required this.type,
-    required this.filePath,
-    required this.startFrame,
-    required this.durationFrames,
-    required this.trackIndex,
+    required this.sourcePath,
+    required this.startTimeInSourceMs,
+    required this.endTimeInSourceMs,
+    required this.startTimeOnTrackMs,
     this.effects = const [],
     this.metadata = const {},
-  });
+  }) : assert(endTimeInSourceMs >= startTimeInSourceMs, 'End time must be >= start time in source');
 
-  Clip copyWith({
-    String? id,
+  ClipModel copyWith({
+    Value<int?>? databaseId,
+    int? trackId,
     String? name,
     ClipType? type,
-    String? filePath,
-    int? startFrame,
-    int? durationFrames,
-    int? trackIndex,
+    String? sourcePath,
+    int? startTimeInSourceMs,
+    int? endTimeInSourceMs,
+    int? startTimeOnTrackMs,
     List<Effect>? effects,
     Map<String, dynamic>? metadata,
   }) {
-    return Clip(
-      id: id ?? this.id,
+    return ClipModel(
+      databaseId: databaseId == null ? this.databaseId : databaseId.value,
+      trackId: trackId ?? this.trackId,
       name: name ?? this.name,
       type: type ?? this.type,
-      filePath: filePath ?? this.filePath,
-      startFrame: startFrame ?? this.startFrame,
-      durationFrames: durationFrames ?? this.durationFrames,
-      trackIndex: trackIndex ?? this.trackIndex,
+      sourcePath: sourcePath ?? this.sourcePath,
+      startTimeInSourceMs: startTimeInSourceMs ?? this.startTimeInSourceMs,
+      endTimeInSourceMs: endTimeInSourceMs ?? this.endTimeInSourceMs,
+      startTimeOnTrackMs: startTimeOnTrackMs ?? this.startTimeOnTrackMs,
       effects: effects ?? this.effects,
       metadata: metadata ?? this.metadata,
     );
   }
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'name': name,
-      'type': type.toString(),
-      'filePath': filePath,
-      'startFrame': startFrame,
-      'durationFrames': durationFrames,
-      'trackIndex': trackIndex,
-      'effects': effects.map((effect) => effect.toJson()).toList(),
-      'metadata': metadata,
-    };
-  }
-
-  factory Clip.fromJson(Map<String, dynamic> json) {
-    return Clip(
-      id: json['id'],
-      name: json['name'],
+  factory ClipModel.fromDbData(Clip dbData) {
+    return ClipModel(
+      databaseId: dbData.id,
+      trackId: dbData.trackId,
+      name: dbData.name,
       type: ClipType.values.firstWhere(
-        (e) => e.toString() == json['type'],
-        orElse: () => ClipType.video,
-      ),
-      filePath: json['filePath'],
-      startFrame: json['startFrame'],
-      durationFrames: json['durationFrames'],
-      trackIndex: json['trackIndex'] ?? 0,
-      effects:
-          (json['effects'] as List?)
-              ?.map((effectJson) => Effect.fromJson(effectJson))
-              .toList() ??
-          [],
-      metadata: json['metadata'] ?? {},
+            (e) => e.toString().split('.').last == dbData.type,
+            orElse: () => ClipType.video,
+          ),
+      sourcePath: dbData.sourcePath,
+      startTimeInSourceMs: dbData.startTimeInSourceMs,
+      endTimeInSourceMs: dbData.endTimeInSourceMs,
+      startTimeOnTrackMs: dbData.startTimeOnTrackMs,
     );
   }
+
+  ClipsCompanion toDbCompanion() {
+    return ClipsCompanion(
+      id: databaseId == null ? const Value.absent() : Value(databaseId!),
+      trackId: Value(trackId),
+      name: Value(name),
+      type: Value(type.toString().split('.').last),
+      sourcePath: Value(sourcePath),
+      startTimeInSourceMs: Value(startTimeInSourceMs),
+      endTimeInSourceMs: Value(endTimeInSourceMs),
+      startTimeOnTrackMs: Value(startTimeOnTrackMs),
+    );
+  }
+
+  static const double _defaultFrameRate = 30.0;
+
+  static int msToFrames(int ms) {
+    return (ms * _defaultFrameRate / 1000).round();
+  }
+
+  static int framesToMs(int frames) {
+    return (frames * 1000 / _defaultFrameRate).round();
+  }
+
+  int get startFrame => msToFrames(startTimeOnTrackMs);
+  int get durationFrames => msToFrames(durationMs);
+  int get endFrame => startFrame + durationFrames;
+
+  int get startFrameInSource => msToFrames(startTimeInSourceMs);
+  int get endFrameInSource => msToFrames(endTimeInSourceMs);
 }

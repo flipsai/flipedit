@@ -8,7 +8,7 @@ import 'dart:math' as math;
 
 /// A clip in the timeline track
 class TimelineClip extends StatefulWidget {
-  final Clip clip;
+  final ClipModel clip;
   final int trackIndex;
   final bool isDragging;
 
@@ -60,7 +60,7 @@ class _TimelineClipState extends State<TimelineClip> {
     
     // Get the current selected clip
     final selectedClipId = editorVm.selectedClipId;
-    final isSelected = selectedClipId == widget.clip.id;
+    final isSelected = selectedClipId == widget.clip.databaseId?.toString();
     
     // Get zoom factor from TimelineViewModel for drag calculations
     final zoom = timelineVm.zoom;
@@ -85,7 +85,7 @@ class _TimelineClipState extends State<TimelineClip> {
       offset: Offset(dragOffset, 0), // Apply the drag offset for smooth visual movement
       child: GestureDetector(
         onTap: () {
-          editorVm.selectedClipId = widget.clip.id;
+          editorVm.selectedClipId = widget.clip.databaseId?.toString();
         },
         onHorizontalDragStart: (details) {
           setState(() {
@@ -94,8 +94,8 @@ class _TimelineClipState extends State<TimelineClip> {
             _originalStartFrame = widget.clip.startFrame;
             _currentDragFrame = _originalStartFrame;
           });
-          // Select the clip when starting to drag
-          editorVm.selectedClipId = widget.clip.id;
+          // Select the clip when starting to drag using databaseId
+          editorVm.selectedClipId = widget.clip.databaseId?.toString();
         },
         onHorizontalDragUpdate: (details) {
           if (!_isDragging) return;
@@ -122,7 +122,13 @@ class _TimelineClipState extends State<TimelineClip> {
           
           // Move the clip in the ViewModel to the current preview position
           if (_originalStartFrame != _currentDragFrame) {
-            timelineVm.moveClip(widget.clip.id, _currentDragFrame);
+            // Use the new method and databaseId
+            if (widget.clip.databaseId != null) { // Ensure ID exists before calling
+               final newStartTimeMs = ClipModel.framesToMs(_currentDragFrame);
+               timelineVm.updateClipPosition(widget.clip.databaseId!, newStartTimeMs);
+            } else {
+               print("Warning: Cannot move clip - databaseId is null.");
+            }
           }
           
           setState(() {

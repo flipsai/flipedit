@@ -1,5 +1,7 @@
 import 'package:flipedit/comfyui/comfyui_service.dart';
+import 'package:flipedit/persistence/dao/clip_dao.dart';
 import 'package:flipedit/persistence/dao/project_dao.dart';
+import 'package:flipedit/persistence/dao/track_dao.dart';
 import 'package:flipedit/persistence/database/app_database.dart';
 import 'package:flipedit/services/uv_manager.dart';
 import 'package:flipedit/services/layout_service.dart';
@@ -19,6 +21,8 @@ void setupServiceLocator() {
   // Database
   di.registerLazySingleton<AppDatabase>(() => AppDatabase());
   di.registerLazySingleton<ProjectDao>(() => di<AppDatabase>().projectDao);
+  di.registerLazySingleton<TrackDao>(() => di<AppDatabase>().trackDao);
+  di.registerLazySingleton<ClipDao>(() => di<AppDatabase>().clipDao);
 
   // Services
   di.registerLazySingleton<ProjectService>(() => ProjectService());
@@ -31,5 +35,5 @@ void setupServiceLocator() {
   di.registerLazySingleton<AppViewModel>(() => AppViewModel());
   di.registerLazySingleton<ProjectViewModel>(() => ProjectViewModel());
   di.registerLazySingleton<EditorViewModel>(() => EditorViewModel());
-  di.registerSingleton<TimelineViewModel>(TimelineViewModel());
+  di.registerSingleton<TimelineViewModel>(TimelineViewModel(di(), di()));
 }

@@ -1,5 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
+import 'package:flipedit/persistence/database/app_database.dart'; // Import Track
+import 'package:flipedit/services/project_service.dart'; // Import ProjectService
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/views/widgets/timeline/components/time_ruler.dart';
 import 'package:flipedit/views/widgets/timeline/components/track_label.dart';
@@ -16,23 +18,31 @@ class Timeline extends StatelessWidget with WatchItMixin {
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
-    // Use watch_it's data binding to observe multiple properties in a clean way
-    final timelineViewModel =
-        di<TimelineViewModel>(); // Get the ViewModel instance
+    // Use watch_it to get ViewModels and Services
+    final timelineViewModel = di<TimelineViewModel>();
+    final projectService = di<ProjectService>(); // Get ProjectService
+
+    // Watch properties from TimelineViewModel
     final clips = watchValue((TimelineViewModel vm) => vm.clipsNotifier);
-    final currentFrame = watchValue(
-      (TimelineViewModel vm) => vm.currentFrameNotifier,
-    );
-    final isPlaying = watchValue(
-      (TimelineViewModel vm) => vm.isPlayingNotifier,
-    );
+    final currentFrame = watchValue((TimelineViewModel vm) => vm.currentFrameNotifier);
+    final isPlaying = watchValue((TimelineViewModel vm) => vm.isPlayingNotifier);
     final zoom = watchValue((TimelineViewModel vm) => vm.zoomNotifier);
-    final totalFrames = watchValue(
-      (TimelineViewModel vm) => vm.totalFramesNotifier,
-    );
-    // Get the separate scroll controllers from the ViewModel
+    final totalFrames = watchValue((TimelineViewModel vm) => vm.totalFramesNotifier);
+
+    // Watch tracks notifier from ProjectService
+    final tracksNotifier = projectService.currentProjectTracksNotifier; // Correct: Access directly from service instance
+
+    // Scroll controllers
     final trackLabelScrollController = timelineViewModel.trackLabelScrollController;
     final trackContentScrollController = timelineViewModel.trackContentScrollController;
+
+    // Determine track count differently - maybe from a dedicated track list in a ViewModel
+    // For now, let's derive it from unique track IDs present in the clips
+    final uniqueTrackIds = clips.map((clip) => clip.trackId).toSet();
+    final trackCount = uniqueTrackIds.isNotEmpty ? uniqueTrackIds.length : 1; // Default to 1 track if no clips
+    // It's better to get tracks from a dedicated source (e.g., ProjectService or TrackDao)
+
+    const double trackHeaderWidth = 100.0; // Placeholder width, remove LayoutService dependency
 
     return Container(
       // Use a standard dark background from the theme resources
@@ -48,29 +58,51 @@ class Timeline extends StatelessWidget with WatchItMixin {
           Expanded(
             child: Row(
               children: [
-                // Track labels - Fixed width for labels
+                // Track labels - Fixed width
                 Container(
                   width: 120,
-                  color:
-                      theme
-                          .resources
-                          .subtleFillColorTransparent, // A slightly different, subtle background
-                  child: ListView(
-                    controller: trackLabelScrollController, // Use label controller
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 4,
-                    ), // Consistent padding
-                    children: const [
-                      // Add SizedBox to align with TimeRuler
-                      SizedBox(height: 25),
-                      // Use const for static labels
-                      TrackLabel(label: 'Video 1', icon: FluentIcons.video),
-                      TrackLabel(
-                        label: 'Audio 1',
-                        icon: FluentIcons.music_in_collection,
-                      ),
-                      // Add more tracks as needed
-                    ],
+                  color: theme.resources.subtleFillColorTransparent,
+                  child: ValueListenableBuilder<List<Track>>( // Wrap with ValueListenableBuilder
+                    valueListenable: tracksNotifier, // Listen to the notifier
+                    builder: (context, tracks, _) { // Use the actual list value
+                      return ListView.builder(
+                        controller: trackLabelScrollController,
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        itemCount: tracks.length + 1, // Use tracks.length
+                        itemBuilder: (context, index) {
+                          if (index == 0) {
+                            return const SizedBox(height: 25);
+                          }
+                          final track = tracks[index - 1]; // Use tracks[index-1]
+                          // Use a Row to place the delete button next to the label
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0), // Add some padding
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: TrackLabel(
+                                    label: track.name,
+                                    icon: track.type == 'video' ? FluentIcons.video : FluentIcons.music_in_collection,
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: 20, // Constrain button width
+                                  height: 20, // Constrain button height
+                                  child: IconButton(
+                                    icon: const Icon(FluentIcons.delete, size: 12),
+                                    onPressed: () {
+                                      projectService.removeTrack(track.id);
+                                    },
+                                    style: ButtonStyle(padding: ButtonState.all(EdgeInsets.zero)), // Remove default padding
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      );
+                    }
                   ),
                 ),
 
@@ -111,43 +143,31 @@ class Timeline extends StatelessWidget with WatchItMixin {
                                               .maxWidth, // Pass viewport width
                                     ),
 
-                                    // Tracks container
+                                    // Tracks container - Use ListView.builder and ValueListenableBuilder
                                     Expanded(
-                                      child: ListView(
-                                        controller:
-                                            trackContentScrollController, // Use content controller
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 4,
-                                        ), // Consistent padding
-                                        children: [
-                                          // Video track with clips
-                                          TimelineTrack(
-                                            trackIndex: 0,
-                                            clips:
-                                                clips
-                                                    .where(
-                                                      (clip) =>
-                                                          clip.type ==
-                                                              ClipType.video ||
-                                                          clip.type ==
-                                                              ClipType.image,
-                                                    )
-                                                    .toList(),
-                                          ),
+                                      child: ValueListenableBuilder<List<Track>>( // Wrap with ValueListenableBuilder
+                                        valueListenable: tracksNotifier, // Listen to the notifier
+                                        builder: (context, tracks, _) {
+                                          return ListView.builder(
+                                            controller:
+                                                trackContentScrollController, // Use content controller
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 4,
+                                            ), // Consistent padding
+                                            itemCount: tracks.length, // Match track count
+                                            itemBuilder: (context, index) {
+                                              final track = tracks[index];
+                                              // Filter clips for this specific track (using track.id)
+                                              // TODO: Update Clip model/logic to include trackId
+                                             final trackClips = clips.where((clip) => clip.trackId == track.id).toList();
 
-                                          // Audio track
-                                          TimelineTrack(
-                                            trackIndex: 1,
-                                            clips:
-                                                clips
-                                                    .where(
-                                                      (clip) =>
-                                                          clip.type ==
-                                                          ClipType.audio,
-                                                    )
-                                                    .toList(),
-                                          ),
-                                        ],
+                                              return TimelineTrack(
+                                                trackIndex: index, // Keep trackIndex for layout/clip assignment for now
+                                                clips: trackClips, // Pass filtered clips
+                                              );
+                                            },
+                                          );
+                                        }
                                       ),
                                     ),
                                   ],

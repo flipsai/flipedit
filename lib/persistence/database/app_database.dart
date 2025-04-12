@@ -2,19 +2,23 @@ import 'dart:io';
 
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
+import 'package:flipedit/persistence/dao/clip_dao.dart';
 import 'package:flipedit/persistence/dao/project_dao.dart';
+import 'package:flipedit/persistence/dao/track_dao.dart';
+import 'package:flipedit/persistence/tables/clips.dart';
 import 'package:flipedit/persistence/tables/projects.dart';
+import 'package:flipedit/persistence/tables/tracks.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 
-part 'app_database.g.dart'; // Reverted filename
+part 'app_database.g.dart';
 
-@DriftDatabase(tables: [Projects], daos: [ProjectDao])
+@DriftDatabase(tables: [Projects, Tracks, Clips], daos: [ProjectDao, TrackDao, ClipDao])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 2; // Increment this when you change the schema
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration {
@@ -30,6 +34,21 @@ class AppDatabase extends _$AppDatabase {
           // you might need 'await m.addColumn(projects, projects.lastModifiedAt);' here too,
           // but let's start with just createdAt as per the current table definition.
         }
+
+        if (from < 3) {
+          await m.createTable(tracks); // Create the Tracks table
+        }
+
+        if (from < 4) {
+          await m.createTable(clips); // Create the Clips table
+        }
+
+        if (from < 5) {
+          // Add name and type columns to Clips table if upgrading from < 5
+          await m.addColumn(clips, clips.name);
+          await m.addColumn(clips, clips.type);
+        }
+
         // Add further migrations for future schema versions here using 'if (from < X)' blocks
       },
     );
