@@ -3,11 +3,9 @@ import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/views/widgets/timeline/timeline_clip.dart';
 import 'package:watch_it/watch_it.dart';
-import 'package:flutter/widgets.dart' as fw; // Import with prefix
+import 'package:flutter/widgets.dart' as fw;
 import 'dart:developer' as developer;
 
-/// A track in the timeline which contains clips
-// Add the mixin to the StatefulWidget class
 class TimelineTrack extends StatefulWidget with WatchItStatefulWidgetMixin {
   final int trackId;
   final List<ClipModel> clips;
@@ -22,9 +20,7 @@ class TimelineTrack extends StatefulWidget with WatchItStatefulWidgetMixin {
   State<TimelineTrack> createState() => _TimelineTrackState();
 }
 
-// State class no longer needs the mixin
 class _TimelineTrackState extends State<TimelineTrack> {
-  // Local notifier for hover position within this track
   final hoverPositionNotifier = ValueNotifier<Offset?>(null);
   final GlobalKey trackKey = GlobalKey(); // Key for DragTarget
   late TimelineViewModel timelineViewModel;
@@ -65,10 +61,6 @@ class _TimelineTrackState extends State<TimelineTrack> {
       key: trackKey,
       onAcceptWithDetails: (details) {
         final draggedClip = details.data;
-        if (draggedClip == null) {
-          developer.log('Error: Dragged data is null');
-          return;
-        }
 
         final RenderBox? renderBox = trackKey.currentContext?.findRenderObject() as RenderBox?;
         if (renderBox == null) return;

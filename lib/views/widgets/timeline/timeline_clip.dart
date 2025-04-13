@@ -30,7 +30,7 @@ class _TimelineClipState extends State<TimelineClip> {
   double _dragStartX = 0;
   int _originalStartFrame = 0;
   int _currentDragFrame = 0; // Track current drag position for smooth preview
-  
+
   // Define base colors for clip types (consider making these theme-dependent later)
   static const Map<ClipType, Color> _clipTypeColors = {
     ClipType.video: Color(0xFF264F78), // Blueish
@@ -62,21 +62,24 @@ class _TimelineClipState extends State<TimelineClip> {
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
-    
+
     // Get view models
     final editorVm = di<EditorViewModel>();
     final timelineVm = di<TimelineViewModel>();
-    
+
     // Use watchValue here in the State's build method
-    final selectedClipId = watchValue((EditorViewModel vm) => vm.selectedClipIdNotifier);
+    final selectedClipId = watchValue(
+      (EditorViewModel vm) => vm.selectedClipIdNotifier,
+    );
     final zoom = watchValue((TimelineViewModel vm) => vm.zoomNotifier);
 
     final isSelected = selectedClipId == widget.clip.databaseId?.toString();
-    
+
     // Calculate the visual offset based on the difference between the current drag frame
     // and the clip's official start frame. Apply this offset always to keep the visual
     // position consistent until the parent rebuilds with the updated data.
-    final double dragOffset = (_currentDragFrame - widget.clip.startFrame) * 5.0 * zoom;
+    final double dragOffset =
+        (_currentDragFrame - widget.clip.startFrame) * 5.0 * zoom;
 
     // Get base color for clip type
     final baseClipColor =
@@ -96,29 +99,31 @@ class _TimelineClipState extends State<TimelineClip> {
           // Use databaseId for selection
           editorVm.selectedClipId = widget.clip.databaseId?.toString();
         },
-        onHorizontalDragStart: (details) {
+        onPanStart: (details) {
           setState(() {
             _isDragging = true;
             _dragStartX = details.localPosition.dx;
             _originalStartFrame = widget.clip.startFrame;
-            _currentDragFrame = _originalStartFrame; // Initialize current drag frame
+            _currentDragFrame =
+                _originalStartFrame; // Initialize current drag frame
           });
           // Select the clip when starting to drag using databaseId
           editorVm.selectedClipId = widget.clip.databaseId?.toString();
         },
-        onHorizontalDragUpdate: (details) {
+        onPanUpdate: (details) {
           if (!_isDragging) return;
-          
+
           // Calculate frame movement based on horizontal drag distance and zoom
           final pixelsPerFrame = 5.0 * zoom; // Use watched zoom
-          final dragDeltaInFrames = (details.localPosition.dx - _dragStartX) ~/ pixelsPerFrame;
-          
+          final dragDeltaInFrames =
+              (details.localPosition.dx - _dragStartX) ~/ pixelsPerFrame;
+
           // Calculate new start frame
           final newStartFrame = _originalStartFrame + dragDeltaInFrames;
-          
+
           // Clamp to prevent negative frames
           final clampedStartFrame = newStartFrame < 0 ? 0 : newStartFrame;
-          
+
           // Update the current drag frame for smooth visual preview
           if (_currentDragFrame != clampedStartFrame) {
             setState(() {
@@ -126,21 +131,28 @@ class _TimelineClipState extends State<TimelineClip> {
             });
           }
         },
-        onHorizontalDragEnd: (details) {
+        onPanEnd: (details) {
           if (!_isDragging) return;
-          
+
           // IMPORTANT: Update the ViewModel *before* resetting the local dragging state.
           // This triggers the parent to rebuild with the new clip position.
           if (_originalStartFrame != _currentDragFrame) {
             // Use the new method and databaseId
-            if (widget.clip.databaseId != null) { // Ensure ID exists before calling
-               final newStartTimeMs = ClipModel.framesToMs(_currentDragFrame);
-               timelineVm.updateClipPosition(widget.clip.databaseId!, newStartTimeMs);
+            if (widget.clip.databaseId != null) {
+              // Ensure ID exists before calling
+              final newStartTimeMs = ClipModel.framesToMs(_currentDragFrame);
+              timelineVm.updateClipPosition(
+                widget.clip.databaseId!,
+                newStartTimeMs,
+              );
             } else {
-               logWarning(runtimeType.toString(), "Warning: Cannot move clip - databaseId is null.");
+              logWarning(
+                runtimeType.toString(),
+                "Warning: Cannot move clip - databaseId is null.",
+              );
             }
           }
-          
+
           // Now reset the local dragging state. The Transform.translate will still apply
           // the correct visual offset based on _currentDragFrame until the parent rebuilds
           // with the updated widget.clip.startFrame from the ViewModel, at which point the
@@ -157,14 +169,22 @@ class _TimelineClipState extends State<TimelineClip> {
               margin: const EdgeInsets.only(right: 2),
               decoration: BoxDecoration(
                 // Use lighter color and maybe less opacity when dragging
-                color: _isDragging || widget.isDragging ? clipColor.withOpacity(0.5) : clipColor,
+                color:
+                    _isDragging || widget.isDragging
+                        ? clipColor.withOpacity(0.5)
+                        : clipColor,
                 border: Border.all(
                   // Use theme accent for selection, different color for dragging feedback
                   color:
                       _isDragging || widget.isDragging
                           ? theme.accentColor.light
-                          : (isSelected ? selectionBorderColor : Colors.transparent),
-                  width: _isDragging || widget.isDragging ? 1 : (isSelected ? 2 : 1), // Adjust width
+                          : (isSelected
+                              ? selectionBorderColor
+                              : Colors.transparent),
+                  width:
+                      _isDragging || widget.isDragging
+                          ? 1
+                          : (isSelected ? 2 : 1), // Adjust width
                 ),
                 borderRadius: BorderRadius.circular(4),
               ),
@@ -200,7 +220,8 @@ class _TimelineClipState extends State<TimelineClip> {
                                 color: contrastColor,
                                 fontWeight: FontWeight.bold,
                               ),
-                              overflow: TextOverflow.ellipsis, // Prevent overflow
+                              overflow:
+                                  TextOverflow.ellipsis, // Prevent overflow
                               maxLines: 1,
                             ),
                           ),
@@ -231,7 +252,11 @@ class _TimelineClipState extends State<TimelineClip> {
                             ),
                           ),
                         ),
-                        child: _buildClipContent(clipColor, contrastColor, theme),
+                        child: _buildClipContent(
+                          clipColor,
+                          contrastColor,
+                          theme,
+                        ),
                       ),
                     ),
                   ],
@@ -244,20 +269,14 @@ class _TimelineClipState extends State<TimelineClip> {
                 left: 0,
                 top: 0,
                 bottom: 0,
-                child: Container(
-                  width: 2,
-                  color: theme.accentColor.darker,
-                ),
+                child: Container(width: 2, color: theme.accentColor.darker),
               ),
             if (_isDragging)
               Positioned(
                 right: 0,
                 top: 0,
                 bottom: 0,
-                child: Container(
-                  width: 2,
-                  color: theme.accentColor.darker,
-                ),
+                child: Container(width: 2, color: theme.accentColor.darker),
               ),
           ],
         ),
@@ -369,4 +388,4 @@ class _AudioWaveformPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _AudioWaveformPainter oldDelegate) =>
       oldDelegate.color != color || oldDelegate.seed != seed;
-} 
+}
