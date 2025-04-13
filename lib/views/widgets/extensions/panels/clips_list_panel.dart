@@ -2,7 +2,6 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/project_asset.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
-import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
 import 'package:watch_it/watch_it.dart';
 
@@ -106,9 +105,10 @@ class ClipsListPanel extends StatelessWidget with WatchItMixin {
       startTimeOnTrackMs: 0, // Will be set by drop target
     );
 
-    return LongPressDraggable<ClipModel>(
+    return Draggable<ClipModel>(
       // Drag ClipModel data
       data: draggableClipData,
+      dragAnchorStrategy: pointerDragAnchorStrategy,
       feedback: Opacity(
         opacity: 0.7,
         child: Container(
