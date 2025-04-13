@@ -201,6 +201,48 @@ class ProjectService {
     }
   }
 
+  /// Updates the name of a specific track.
+  Future<void> updateTrackName(int trackId, String newName) async {
+    final currentProjectId = currentProjectNotifier.value?.id;
+    if (currentProjectId == null) {
+      logWarning(
+          _logTag,
+          "Cannot update track name: No project loaded.");
+      return;
+    }
+
+    // Optional: Verify track belongs to the current project before updating
+    // final track = await _trackDao.getTrackById(trackId); // Requires getTrackById in DAO
+    // if (track == null || track.projectId != currentProjectId) {
+    //   logWarning(_logTag, "Track $trackId does not belong to project $currentProjectId or does not exist.");
+    //   return;
+    // }
+
+    final companion = TracksCompanion(
+      id: Value(trackId),
+      name: Value(newName),
+    );
+
+    try {
+      final success = await _trackDao.updateTrack(companion);
+      if (success) {
+        logInfo(
+            _logTag,
+            "Updated name for track $trackId to '$newName'");
+        // The watcher (`currentProjectTracksNotifier`) will automatically update the UI.
+      } else {
+        logWarning(
+            _logTag,
+            "Could not update name for track $trackId (track not found?).");
+      }
+    } catch (e) {
+      logError(
+          _logTag,
+          "Error updating name for track $trackId: $e");
+      // Handle error
+    }
+  }
+
   // --- Method for saving the current project ---
   Future<void> saveProject() async {
     final currentProject = currentProjectNotifier.value;

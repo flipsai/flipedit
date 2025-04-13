@@ -84,6 +84,9 @@ class TimelineViewModel {
 
   late final VoidCallback _debouncedFrameUpdate;
 
+  // Notifier for the width of the track label area
+  final ValueNotifier<double> trackLabelWidthNotifier = ValueNotifier(120.0);
+
   TimelineViewModel(this._clipDao, this._trackDao) {
     _setupScrollSync();
     _recalculateAndUpdateTotalFrames();
@@ -508,6 +511,12 @@ class TimelineViewModel {
          currentFrame = newTotalFrames;
       }
     }
+  }
+
+  /// Update the width of the track label area
+  void updateTrackLabelWidth(double newWidth) {
+    // Add constraints if needed, e.g., minimum/maximum width
+    trackLabelWidthNotifier.value = newWidth.clamp(50.0, 300.0);
   }
 
   @override

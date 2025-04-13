@@ -26,6 +26,7 @@ class Timeline extends StatelessWidget with WatchItMixin {
     final isPlaying = watchValue((TimelineViewModel vm) => vm.isPlayingNotifier);
     final zoom = watchValue((TimelineViewModel vm) => vm.zoomNotifier);
     final totalFrames = watchValue((TimelineViewModel vm) => vm.totalFramesNotifier);
+    final trackLabelWidth = watchValue((TimelineViewModel vm) => vm.trackLabelWidthNotifier); // Watch the new notifier
 
     // Watch tracks list directly from the ProjectService notifier
     final tracks = watchValue((ProjectService ps) => ps.currentProjectTracksNotifier);
@@ -47,48 +48,51 @@ class Timeline extends StatelessWidget with WatchItMixin {
           // Timeline content
           Expanded(
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start, // Align items to the top
               children: [
-                // Track labels - Fixed width
-                Container(
-                  width: 120,
-                  color: theme.resources.subtleFillColorTransparent,
-                  // Removed ValueListenableBuilder
+                // Track labels - Resizable width
+                SizedBox(
+                  width: trackLabelWidth, // Use watched width
                   child: ListView.builder(
                     controller: trackLabelScrollController,
                     padding: const EdgeInsets.symmetric(vertical: 4),
                     itemCount: tracks.length + 1, // Use watched tracks.length
                     itemBuilder: (context, index) {
                       if (index == 0) {
-                        return const SizedBox(height: 25);
+                        return const SizedBox(height: 25); // Space for TimeRuler
                       }
                       final track = tracks[index - 1]; // Use watched tracks list
-                      // Use a Row to place the delete button next to the label
+                      // Use the TrackLabel directly, passing the onDelete callback
                       return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: TrackLabel(
-                                label: track.name,
-                                icon: track.type == 'video' ? FluentIcons.video : FluentIcons.music_in_collection,
-                              ),
-                            ),
-                            SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: IconButton(
-                                icon: const Icon(FluentIcons.delete, size: 12),
-                                onPressed: () {
-                                  projectService.removeTrack(track.id);
-                                },
-                                style: ButtonStyle(padding: ButtonState.all(EdgeInsets.zero)),
-                              ),
-                            ),
-                          ],
+                        padding: const EdgeInsets.only(bottom: 4, left: 4, right: 4),
+                        child: TrackLabel(
+                          track: track, // Pass the whole track object
+                          onDelete: () {
+                            projectService.removeTrack(track.id);
+                          },
                         ),
                       );
                     },
+                  ),
+                ),
+
+                // Splitter
+                GestureDetector(
+                  onHorizontalDragUpdate: (DragUpdateDetails details) {
+                    timelineViewModel.updateTrackLabelWidth(trackLabelWidth + details.delta.dx);
+                  },
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.resizeLeftRight,
+                    child: Container(
+                      width: 6,
+                      color: theme.resources.subtleFillColorSecondary,
+                      margin: const EdgeInsets.symmetric(horizontal: 1), // Small margin for visual separation
+                      alignment: Alignment.center,
+                      child: Container(
+                        width: 1.5,
+                        color: theme.resources.controlStrokeColorDefault,
+                      ),
+                    ),
                   ),
                 ),
 
@@ -100,24 +104,37 @@ class Timeline extends StatelessWidget with WatchItMixin {
                       final double contentWidth = totalFrames * zoom * framePixelWidth;
                       final double minScrollWidth = math.max(constraints.maxWidth, contentWidth);
 
+                      // Ensure the playhead calculation uses the available width
+                      final double playheadPosition = currentFrame * zoom * framePixelWidth;
+
                       return Stack(
+                        clipBehavior: Clip.hardEdge, // Clip content within bounds
                         children: [
+                          // Scrollable Area
                           Positioned.fill(
                             child: SingleChildScrollView(
                               scrollDirection: Axis.horizontal,
+                              controller: trackContentScrollController, // Make sure this is linked
                               child: SizedBox(
                                 width: minScrollWidth,
                                 child: Column(
                                   children: [
-                                    TimeRuler(
-                                      zoom: zoom,
-                                      currentFrame: currentFrame,
-                                      availableWidth: constraints.maxWidth,
+                                    // TimeRuler - ensure it aligns and scrolls correctly
+                                    SizedBox(
+                                      height: 25,
+                                      width: minScrollWidth,
+                                      child: TimeRuler(
+                                        zoom: zoom,
+                                        currentFrame: currentFrame,
+                                        availableWidth: minScrollWidth, // Use full content width for ruler
+                                      ),
                                     ),
+                                    // Tracks List
                                     Expanded(
-                                      // Removed ValueListenableBuilder
                                       child: ListView.builder(
-                                        controller: trackContentScrollController,
+                                        // Link the controllers ONLY if vertical scrolling is intended here
+                                        // For horizontal sync, the SingleChildScrollView's controller is key.
+                                        // controller: trackContentScrollController, // Removed if only horizontal scroll needed
                                         padding: const EdgeInsets.symmetric(vertical: 4),
                                         itemCount: tracks.length, // Use watched tracks.length
                                         itemBuilder: (context, index) {
@@ -135,10 +152,11 @@ class Timeline extends StatelessWidget with WatchItMixin {
                               ),
                             ),
                           ),
+                          // Playhead
                           Positioned(
-                            top: 25,
+                            top: 0, // Align playhead with the top of the TimeRuler
                             bottom: 0,
-                            left: currentFrame * zoom * framePixelWidth,
+                            left: playheadPosition,
                             width: 2,
                             child: Container(
                               color: theme.accentColor.normal,
