@@ -1,5 +1,6 @@
 import 'package:flipedit/app.dart';
 import 'package:flipedit/di/service_locator.dart';
+import 'package:flipedit/viewmodels/project_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:fvp/fvp.dart';
@@ -14,7 +15,6 @@ Future<void> main() async {
   // Ensure window_manager is initialized for desktop platforms
   await windowManager.ensureInitialized();
 
-
   // Initialize FVP/MDK with registerWith
   try {
     logInfo('main', "Initializing FVP/MDK...");
@@ -24,13 +24,18 @@ Future<void> main() async {
   } catch (e) {
     logError('main', "Error initializing FVP/MDK: $e");
   }
-
   // Set up dependency injection
-  setupServiceLocator();
+  await setupServiceLocator();
 
-  // Ensure TimelineViewModel is accessible to watch_it
-  // This line is important to make sure the type is registered
-  di.get<TimelineViewModel>();
+  // Ensure ViewModels are accessible to watch_it and load last project
+  // Make sure ProjectViewModel is registered before trying to use it
+  try {
+    final projectVm = di.get<ProjectViewModel>(); // Get the instance
+    await projectVm.loadLastOpenedProjectCommand(); // Load the last project
+  } catch (e) {
+    logError('main', "Error loading last project: $e");
+    // Handle error appropriately, maybe show a message to the user
+  }
 
   // debugRepaintRainbowEnabled = true;
 

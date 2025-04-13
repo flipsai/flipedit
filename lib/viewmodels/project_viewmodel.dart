@@ -6,18 +6,22 @@ import 'package:flipedit/models/project_asset.dart'; // Required for ProjectAsse
 import 'package:flipedit/persistence/database/app_database.dart';
 import 'package:flipedit/services/project_service.dart';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // Import shared_preferences
 import 'package:watch_it/watch_it.dart';
 import 'package:path/path.dart' as p; // Use path package for basename
 
+const _lastProjectIdKey = 'last_opened_project_id'; // Key for SharedPreferences
+
 class ProjectViewModel {
   final ProjectService _projectService = di<ProjectService>();
+  final SharedPreferences _prefs; // Add SharedPreferences field
 
   late final ValueNotifier<Project?> currentProjectNotifier;
   late final ValueNotifier<bool> isProjectLoadedNotifier;
   // Use the notifier from ProjectService
   late final ValueNotifier<List<ProjectAsset>> projectAssetsNotifier;
 
-  ProjectViewModel() {
+  ProjectViewModel({required SharedPreferences prefs}) : _prefs = prefs { // Update constructor
     currentProjectNotifier = _projectService.currentProjectNotifier;
     isProjectLoadedNotifier = ValueNotifier(
       currentProjectNotifier.value != null,
@@ -87,6 +91,30 @@ class ProjectViewModel {
   Future<void> loadProjectCommand(int projectId) async {
     await _projectService.loadProject(projectId);
     // ProjectService now handles loading assets internally
+
+    // Save the loaded project ID if successful
+    if (isProjectLoaded) {
+      await _prefs.setInt(_lastProjectIdKey, projectId);
+    }
+  }
+
+  // New command to load the last opened project
+  Future<void> loadLastOpenedProjectCommand() async {
+    final lastProjectId = _prefs.getInt(_lastProjectIdKey);
+    if (lastProjectId != null) {
+      try {
+        // Attempt to load the project using the stored ID
+        await loadProjectCommand(lastProjectId);
+        print('ProjectViewModel: Successfully loaded last project ID: $lastProjectId');
+      } catch (e) {
+        // Handle cases where the last project might have been deleted or is otherwise inaccessible
+        print('ProjectViewModel: Failed to load last project ID $lastProjectId: $e');
+        // Optionally clear the invalid ID
+        await _prefs.remove(_lastProjectIdKey);
+      }
+    } else {
+      print('ProjectViewModel: No last project ID found in SharedPreferences.');
+    }
   }
 
   Future<void> addTrackCommand({required String type}) async {

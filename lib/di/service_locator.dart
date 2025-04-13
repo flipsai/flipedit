@@ -12,13 +12,20 @@ import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/services/video_player_manager.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:watch_it/watch_it.dart';
 
 // Use the global di instance provided by watch_it package
 // No need to create our own GetIt instance
 
 /// Setup all service locator registrations
-void setupServiceLocator() {
+/// This function is now async because SharedPreferences requires it.
+Future<void> setupServiceLocator() async {
+  // Register SharedPreferences asynchronously
+  di.registerSingletonAsync<SharedPreferences>(() => SharedPreferences.getInstance());
+  // Ensure SharedPreferences is ready before proceeding
+  await di.isReady<SharedPreferences>();
+
   // Database
   di.registerLazySingleton<AppDatabase>(() => AppDatabase());
   di.registerLazySingleton<ProjectDao>(() => di<AppDatabase>().projectDao);
@@ -35,7 +42,7 @@ void setupServiceLocator() {
 
   // ViewModels
   di.registerLazySingleton<AppViewModel>(() => AppViewModel());
-  di.registerLazySingleton<ProjectViewModel>(() => ProjectViewModel());
+  di.registerLazySingleton<ProjectViewModel>(() => ProjectViewModel(prefs: di<SharedPreferences>()));
   di.registerLazySingleton<EditorViewModel>(() => EditorViewModel());
   di.registerSingleton<TimelineViewModel>(TimelineViewModel(di(), di()));
 }
