@@ -10,13 +10,13 @@ import 'package:flipedit/utils/logger.dart';
 /// A clip in the timeline track
 class TimelineClip extends StatefulWidget with WatchItStatefulWidgetMixin {
   final ClipModel clip;
-  final int trackIndex;
+  final int trackId;
   final bool isDragging;
 
   const TimelineClip({
     super.key,
     required this.clip,
-    required this.trackIndex,
+    required this.trackId,
     this.isDragging = false,
   });
 
@@ -52,6 +52,14 @@ class _TimelineClipState extends State<TimelineClip> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    // Initialize _currentDragFrame based on the initial clip position
+    // This prevents the clip appearing at 0s initially when first added.
+    _currentDragFrame = widget.clip.startFrame;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
     
@@ -65,10 +73,10 @@ class _TimelineClipState extends State<TimelineClip> {
 
     final isSelected = selectedClipId == widget.clip.databaseId?.toString();
     
-    // Calculate the visual offset for smooth dragging preview
-    final double dragOffset = _isDragging 
-        ? (_currentDragFrame - widget.clip.startFrame) * 5.0 * zoom
-        : 0.0;
+    // Calculate the visual offset based on the difference between the current drag frame
+    // and the clip's official start frame. Apply this offset always to keep the visual
+    // position consistent until the parent rebuilds with the updated data.
+    final double dragOffset = (_currentDragFrame - widget.clip.startFrame) * 5.0 * zoom;
 
     // Get base color for clip type
     final baseClipColor =
@@ -82,7 +90,7 @@ class _TimelineClipState extends State<TimelineClip> {
     final selectionBorderColor = theme.accentColor.normal;
 
     return Transform.translate(
-      offset: Offset(dragOffset, 0), // Apply the drag offset for smooth visual movement
+      offset: Offset(dragOffset, 0), // Apply the visual offset
       child: GestureDetector(
         onTap: () {
           // Use databaseId for selection
@@ -93,7 +101,7 @@ class _TimelineClipState extends State<TimelineClip> {
             _isDragging = true;
             _dragStartX = details.localPosition.dx;
             _originalStartFrame = widget.clip.startFrame;
-            _currentDragFrame = _originalStartFrame;
+            _currentDragFrame = _originalStartFrame; // Initialize current drag frame
           });
           // Select the clip when starting to drag using databaseId
           editorVm.selectedClipId = widget.clip.databaseId?.toString();
@@ -111,7 +119,7 @@ class _TimelineClipState extends State<TimelineClip> {
           // Clamp to prevent negative frames
           final clampedStartFrame = newStartFrame < 0 ? 0 : newStartFrame;
           
-          // Update the visual state for smooth drag preview
+          // Update the current drag frame for smooth visual preview
           if (_currentDragFrame != clampedStartFrame) {
             setState(() {
               _currentDragFrame = clampedStartFrame;
@@ -121,7 +129,8 @@ class _TimelineClipState extends State<TimelineClip> {
         onHorizontalDragEnd: (details) {
           if (!_isDragging) return;
           
-          // Move the clip in the ViewModel to the current preview position
+          // IMPORTANT: Update the ViewModel *before* resetting the local dragging state.
+          // This triggers the parent to rebuild with the new clip position.
           if (_originalStartFrame != _currentDragFrame) {
             // Use the new method and databaseId
             if (widget.clip.databaseId != null) { // Ensure ID exists before calling
@@ -132,8 +141,13 @@ class _TimelineClipState extends State<TimelineClip> {
             }
           }
           
+          // Now reset the local dragging state. The Transform.translate will still apply
+          // the correct visual offset based on _currentDragFrame until the parent rebuilds
+          // with the updated widget.clip.startFrame from the ViewModel, at which point the
+          // offset (_currentDragFrame - widget.clip.startFrame) becomes 0.
           setState(() {
             _isDragging = false;
+            // _currentDragFrame remains at the final dragged position until the rebuild
           });
         },
         child: Stack(
@@ -190,10 +204,10 @@ class _TimelineClipState extends State<TimelineClip> {
                               maxLines: 1,
                             ),
                           ),
-                          // Display frame position when dragging, otherwise duration
+                          // Display frame position using _currentDragFrame when dragging for smooth preview, otherwise duration
                           Text(
-                            _isDragging 
-                                ? 'Frame: $_currentDragFrame' 
+                            _isDragging
+                                ? 'Frame: $_currentDragFrame'
                                 : '${widget.clip.durationFrames}f',
                             // Use theme caption style with contrast color
                             style: theme.typography.caption?.copyWith(

@@ -124,7 +124,7 @@ class Timeline extends StatelessWidget with WatchItMixin {
                                           final track = tracks[index]; // Use watched tracks list
                                           final trackClips = clips.where((clip) => clip.trackId == track.id).toList();
                                           return TimelineTrack(
-                                            trackIndex: index, // Consider passing track.id directly if needed
+                                            trackId: track.id, // Pass track.id instead of index
                                             clips: trackClips,
                                           );
                                         },

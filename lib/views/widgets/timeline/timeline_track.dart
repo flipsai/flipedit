@@ -9,12 +9,12 @@ import 'dart:developer' as developer;
 /// A track in the timeline which contains clips
 // Add the mixin to the StatefulWidget class
 class TimelineTrack extends StatefulWidget with WatchItStatefulWidgetMixin {
-  final int trackIndex;
+  final int trackId;
   final List<ClipModel> clips;
 
   const TimelineTrack({
     super.key,
-    required this.trackIndex,
+    required this.trackId,
     required this.clips,
   });
 
@@ -81,7 +81,7 @@ class _TimelineTrackState extends State<TimelineTrack> {
 
         timelineViewModel.addClipAtPosition(
           clipData: draggedClip,
-          trackId: widget.trackIndex + 1, // Use widget.trackIndex
+          trackId: widget.trackId,
           startTimeInSourceMs: draggedClip.startTimeInSourceMs,
           endTimeInSourceMs: draggedClip.endTimeInSourceMs,
           localPositionX: posX,
@@ -137,7 +137,7 @@ class _TimelineTrackState extends State<TimelineTrack> {
                   width: clipWidth.clamp(4.0, double.infinity),
                   child: TimelineClip(
                     clip: clip,
-                    trackIndex: widget.trackIndex, // Use widget.trackIndex
+                    trackId: widget.trackId,
                   ),
                 );
               }),
