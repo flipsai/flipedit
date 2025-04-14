@@ -31,6 +31,9 @@ class _TimelineClipState extends State<TimelineClip> {
   int _originalStartFrame = 0;
   int _currentDragFrame = 0; // Track current drag position for smooth preview
 
+  // Controller for the context menu flyout
+  final FlyoutController _contextMenuController = FlyoutController();
+
   // Define base colors for clip types (consider making these theme-dependent later)
   static const Map<ClipType, Color> _clipTypeColors = {
     ClipType.video: Color(0xFF264F78), // Blueish
@@ -57,6 +60,12 @@ class _TimelineClipState extends State<TimelineClip> {
     // Initialize _currentDragFrame based on the initial clip position
     // This prevents the clip appearing at 0s initially when first added.
     _currentDragFrame = widget.clip.startFrame;
+  }
+
+  @override
+  void dispose() {
+    _contextMenuController.dispose(); // Dispose the controller
+    super.dispose();
   }
 
   @override
@@ -94,191 +103,225 @@ class _TimelineClipState extends State<TimelineClip> {
 
     return Transform.translate(
       offset: Offset(dragOffset, 0), // Apply the visual offset
-      child: GestureDetector(
-        onTap: () {
-          // Use databaseId for selection
-          editorVm.selectedClipId = widget.clip.databaseId?.toString();
-        },
-        onPanStart: (details) {
-          setState(() {
-            _isDragging = true;
-            _dragStartX = details.localPosition.dx;
-            _originalStartFrame = widget.clip.startFrame;
-            _currentDragFrame =
-                _originalStartFrame; // Initialize current drag frame
-          });
-          // Select the clip when starting to drag using databaseId
-          editorVm.selectedClipId = widget.clip.databaseId?.toString();
-        },
-        onPanUpdate: (details) {
-          if (!_isDragging) return;
-
-          // Calculate frame movement based on horizontal drag distance and zoom
-          final pixelsPerFrame = 5.0 * zoom; // Use watched zoom
-          final dragDeltaInFrames =
-              (details.localPosition.dx - _dragStartX) ~/ pixelsPerFrame;
-
-          // Calculate new start frame
-          final newStartFrame = _originalStartFrame + dragDeltaInFrames;
-
-          // Clamp to prevent negative frames
-          final clampedStartFrame = newStartFrame < 0 ? 0 : newStartFrame;
-
-          // Update the current drag frame for smooth visual preview
-          if (_currentDragFrame != clampedStartFrame) {
+      // Wrap with FlyoutTarget for the context menu
+      child: FlyoutTarget(
+        controller: _contextMenuController,
+        child: GestureDetector(
+          onTap: () {
+            // Use databaseId for selection
+            editorVm.selectedClipId = widget.clip.databaseId?.toString();
+          },
+          onPanStart: (details) {
             setState(() {
-              _currentDragFrame = clampedStartFrame;
+              _isDragging = true;
+              _dragStartX = details.localPosition.dx;
+              _originalStartFrame = widget.clip.startFrame;
+              _currentDragFrame =
+                  _originalStartFrame; // Initialize current drag frame
             });
-          }
-        },
-        onPanEnd: (details) {
-          if (!_isDragging) return;
+            // Select the clip when starting to drag using databaseId
+            editorVm.selectedClipId = widget.clip.databaseId?.toString();
+          },
+          onPanUpdate: (details) {
+            if (!_isDragging) return;
 
-          // IMPORTANT: Update the ViewModel *before* resetting the local dragging state.
-          // This triggers the parent to rebuild with the new clip position.
-          if (_originalStartFrame != _currentDragFrame) {
-            // Use the new method and databaseId
-            if (widget.clip.databaseId != null) {
-              // Ensure ID exists before calling
-              final newStartTimeMs = ClipModel.framesToMs(_currentDragFrame);
-              timelineVm.updateClipPosition(
-                widget.clip.databaseId!,
-                newStartTimeMs,
-              );
-            } else {
-              logWarning(
-                runtimeType.toString(),
-                "Warning: Cannot move clip - databaseId is null.",
-              );
+            // Calculate frame movement based on horizontal drag distance and zoom
+            final pixelsPerFrame = 5.0 * zoom; // Use watched zoom
+            final dragDeltaInFrames =
+                (details.localPosition.dx - _dragStartX) ~/ pixelsPerFrame;
+
+            // Calculate new start frame
+            final newStartFrame = _originalStartFrame + dragDeltaInFrames;
+
+            // Clamp to prevent negative frames
+            final clampedStartFrame = newStartFrame < 0 ? 0 : newStartFrame;
+
+            // Update the current drag frame for smooth visual preview
+            if (_currentDragFrame != clampedStartFrame) {
+              setState(() {
+                _currentDragFrame = clampedStartFrame;
+              });
             }
-          }
+          },
+          onPanEnd: (details) {
+            if (!_isDragging) return;
 
-          // Now reset the local dragging state. The Transform.translate will still apply
-          // the correct visual offset based on _currentDragFrame until the parent rebuilds
-          // with the updated widget.clip.startFrame from the ViewModel, at which point the
-          // offset (_currentDragFrame - widget.clip.startFrame) becomes 0.
-          setState(() {
-            _isDragging = false;
-            // _currentDragFrame remains at the final dragged position until the rebuild
-          });
-        },
-        child: Stack(
-          children: [
-            Container(
-              // Add margin for spacing between clips
-              margin: const EdgeInsets.only(right: 2),
-              decoration: BoxDecoration(
-                // Use lighter color and maybe less opacity when dragging
-                color:
-                    _isDragging || widget.isDragging
-                        ? clipColor.withOpacity(0.5)
-                        : clipColor,
-                border: Border.all(
-                  // Use theme accent for selection, different color for dragging feedback
+            // IMPORTANT: Update the ViewModel *before* resetting the local dragging state.
+            // This triggers the parent to rebuild with the new clip position.
+            if (_originalStartFrame != _currentDragFrame) {
+              // Use the new method and databaseId
+              if (widget.clip.databaseId != null) {
+                // Ensure ID exists before calling
+                final newStartTimeMs = ClipModel.framesToMs(_currentDragFrame);
+                timelineVm.updateClipPosition(
+                  widget.clip.databaseId!,
+                  newStartTimeMs,
+                );
+              } else {
+                logWarning(
+                  runtimeType.toString(),
+                  "Warning: Cannot move clip - databaseId is null.",
+                );
+              }
+            }
+
+            // Now reset the local dragging state. The Transform.translate will still apply
+            // the correct visual offset based on _currentDragFrame until the parent rebuilds
+            // with the updated widget.clip.startFrame from the ViewModel, at which point the
+            // offset (_currentDragFrame - widget.clip.startFrame) becomes 0.
+            setState(() {
+              _isDragging = false;
+              // _currentDragFrame remains at the final dragged position until the rebuild
+            });
+          },
+          // Use onSecondaryTapUp for Fluent UI context menu
+          onSecondaryTapUp: (details) {
+            // Select the clip first
+            editorVm.selectedClipId = widget.clip.databaseId?.toString();
+            // Open the flyout
+            _contextMenuController.showFlyout(
+              barrierDismissible: true,
+              position: details.globalPosition,
+              builder: (context) {
+                // Get the TimelineViewModel again inside the builder
+                final timelineVm = di<TimelineViewModel>();
+                return MenuFlyout(
+                  items: [
+                    MenuFlyoutItem(
+                      leading: const Icon(FluentIcons.delete),
+                      text: const Text('Remove'),
+                      onPressed: () {
+                        if (widget.clip.databaseId != null) {
+                          timelineVm.removeClip(widget.clip.databaseId!);
+                        }
+                        // Close the flyout automatically
+                        Flyout.of(context).close();
+                      },
+                    ),
+                    // Add other MenuFlyoutItems here
+                  ],
+                );
+              },
+            );
+          },
+          child: Stack(
+            children: [
+              Container(
+                // Add margin for spacing between clips
+                margin: const EdgeInsets.only(right: 2),
+                decoration: BoxDecoration(
+                  // Use lighter color and maybe less opacity when dragging
                   color:
                       _isDragging || widget.isDragging
-                          ? theme.accentColor.light
-                          : (isSelected
-                              ? selectionBorderColor
-                              : Colors.transparent),
-                  width:
-                      _isDragging || widget.isDragging
-                          ? 1
-                          : (isSelected ? 2 : 1), // Adjust width
+                          ? clipColor.withOpacity(0.5)
+                          : clipColor,
+                  border: Border.all(
+                    // Use theme accent for selection, different color for dragging feedback
+                    color:
+                        _isDragging || widget.isDragging
+                            ? theme.accentColor.light
+                            : (isSelected
+                                ? selectionBorderColor
+                                : Colors.transparent),
+                    width:
+                        _isDragging || widget.isDragging
+                            ? 1
+                            : (isSelected ? 2 : 1), // Adjust width
+                  ),
+                  borderRadius: BorderRadius.circular(4),
                 ),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              // Slightly reduce opacity of content when dragging
-              child: Opacity(
-                opacity: _isDragging || widget.isDragging ? 0.8 : 1.0,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Clip header with title
-                    Container(
-                      height: 18,
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      decoration: BoxDecoration(
-                        // Slightly darker/lighter shade for header background
-                        color: clipColor.withOpacity(0.8),
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(
-                            3,
-                          ), // Match container radius slightly
-                          topRight: Radius.circular(3),
+                // Slightly reduce opacity of content when dragging
+                child: Opacity(
+                  opacity: _isDragging || widget.isDragging ? 0.8 : 1.0,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Clip header with title
+                      Container(
+                        height: 18,
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        decoration: BoxDecoration(
+                          // Slightly darker/lighter shade for header background
+                          color: clipColor.withOpacity(0.8),
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(
+                              3,
+                            ), // Match container radius slightly
+                            topRight: Radius.circular(3),
+                          ),
                         ),
-                      ),
-                      child: Row(
-                        // No need for min size, let it fill
-                        children: [
-                          Expanded(
-                            // Allow title to take available space
-                            child: Text(
-                              widget.clip.name,
+                        child: Row(
+                          // No need for min size, let it fill
+                          children: [
+                            Expanded(
+                              // Allow title to take available space
+                              child: Text(
+                                widget.clip.name,
+                                // Use theme caption style with contrast color
+                                style: theme.typography.caption?.copyWith(
+                                  color: contrastColor,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                overflow:
+                                    TextOverflow.ellipsis, // Prevent overflow
+                                maxLines: 1,
+                              ),
+                            ),
+                            // Display frame position using _currentDragFrame when dragging for smooth preview, otherwise duration
+                            Text(
+                              _isDragging
+                                  ? 'Frame: $_currentDragFrame'
+                                  : '${widget.clip.durationFrames}f',
                               // Use theme caption style with contrast color
                               style: theme.typography.caption?.copyWith(
                                 color: contrastColor,
-                                fontWeight: FontWeight.bold,
+                                fontSize: 9,
                               ),
-                              overflow:
-                                  TextOverflow.ellipsis, // Prevent overflow
-                              maxLines: 1,
                             ),
-                          ),
-                          // Display frame position using _currentDragFrame when dragging for smooth preview, otherwise duration
-                          Text(
-                            _isDragging
-                                ? 'Frame: $_currentDragFrame'
-                                : '${widget.clip.durationFrames}f',
-                            // Use theme caption style with contrast color
-                            style: theme.typography.caption?.copyWith(
-                              color: contrastColor,
-                              fontSize: 9,
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
 
-                    // Clip content area
-                    Expanded(
-                      // Use ShapeBorderClipper for rounded corners on the bottom
-                      child: ClipPath(
-                        clipper: const ShapeBorderClipper(
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.only(
-                              bottomLeft: Radius.circular(3),
-                              bottomRight: Radius.circular(3),
+                      // Clip content area
+                      Expanded(
+                        // Use ShapeBorderClipper for rounded corners on the bottom
+                        child: ClipPath(
+                          clipper: const ShapeBorderClipper(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.only(
+                                bottomLeft: Radius.circular(3),
+                                bottomRight: Radius.circular(3),
+                              ),
                             ),
                           ),
-                        ),
-                        child: _buildClipContent(
-                          clipColor,
-                          contrastColor,
-                          theme,
+                          child: _buildClipContent(
+                            clipColor,
+                            contrastColor,
+                            theme,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-            // Show edge indicators when dragging
-            if (_isDragging)
-              Positioned(
-                left: 0,
-                top: 0,
-                bottom: 0,
-                child: Container(width: 2, color: theme.accentColor.darker),
-              ),
-            if (_isDragging)
-              Positioned(
-                right: 0,
-                top: 0,
-                bottom: 0,
-                child: Container(width: 2, color: theme.accentColor.darker),
-              ),
-          ],
+              // Show edge indicators when dragging
+              if (_isDragging)
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  child: Container(width: 2, color: theme.accentColor.darker),
+                ),
+              if (_isDragging)
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  bottom: 0,
+                  child: Container(width: 2, color: theme.accentColor.darker),
+                ),
+            ],
+          ),
         ),
       ),
     );

@@ -299,53 +299,65 @@ class TimelineViewModel {
     }
   }
 
-  Future<void> removeClip(int databaseId) async {
-    if (databaseId <= 0) return;
-
+  Future<void> removeClip(int clipId) async {
+    logInfo(_logTag, 'Attempting to remove clip with ID: $clipId'); // Log attempt
     try {
-      final successCount = await _clipDao.deleteClip(databaseId);
+      // Delete from database
+      final rowsAffected = await _clipDao.deleteClip(clipId);
 
-      if (successCount > 0) {
+      if (rowsAffected > 0) {
+        // Remove from the notifier
         final currentClips = List<ClipModel>.from(clipsNotifier.value);
         final initialLength = currentClips.length;
-        currentClips.removeWhere((clip) => clip.databaseId == databaseId);
+        currentClips.removeWhere((clip) => clip.databaseId == clipId);
 
         if (currentClips.length < initialLength) {
-           clipsNotifier.value = currentClips;
-           _recalculateAndUpdateTotalFrames();
-           logInfo(_logTag, 'Clip removed with ID: $databaseId'); // Use top-level function with tag
+          clipsNotifier.value = currentClips;
+          _recalculateAndUpdateTotalFrames(); // Update total duration
+          logInfo(_logTag, 'Successfully removed clip ID: $clipId');
+
+          // Optional: Handle video player if the removed clip was the primary video
+          // This might require checking if the removed clip was the one loaded,
+          // and potentially loading another video or clearing the player.
+          // Example (needs refinement based on exact logic):
+          // if (_videoPlayerController != null && _videoPlayerController!.dataSource.contains(clipSourcePath)) {
+          //   await _videoPlayerController?.dispose();
+          //   _videoPlayerController = null;
+          //   videoPlayerControllerNotifier.value = null;
+          //   // Maybe load the next video clip?
+          // }
 
         } else {
-           logWarning(_logTag, 'Warning: Clip with ID $databaseId not found in local state after successful DB delete.'); // Use top-level function with tag
+           logWarning(_logTag, 'Clip ID $clipId found in DB but not in notifier. Notifier might be out of sync.');
         }
       } else {
-         logError(_logTag, 'Error: Clip with ID $databaseId not found in database or could not be deleted.'); // Use top-level function with tag
+        logWarning(_logTag, 'Clip ID $clipId not found in database or deletion failed.');
       }
-    } catch (e) {
-      logError(_logTag, "Error removing clip from database: $e"); // Use top-level function with tag
+    } catch (e, stackTrace) {
+      logError('Error removing clip ID: $clipId', e, stackTrace, _logTag);
     }
   }
 
-  Future<void> updateClipPosition(int databaseId, int newStartTimeOnTrackMs) async {
-     if (databaseId <= 0) return;
+  Future<void> updateClipPosition(int clipId, int newStartTimeMs) async {
+     if (clipId <= 0) return;
 
      try {
-        final successCount = await _clipDao.updateClipStartTimeOnTrack(databaseId, newStartTimeOnTrackMs);
+        final successCount = await _clipDao.updateClipStartTimeOnTrack(clipId, newStartTimeMs);
 
         if (successCount > 0) {
             final currentClips = List<ClipModel>.from(clipsNotifier.value);
-            final index = currentClips.indexWhere((clip) => clip.databaseId == databaseId);
+            final index = currentClips.indexWhere((clip) => clip.databaseId == clipId);
             if (index != -1) {
-               final updatedClip = currentClips[index].copyWith(startTimeOnTrackMs: newStartTimeOnTrackMs);
+               final updatedClip = currentClips[index].copyWith(startTimeOnTrackMs: newStartTimeMs);
                currentClips[index] = updatedClip;
                clipsNotifier.value = currentClips;
                _recalculateAndUpdateTotalFrames();
-               logInfo(_logTag, 'Clip $databaseId position updated to ${newStartTimeOnTrackMs}ms'); // Use top-level function with tag
+               logInfo(_logTag, 'Clip $clipId position updated to ${newStartTimeMs}ms'); // Use top-level function with tag
             } else {
-               logWarning(_logTag, 'Warning: Clip $databaseId not found locally after successful DB update.'); // Use top-level function with tag
+               logWarning(_logTag, 'Warning: Clip $clipId not found locally after successful DB update.'); // Use top-level function with tag
             }
         } else {
-           logError(_logTag, 'Error: Clip $databaseId not found in DB or failed to update position.'); // Use top-level function with tag
+           logError(_logTag, 'Error: Clip $clipId not found in DB or failed to update position.'); // Use top-level function with tag
         }
      } catch (e) {
         logError(_logTag, "Error updating clip position in database: $e"); // Use top-level function with tag
