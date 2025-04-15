@@ -27,35 +27,98 @@ class TimelineTrack extends StatefulWidget with WatchItStatefulWidgetMixin {
 }
 
 class _TimelineTrackState extends State<TimelineTrack> {
-  final hoverPositionNotifier = ValueNotifier<Offset?>(null);
-  final GlobalKey trackContentKey = GlobalKey();
-  late TimelineViewModel timelineViewModel;
-  late ProjectService projectService;
+  bool _isEditing = false;
+  late TextEditingController _textController;
+  late FocusNode _focusNode;
+  final ValueNotifier<Offset?> _hoverPositionNotifier = ValueNotifier(null);
+  final GlobalKey _trackContentKey = GlobalKey();
+
+  late TimelineViewModel _timelineViewModel;
+  late ProjectService _projectService;
 
   @override
   void initState() {
     super.initState();
-    timelineViewModel = di<TimelineViewModel>();
-    projectService = di<ProjectService>();
+    _timelineViewModel = di<TimelineViewModel>();
+    _projectService = di<ProjectService>();
+    _textController = TextEditingController(text: widget.track.name);
+    _focusNode = FocusNode();
+
+    _focusNode.addListener(() {
+      if (!_focusNode.hasFocus && _isEditing) {
+        _submitRename();
+      }
+    });
   }
 
   @override
   void dispose() {
-    hoverPositionNotifier.dispose();
+    _textController.dispose();
+    _focusNode.removeListener(() { });
+    _focusNode.dispose();
+    _hoverPositionNotifier.dispose();
     super.dispose();
   }
 
+  @override
+  void didUpdateWidget(covariant TimelineTrack oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.track.name != oldWidget.track.name && !_isEditing) {
+      _textController.text = widget.track.name;
+    }
+  }
+
+  void _enterEditingMode() {
+    setState(() {
+      _isEditing = true;
+      _textController.text = widget.track.name;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+       _focusNode.requestFocus();
+       _textController.selection = TextSelection(
+           baseOffset: 0,
+           extentOffset: _textController.text.length,
+       );
+    });
+  }
+
+  void _submitRename() {
+    developer.log('Attempting to submit rename...');
+    final newName = _textController.text.trim();
+    if (mounted && _isEditing) {
+       developer.log('Mounted and isEditing: true. New name: "$newName"');
+       if (newName.isNotEmpty && newName != widget.track.name) {
+        developer.log('New name is valid. Calling projectService.renameTrack...');
+        _projectService.renameTrack(widget.track.id, newName);
+       } else {
+         developer.log('New name is empty or same as old name. Not saving.');
+       }
+       setState(() {
+         _isEditing = false;
+         developer.log('Exiting editing mode.');
+       });
+    } else {
+      developer.log('Not submitting: mounted=$mounted, isEditing=$_isEditing');
+    }
+  }
+
   double getHorizontalScrollOffset() {
-    if (timelineViewModel.trackContentHorizontalScrollController.hasClients) {
-      return timelineViewModel.trackContentHorizontalScrollController.offset;
+    if (_timelineViewModel.trackContentHorizontalScrollController.hasClients) {
+      return _timelineViewModel.trackContentHorizontalScrollController.offset;
     }
     return 0.0;
   }
 
+  int _calculateFramePositionForPreview(double previewRawX, double zoom) {
+     final scrollOffsetX = getHorizontalScrollOffset();
+     final position = (previewRawX + scrollOffsetX) / (5.0 * zoom);
+     return position < 0 ? 0 : position.floor();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = FluentTheme.of(context);
     final double zoom = watchValue((TimelineViewModel vm) => vm.zoomNotifier);
+    final theme = FluentTheme.of(context);
     const trackHeight = 60.0;
 
     return SizedBox(
@@ -78,10 +141,29 @@ class _TimelineTrackState extends State<TimelineTrack> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Expanded(
-                  child: Text(
-                    widget.track.name,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.typography.body,
+                  child: GestureDetector(
+                    onDoubleTap: _enterEditingMode,
+                    child: _isEditing
+                        ? TextBox(
+                            controller: _textController,
+                            focusNode: _focusNode,
+                            placeholder: 'Track Name',
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6.0,
+                              vertical: 4.0,
+                            ),
+                            style: theme.typography.body,
+                            decoration: WidgetStateProperty.all(BoxDecoration(
+                              color: theme.resources.controlFillColorDefault,
+                              borderRadius: BorderRadius.circular(4.0),
+                            )),
+                            onSubmitted: (_) => _submitRename(),
+                          )
+                        : Text(
+                            widget.track.name,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.typography.body,
+                          ),
                   ),
                 ),
                 IconButton(
@@ -96,13 +178,11 @@ class _TimelineTrackState extends State<TimelineTrack> {
           ),
           Expanded(
             child: DragTarget<ClipModel>(
-              key: trackContentKey,
+              key: _trackContentKey,
               onAcceptWithDetails: (details) {
                 final draggedClip = details.data;
-
                 final RenderBox? renderBox =
-                    trackContentKey.currentContext?.findRenderObject()
-                        as RenderBox?;
+                    _trackContentKey.currentContext?.findRenderObject() as RenderBox?;
                 if (renderBox == null) return;
 
                 final localPosition = renderBox.globalToLocal(details.offset);
@@ -113,7 +193,7 @@ class _TimelineTrackState extends State<TimelineTrack> {
                   'Accepting drop at: local=$posX, scroll=$scrollOffsetX, zoom=$zoom',
                 );
 
-                timelineViewModel.addClipAtPosition(
+                _timelineViewModel.addClipAtPosition(
                   clipData: draggedClip,
                   trackId: widget.track.id,
                   startTimeInSourceMs: draggedClip.startTimeInSourceMs,
@@ -122,44 +202,47 @@ class _TimelineTrackState extends State<TimelineTrack> {
                   scrollOffsetX: scrollOffsetX,
                 );
 
-                hoverPositionNotifier.value = null;
+                _hoverPositionNotifier.value = null;
               },
               onWillAcceptWithDetails: (details) {
                 final RenderBox? renderBox =
-                    trackContentKey.currentContext?.findRenderObject()
-                        as RenderBox?;
+                    _trackContentKey.currentContext?.findRenderObject() as RenderBox?;
                 if (renderBox != null) {
                   final localPosition = renderBox.globalToLocal(details.offset);
-                  hoverPositionNotifier.value = localPosition;
+                  _hoverPositionNotifier.value = localPosition;
                 }
                 return true;
               },
               onMove: (details) {
                 final RenderBox? renderBox =
-                    trackContentKey.currentContext?.findRenderObject()
-                        as RenderBox?;
+                    _trackContentKey.currentContext?.findRenderObject() as RenderBox?;
                 if (renderBox != null) {
                   final localPosition = renderBox.globalToLocal(details.offset);
                   if (localPosition.dx >= 0 &&
                       localPosition.dx <= renderBox.size.width) {
-                    hoverPositionNotifier.value = localPosition;
+                    _hoverPositionNotifier.value = localPosition;
                   } else {
-                    hoverPositionNotifier.value = null;
+                    _hoverPositionNotifier.value = null;
                   }
                 }
               },
               onLeave: (_) {
-                hoverPositionNotifier.value = null;
+                _hoverPositionNotifier.value = null;
               },
               builder: (context, candidateData, rejectedData) {
+                int frameForPreview = -1;
+                Offset? currentHoverPos = _hoverPositionNotifier.value;
+                if (currentHoverPos != null && candidateData.isNotEmpty) {
+                   frameForPreview = _calculateFramePositionForPreview(currentHoverPos.dx, zoom);
+                }
+
                 return Container(
-                  height: 60,
+                  height: trackHeight,
                   margin: const EdgeInsets.only(bottom: 4),
                   decoration: BoxDecoration(
-                    color:
-                        candidateData.isNotEmpty
-                            ? theme.accentColor.lightest.withOpacity(0.3)
-                            : theme.resources.subtleFillColorSecondary,
+                    color: candidateData.isNotEmpty
+                        ? theme.accentColor.lightest.withOpacity(0.3)
+                        : theme.resources.subtleFillColorSecondary,
                   ),
                   child: Stack(
                     clipBehavior: fw.Clip.hardEdge,
@@ -171,7 +254,7 @@ class _TimelineTrackState extends State<TimelineTrack> {
                         return Positioned(
                           left: leftPosition,
                           top: 0,
-                          height: 60,
+                          height: trackHeight,
                           width: clipWidth.clamp(4.0, double.infinity),
                           child: TimelineClip(
                             clip: clip,
@@ -180,9 +263,10 @@ class _TimelineTrackState extends State<TimelineTrack> {
                         );
                       }),
                       _DragPreview(
-                        hoverPositionNotifier: hoverPositionNotifier,
+                        hoverPositionNotifier: _hoverPositionNotifier,
                         candidateData: candidateData,
                         zoom: zoom,
+                        frameAtDropPosition: frameForPreview,
                       ),
                     ],
                   ),
@@ -200,31 +284,29 @@ class _DragPreview extends StatelessWidget with WatchItMixin {
   final ValueNotifier<Offset?> hoverPositionNotifier;
   final List<ClipModel?> candidateData;
   final double zoom;
+  final int frameAtDropPosition;
 
   const _DragPreview({
     required this.hoverPositionNotifier,
     required this.candidateData,
     required this.zoom,
+    required this.frameAtDropPosition,
+    super.key,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
-    final timelineViewModel = di<TimelineViewModel>();
-    watch(hoverPositionNotifier);
-    final Offset? hoverPositionValue = hoverPositionNotifier.value;
+    final hoverPosValue = watch(hoverPositionNotifier);
 
-    if (hoverPositionValue == null || candidateData.isEmpty) {
+    if (hoverPosValue == null || candidateData.isEmpty) {
       return const SizedBox.shrink();
     }
 
     final draggedClip = candidateData.first;
     if (draggedClip == null) return const SizedBox.shrink();
 
-    final previewRawX = hoverPositionValue.dx;
-    final frameAtCursor = (previewRawX / (5.0 * zoom)).floor();
-    final nonNegativeFrame = frameAtCursor < 0 ? 0 : frameAtCursor;
-    final previewLeftPosition = nonNegativeFrame * zoom * 5.0;
+    final previewLeftPosition = frameAtDropPosition * zoom * 5.0;
     final previewWidth = draggedClip.durationFrames * zoom * 5.0;
 
     return Stack(
@@ -270,21 +352,13 @@ class _DragPreview extends StatelessWidget with WatchItMixin {
               borderRadius: BorderRadius.circular(2),
             ),
             child: Text(
-              'Frame: ${timelineViewModel.calculateFramePositionFromDrop(previewRawX, getHorizontalScrollOffset(), zoom)}',
+              'Frame: $frameAtDropPosition',
               style: const TextStyle(color: Colors.white, fontSize: 10),
             ),
           ),
         ),
       ],
     );
-  }
-
-  double getHorizontalScrollOffset() {
-    final timelineViewModel = di<TimelineViewModel>();
-    if (timelineViewModel.trackContentHorizontalScrollController.hasClients) {
-      return timelineViewModel.trackContentHorizontalScrollController.offset;
-    }
-    return 0.0;
   }
 }
 

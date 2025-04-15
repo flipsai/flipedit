@@ -243,6 +243,50 @@ class ProjectService {
     }
   }
 
+  /// Renames a specific track.
+  Future<void> renameTrack(int trackId, String newName) async {
+    final currentProjectId = currentProjectNotifier.value?.id;
+    if (currentProjectId == null) {
+      logWarning(_logTag, "Cannot rename track: No project loaded.");
+      return;
+    }
+
+    if (newName.trim().isEmpty) {
+      logWarning(_logTag, "Cannot rename track $trackId: New name cannot be empty.");
+      // Optionally provide user feedback here
+      return;
+    }
+
+    // Optional: Verify track belongs to the current project before updating
+    // This requires a `getTrackById` method in your DAO
+    // final track = await _trackDao.getTrackById(trackId);
+    // if (track == null || track.projectId != currentProjectId) {
+    //   logWarning(_logTag, "Track $trackId does not belong to project $currentProjectId or does not exist.");
+    //   return;
+    // }
+
+    final companion = TracksCompanion(
+      id: Value(trackId), // Specify the ID of the track to update
+      projectId: Value(currentProjectId), // Add projectId
+      name: Value(newName), // Set the new name
+    );
+
+    try {
+      // Assuming trackDao.updateTrack returns a boolean indicating success
+      final success = await _trackDao.updateTrack(companion);
+      if (success) {
+        logInfo(_logTag, "Renamed track $trackId to '$newName'");
+        // The watcher (`currentProjectTracksNotifier`) should automatically update the UI
+        // because the underlying data stream from Drift will emit the updated track list.
+      } else {
+        logWarning(_logTag, "Could not rename track $trackId (track not found or update failed).");
+      }
+    } catch (e) {
+      logError(_logTag, "Error renaming track $trackId: $e");
+      // Handle error (e.g., show a message to the user)
+    }
+  }
+
   // --- Method for saving the current project ---
   Future<void> saveProject() async {
     final currentProject = currentProjectNotifier.value;
