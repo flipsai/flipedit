@@ -1,197 +1,317 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flipedit/persistence/database/app_database.dart' show Track;
+import 'package:flipedit/services/project_service.dart';
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/views/widgets/timeline/timeline_clip.dart';
 import 'package:watch_it/watch_it.dart';
-import 'package:flutter/widgets.dart' as fw; // Import with prefix
+import 'package:flutter/widgets.dart' as fw;
 import 'dart:developer' as developer;
 
-/// A track in the timeline which contains clips
-// Add the mixin to the StatefulWidget class
 class TimelineTrack extends StatefulWidget with WatchItStatefulWidgetMixin {
-  final int trackIndex;
+  final Track track;
   final List<ClipModel> clips;
+  final VoidCallback onDelete;
+  final double trackLabelWidth;
 
   const TimelineTrack({
     super.key,
-    required this.trackIndex,
+    required this.track,
     required this.clips,
+    required this.onDelete,
+    required this.trackLabelWidth,
   });
 
   @override
   State<TimelineTrack> createState() => _TimelineTrackState();
 }
 
-// State class no longer needs the mixin
 class _TimelineTrackState extends State<TimelineTrack> {
-  // Local notifier for hover position within this track
-  final hoverPositionNotifier = ValueNotifier<Offset?>(null);
-  final GlobalKey trackKey = GlobalKey(); // Key for DragTarget
-  late TimelineViewModel timelineViewModel;
+  bool _isEditing = false;
+  late TextEditingController _textController;
+  late FocusNode _focusNode;
+  final ValueNotifier<Offset?> _hoverPositionNotifier = ValueNotifier(null);
+  final GlobalKey _trackContentKey = GlobalKey();
+
+  late TimelineViewModel _timelineViewModel;
+  late ProjectService _projectService;
 
   @override
   void initState() {
     super.initState();
-    timelineViewModel = di<TimelineViewModel>();
+    _timelineViewModel = di<TimelineViewModel>();
+    _projectService = di<ProjectService>();
+    _textController = TextEditingController(text: widget.track.name);
+    _focusNode = FocusNode();
+
+    _focusNode.addListener(() {
+      if (!_focusNode.hasFocus && _isEditing) {
+        _submitRename();
+      }
+    });
   }
 
   @override
   void dispose() {
-    hoverPositionNotifier.dispose(); // Dispose the notifier here
+    _textController.dispose();
+    _focusNode.removeListener(() { });
+    _focusNode.dispose();
+    _hoverPositionNotifier.dispose();
     super.dispose();
   }
 
-  /// Get the scroll position from ancestors
-  double getScrollPosition(BuildContext context) {
-    ScrollPosition? scrollPosition;
-    try {
-      scrollPosition = Scrollable.of(context).position;
-      if (scrollPosition.axis != Axis.horizontal) {
-        scrollPosition = null;
-      }
-    } catch (e) {
-      scrollPosition = null;
+  @override
+  void didUpdateWidget(covariant TimelineTrack oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.track.name != oldWidget.track.name && !_isEditing) {
+      _textController.text = widget.track.name;
     }
-    return scrollPosition?.pixels ?? 0;
+  }
+
+  void _enterEditingMode() {
+    setState(() {
+      _isEditing = true;
+      _textController.text = widget.track.name;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+       _focusNode.requestFocus();
+       _textController.selection = TextSelection(
+           baseOffset: 0,
+           extentOffset: _textController.text.length,
+       );
+    });
+  }
+
+  void _submitRename() {
+    developer.log('Attempting to submit rename...');
+    final newName = _textController.text.trim();
+    if (mounted && _isEditing) {
+       developer.log('Mounted and isEditing: true. New name: "$newName"');
+       if (newName.isNotEmpty && newName != widget.track.name) {
+        developer.log('New name is valid. Calling projectService.renameTrack...');
+        _projectService.renameTrack(widget.track.id, newName);
+       } else {
+         developer.log('New name is empty or same as old name. Not saving.');
+       }
+       setState(() {
+         _isEditing = false;
+         developer.log('Exiting editing mode.');
+       });
+    } else {
+      developer.log('Not submitting: mounted=$mounted, isEditing=$_isEditing');
+    }
+  }
+
+  double getHorizontalScrollOffset() {
+    if (_timelineViewModel.trackContentHorizontalScrollController.hasClients) {
+      return _timelineViewModel.trackContentHorizontalScrollController.offset;
+    }
+    return 0.0;
+  }
+
+  int _calculateFramePositionForPreview(double previewRawX, double zoom) {
+     final scrollOffsetX = getHorizontalScrollOffset();
+     final position = (previewRawX + scrollOffsetX) / (5.0 * zoom);
+     return position < 0 ? 0 : position.floor();
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = FluentTheme.of(context);
-    // Call watchValue here in the State's build method
     final double zoom = watchValue((TimelineViewModel vm) => vm.zoomNotifier);
+    final theme = FluentTheme.of(context);
+    const trackHeight = 60.0;
 
-    return DragTarget<ClipModel>(
-      key: trackKey,
-      onAcceptWithDetails: (details) {
-        final draggedClip = details.data;
-        if (draggedClip == null) {
-          developer.log('Error: Dragged data is null');
-          return;
-        }
-
-        final RenderBox? renderBox = trackKey.currentContext?.findRenderObject() as RenderBox?;
-        if (renderBox == null) return;
-
-        final localPosition = renderBox.globalToLocal(details.offset);
-        double posX = localPosition.dx.clamp(0.0, renderBox.size.width);
-        final scrollPosition = getScrollPosition(context);
-
-        developer.log('Accepting drop at: local=$posX, scroll=$scrollPosition, zoom=$zoom');
-
-        timelineViewModel.addClipAtPosition(
-          clipData: draggedClip,
-          trackId: widget.trackIndex + 1, // Use widget.trackIndex
-          startTimeInSourceMs: draggedClip.startTimeInSourceMs,
-          endTimeInSourceMs: draggedClip.endTimeInSourceMs,
-          localPositionX: posX,
-          scrollOffsetX: scrollPosition,
-        );
-
-        hoverPositionNotifier.value = null; // Reset hover
-      },
-      onWillAcceptWithDetails: (details) {
-        final RenderBox? renderBox = trackKey.currentContext?.findRenderObject() as RenderBox?;
-        if (renderBox != null) {
-          final localPosition = renderBox.globalToLocal(details.offset);
-          hoverPositionNotifier.value = localPosition;
-        }
-        return true; // Accept the drag
-      },
-      onMove: (details) {
-        final RenderBox? renderBox = trackKey.currentContext?.findRenderObject() as RenderBox?;
-        if (renderBox != null) {
-          final localPosition = renderBox.globalToLocal(details.offset);
-          if (localPosition.dx >= 0 && localPosition.dx <= renderBox.size.width) {
-            hoverPositionNotifier.value = localPosition;
-          } else {
-             // Optionally clear if moved outside bounds during move
-             // hoverPositionNotifier.value = null; 
-          }
-        }
-      },
-      onLeave: (_) {
-        hoverPositionNotifier.value = null; // Clear hover on leave
-      },
-      builder: (context, candidateData, rejectedData) {
-        return Container(
-          height: 60,
-          margin: const EdgeInsets.only(bottom: 4),
-          decoration: BoxDecoration(
-            color: candidateData.isNotEmpty
-                ? theme.accentColor.lightest.withOpacity(0.3)
-                : theme.resources.subtleFillColorSecondary,
-            borderRadius: BorderRadius.circular(4),
+    return SizedBox(
+      height: trackHeight,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            width: widget.trackLabelWidth,
+            padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+            decoration: BoxDecoration(
+              color: theme.resources.subtleFillColorTertiary,
+              border: Border(
+                right: BorderSide(
+                  color: theme.resources.controlStrokeColorDefault,
+                ),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onDoubleTap: _enterEditingMode,
+                    child: _isEditing
+                        ? TextBox(
+                            controller: _textController,
+                            focusNode: _focusNode,
+                            placeholder: 'Track Name',
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6.0,
+                              vertical: 4.0,
+                            ),
+                            style: theme.typography.body,
+                            decoration: WidgetStateProperty.all(BoxDecoration(
+                              color: theme.resources.controlFillColorDefault,
+                              borderRadius: BorderRadius.circular(4.0),
+                            )),
+                            onSubmitted: (_) => _submitRename(),
+                          )
+                        : Text(
+                            widget.track.name,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.typography.body,
+                          ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(FluentIcons.delete, size: 14),
+                  onPressed: widget.onDelete,
+                  style: ButtonStyle(
+                    padding: WidgetStateProperty.all(EdgeInsets.zero),
+                  ),
+                ),
+              ],
+            ),
           ),
-          child: Stack(
-            clipBehavior: fw.Clip.hardEdge,
-            children: [
-              Positioned.fill(child: _TrackBackground(zoom: zoom)),
-              ...widget.clips.map((clip) { // Use widget.clips
-                final leftPosition = clip.startFrame * zoom * 5.0;
-                final clipWidth = clip.durationFrames * zoom * 5.0;
-                return Positioned(
-                  left: leftPosition,
-                  top: 0,
-                  height: 60,
-                  width: clipWidth.clamp(4.0, double.infinity),
-                  child: TimelineClip(
-                    clip: clip,
-                    trackIndex: widget.trackIndex, // Use widget.trackIndex
+          Expanded(
+            child: DragTarget<ClipModel>(
+              key: _trackContentKey,
+              onAcceptWithDetails: (details) {
+                final draggedClip = details.data;
+                final RenderBox? renderBox =
+                    _trackContentKey.currentContext?.findRenderObject() as RenderBox?;
+                if (renderBox == null) return;
+
+                final localPosition = renderBox.globalToLocal(details.offset);
+                double posX = localPosition.dx.clamp(0.0, renderBox.size.width);
+                final scrollOffsetX = getHorizontalScrollOffset();
+
+                developer.log(
+                  'Accepting drop at: local=$posX, scroll=$scrollOffsetX, zoom=$zoom',
+                );
+
+                _timelineViewModel.addClipAtPosition(
+                  clipData: draggedClip,
+                  trackId: widget.track.id,
+                  startTimeInSourceMs: draggedClip.startTimeInSourceMs,
+                  endTimeInSourceMs: draggedClip.endTimeInSourceMs,
+                  localPositionX: posX,
+                  scrollOffsetX: scrollOffsetX,
+                );
+
+                _hoverPositionNotifier.value = null;
+              },
+              onWillAcceptWithDetails: (details) {
+                final RenderBox? renderBox =
+                    _trackContentKey.currentContext?.findRenderObject() as RenderBox?;
+                if (renderBox != null) {
+                  final localPosition = renderBox.globalToLocal(details.offset);
+                  _hoverPositionNotifier.value = localPosition;
+                }
+                return true;
+              },
+              onMove: (details) {
+                final RenderBox? renderBox =
+                    _trackContentKey.currentContext?.findRenderObject() as RenderBox?;
+                if (renderBox != null) {
+                  final localPosition = renderBox.globalToLocal(details.offset);
+                  if (localPosition.dx >= 0 &&
+                      localPosition.dx <= renderBox.size.width) {
+                    _hoverPositionNotifier.value = localPosition;
+                  } else {
+                    _hoverPositionNotifier.value = null;
+                  }
+                }
+              },
+              onLeave: (_) {
+                _hoverPositionNotifier.value = null;
+              },
+              builder: (context, candidateData, rejectedData) {
+                int frameForPreview = -1;
+                Offset? currentHoverPos = _hoverPositionNotifier.value;
+                if (currentHoverPos != null && candidateData.isNotEmpty) {
+                   frameForPreview = _calculateFramePositionForPreview(currentHoverPos.dx, zoom);
+                }
+
+                return Container(
+                  height: trackHeight,
+                  margin: const EdgeInsets.only(bottom: 4),
+                  decoration: BoxDecoration(
+                    color: candidateData.isNotEmpty
+                        ? theme.accentColor.lightest.withOpacity(0.3)
+                        : theme.resources.subtleFillColorSecondary,
+                  ),
+                  child: Stack(
+                    clipBehavior: fw.Clip.hardEdge,
+                    children: [
+                      Positioned.fill(child: _TrackBackground(zoom: zoom)),
+                      ...widget.clips.map((clip) {
+                        final leftPosition = clip.startFrame * zoom * 5.0;
+                        final clipWidth = clip.durationFrames * zoom * 5.0;
+                        return Positioned(
+                          left: leftPosition,
+                          top: 0,
+                          height: trackHeight,
+                          width: clipWidth.clamp(4.0, double.infinity),
+                          child: TimelineClip(
+                            clip: clip,
+                            trackId: widget.track.id,
+                          ),
+                        );
+                      }),
+                      _DragPreview(
+                        hoverPositionNotifier: _hoverPositionNotifier,
+                        candidateData: candidateData,
+                        zoom: zoom,
+                        frameAtDropPosition: frameForPreview,
+                      ),
+                    ],
                   ),
                 );
-              }),
-              _DragPreview(
-                hoverPositionNotifier: hoverPositionNotifier,
-                candidateData: candidateData,
-                zoom: zoom,
-              ),
-            ],
+              },
+            ),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 }
 
-// _DragPreview remains StatelessWidget using WatchItMixin
 class _DragPreview extends StatelessWidget with WatchItMixin {
   final ValueNotifier<Offset?> hoverPositionNotifier;
   final List<ClipModel?> candidateData;
   final double zoom;
+  final int frameAtDropPosition;
 
-  const _DragPreview({ 
+  const _DragPreview({
     required this.hoverPositionNotifier,
     required this.candidateData,
     required this.zoom,
+    required this.frameAtDropPosition,
+    super.key,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
-    // Watch the notifier to trigger rebuilds when its value changes
-    watch(hoverPositionNotifier);
-    // Get the actual value *after* watching
-    final Offset? hoverPositionValue = hoverPositionNotifier.value;
+    final hoverPosValue = watch(hoverPositionNotifier);
 
-    if (hoverPositionValue == null || candidateData.isEmpty) {
+    if (hoverPosValue == null || candidateData.isEmpty) {
       return const SizedBox.shrink();
     }
 
     final draggedClip = candidateData.first;
     if (draggedClip == null) return const SizedBox.shrink();
 
-    // Access .dx on the Offset value
-    final previewRawX = hoverPositionValue.dx; 
-    final frameAtCursor = (previewRawX / (5.0 * zoom)).floor();
-    final nonNegativeFrame = frameAtCursor < 0 ? 0 : frameAtCursor;
-    final previewLeftPosition = nonNegativeFrame * zoom * 5.0;
+    final previewLeftPosition = frameAtDropPosition * zoom * 5.0;
     final previewWidth = draggedClip.durationFrames * zoom * 5.0;
 
     return Stack(
-      clipBehavior: fw.Clip.none, // Allow indicator text to overflow slightly
+      clipBehavior: fw.Clip.none,
       children: [
-        // Vertical line indicator
         Positioned(
           left: previewLeftPosition,
           top: 0,
@@ -199,20 +319,16 @@ class _DragPreview extends StatelessWidget with WatchItMixin {
           width: 1,
           child: Container(color: theme.accentColor.lighter),
         ),
-        // Clip preview rectangle
         Positioned(
           left: previewLeftPosition,
           top: 0,
           height: 60,
-          width: previewWidth,
+          width: previewWidth.clamp(2.0, double.infinity),
           child: Container(
             decoration: BoxDecoration(
               color: theme.accentColor.normal.withOpacity(0.5),
               borderRadius: BorderRadius.circular(4),
-              border: Border.all(
-                color: theme.accentColor.normal,
-                width: 2,
-              ),
+              border: Border.all(color: theme.accentColor.normal, width: 2),
             ),
             child: Center(
               child: Text(
@@ -226,23 +342,18 @@ class _DragPreview extends StatelessWidget with WatchItMixin {
             ),
           ),
         ),
-        // Frame indicator text
         Positioned(
-          // Position slightly offset from the preview rectangle
           left: previewLeftPosition + previewWidth + 5,
-          top: 5, 
+          top: 5,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
             decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.7),
-                borderRadius: BorderRadius.circular(2),
+              color: Colors.black.withOpacity(0.7),
+              borderRadius: BorderRadius.circular(2),
             ),
             child: Text(
-              'Frame: $nonNegativeFrame', 
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 10,
-              ),
+              'Frame: $frameAtDropPosition',
+              style: const TextStyle(color: Colors.white, fontSize: 10),
             ),
           ),
         ),
@@ -251,7 +362,6 @@ class _DragPreview extends StatelessWidget with WatchItMixin {
   }
 }
 
-// _TrackBackground and _TrackBackgroundPainter remain the same
 class _TrackBackground extends StatelessWidget {
   final double zoom;
 
@@ -260,10 +370,19 @@ class _TrackBackground extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
-    return CustomPaint(
-      painter: _TrackBackgroundPainter(
-        zoom: zoom,
-        color: theme.resources.controlStrokeColorDefault,
+    final lineColor = theme.resources.controlStrokeColorDefault;
+    final faintLineColor = theme.resources.subtleFillColorTertiary;
+    final textColor = theme.typography.caption?.color ?? Colors.grey;
+
+    return RepaintBoundary(
+      child: CustomPaint(
+        painter: _TrackBackgroundPainter(
+          zoom: zoom,
+          lineColor: lineColor,
+          faintLineColor: faintLineColor,
+          textColor: textColor,
+        ),
+        child: Container(),
       ),
     );
   }
@@ -271,33 +390,53 @@ class _TrackBackground extends StatelessWidget {
 
 class _TrackBackgroundPainter extends CustomPainter {
   final double zoom;
-  final Color color;
+  final Color lineColor;
+  final Color faintLineColor;
+  final Color textColor;
 
-  const _TrackBackgroundPainter({required this.zoom, required this.color});
+  final Paint linePaint;
+  final Paint faintLinePaint;
+
+  _TrackBackgroundPainter({
+    required this.zoom,
+    required this.lineColor,
+    required this.faintLineColor,
+    required this.textColor,
+  }) : linePaint = Paint()..strokeWidth = 1.0,
+       faintLinePaint = Paint()..strokeWidth = 0.5 {
+    linePaint.color = lineColor;
+    faintLinePaint.color = faintLineColor;
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint =
-        Paint()
-          ..color =
-              color
-          ..strokeWidth = 0.5;
+    const double framePixelWidth = 5.0;
+    const int framesPerMajorTick = 30;
+    const int framesPerMinorTick = 5;
 
-    const double frameWidth = 5.0;
-    const int framesPerTick = 30;
-    final tickDistance = framesPerTick * zoom * frameWidth;
+    final double effectiveFrameWidth = framePixelWidth * zoom;
 
-    if (tickDistance <= 0) {
-      return;
-    }
+    if (effectiveFrameWidth <= 0) return;
 
-    for (double x = 0; x < size.width; x += tickDistance) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+    final int totalMinorTicks =
+        (size.width / (effectiveFrameWidth * framesPerMinorTick)).ceil() + 1;
+
+    for (int i = 0; i < totalMinorTicks; i++) {
+      final int frameNumber = i * framesPerMinorTick;
+      final double x = frameNumber * effectiveFrameWidth;
+      final bool isMajorTick = frameNumber % framesPerMajorTick == 0;
+
+      final paintToUse = isMajorTick ? linePaint : faintLinePaint;
+
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paintToUse);
     }
   }
 
   @override
   bool shouldRepaint(covariant _TrackBackgroundPainter oldDelegate) {
-    return oldDelegate.zoom != zoom || oldDelegate.color != color;
+    return oldDelegate.zoom != zoom ||
+        oldDelegate.lineColor != lineColor ||
+        oldDelegate.faintLineColor != faintLineColor ||
+        oldDelegate.textColor != textColor;
   }
 }

@@ -5,6 +5,9 @@ import 'package:flipedit/views/widgets/extensions/extension_sidebar.dart';
 import 'package:docking/docking.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/views/widgets/common/resizable_divider.dart';
+import 'package:flutter/services.dart'; // Import for keyboard services
+import 'package:flipedit/viewmodels/timeline_viewmodel.dart'; // Import TimelineViewModel
+import 'package:flipedit/utils/logger.dart'; // Import logger
 
 // Convert EditorScreen to StatelessWidget as state is moved down
 class EditorScreen extends StatelessWidget with WatchItMixin {
@@ -40,12 +43,17 @@ class EditorScreen extends StatelessWidget with WatchItMixin {
               child: TabbedViewTheme(
                 data: TabbedViewThemeData.dark(),
                 child:
-                    layout != null
-                        ? Docking(
-                          layout: layout,
-                          onItemClose: _handlePanelClosed,
-                        )
-                        : const Center(child: ProgressRing()),
+                    // Wrap Docking with Focus and KeyboardListener
+                    Focus(
+                      autofocus: true, // Request focus automatically
+                      onKeyEvent: _handleKeyEvent,
+                      child: layout != null
+                          ? Docking(
+                              layout: layout,
+                              onItemClose: _handlePanelClosed,
+                            )
+                          : const Center(child: ProgressRing()),
+                    ),
               ),
             ),
           ),
@@ -61,6 +69,37 @@ class EditorScreen extends StatelessWidget with WatchItMixin {
     } else if (item.id == 'timeline') {
       di<EditorViewModel>().markTimelineClosed();
     }
+  }
+
+  // Handle keyboard events for deletion
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    logDebug('Key event received: ${event.runtimeType}, LogicalKey: ${event.logicalKey}', 'EditorScreen'); // Log all key events
+    logDebug('Focus hasPrimaryFocus: ${node.hasPrimaryFocus}', 'EditorScreen'); // Log focus status
+
+    // Check for both Delete and Backspace keys
+    final isDeleteKey =
+        event.logicalKey == LogicalKeyboardKey.delete ||
+        event.logicalKey == LogicalKeyboardKey.backspace;
+
+    if (event is KeyDownEvent && isDeleteKey) {
+      logInfo('Delete/Backspace key pressed', 'EditorScreen'); // Log delete/backspace press
+      final editorVm = di<EditorViewModel>();
+      final timelineVm = di<TimelineViewModel>();
+      final selectedIdString = editorVm.selectedClipId;
+      logDebug('Selected Clip ID: $selectedIdString', 'EditorScreen'); // Log selected ID
+
+      if (selectedIdString != null && selectedIdString.isNotEmpty) {
+        final clipId = int.tryParse(selectedIdString);
+        logDebug('Parsed Clip ID: $clipId', 'EditorScreen'); // Log parsed ID
+        if (clipId != null) {
+          logInfo('Calling removeClip for ID: $clipId', 'EditorScreen'); // Log remove call
+          timelineVm.removeClip(clipId);
+          editorVm.selectedClipId = null; // Deselect after deletion
+          return KeyEventResult.handled; // Mark event as handled
+        }
+      }
+    }
+    return KeyEventResult.ignored; // Ignore other keys
   }
 }
 

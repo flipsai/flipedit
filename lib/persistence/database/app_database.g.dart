@@ -1310,20 +1310,443 @@ class ClipsCompanion extends UpdateCompanion<Clip> {
   }
 }
 
+class $ProjectAssetsTable extends ProjectAssets
+    with TableInfo<$ProjectAssetsTable, ProjectAssetEntry> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ProjectAssetsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _projectIdMeta = const VerificationMeta(
+    'projectId',
+  );
+  @override
+  late final GeneratedColumn<int> projectId = GeneratedColumn<int>(
+    'project_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES projects (id)',
+    ),
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  late final GeneratedColumnWithTypeConverter<ClipType, int> type =
+      GeneratedColumn<int>(
+        'type',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: true,
+      ).withConverter<ClipType>($ProjectAssetsTable.$convertertype);
+  static const VerificationMeta _sourcePathMeta = const VerificationMeta(
+    'sourcePath',
+  );
+  @override
+  late final GeneratedColumn<String> sourcePath = GeneratedColumn<String>(
+    'source_path',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _durationMsMeta = const VerificationMeta(
+    'durationMs',
+  );
+  @override
+  late final GeneratedColumn<int> durationMs = GeneratedColumn<int>(
+    'duration_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    projectId,
+    name,
+    type,
+    sourcePath,
+    durationMs,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'project_assets';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ProjectAssetEntry> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('project_id')) {
+      context.handle(
+        _projectIdMeta,
+        projectId.isAcceptableOrUnknown(data['project_id']!, _projectIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_projectIdMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('source_path')) {
+      context.handle(
+        _sourcePathMeta,
+        sourcePath.isAcceptableOrUnknown(data['source_path']!, _sourcePathMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sourcePathMeta);
+    }
+    if (data.containsKey('duration_ms')) {
+      context.handle(
+        _durationMsMeta,
+        durationMs.isAcceptableOrUnknown(data['duration_ms']!, _durationMsMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_durationMsMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ProjectAssetEntry map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ProjectAssetEntry(
+      id:
+          attachedDatabase.typeMapping.read(
+            DriftSqlType.int,
+            data['${effectivePrefix}id'],
+          )!,
+      projectId:
+          attachedDatabase.typeMapping.read(
+            DriftSqlType.int,
+            data['${effectivePrefix}project_id'],
+          )!,
+      name:
+          attachedDatabase.typeMapping.read(
+            DriftSqlType.string,
+            data['${effectivePrefix}name'],
+          )!,
+      type: $ProjectAssetsTable.$convertertype.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}type'],
+        )!,
+      ),
+      sourcePath:
+          attachedDatabase.typeMapping.read(
+            DriftSqlType.string,
+            data['${effectivePrefix}source_path'],
+          )!,
+      durationMs:
+          attachedDatabase.typeMapping.read(
+            DriftSqlType.int,
+            data['${effectivePrefix}duration_ms'],
+          )!,
+    );
+  }
+
+  @override
+  $ProjectAssetsTable createAlias(String alias) {
+    return $ProjectAssetsTable(attachedDatabase, alias);
+  }
+
+  static JsonTypeConverter2<ClipType, int, int> $convertertype =
+      const EnumIndexConverter<ClipType>(ClipType.values);
+}
+
+class ProjectAssetEntry extends DataClass
+    implements Insertable<ProjectAssetEntry> {
+  final int id;
+  final int projectId;
+  final String name;
+  final ClipType type;
+  final String sourcePath;
+  final int durationMs;
+  const ProjectAssetEntry({
+    required this.id,
+    required this.projectId,
+    required this.name,
+    required this.type,
+    required this.sourcePath,
+    required this.durationMs,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['project_id'] = Variable<int>(projectId);
+    map['name'] = Variable<String>(name);
+    {
+      map['type'] = Variable<int>(
+        $ProjectAssetsTable.$convertertype.toSql(type),
+      );
+    }
+    map['source_path'] = Variable<String>(sourcePath);
+    map['duration_ms'] = Variable<int>(durationMs);
+    return map;
+  }
+
+  ProjectAssetsCompanion toCompanion(bool nullToAbsent) {
+    return ProjectAssetsCompanion(
+      id: Value(id),
+      projectId: Value(projectId),
+      name: Value(name),
+      type: Value(type),
+      sourcePath: Value(sourcePath),
+      durationMs: Value(durationMs),
+    );
+  }
+
+  factory ProjectAssetEntry.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ProjectAssetEntry(
+      id: serializer.fromJson<int>(json['id']),
+      projectId: serializer.fromJson<int>(json['projectId']),
+      name: serializer.fromJson<String>(json['name']),
+      type: $ProjectAssetsTable.$convertertype.fromJson(
+        serializer.fromJson<int>(json['type']),
+      ),
+      sourcePath: serializer.fromJson<String>(json['sourcePath']),
+      durationMs: serializer.fromJson<int>(json['durationMs']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'projectId': serializer.toJson<int>(projectId),
+      'name': serializer.toJson<String>(name),
+      'type': serializer.toJson<int>(
+        $ProjectAssetsTable.$convertertype.toJson(type),
+      ),
+      'sourcePath': serializer.toJson<String>(sourcePath),
+      'durationMs': serializer.toJson<int>(durationMs),
+    };
+  }
+
+  ProjectAssetEntry copyWith({
+    int? id,
+    int? projectId,
+    String? name,
+    ClipType? type,
+    String? sourcePath,
+    int? durationMs,
+  }) => ProjectAssetEntry(
+    id: id ?? this.id,
+    projectId: projectId ?? this.projectId,
+    name: name ?? this.name,
+    type: type ?? this.type,
+    sourcePath: sourcePath ?? this.sourcePath,
+    durationMs: durationMs ?? this.durationMs,
+  );
+  ProjectAssetEntry copyWithCompanion(ProjectAssetsCompanion data) {
+    return ProjectAssetEntry(
+      id: data.id.present ? data.id.value : this.id,
+      projectId: data.projectId.present ? data.projectId.value : this.projectId,
+      name: data.name.present ? data.name.value : this.name,
+      type: data.type.present ? data.type.value : this.type,
+      sourcePath:
+          data.sourcePath.present ? data.sourcePath.value : this.sourcePath,
+      durationMs:
+          data.durationMs.present ? data.durationMs.value : this.durationMs,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ProjectAssetEntry(')
+          ..write('id: $id, ')
+          ..write('projectId: $projectId, ')
+          ..write('name: $name, ')
+          ..write('type: $type, ')
+          ..write('sourcePath: $sourcePath, ')
+          ..write('durationMs: $durationMs')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, projectId, name, type, sourcePath, durationMs);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ProjectAssetEntry &&
+          other.id == this.id &&
+          other.projectId == this.projectId &&
+          other.name == this.name &&
+          other.type == this.type &&
+          other.sourcePath == this.sourcePath &&
+          other.durationMs == this.durationMs);
+}
+
+class ProjectAssetsCompanion extends UpdateCompanion<ProjectAssetEntry> {
+  final Value<int> id;
+  final Value<int> projectId;
+  final Value<String> name;
+  final Value<ClipType> type;
+  final Value<String> sourcePath;
+  final Value<int> durationMs;
+  const ProjectAssetsCompanion({
+    this.id = const Value.absent(),
+    this.projectId = const Value.absent(),
+    this.name = const Value.absent(),
+    this.type = const Value.absent(),
+    this.sourcePath = const Value.absent(),
+    this.durationMs = const Value.absent(),
+  });
+  ProjectAssetsCompanion.insert({
+    this.id = const Value.absent(),
+    required int projectId,
+    required String name,
+    required ClipType type,
+    required String sourcePath,
+    required int durationMs,
+  }) : projectId = Value(projectId),
+       name = Value(name),
+       type = Value(type),
+       sourcePath = Value(sourcePath),
+       durationMs = Value(durationMs);
+  static Insertable<ProjectAssetEntry> custom({
+    Expression<int>? id,
+    Expression<int>? projectId,
+    Expression<String>? name,
+    Expression<int>? type,
+    Expression<String>? sourcePath,
+    Expression<int>? durationMs,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (projectId != null) 'project_id': projectId,
+      if (name != null) 'name': name,
+      if (type != null) 'type': type,
+      if (sourcePath != null) 'source_path': sourcePath,
+      if (durationMs != null) 'duration_ms': durationMs,
+    });
+  }
+
+  ProjectAssetsCompanion copyWith({
+    Value<int>? id,
+    Value<int>? projectId,
+    Value<String>? name,
+    Value<ClipType>? type,
+    Value<String>? sourcePath,
+    Value<int>? durationMs,
+  }) {
+    return ProjectAssetsCompanion(
+      id: id ?? this.id,
+      projectId: projectId ?? this.projectId,
+      name: name ?? this.name,
+      type: type ?? this.type,
+      sourcePath: sourcePath ?? this.sourcePath,
+      durationMs: durationMs ?? this.durationMs,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (projectId.present) {
+      map['project_id'] = Variable<int>(projectId.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (type.present) {
+      map['type'] = Variable<int>(
+        $ProjectAssetsTable.$convertertype.toSql(type.value),
+      );
+    }
+    if (sourcePath.present) {
+      map['source_path'] = Variable<String>(sourcePath.value);
+    }
+    if (durationMs.present) {
+      map['duration_ms'] = Variable<int>(durationMs.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ProjectAssetsCompanion(')
+          ..write('id: $id, ')
+          ..write('projectId: $projectId, ')
+          ..write('name: $name, ')
+          ..write('type: $type, ')
+          ..write('sourcePath: $sourcePath, ')
+          ..write('durationMs: $durationMs')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $ProjectsTable projects = $ProjectsTable(this);
   late final $TracksTable tracks = $TracksTable(this);
   late final $ClipsTable clips = $ClipsTable(this);
+  late final $ProjectAssetsTable projectAssets = $ProjectAssetsTable(this);
   late final ProjectDao projectDao = ProjectDao(this as AppDatabase);
   late final TrackDao trackDao = TrackDao(this as AppDatabase);
   late final ClipDao clipDao = ClipDao(this as AppDatabase);
+  late final ProjectAssetDao projectAssetDao = ProjectAssetDao(
+    this as AppDatabase,
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
-  List<DatabaseSchemaEntity> get allSchemaEntities => [projects, tracks, clips];
+  List<DatabaseSchemaEntity> get allSchemaEntities => [
+    projects,
+    tracks,
+    clips,
+    projectAssets,
+  ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
     WritePropagation(
@@ -1371,6 +1794,24 @@ final class $$ProjectsTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$ProjectAssetsTable, List<ProjectAssetEntry>>
+  _projectAssetsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.projectAssets,
+    aliasName: $_aliasNameGenerator(db.projects.id, db.projectAssets.projectId),
+  );
+
+  $$ProjectAssetsTableProcessedTableManager get projectAssetsRefs {
+    final manager = $$ProjectAssetsTableTableManager(
+      $_db,
+      $_db.projectAssets,
+    ).filter((f) => f.projectId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_projectAssetsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$ProjectsTableFilterComposer
@@ -1413,6 +1854,31 @@ class $$ProjectsTableFilterComposer
           }) => $$TracksTableFilterComposer(
             $db: $db,
             $table: $db.tracks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> projectAssetsRefs(
+    Expression<bool> Function($$ProjectAssetsTableFilterComposer f) f,
+  ) {
+    final $$ProjectAssetsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.projectAssets,
+      getReferencedColumn: (t) => t.projectId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectAssetsTableFilterComposer(
+            $db: $db,
+            $table: $db.projectAssets,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -1490,6 +1956,31 @@ class $$ProjectsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> projectAssetsRefs<T extends Object>(
+    Expression<T> Function($$ProjectAssetsTableAnnotationComposer a) f,
+  ) {
+    final $$ProjectAssetsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.projectAssets,
+      getReferencedColumn: (t) => t.projectId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectAssetsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.projectAssets,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$ProjectsTableTableManager
@@ -1505,7 +1996,7 @@ class $$ProjectsTableTableManager
           $$ProjectsTableUpdateCompanionBuilder,
           (Project, $$ProjectsTableReferences),
           Project,
-          PrefetchHooks Function({bool tracksRefs})
+          PrefetchHooks Function({bool tracksRefs, bool projectAssetsRefs})
         > {
   $$ProjectsTableTableManager(_$AppDatabase db, $ProjectsTable table)
     : super(
@@ -1544,10 +2035,16 @@ class $$ProjectsTableTableManager
                         ),
                       )
                       .toList(),
-          prefetchHooksCallback: ({tracksRefs = false}) {
+          prefetchHooksCallback: ({
+            tracksRefs = false,
+            projectAssetsRefs = false,
+          }) {
             return PrefetchHooks(
               db: db,
-              explicitlyWatchedTables: [if (tracksRefs) db.tracks],
+              explicitlyWatchedTables: [
+                if (tracksRefs) db.tracks,
+                if (projectAssetsRefs) db.projectAssets,
+              ],
               addJoins: null,
               getPrefetchedDataCallback: (items) async {
                 return [
@@ -1563,6 +2060,28 @@ class $$ProjectsTableTableManager
                                 table,
                                 p0,
                               ).tracksRefs,
+                      referencedItemsForCurrentItem:
+                          (item, referencedItems) => referencedItems.where(
+                            (e) => e.projectId == item.id,
+                          ),
+                      typedResults: items,
+                    ),
+                  if (projectAssetsRefs)
+                    await $_getPrefetchedData<
+                      Project,
+                      $ProjectsTable,
+                      ProjectAssetEntry
+                    >(
+                      currentTable: table,
+                      referencedTable: $$ProjectsTableReferences
+                          ._projectAssetsRefsTable(db),
+                      managerFromTypedResult:
+                          (p0) =>
+                              $$ProjectsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).projectAssetsRefs,
                       referencedItemsForCurrentItem:
                           (item, referencedItems) => referencedItems.where(
                             (e) => e.projectId == item.id,
@@ -1589,7 +2108,7 @@ typedef $$ProjectsTableProcessedTableManager =
       $$ProjectsTableUpdateCompanionBuilder,
       (Project, $$ProjectsTableReferences),
       Project,
-      PrefetchHooks Function({bool tracksRefs})
+      PrefetchHooks Function({bool tracksRefs, bool projectAssetsRefs})
     >;
 typedef $$TracksTableCreateCompanionBuilder =
     TracksCompanion Function({
@@ -2439,6 +2958,354 @@ typedef $$ClipsTableProcessedTableManager =
       Clip,
       PrefetchHooks Function({bool trackId})
     >;
+typedef $$ProjectAssetsTableCreateCompanionBuilder =
+    ProjectAssetsCompanion Function({
+      Value<int> id,
+      required int projectId,
+      required String name,
+      required ClipType type,
+      required String sourcePath,
+      required int durationMs,
+    });
+typedef $$ProjectAssetsTableUpdateCompanionBuilder =
+    ProjectAssetsCompanion Function({
+      Value<int> id,
+      Value<int> projectId,
+      Value<String> name,
+      Value<ClipType> type,
+      Value<String> sourcePath,
+      Value<int> durationMs,
+    });
+
+final class $$ProjectAssetsTableReferences
+    extends
+        BaseReferences<_$AppDatabase, $ProjectAssetsTable, ProjectAssetEntry> {
+  $$ProjectAssetsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ProjectsTable _projectIdTable(_$AppDatabase db) =>
+      db.projects.createAlias(
+        $_aliasNameGenerator(db.projectAssets.projectId, db.projects.id),
+      );
+
+  $$ProjectsTableProcessedTableManager get projectId {
+    final $_column = $_itemColumn<int>('project_id')!;
+
+    final manager = $$ProjectsTableTableManager(
+      $_db,
+      $_db.projects,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_projectIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$ProjectAssetsTableFilterComposer
+    extends Composer<_$AppDatabase, $ProjectAssetsTable> {
+  $$ProjectAssetsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<ClipType, ClipType, int> get type =>
+      $composableBuilder(
+        column: $table.type,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
+  ColumnFilters<String> get sourcePath => $composableBuilder(
+    column: $table.sourcePath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get durationMs => $composableBuilder(
+    column: $table.durationMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ProjectsTableFilterComposer get projectId {
+    final $$ProjectsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.projectId,
+      referencedTable: $db.projects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectsTableFilterComposer(
+            $db: $db,
+            $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ProjectAssetsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ProjectAssetsTable> {
+  $$ProjectAssetsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get type => $composableBuilder(
+    column: $table.type,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourcePath => $composableBuilder(
+    column: $table.sourcePath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get durationMs => $composableBuilder(
+    column: $table.durationMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ProjectsTableOrderingComposer get projectId {
+    final $$ProjectsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.projectId,
+      referencedTable: $db.projects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectsTableOrderingComposer(
+            $db: $db,
+            $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ProjectAssetsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ProjectAssetsTable> {
+  $$ProjectAssetsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<ClipType, int> get type =>
+      $composableBuilder(column: $table.type, builder: (column) => column);
+
+  GeneratedColumn<String> get sourcePath => $composableBuilder(
+    column: $table.sourcePath,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get durationMs => $composableBuilder(
+    column: $table.durationMs,
+    builder: (column) => column,
+  );
+
+  $$ProjectsTableAnnotationComposer get projectId {
+    final $$ProjectsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.projectId,
+      referencedTable: $db.projects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ProjectAssetsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ProjectAssetsTable,
+          ProjectAssetEntry,
+          $$ProjectAssetsTableFilterComposer,
+          $$ProjectAssetsTableOrderingComposer,
+          $$ProjectAssetsTableAnnotationComposer,
+          $$ProjectAssetsTableCreateCompanionBuilder,
+          $$ProjectAssetsTableUpdateCompanionBuilder,
+          (ProjectAssetEntry, $$ProjectAssetsTableReferences),
+          ProjectAssetEntry,
+          PrefetchHooks Function({bool projectId})
+        > {
+  $$ProjectAssetsTableTableManager(_$AppDatabase db, $ProjectAssetsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer:
+              () => $$ProjectAssetsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer:
+              () =>
+                  $$ProjectAssetsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer:
+              () => $$ProjectAssetsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> projectId = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<ClipType> type = const Value.absent(),
+                Value<String> sourcePath = const Value.absent(),
+                Value<int> durationMs = const Value.absent(),
+              }) => ProjectAssetsCompanion(
+                id: id,
+                projectId: projectId,
+                name: name,
+                type: type,
+                sourcePath: sourcePath,
+                durationMs: durationMs,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int projectId,
+                required String name,
+                required ClipType type,
+                required String sourcePath,
+                required int durationMs,
+              }) => ProjectAssetsCompanion.insert(
+                id: id,
+                projectId: projectId,
+                name: name,
+                type: type,
+                sourcePath: sourcePath,
+                durationMs: durationMs,
+              ),
+          withReferenceMapper:
+              (p0) =>
+                  p0
+                      .map(
+                        (e) => (
+                          e.readTable(table),
+                          $$ProjectAssetsTableReferences(db, table, e),
+                        ),
+                      )
+                      .toList(),
+          prefetchHooksCallback: ({projectId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins: <
+                T extends TableManagerState<
+                  dynamic,
+                  dynamic,
+                  dynamic,
+                  dynamic,
+                  dynamic,
+                  dynamic,
+                  dynamic,
+                  dynamic,
+                  dynamic,
+                  dynamic,
+                  dynamic
+                >
+              >(state) {
+                if (projectId) {
+                  state =
+                      state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.projectId,
+                            referencedTable: $$ProjectAssetsTableReferences
+                                ._projectIdTable(db),
+                            referencedColumn:
+                                $$ProjectAssetsTableReferences
+                                    ._projectIdTable(db)
+                                    .id,
+                          )
+                          as T;
+                }
+
+                return state;
+              },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$ProjectAssetsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ProjectAssetsTable,
+      ProjectAssetEntry,
+      $$ProjectAssetsTableFilterComposer,
+      $$ProjectAssetsTableOrderingComposer,
+      $$ProjectAssetsTableAnnotationComposer,
+      $$ProjectAssetsTableCreateCompanionBuilder,
+      $$ProjectAssetsTableUpdateCompanionBuilder,
+      (ProjectAssetEntry, $$ProjectAssetsTableReferences),
+      ProjectAssetEntry,
+      PrefetchHooks Function({bool projectId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -2449,4 +3316,6 @@ class $AppDatabaseManager {
       $$TracksTableTableManager(_db, _db.tracks);
   $$ClipsTableTableManager get clips =>
       $$ClipsTableTableManager(_db, _db.clips);
+  $$ProjectAssetsTableTableManager get projectAssets =>
+      $$ProjectAssetsTableTableManager(_db, _db.projectAssets);
 }

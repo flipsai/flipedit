@@ -25,14 +25,15 @@ void Function() _debounce(VoidCallback func, Duration delay) {
   };
 }
 
-class TimelineViewModel implements Disposable {
+class TimelineViewModel {
   // Add a tag for logging within this class
   String get _logTag => runtimeType.toString();
 
   final ClipDao _clipDao;
   final TrackDao _trackDao;
 
-  final ValueNotifier<List<ClipModel>> clipsNotifier = ValueNotifier<List<ClipModel>>([]);
+  final ValueNotifier<List<ClipModel>> clipsNotifier =
+      ValueNotifier<List<ClipModel>>([]);
   List<ClipModel> get clips => List.unmodifiable(clipsNotifier.value);
 
   List<int> currentTrackIds = [];
@@ -53,8 +54,8 @@ class TimelineViewModel implements Disposable {
     currentFrameNotifier.value = clampedValue;
 
     if (_playbackTimer?.isActive ?? false) {
-       _stopPlaybackTimer();
-       isPlayingNotifier.value = false; 
+      _stopPlaybackTimer();
+      isPlayingNotifier.value = false;
     }
 
     _seekControllerToFrame(clampedValue);
@@ -72,11 +73,11 @@ class TimelineViewModel implements Disposable {
   final ValueNotifier<VideoPlayerController?> videoPlayerControllerNotifier =
       ValueNotifier<VideoPlayerController?>(null);
 
-  final ScrollController trackLabelScrollController = ScrollController();
-  final ScrollController trackContentScrollController = ScrollController();
+  final ScrollController trackContentHorizontalScrollController =
+      ScrollController();
 
-  bool _isSyncingLabels = false;
-  bool _isSyncingContent = false;
+  // Added back Notifier for the width of the track label area
+  final ValueNotifier<double> trackLabelWidthNotifier = ValueNotifier(120.0);
 
   Timer? _playbackTimer;
   StreamSubscription? _controllerPositionSubscription;
@@ -85,7 +86,6 @@ class TimelineViewModel implements Disposable {
   late final VoidCallback _debouncedFrameUpdate;
 
   TimelineViewModel(this._clipDao, this._trackDao) {
-    _setupScrollSync();
     _recalculateAndUpdateTotalFrames();
 
     _debouncedFrameUpdate = _debounce(() {
@@ -99,7 +99,7 @@ class TimelineViewModel implements Disposable {
       if (nextFrame <= totalFrames) {
         currentFrameNotifier.value = nextFrame;
         if (nextFrame < totalFrames) {
-          _startPlaybackTimer(); 
+          _startPlaybackTimer();
         } else {
           _stopPlaybackTimer();
           isPlayingNotifier.value = false;
@@ -111,44 +111,24 @@ class TimelineViewModel implements Disposable {
     }, Duration(milliseconds: (1000 / _defaultFrameRate).round()));
   }
 
-  void _setupScrollSync() {
-    final debouncedSyncToContent = _debounce(() {
-      if (!_isSyncingLabels &&
-          trackLabelScrollController.hasClients &&
-          trackContentScrollController.hasClients &&
-          trackLabelScrollController.position.hasPixels &&
-          trackContentScrollController.position.hasPixels) {
-        _isSyncingContent = true;
-        trackContentScrollController.jumpTo(trackLabelScrollController.offset);
-        Future.delayed(Duration.zero, () => _isSyncingContent = false);
-      }
-    }, const Duration(milliseconds: 10));
-
-    final debouncedSyncToLabels = _debounce(() {
-      if (!_isSyncingContent &&
-          trackContentScrollController.hasClients &&
-          trackLabelScrollController.hasClients &&
-          trackLabelScrollController.position.hasPixels &&
-          trackContentScrollController.position.hasPixels) {
-        _isSyncingLabels = true;
-        trackLabelScrollController.jumpTo(trackContentScrollController.offset);
-        Future.delayed(Duration.zero, () => _isSyncingLabels = false);
-      }
-    }, const Duration(milliseconds: 10));
-
-    trackLabelScrollController.addListener(debouncedSyncToContent);
-    trackContentScrollController.addListener(debouncedSyncToLabels);
-  }
-
   Future<void> loadClipsForProject(int projectId) async {
-    logInfo(_logTag, 'Loading clips for project $projectId'); // Use top-level function with tag
+    logInfo(
+      _logTag,
+      'Loading clips for project $projectId',
+    ); // Use top-level function with tag
     final tracks = await _trackDao.getTracksForProject(projectId);
-    
+
     currentTrackIds = tracks.map((t) => t.id).toList();
-    logInfo(_logTag, 'Loaded track IDs: $currentTrackIds'); // Use top-level function with tag
+    logInfo(
+      _logTag,
+      'Loaded track IDs: $currentTrackIds',
+    ); // Use top-level function with tag
 
     if (tracks.isEmpty) {
-      logInfo(_logTag, 'No tracks found for project $projectId'); // Use top-level function with tag
+      logInfo(
+        _logTag,
+        'No tracks found for project $projectId',
+      ); // Use top-level function with tag
       clipsNotifier.value = [];
       _recalculateAndUpdateTotalFrames();
       return;
@@ -156,13 +136,24 @@ class TimelineViewModel implements Disposable {
 
     final List<ClipModel> allClips = [];
     for (final track in tracks) {
-      logDebug(_logTag, 'Processing track ID: ${track.id}'); // Use top-level function with tag
+      logDebug(
+        _logTag,
+        'Processing track ID: ${track.id}',
+      ); // Use top-level function with tag
       final trackClipsData = await _clipDao.getClipsForTrack(track.id);
-      logDebug(_logTag, 'Found ${trackClipsData.length} clips for track ID: ${track.id}'); // Use top-level function with tag
-      allClips.addAll(trackClipsData.map((dbData) => ClipModel.fromDbData(dbData)));
+      logDebug(
+        _logTag,
+        'Found ${trackClipsData.length} clips for track ID: ${track.id}',
+      ); // Use top-level function with tag
+      allClips.addAll(
+        trackClipsData.map((dbData) => ClipModel.fromDbData(dbData)),
+      );
     }
 
-    logInfo(_logTag, 'Loaded ${allClips.length} clips'); // Use top-level function with tag
+    logInfo(
+      _logTag,
+      'Loaded ${allClips.length} clips',
+    ); // Use top-level function with tag
     clipsNotifier.value = allClips;
     _recalculateAndUpdateTotalFrames();
 
@@ -170,17 +161,17 @@ class TimelineViewModel implements Disposable {
     try {
       firstVideo = allClips.firstWhere((c) => c.type == ClipType.video);
     } catch (e) {
-       // Handle stateError if no element is found (no video clips)
-       firstVideo = null;
+      // Handle stateError if no element is found (no video clips)
+      firstVideo = null;
     }
 
     if (firstVideo != null) {
-       // await loadVideo(firstVideo.sourcePath); // Decide if auto-loading is desired
+      // await loadVideo(firstVideo.sourcePath); // Decide if auto-loading is desired
     } else {
-       // Ensure player is cleared if no video clips
-       // await _videoPlayerController?.dispose();
-       // _videoPlayerController = null;
-       // videoPlayerControllerNotifier.value = null;
+      // Ensure player is cleared if no video clips
+      // await _videoPlayerController?.dispose();
+      // _videoPlayerController = null;
+      // videoPlayerControllerNotifier.value = null;
     }
   }
 
@@ -201,7 +192,7 @@ class TimelineViewModel implements Disposable {
     if (isPlayingNotifier.value != _videoPlayerController!.value.isPlaying) {
       isPlayingNotifier.value = _videoPlayerController!.value.isPlaying;
       if (!isPlayingNotifier.value) {
-         _stopPlaybackTimer();
+        _stopPlaybackTimer();
       }
     }
   }
@@ -209,7 +200,9 @@ class TimelineViewModel implements Disposable {
   void _seekControllerToFrame(int frame) {
     if (_videoPlayerController != null &&
         _videoPlayerController!.value.isInitialized) {
-      final targetPosition = Duration(milliseconds: ClipModel.framesToMs(frame));
+      final targetPosition = Duration(
+        milliseconds: ClipModel.framesToMs(frame),
+      );
 
       final currentPosition = _videoPlayerController!.value.position;
       if ((targetPosition - currentPosition).abs() >
@@ -225,7 +218,7 @@ class TimelineViewModel implements Disposable {
     _recalculateAndUpdateTotalFrames();
 
     if (_videoPlayerController == null && clip.type == ClipType.video) {
-      _stopPlaybackTimer(); 
+      _stopPlaybackTimer();
       isPlayingNotifier.value = false;
       loadVideo(clip.sourcePath);
     }
@@ -264,118 +257,188 @@ class TimelineViewModel implements Disposable {
     }
 
     final newClipModel = ClipModel(
-       trackId: trackId,
-       name: clipData.name.isNotEmpty ? clipData.name : 'Clip ${DateTime.now().millisecondsSinceEpoch}',
-       type: clipData.type,
-       sourcePath: clipData.sourcePath,
-       startTimeInSourceMs: startTimeInSourceMs,
-       endTimeInSourceMs: endTimeInSourceMs,
-       startTimeOnTrackMs: targetStartTimeMs,
+      trackId: trackId,
+      name:
+          clipData.name.isNotEmpty
+              ? clipData.name
+              : 'Clip ${DateTime.now().millisecondsSinceEpoch}',
+      type: clipData.type,
+      sourcePath: clipData.sourcePath,
+      startTimeInSourceMs: startTimeInSourceMs,
+      endTimeInSourceMs: endTimeInSourceMs,
+      startTimeOnTrackMs: targetStartTimeMs,
     );
 
     try {
-        final companion = newClipModel.toDbCompanion();
-        final newDbId = await _clipDao.insertClip(companion);
+      final companion = newClipModel.toDbCompanion();
+      final newDbId = await _clipDao.insertClip(companion);
 
-        final clipWithId = newClipModel.copyWith(databaseId: Value(newDbId));
+      final clipWithId = newClipModel.copyWith(databaseId: Value(newDbId));
 
-        final currentClips = List<ClipModel>.from(clipsNotifier.value);
-        currentClips.add(clipWithId);
-        clipsNotifier.value = currentClips;
+      final currentClips = List<ClipModel>.from(clipsNotifier.value);
+      currentClips.add(clipWithId);
+      clipsNotifier.value = currentClips;
 
-        _recalculateAndUpdateTotalFrames();
+      _recalculateAndUpdateTotalFrames();
 
-        if (_videoPlayerController == null && clipWithId.type == ClipType.video) {
-           _stopPlaybackTimer();
-           isPlayingNotifier.value = false;
-        }
-        logInfo(_logTag, 'Clip added with ID: $newDbId at ${clipWithId.startTimeOnTrackMs}ms'); // Use top-level function with tag
-
+      if (_videoPlayerController == null && clipWithId.type == ClipType.video) {
+        _stopPlaybackTimer();
+        isPlayingNotifier.value = false;
+      }
+      logInfo(
+        _logTag,
+        'Clip added with ID: $newDbId at ${clipWithId.startTimeOnTrackMs}ms',
+      ); // Use top-level function with tag
     } catch (e) {
-       logError(_logTag, "Error adding clip to database: $e"); // Use top-level function with tag
+      logError(
+        _logTag,
+        "Error adding clip to database: $e",
+      ); // Use top-level function with tag
     }
   }
 
-  Future<void> removeClip(int databaseId) async {
-    if (databaseId <= 0) return;
+  Future<void> removeClip(int clipId) async {
+    logInfo(
+      _logTag,
+      'Attempting to remove clip with ID: $clipId',
+    ); // Log attempt
+    try {
+      // Delete from database
+      final rowsAffected = await _clipDao.deleteClip(clipId);
+
+      if (rowsAffected > 0) {
+        // Remove from the notifier
+        final currentClips = List<ClipModel>.from(clipsNotifier.value);
+        final initialLength = currentClips.length;
+        currentClips.removeWhere((clip) => clip.databaseId == clipId);
+
+        if (currentClips.length < initialLength) {
+          clipsNotifier.value = currentClips;
+          _recalculateAndUpdateTotalFrames(); // Update total duration
+          logInfo(_logTag, 'Successfully removed clip ID: $clipId');
+
+          // Optional: Handle video player if the removed clip was the primary video
+          // This might require checking if the removed clip was the one loaded,
+          // and potentially loading another video or clearing the player.
+          // Example (needs refinement based on exact logic):
+          // if (_videoPlayerController != null && _videoPlayerController!.dataSource.contains(clipSourcePath)) {
+          //   await _videoPlayerController?.dispose();
+          //   _videoPlayerController = null;
+          //   videoPlayerControllerNotifier.value = null;
+          //   // Maybe load the next video clip?
+          // }
+        } else {
+          logWarning(
+            _logTag,
+            'Clip ID $clipId found in DB but not in notifier. Notifier might be out of sync.',
+          );
+        }
+      } else {
+        logWarning(
+          _logTag,
+          'Clip ID $clipId not found in database or deletion failed.',
+        );
+      }
+    } catch (e, stackTrace) {
+      logError('Error removing clip ID: $clipId', e, stackTrace, _logTag);
+    }
+  }
+
+  Future<void> updateClipPosition(int clipId, int newStartTimeMs) async {
+    if (clipId <= 0) return;
 
     try {
-      final successCount = await _clipDao.deleteClip(databaseId);
+      final successCount = await _clipDao.updateClipStartTimeOnTrack(
+        clipId,
+        newStartTimeMs,
+      );
 
       if (successCount > 0) {
         final currentClips = List<ClipModel>.from(clipsNotifier.value);
-        final initialLength = currentClips.length;
-        currentClips.removeWhere((clip) => clip.databaseId == databaseId);
-
-        if (currentClips.length < initialLength) {
-           clipsNotifier.value = currentClips;
-           _recalculateAndUpdateTotalFrames();
-           logInfo(_logTag, 'Clip removed with ID: $databaseId'); // Use top-level function with tag
-
+        final index = currentClips.indexWhere(
+          (clip) => clip.databaseId == clipId,
+        );
+        if (index != -1) {
+          final updatedClip = currentClips[index].copyWith(
+            startTimeOnTrackMs: newStartTimeMs,
+          );
+          currentClips[index] = updatedClip;
+          clipsNotifier.value = currentClips;
+          _recalculateAndUpdateTotalFrames();
+          logInfo(
+            _logTag,
+            'Clip $clipId position updated to ${newStartTimeMs}ms',
+          ); // Use top-level function with tag
         } else {
-           logWarning(_logTag, 'Warning: Clip with ID $databaseId not found in local state after successful DB delete.'); // Use top-level function with tag
+          logWarning(
+            _logTag,
+            'Warning: Clip $clipId not found locally after successful DB update.',
+          ); // Use top-level function with tag
         }
       } else {
-         logError(_logTag, 'Error: Clip with ID $databaseId not found in database or could not be deleted.'); // Use top-level function with tag
+        logError(
+          _logTag,
+          'Error: Clip $clipId not found in DB or failed to update position.',
+        ); // Use top-level function with tag
       }
     } catch (e) {
-      logError(_logTag, "Error removing clip from database: $e"); // Use top-level function with tag
+      logError(
+        _logTag,
+        "Error updating clip position in database: $e",
+      ); // Use top-level function with tag
     }
   }
 
-  Future<void> updateClipPosition(int databaseId, int newStartTimeOnTrackMs) async {
-     if (databaseId <= 0) return;
+  Future<void> updateClipTrim(
+    int databaseId,
+    int newStartTimeInSourceMs,
+    int newEndTimeInSourceMs,
+  ) async {
+    if (databaseId <= 0 || newEndTimeInSourceMs < newStartTimeInSourceMs)
+      return;
 
-     try {
-        final successCount = await _clipDao.updateClipStartTimeOnTrack(databaseId, newStartTimeOnTrackMs);
+    try {
+      final successCount = await _clipDao.updateClipTrimTimes(
+        databaseId,
+        newStartTimeInSourceMs,
+        newEndTimeInSourceMs,
+      );
 
-        if (successCount > 0) {
-            final currentClips = List<ClipModel>.from(clipsNotifier.value);
-            final index = currentClips.indexWhere((clip) => clip.databaseId == databaseId);
-            if (index != -1) {
-               final updatedClip = currentClips[index].copyWith(startTimeOnTrackMs: newStartTimeOnTrackMs);
-               currentClips[index] = updatedClip;
-               clipsNotifier.value = currentClips;
-               _recalculateAndUpdateTotalFrames();
-               logInfo(_logTag, 'Clip $databaseId position updated to ${newStartTimeOnTrackMs}ms'); // Use top-level function with tag
-            } else {
-               logWarning(_logTag, 'Warning: Clip $databaseId not found locally after successful DB update.'); // Use top-level function with tag
-            }
+      if (successCount > 0) {
+        final currentClips = List<ClipModel>.from(clipsNotifier.value);
+        final index = currentClips.indexWhere(
+          (clip) => clip.databaseId == databaseId,
+        );
+        if (index != -1) {
+          final updatedClip = currentClips[index].copyWith(
+            startTimeInSourceMs: newStartTimeInSourceMs,
+            endTimeInSourceMs: newEndTimeInSourceMs,
+          );
+          currentClips[index] = updatedClip;
+          clipsNotifier.value = currentClips;
+          _recalculateAndUpdateTotalFrames();
+          logInfo(
+            _logTag,
+            'Clip $databaseId trim updated',
+          ); // Use top-level function with tag
         } else {
-           logError(_logTag, 'Error: Clip $databaseId not found in DB or failed to update position.'); // Use top-level function with tag
+          logWarning(
+            _logTag,
+            'Warning: Clip $databaseId not found locally after successful DB update.',
+          ); // Use top-level function with tag
         }
-     } catch (e) {
-        logError(_logTag, "Error updating clip position in database: $e"); // Use top-level function with tag
-     }
-  }
-
-  Future<void> updateClipTrim(int databaseId, int newStartTimeInSourceMs, int newEndTimeInSourceMs) async {
-      if (databaseId <= 0 || newEndTimeInSourceMs < newStartTimeInSourceMs) return;
-
-       try {
-        final successCount = await _clipDao.updateClipTrimTimes(databaseId, newStartTimeInSourceMs, newEndTimeInSourceMs);
-
-        if (successCount > 0) {
-            final currentClips = List<ClipModel>.from(clipsNotifier.value);
-            final index = currentClips.indexWhere((clip) => clip.databaseId == databaseId);
-            if (index != -1) {
-               final updatedClip = currentClips[index].copyWith(
-                   startTimeInSourceMs: newStartTimeInSourceMs,
-                   endTimeInSourceMs: newEndTimeInSourceMs,
-               );
-               currentClips[index] = updatedClip;
-               clipsNotifier.value = currentClips;
-               _recalculateAndUpdateTotalFrames();
-               logInfo(_logTag, 'Clip $databaseId trim updated'); // Use top-level function with tag
-            } else {
-               logWarning(_logTag, 'Warning: Clip $databaseId not found locally after successful DB update.'); // Use top-level function with tag
-            }
-        } else {
-           logError(_logTag, 'Error: Clip $databaseId not found in DB or failed to update trim.'); // Use top-level function with tag
-        }
-     } catch (e) {
-        logError(_logTag, "Error updating clip trim in database: $e"); // Use top-level function with tag
-     }
+      } else {
+        logError(
+          _logTag,
+          'Error: Clip $databaseId not found in DB or failed to update trim.',
+        ); // Use top-level function with tag
+      }
+    } catch (e) {
+      logError(
+        _logTag,
+        "Error updating clip trim in database: $e",
+      ); // Use top-level function with tag
+    }
   }
 
   int calculateMsPositionFromDrop(
@@ -383,7 +446,11 @@ class TimelineViewModel implements Disposable {
     double scrollOffsetX,
     double zoom,
   ) {
-    final frame = calculateFramePositionFromDrop(localPositionX, scrollOffsetX, zoom);
+    final frame = calculateFramePositionFromDrop(
+      localPositionX,
+      scrollOffsetX,
+      zoom,
+    );
     return ClipModel.framesToMs(frame);
   }
 
@@ -395,14 +462,14 @@ class TimelineViewModel implements Disposable {
       final totalDuration = _videoPlayerController!.value.duration;
       final currentPosition = _videoPlayerController!.value.position;
       if (currentPosition >= totalDuration) {
-         _videoPlayerController!.seekTo(Duration.zero);
+        _videoPlayerController!.seekTo(Duration.zero);
       }
       _videoPlayerController!.play();
       isPlayingNotifier.value = true;
     } else {
       final totalFrames = _calculateTotalFrames();
       if (currentFrame >= totalFrames) {
-         currentFrame = 0;
+        currentFrame = 0;
       }
       isPlayingNotifier.value = true;
       _startPlaybackTimer();
@@ -450,17 +517,20 @@ class TimelineViewModel implements Disposable {
 
     Uri videoUri;
     if (videoPath.startsWith('http') || videoPath.startsWith('https')) {
-        videoUri = Uri.parse(videoPath);
-         _videoPlayerController = VideoPlayerController.networkUrl(videoUri);
+      videoUri = Uri.parse(videoPath);
+      _videoPlayerController = VideoPlayerController.networkUrl(videoUri);
     } else {
-        final file = File(videoPath);
-        if (!await file.exists()) {
-           logError(_logTag, "Error: Video file not found at $videoPath"); // Use top-level function with tag
-            _recalculateAndUpdateTotalFrames();
-            return;
-        }
-        videoUri = Uri.file(videoPath);
-         _videoPlayerController = VideoPlayerController.file(file);
+      final file = File(videoPath);
+      if (!await file.exists()) {
+        logError(
+          _logTag,
+          "Error: Video file not found at $videoPath",
+        ); // Use top-level function with tag
+        _recalculateAndUpdateTotalFrames();
+        return;
+      }
+      videoUri = Uri.file(videoPath);
+      _videoPlayerController = VideoPlayerController.file(file);
     }
 
     try {
@@ -476,9 +546,15 @@ class TimelineViewModel implements Disposable {
       _stopPlaybackTimer();
       isPlayingNotifier.value = false;
 
-      logInfo(_logTag, 'Video loaded for preview: $videoPath'); // Use top-level function with tag
+      logInfo(
+        _logTag,
+        'Video loaded for preview: $videoPath',
+      ); // Use top-level function with tag
     } catch (e) {
-      logError(_logTag, "Error initializing video player: $e"); // Use top-level function with tag
+      logError(
+        _logTag,
+        "Error initializing video player: $e",
+      ); // Use top-level function with tag
       _videoPlayerController = null;
       videoPlayerControllerNotifier.value = null;
       _recalculateAndUpdateTotalFrames();
@@ -505,23 +581,32 @@ class TimelineViewModel implements Disposable {
     if (totalFramesNotifier.value != newTotalFrames) {
       totalFramesNotifier.value = newTotalFrames;
       if (currentFrame > newTotalFrames) {
-         currentFrame = newTotalFrames;
+        currentFrame = newTotalFrames;
       }
     }
   }
 
+  /// Update the width of the track label area (Added back)
+  void updateTrackLabelWidth(double newWidth) {
+    // Add constraints if needed, e.g., minimum/maximum width
+    trackLabelWidthNotifier.value = newWidth.clamp(
+      50.0,
+      300.0,
+    ); // Example constraints
+  }
+
   @override
   void onDispose() {
-    logInfo(_logTag, 'Disposing TimelineViewModel'); // Use top-level function with tag
+    logInfo(_logTag, 'Disposing TimelineViewModel');
     clipsNotifier.dispose();
     zoomNotifier.dispose();
     currentFrameNotifier.dispose();
     totalFramesNotifier.dispose();
     isPlayingNotifier.dispose();
     videoPlayerControllerNotifier.dispose();
+    trackLabelWidthNotifier.dispose(); // Added back disposal
 
-    trackLabelScrollController.dispose();
-    trackContentScrollController.dispose();
+    trackContentHorizontalScrollController.dispose();
 
     _stopPlaybackTimer();
     _controllerPositionSubscription?.cancel();
