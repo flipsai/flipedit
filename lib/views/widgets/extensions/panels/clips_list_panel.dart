@@ -50,8 +50,19 @@ class ClipsListPanel extends StatelessWidget with WatchItMixin {
           ),
         ),
         Expanded(
-          // Pass ProjectAsset list
-          child: _buildClipsList(context, assets, searchTerm),
+          // Show a message explaining the migration to the new architecture
+          child: assets.isEmpty 
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text('Media importing is currently unavailable during architecture migration.'),
+                      const SizedBox(height: 10),
+                      const Text('This feature will be available again soon.'),
+                    ],
+                  ),
+                )
+              : _buildClipsList(context, assets, searchTerm),
         ),
       ],
     );

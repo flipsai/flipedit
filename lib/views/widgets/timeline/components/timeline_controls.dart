@@ -4,7 +4,7 @@ import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:video_player/video_player.dart';
 import 'package:watch_it/watch_it.dart';
-import 'package:flipedit/services/project_service.dart';
+import 'package:flipedit/viewmodels/project_viewmodel.dart';
 import 'package:flipedit/utils/logger.dart';
 
 /// Controls widget for the timeline including playback controls and zoom
@@ -122,16 +122,16 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
     FluentThemeData theme,
     Color controlsContentColor,
   ) {
-    // Get ProjectService instance
-    final projectService = di<ProjectService>();
+    // Get ProjectViewModel instance instead of ProjectService
+    final projectVm = di<ProjectViewModel>();
     return FilledButton(
       onPressed: () async {
         logInfo(runtimeType.toString(), "Add Media button pressed - Placeholder");
         
         // Get the first track ID or default/error if none
         final int targetTrackId;
-        // Access tracks directly from the ProjectService notifier
-        final currentTracks = projectService.currentProjectTracksNotifier.value;
+        // Access tracks directly from the ProjectViewModel
+        final currentTracks = projectVm.tracks;
         if (currentTracks.isNotEmpty) {
            targetTrackId = currentTracks.first.id;
         } else {

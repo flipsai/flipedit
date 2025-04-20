@@ -2,12 +2,15 @@ import 'package:drift/drift.dart';
 import 'package:flipedit/persistence/database/app_database.dart';
 import 'package:flipedit/persistence/tables/clips.dart';
 import 'package:flipedit/persistence/tables/tracks.dart'; // Needed for join
+import 'package:flipedit/utils/logger.dart';
 
 part 'clip_dao.g.dart'; // Drift will generate this file
 
 @DriftAccessor(tables: [Clips, Tracks]) // Include Tracks if joining
 class ClipDao extends DatabaseAccessor<AppDatabase> with _$ClipDaoMixin {
   ClipDao(super.db);
+  
+  String get _logTag => 'ClipDao';
 
   // Watch all clips for a specific track, ordered by their start time on the track
   Stream<List<Clip>> watchClipsForTrack(int trackId) {
@@ -48,17 +51,25 @@ class ClipDao extends DatabaseAccessor<AppDatabase> with _$ClipDaoMixin {
     return (delete(clips)..where((c) => c.trackId.equals(trackId))).go();
   }
 
-   // Delete all clips associated with tracks belonging to a specific project
+  // Delete all clips associated with tracks belonging to a specific project
+  // Note: This method is now deprecated as projectId is removed in the new database structure
   Future<void> deleteClipsForProject(int projectId) async {
-    // 1. Find all track IDs for the project
-    // Corrected way to select only IDs
-    final trackIdsQuery = select(tracks)
-                           ..where((t) => t.projectId.equals(projectId));
-    final trackIds = await trackIdsQuery.map((track) => track.id).get();
+    logWarning(_logTag, "deleteClipsForProject is deprecated in the new database structure");
+    try {
+      // For backward compatibility, we'll attempt to query track IDs
+      // This will only work with the old database structure that still has projectId
+      final trackIdsQuery = await customSelect(
+        'SELECT id FROM tracks WHERE project_id = ?',
+        variables: [Variable.withInt(projectId)],
+      ).map((row) => row.read<int>('id')).get();
 
-    // 2. Delete clips associated with those track IDs
-    if (trackIds.isNotEmpty) {
-       await (delete(clips)..where((c) => c.trackId.isIn(trackIds))).go();
+      // 2. Delete clips associated with those track IDs
+      if (trackIdsQuery.isNotEmpty) {
+        await (delete(clips)..where((c) => c.trackId.isIn(trackIdsQuery))).go();
+      }
+    } catch (e) {
+      logError(_logTag, "Error in deleteClipsForProject: $e");
+      // Silently fail - this method is deprecated anyway
     }
   }
 

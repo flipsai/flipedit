@@ -1,5 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flipedit/services/project_service.dart'; // Import ProjectService
+import 'package:flipedit/services/project_database_service.dart'; // Replace ProjectService import
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/views/widgets/timeline/components/time_ruler.dart';
 import 'package:flipedit/views/widgets/timeline/components/timeline_controls.dart';
@@ -17,15 +17,12 @@ class Timeline extends StatelessWidget with WatchItMixin {
     final theme = FluentTheme.of(context);
     // Use watch_it to get ViewModels and Services
     final timelineViewModel = di<TimelineViewModel>();
-    final projectService = di<ProjectService>(); // Get ProjectService
+    final databaseService = di<ProjectDatabaseService>(); // Get ProjectDatabaseService
 
     // Watch properties from TimelineViewModel
     final clips = watchValue((TimelineViewModel vm) => vm.clipsNotifier);
     final currentFrame = watchValue(
       (TimelineViewModel vm) => vm.currentFrameNotifier,
-    );
-    final isPlaying = watchValue(
-      (TimelineViewModel vm) => vm.isPlayingNotifier,
     );
     final zoom = watchValue((TimelineViewModel vm) => vm.zoomNotifier);
     final totalFrames = watchValue(
@@ -35,9 +32,9 @@ class Timeline extends StatelessWidget with WatchItMixin {
       (TimelineViewModel vm) => vm.trackLabelWidthNotifier,
     );
 
-    // Watch tracks list directly from the ProjectService notifier
+    // Watch tracks list from the DatabaseService
     final tracks = watchValue(
-      (ProjectService ps) => ps.currentProjectTracksNotifier,
+      (ProjectDatabaseService ps) => ps.tracksNotifier,
     );
 
     // Only horizontal scroll controller needed from ViewModel now
@@ -108,8 +105,9 @@ class Timeline extends StatelessWidget with WatchItMixin {
                                   ),
                                   itemCount: tracks.length,
                                   itemBuilder: (context, index) {
-                                    if (index >= tracks.length)
+                                    if (index >= tracks.length) {
                                       return const SizedBox.shrink();
+                                    }
                                     final track = tracks[index];
                                     final trackClips =
                                         clips
@@ -128,7 +126,7 @@ class Timeline extends StatelessWidget with WatchItMixin {
                                         track: track,
                                         clips: trackClips,
                                         onDelete: () {
-                                          projectService.removeTrack(track.id);
+                                          databaseService.deleteTrack(track.id);
                                         },
                                         trackLabelWidth: trackLabelWidth,
                                       ),

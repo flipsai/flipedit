@@ -47,9 +47,9 @@ class _TimelineClipState extends State<TimelineClip> {
   Color _getContrastColor(Color backgroundColor) {
     // Calculate luminance
     final luminance =
-        (0.299 * backgroundColor.red +
-            0.587 * backgroundColor.green +
-            0.114 * backgroundColor.blue) /
+        (0.299 * backgroundColor.r +
+            0.587 * backgroundColor.g +
+            0.114 * backgroundColor.b) /
         255;
     return luminance > 0.5 ? Colors.black : Colors.white;
   }
@@ -155,6 +155,7 @@ class _TimelineClipState extends State<TimelineClip> {
                 final newStartTimeMs = ClipModel.framesToMs(_currentDragFrame);
                 timelineVm.updateClipPosition(
                   widget.clip.databaseId!,
+                  widget.clip.trackId,
                   newStartTimeMs,
                 );
               } else {
@@ -213,7 +214,7 @@ class _TimelineClipState extends State<TimelineClip> {
                   // Use lighter color and maybe less opacity when dragging
                   color:
                       _isDragging || widget.isDragging
-                          ? clipColor.withOpacity(0.5)
+                          ? clipColor.withValues(alpha: 128)
                           : clipColor,
                   border: Border.all(
                     // Use theme accent for selection, different color for dragging feedback
@@ -242,7 +243,7 @@ class _TimelineClipState extends State<TimelineClip> {
                         padding: const EdgeInsets.symmetric(horizontal: 4),
                         decoration: BoxDecoration(
                           // Slightly darker/lighter shade for header background
-                          color: clipColor.withOpacity(0.8),
+                          color: clipColor.withValues(alpha: 204),
                           borderRadius: const BorderRadius.only(
                             topLeft: Radius.circular(
                               3,
@@ -333,9 +334,9 @@ class _TimelineClipState extends State<TimelineClip> {
     FluentThemeData theme,
   ) {
     // Use a semi-transparent version of the contrast color for icons/content
-    final contentColor = contrastColor.withOpacity(0.7);
+    final contentColor = contrastColor.withValues(alpha: 179);
     // Use a slightly transparent version of the base color for backgrounds
-    final contentBackgroundColor = clipColor.withOpacity(0.6);
+    final contentBackgroundColor = clipColor.withValues(alpha: 153);
 
     switch (widget.clip.type) {
       case ClipType.video:

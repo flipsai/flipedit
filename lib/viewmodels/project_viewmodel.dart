@@ -1,87 +1,69 @@
 import 'dart:async';
-import 'dart:io'; // Required for Path
 
-import 'package:flipedit/models/enums/clip_type.dart'; // Required for ClipType
 import 'package:flipedit/models/project_asset.dart'; // Required for ProjectAsset
-import 'package:flipedit/persistence/database/app_database.dart';
-import 'package:flipedit/services/project_service.dart';
+import 'package:flipedit/persistence/database/project_database.dart';
+import 'package:flipedit/persistence/database/project_metadata_database.dart';
+import 'package:flipedit/services/project_metadata_service.dart';
+import 'package:flipedit/services/project_database_service.dart';
+import 'package:flipedit/utils/logger.dart'; // Import logger
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart'; // Import shared_preferences
 import 'package:watch_it/watch_it.dart';
-import 'package:path/path.dart' as p; // Use path package for basename
 
 const _lastProjectIdKey = 'last_opened_project_id'; // Key for SharedPreferences
 
 class ProjectViewModel {
-  final ProjectService _projectService = di<ProjectService>();
+  final ProjectMetadataService _metadataService = di<ProjectMetadataService>();
+  final ProjectDatabaseService _databaseService = di<ProjectDatabaseService>();
   final SharedPreferences _prefs; // Add SharedPreferences field
 
-  late final ValueNotifier<Project?> currentProjectNotifier;
+  late final ValueNotifier<ProjectMetadata?> currentProjectNotifier;
   late final ValueNotifier<bool> isProjectLoadedNotifier;
-  // Use the notifier from ProjectService
-  late final ValueNotifier<List<ProjectAsset>> projectAssetsNotifier;
+  // Use the notifier from ProjectDatabaseService for tracks
+  late final ValueNotifier<List<Track>> tracksNotifier;
+  // Add a temporary empty assets notifier for backward compatibility
+  final ValueNotifier<List<ProjectAsset>> projectAssetsNotifier = ValueNotifier([]);
 
-  ProjectViewModel({required SharedPreferences prefs}) : _prefs = prefs { // Update constructor
-    currentProjectNotifier = _projectService.currentProjectNotifier;
+  ProjectViewModel({required SharedPreferences prefs}) : _prefs = prefs { 
+    currentProjectNotifier = _metadataService.currentProjectMetadataNotifier;
     isProjectLoadedNotifier = ValueNotifier(
       currentProjectNotifier.value != null,
     );
-    // Initialize from ProjectService's notifier
-    projectAssetsNotifier = _projectService.currentProjectAssetsNotifier;
+    
+    // Use tracks from the database service
+    tracksNotifier = _databaseService.tracksNotifier;
 
-    // No need to listen to currentProjectNotifier to update assets,
-    // ProjectService handles that now.
-    // currentProjectNotifier.addListener(_onProjectChanged);
-    // Listen directly to isProjectLoadedNotifier if needed for other logic
-    // isProjectLoadedNotifier.addListener(_onLoadStatusChanged);
     // Listen to the service's project notifier to update the load status
     currentProjectNotifier.addListener(_onProjectChanged);
   }
 
-  // Optional: Listener if other things depend on load status changes
-  // void _onLoadStatusChanged() {
-  //  notifyListeners(); // Notify listeners if the load status changes
-  // }
-
-  // Remove _onProjectChanged if it only managed assets
-  /*
-  void _onProjectChanged() {
-    isProjectLoadedNotifier.value = currentProjectNotifier.value != null;
-    // ProjectService now manages loading/clearing assets
-  }
-  */
-  // Listener for when the project in ProjectService changes
+  // Listener for when the project in metadata service changes
   void _onProjectChanged() {
     final projectLoaded = currentProjectNotifier.value != null;
     // Only update and notify if the value actually changed
     if (isProjectLoadedNotifier.value != projectLoaded) {
       isProjectLoadedNotifier.value = projectLoaded;
     }
-    // No need to manage assets here, ProjectService does that.
   }
 
-  Project? get currentProject => currentProjectNotifier.value;
+  ProjectMetadata? get currentProject => currentProjectNotifier.value;
   bool get isProjectLoaded => isProjectLoadedNotifier.value;
-  // Getter remains the same, points to the service's notifier value
-  List<ProjectAsset> get projectAssets => projectAssetsNotifier.value;
+  // Getter for tracks from database service
+  List<Track> get tracks => tracksNotifier.value;
 
   Future<int> createNewProjectCommand(String name) async {
     if (name.trim().isEmpty) {
       throw ArgumentError('Project name cannot be empty.');
     }
-    // Service now handles loading after creation
-    return await _projectService.createNewProject(name: name.trim());
-    // final newProjectId = await _projectService.createNewProject(
-    //   name: name.trim(),
-    // );
-    // await _projectService.loadProject(newProjectId);
-    // return newProjectId;
+    
+    // Use metadata service to create project
+    return await _metadataService.createNewProject(name: name.trim());
   }
 
-  Future<List<Project>> getAllProjects() async {
+  Future<List<ProjectMetadata>> getAllProjects() async {
     try {
-      // Use watchAllProjects().first or a dedicated get method if added to service
-      return await _projectService.watchAllProjects().first;
+      // Use metadata service to get all projects
+      return await _metadataService.watchAllProjectsMetadata().first;
     } catch (e) {
       debugPrint('Error getting projects: $e');
       return [];
@@ -89,12 +71,17 @@ class ProjectViewModel {
   }
 
   Future<void> loadProjectCommand(int projectId) async {
-    await _projectService.loadProject(projectId);
-    // ProjectService now handles loading assets internally
-
-    // Save the loaded project ID if successful
-    if (isProjectLoaded) {
-      await _prefs.setInt(_lastProjectIdKey, projectId);
+    // Load project metadata and database
+    final projectDb = await _metadataService.loadProject(projectId);
+    
+    if (projectDb != null) {
+      // Load project in database service
+      await _databaseService.loadProject(projectId);
+      
+      // Save the loaded project ID if successful
+      if (isProjectLoaded) {
+        await _prefs.setInt(_lastProjectIdKey, projectId);
+      }
     }
   }
 
@@ -118,45 +105,30 @@ class ProjectViewModel {
   }
 
   Future<void> addTrackCommand({required String type}) async {
-    await _projectService.addTrack(type: type);
+    await _databaseService.addTrack(type: type);
   }
 
   Future<void> saveProjectCommand() async {
-    // Check using the notifier directly
-    if (_projectService.currentProjectNotifier.value != null) {
-      await _projectService.saveProject();
-    } else {
-      print("ProjectViewModel: No project loaded to save.");
-    }
+    // No explicit save needed in new architecture - handled automatically
+    print("ProjectViewModel: Project changes are saved automatically in new architecture.");
   }
 
-  // Update command to use ProjectService
+  // Temporary media asset command for backward compatibility
   Future<void> importMediaAssetCommand(String filePath) async {
     if (!isProjectLoaded) {
       throw StateError("Cannot import media: No project loaded.");
     }
-    // TODO: Get actual duration and type detection
-    final newAsset = ProjectAsset(
-      name: p.basename(filePath), // Use path package for filename
-      type: ClipType.video, // Placeholder: Detect type
-      sourcePath: filePath,
-      durationMs: 5000, // Placeholder: Get actual duration
-    );
-
-    // Call ProjectService to persist the asset
-    await _projectService.addProjectAsset(newAsset);
-
-    // No longer need to update local notifier, service watcher handles it
-    // projectAssetsNotifier.value = [...projectAssetsNotifier.value, newAsset];
+    
+    logInfo("ProjectViewModel", "Media importing not implemented in new architecture yet");
+    logInfo("ProjectViewModel", "Selected file: $filePath");
+    // In the future, this will use the database service to import media
   }
+
+  // Media asset management will be handled by the database service in future updates
 
   @override
   void onDispose() {
-    // currentProjectNotifier.removeListener(_onProjectChanged); // Remove if listener removed
-    // isProjectLoadedNotifier.removeListener(_onLoadStatusChanged);
-    currentProjectNotifier.removeListener(_onProjectChanged); // Remove listener for project changes
+    currentProjectNotifier.removeListener(_onProjectChanged);
     isProjectLoadedNotifier.dispose();
-    // projectAssetsNotifier is owned by ProjectService, so don't dispose here
-    // projectAssetsNotifier.dispose();
   }
 }

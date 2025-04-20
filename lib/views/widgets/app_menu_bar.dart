@@ -1,7 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
-import 'package:flipedit/persistence/database/app_database.dart';
+import 'package:flipedit/persistence/database/project_metadata_database.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
 import 'package:flipedit/models/clip.dart';
@@ -71,7 +71,7 @@ Future<void> _handleOpenProject(
   BuildContext context,
   ProjectViewModel projectVm,
 ) async {
-  List<Project> projects = [];
+  List<ProjectMetadata> projects = [];
 
   try {
     // Get the current list of projects via ViewModel
@@ -149,7 +149,8 @@ Future<void> _handleOpenProject(
   });
 }
 
-// Updated to use ProjectViewModel for importing assets
+// Updated to use ProjectViewModel for importing assets - function is commented out
+// until we implement media asset importing in the new architecture
 Future<void> _handleImportMedia(
   ProjectViewModel projectVm, // Change to ProjectViewModel
 ) async {
@@ -161,10 +162,9 @@ Future<void> _handleImportMedia(
     if (result != null && result.files.isNotEmpty) {
       String? filePath = result.files.single.path;
       if (filePath != null) {
-        // Use the new ProjectViewModel command
+        // Re-enable so our temporary implementation can show the message
         await projectVm.importMediaAssetCommand(filePath);
-        logInfo(_logTag, "Imported media: $filePath");
-        // No longer adding directly to timeline here
+        logInfo(_logTag, "Selected file: $filePath");
       } else {
         logWarning(_logTag, "File path is null after picking.");
       }

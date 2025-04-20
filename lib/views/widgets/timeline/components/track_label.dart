@@ -1,7 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:watch_it/watch_it.dart';
-import 'package:flipedit/services/project_service.dart';
-import 'package:flipedit/persistence/database/app_database.dart';
+import 'package:flipedit/services/project_database_service.dart';
+import 'package:flipedit/persistence/database/project_database.dart';
 
 /// A label widget for timeline tracks that displays an icon, text,
 /// and allows renaming on double-click.
@@ -24,12 +24,12 @@ class _TrackLabelState extends State<TrackLabel> {
   late TextEditingController _textController;
   final FocusNode _focusNode = FocusNode();
 
-  late ProjectService projectService;
+  late ProjectDatabaseService databaseService;
 
   @override
   void initState() {
     super.initState();
-    projectService = di<ProjectService>();
+    databaseService = di<ProjectDatabaseService>();
     _textController = TextEditingController(text: widget.track.name);
 
     _focusNode.addListener(() {
@@ -76,7 +76,7 @@ class _TrackLabelState extends State<TrackLabel> {
     if (_isEditing) {
       final newName = _textController.text.trim();
       if (newName.isNotEmpty && newName != widget.track.name) {
-        projectService.updateTrackName(widget.track.id, newName);
+        databaseService.updateTrackName(widget.track.id, newName);
       }
       setState(() {
         _isEditing = false;
@@ -147,7 +147,7 @@ class _TrackLabelState extends State<TrackLabel> {
                 child: IconButton(
                   icon: const Icon(FluentIcons.delete, size: 12),
                   onPressed: widget.onDelete,
-                  style: ButtonStyle(padding: ButtonState.all(EdgeInsets.zero)),
+                  style: ButtonStyle(padding: WidgetStateProperty.all(EdgeInsets.zero)),
                 ),
               ),
           ],

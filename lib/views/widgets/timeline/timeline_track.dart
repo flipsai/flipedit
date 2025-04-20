@@ -1,6 +1,6 @@
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flipedit/persistence/database/app_database.dart' show Track;
-import 'package:flipedit/services/project_service.dart';
+import 'package:flipedit/persistence/database/project_database.dart';
+import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/views/widgets/timeline/timeline_clip.dart';
@@ -34,13 +34,13 @@ class _TimelineTrackState extends State<TimelineTrack> {
   final GlobalKey _trackContentKey = GlobalKey();
 
   late TimelineViewModel _timelineViewModel;
-  late ProjectService _projectService;
+  late ProjectDatabaseService _databaseService;
 
   @override
   void initState() {
     super.initState();
     _timelineViewModel = di<TimelineViewModel>();
-    _projectService = di<ProjectService>();
+    _databaseService = di<ProjectDatabaseService>();
     _textController = TextEditingController(text: widget.track.name);
     _focusNode = FocusNode();
 
@@ -88,8 +88,8 @@ class _TimelineTrackState extends State<TimelineTrack> {
     if (mounted && _isEditing) {
        developer.log('Mounted and isEditing: true. New name: "$newName"');
        if (newName.isNotEmpty && newName != widget.track.name) {
-        developer.log('New name is valid. Calling projectService.renameTrack...');
-        _projectService.renameTrack(widget.track.id, newName);
+        developer.log('New name is valid. Calling databaseService.updateTrackName...');
+        _databaseService.updateTrackName(widget.track.id, newName);
        } else {
          developer.log('New name is empty or same as old name. Not saving.');
        }
@@ -241,7 +241,7 @@ class _TimelineTrackState extends State<TimelineTrack> {
                   margin: const EdgeInsets.only(bottom: 4),
                   decoration: BoxDecoration(
                     color: candidateData.isNotEmpty
-                        ? theme.accentColor.lightest.withOpacity(0.3)
+                        ? theme.accentColor.lightest.withValues(alpha: 0.3)
                         : theme.resources.subtleFillColorSecondary,
                   ),
                   child: Stack(
@@ -304,10 +304,8 @@ class _DragPreview extends StatelessWidget with WatchItMixin {
     }
 
     final draggedClip = candidateData.first;
-    if (draggedClip == null) return const SizedBox.shrink();
-
     final previewLeftPosition = frameAtDropPosition * zoom * 5.0;
-    final previewWidth = draggedClip.durationFrames * zoom * 5.0;
+    final previewWidth = draggedClip!.durationFrames * zoom * 5.0;
 
     return Stack(
       clipBehavior: fw.Clip.none,
@@ -326,7 +324,7 @@ class _DragPreview extends StatelessWidget with WatchItMixin {
           width: previewWidth.clamp(2.0, double.infinity),
           child: Container(
             decoration: BoxDecoration(
-              color: theme.accentColor.normal.withOpacity(0.5),
+              color: theme.accentColor.normal.withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(4),
               border: Border.all(color: theme.accentColor.normal, width: 2),
             ),
@@ -348,7 +346,7 @@ class _DragPreview extends StatelessWidget with WatchItMixin {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
             decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.7),
+              color: Colors.black.withValues(alpha: 0.7),
               borderRadius: BorderRadius.circular(2),
             ),
             child: Text(
