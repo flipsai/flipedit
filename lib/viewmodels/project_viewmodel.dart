@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flipedit/models/project_asset.dart'; // Required for ProjectAsset
-import 'package:flipedit/persistence/database/project_database.dart';
+import 'package:flipedit/persistence/database/project_database.dart' hide ProjectAsset; // Hide ProjectAsset from database import
 import 'package:flipedit/persistence/database/project_metadata_database.dart';
 import 'package:flipedit/services/project_metadata_service.dart';
 import 'package:flipedit/services/project_database_service.dart';

@@ -33,20 +33,23 @@ class ClipsListPanel extends StatelessWidget with WatchItMixin {
           padding: const EdgeInsets.all(8.0),
           child: TextBox(
             controller: searchController,
-            // Adjust placeholder based on context if needed
-            placeholder: 'Search ${selectedExtension == 'media' ? 'Project Media' : selectedExtension}...',
+            placeholder: 'Search media...',
             prefix: const Padding(
               padding: EdgeInsets.only(left: 8.0),
-              child: Icon(FluentIcons.search, size: 14),
+              child: Icon(FluentIcons.search),
             ),
-            suffixMode: OverlayVisibilityMode.editing,
-            suffix: IconButton(
-              icon: const Icon(FluentIcons.clear, size: 12),
-              onPressed: () {
-                searchController.clear();
-                searchTermNotifier.value = '';
-              },
-            ),
+            suffix: searchTerm.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(FluentIcons.clear),
+                    onPressed: () {
+                      searchController.clear();
+                      searchTermNotifier.value = '';
+                    },
+                  )
+                : null,
+            onChanged: (value) {
+              searchTermNotifier.value = value;
+            },
           ),
         ),
         Expanded(
@@ -62,7 +65,7 @@ class ClipsListPanel extends StatelessWidget with WatchItMixin {
                     ],
                   ),
                 )
-              : _buildClipsList(context, assets, searchTerm),
+              : _buildClipsList(context, List<ProjectAsset>.from(assets), searchTerm),
         ),
       ],
     );

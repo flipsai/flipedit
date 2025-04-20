@@ -1,14 +1,23 @@
 import 'package:drift/drift.dart';
 
+// This table definition is for the per-project database structure
 class Tracks extends Table {
+  // Primary key for the track
   IntColumn get id => integer().autoIncrement()();
+  
+  // Track properties
   TextColumn get name => text().withDefault(const Constant('Untitled Track'))();
-  IntColumn get order => integer().withDefault(const Constant(0))(); // For track ordering
-  TextColumn get type => text().withDefault(const Constant('video'))(); // e.g., 'video', 'audio', 'text'
-
-  // No foreign key to Projects table needed - each database is for a single project
-
+  TextColumn get type => text().withDefault(const Constant('video'))(); // video, audio, text, etc.
+  IntColumn get order => integer()(); // For ordering tracks in the timeline
+  
+  // Visual/editor settings
+  BoolColumn get isVisible => boolean().withDefault(const Constant(true))();
+  BoolColumn get isLocked => boolean().withDefault(const Constant(false))();
+  
+  // Optional metadata as JSON string (can be null)
+  TextColumn get metadataJson => text().nullable()();
+  
   // Timestamps
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
-  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)(); // Consider adding auto-update trigger if needed
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 } 
