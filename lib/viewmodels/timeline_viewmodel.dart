@@ -9,9 +9,7 @@ import 'package:flipedit/services/project_database_service.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:video_player/video_player.dart';
 import 'package:flipedit/utils/logger.dart';
-
 const double _defaultFrameRate = 30.0;
-const int _defaultTimelineDurationFrames = 90; // Default 3 seconds at 30fps
 
 // Simple debounce utility
 void Function() _debounce(VoidCallback func, Duration delay) {
