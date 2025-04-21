@@ -115,7 +115,7 @@ Future<void> _handleOpenProject(
                 // Ensure createdAt is not null before formatting
                 subtitle: Text(
                   project.createdAt != null
-                      ? 'Created: ${project.createdAt!.toLocal()}'
+                      ? 'Created: ${project.createdAt.toLocal()}'
                       : 'Created: Unknown',
                 ),
                 selected: false, // Selection handled by tapping

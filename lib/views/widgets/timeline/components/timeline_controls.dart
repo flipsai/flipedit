@@ -1,11 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flipedit/models/clip.dart';
-import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:video_player/video_player.dart';
 import 'package:watch_it/watch_it.dart';
-import 'package:flipedit/viewmodels/project_viewmodel.dart';
-import 'package:flipedit/utils/logger.dart';
 
 /// Controls widget for the timeline including playback controls and zoom
 class TimelineControls extends StatelessWidget with WatchItMixin {

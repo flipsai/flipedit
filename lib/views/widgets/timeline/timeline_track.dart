@@ -30,7 +30,7 @@ class _TimelineTrackState extends State<TimelineTrack> {
   bool _isEditing = false;
   late TextEditingController _textController;
   late FocusNode _focusNode;
-  final ValueNotifier<Offset?> _hoverPositionNotifier = ValueNotifier(null);
+  late final ValueNotifier<Offset?> _hoverPositionNotifier = ValueNotifier(null);
   final GlobalKey _trackContentKey = GlobalKey();
 
   late TimelineViewModel _timelineViewModel;
@@ -48,6 +48,11 @@ class _TimelineTrackState extends State<TimelineTrack> {
       if (!_focusNode.hasFocus && _isEditing) {
         _submitRename();
       }
+    });
+
+    // Force a refresh of clips when mounted
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _timelineViewModel.forceRefreshClips();
     });
   }
 
@@ -110,16 +115,50 @@ class _TimelineTrackState extends State<TimelineTrack> {
   }
 
   int _calculateFramePositionForPreview(double previewRawX, double zoom) {
-     final scrollOffsetX = getHorizontalScrollOffset();
-     final position = (previewRawX + scrollOffsetX) / (5.0 * zoom);
-     return position < 0 ? 0 : position.floor();
+    final scrollOffsetX = getHorizontalScrollOffset();
+    final position = (previewRawX + scrollOffsetX) / (5.0 * zoom);
+    final framePosition = position < 0 ? 0 : position.floor();
+    
+    // Debug the calculation to ensure it matches with the actual drop
+    developer.log(
+      '🔍 Preview position: raw=$previewRawX, scroll=$scrollOffsetX, frame=$framePosition',
+      name: 'TimelineTrack'
+    );
+    
+    return framePosition;
+  }
+
+  // Helper method to update hover position
+  void _updateHoverPosition(Offset? position) {
+    if (_hoverPositionNotifier.value != position) {
+      setState(() {
+        _hoverPositionNotifier.value = position;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final double zoom = watchValue((TimelineViewModel vm) => vm.zoomNotifier);
     final theme = FluentTheme.of(context);
-    const trackHeight = 60.0;
+    const trackHeight = 65.0;
+
+    // Log clips for debugging
+    if (widget.clips.isNotEmpty) {
+      developer.log(
+        '📼 Building TimelineTrack "${widget.track.name}" with ${widget.clips.length} clips',
+        name: 'TimelineTrack'
+      );
+      developer.log(
+        '📼 First clip: ${widget.clips.first.name}, startFrame: ${widget.clips.first.startFrame}',
+        name: 'TimelineTrack'
+      );
+    } else {
+      developer.log(
+        '📼 Building TimelineTrack "${widget.track.name}" with NO CLIPS',
+        name: 'TimelineTrack'
+      );
+    }
 
     return SizedBox(
       height: trackHeight,
@@ -181,35 +220,47 @@ class _TimelineTrackState extends State<TimelineTrack> {
               key: _trackContentKey,
               onAcceptWithDetails: (details) {
                 final draggedClip = details.data;
+                developer.log('✅ Clip drop detected: ${draggedClip.name}', name: 'TimelineTrack');
+                
                 final RenderBox? renderBox =
                     _trackContentKey.currentContext?.findRenderObject() as RenderBox?;
-                if (renderBox == null) return;
+                if (renderBox == null) {
+                  developer.log('❌ Error: renderBox is null in onAcceptWithDetails', name: 'TimelineTrack');
+                  return;
+                }
 
+                // Get local position within the track
                 final localPosition = renderBox.globalToLocal(details.offset);
-                double posX = localPosition.dx.clamp(0.0, renderBox.size.width);
+                
+                // Calculate the proper position with scroll offset
                 final scrollOffsetX = getHorizontalScrollOffset();
-
+                final posX = localPosition.dx;
+                
+                // Calculate the exact frame position
+                final framePosition = ((posX + scrollOffsetX) / (5.0 * zoom)).floor();
+                final framePositionMs = framePosition * (1000 / 30); // Convert to ms (30fps)
+                
                 developer.log(
-                  'Accepting drop at: local=$posX, scroll=$scrollOffsetX, zoom=$zoom',
+                  '📏 Position metrics: local=$posX, scroll=$scrollOffsetX, frame=$framePosition, ms=$framePositionMs',
+                  name: 'TimelineTrack'
                 );
-
-                _timelineViewModel.addClipAtPosition(
-                  clipData: draggedClip,
+                
+                // Using the TimelineViewModel directly through watch_it
+                di<TimelineViewModel>().createTimelineClip(
                   trackId: widget.track.id,
-                  startTimeInSourceMs: draggedClip.startTimeInSourceMs,
-                  endTimeInSourceMs: draggedClip.endTimeInSourceMs,
-                  localPositionX: posX,
-                  scrollOffsetX: scrollOffsetX,
+                  clipData: draggedClip,
+                  framePosition: framePosition,
                 );
-
-                _hoverPositionNotifier.value = null;
+                
+                _updateHoverPosition(null);
               },
               onWillAcceptWithDetails: (details) {
+                // Log fewer messages to reduce noise
                 final RenderBox? renderBox =
                     _trackContentKey.currentContext?.findRenderObject() as RenderBox?;
                 if (renderBox != null) {
                   final localPosition = renderBox.globalToLocal(details.offset);
-                  _hoverPositionNotifier.value = localPosition;
+                  _updateHoverPosition(localPosition);
                 }
                 return true;
               },
@@ -218,36 +269,35 @@ class _TimelineTrackState extends State<TimelineTrack> {
                     _trackContentKey.currentContext?.findRenderObject() as RenderBox?;
                 if (renderBox != null) {
                   final localPosition = renderBox.globalToLocal(details.offset);
-                  if (localPosition.dx >= 0 &&
-                      localPosition.dx <= renderBox.size.width) {
-                    _hoverPositionNotifier.value = localPosition;
-                  } else {
-                    _hoverPositionNotifier.value = null;
-                  }
+                  _updateHoverPosition(localPosition);
                 }
               },
               onLeave: (_) {
-                _hoverPositionNotifier.value = null;
+                _updateHoverPosition(null);
               },
               builder: (context, candidateData, rejectedData) {
                 int frameForPreview = -1;
-                Offset? currentHoverPos = _hoverPositionNotifier.value;
+                final currentHoverPos = _hoverPositionNotifier.value;
+                
                 if (currentHoverPos != null && candidateData.isNotEmpty) {
-                   frameForPreview = _calculateFramePositionForPreview(currentHoverPos.dx, zoom);
+                  frameForPreview = _calculateFramePositionForPreview(currentHoverPos.dx, zoom);
                 }
 
                 return Container(
                   height: trackHeight,
-                  margin: const EdgeInsets.only(bottom: 4),
+                  margin: EdgeInsets.zero,
                   decoration: BoxDecoration(
                     color: candidateData.isNotEmpty
-                        ? theme.accentColor.lightest.withValues(alpha: 0.3)
+                        ? theme.accentColor.lightest.withOpacity(0.3)
                         : theme.resources.subtleFillColorSecondary,
                   ),
                   child: Stack(
                     clipBehavior: fw.Clip.hardEdge,
                     children: [
+                      // Background grid with frame markings
                       Positioned.fill(child: _TrackBackground(zoom: zoom)),
+                      
+                      // Display existing clips on this track
                       ...widget.clips.map((clip) {
                         final leftPosition = clip.startFrame * zoom * 5.0;
                         final clipWidth = clip.durationFrames * zoom * 5.0;
@@ -262,12 +312,15 @@ class _TimelineTrackState extends State<TimelineTrack> {
                           ),
                         );
                       }),
-                      _DragPreview(
-                        hoverPositionNotifier: _hoverPositionNotifier,
-                        candidateData: candidateData,
-                        zoom: zoom,
-                        frameAtDropPosition: frameForPreview,
-                      ),
+                      
+                      // Show preview for where the clip will be placed when dragging
+                      if (frameForPreview >= 0)
+                        _DragPreview(
+                          hoverPositionNotifier: _hoverPositionNotifier,
+                          candidateData: candidateData,
+                          zoom: zoom,
+                          frameAtDropPosition: frameForPreview,
+                        ),
                     ],
                   ),
                 );
@@ -291,25 +344,38 @@ class _DragPreview extends StatelessWidget with WatchItMixin {
     required this.candidateData,
     required this.zoom,
     required this.frameAtDropPosition,
-    super.key,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
+    // Make sure to watch the notifier for position updates
     final hoverPosValue = watch(hoverPositionNotifier);
+    // Use the same track height constant
+    const trackHeight = 65.0;
 
-    if (hoverPosValue == null || candidateData.isEmpty) {
+    developer.log('DragPreview build - hover: $hoverPosValue, candidates: ${candidateData.length}', name: 'DragPreview');
+
+    if (candidateData.isEmpty) {
       return const SizedBox.shrink();
     }
 
     final draggedClip = candidateData.first;
+    if (draggedClip == null) {
+      return const SizedBox.shrink();
+    }
+    
     final previewLeftPosition = frameAtDropPosition * zoom * 5.0;
-    final previewWidth = draggedClip!.durationFrames * zoom * 5.0;
+    final previewWidth = draggedClip.durationFrames * zoom * 5.0;
+    
+    // Calculate time in milliseconds for display
+    final timeInMs = ClipModel.framesToMs(frameAtDropPosition);
+    final formattedTime = '${(timeInMs / 1000).toStringAsFixed(2)}s';
 
     return Stack(
       clipBehavior: fw.Clip.none,
       children: [
+        // Position indicator line
         Positioned(
           left: previewLeftPosition,
           top: 0,
@@ -317,14 +383,15 @@ class _DragPreview extends StatelessWidget with WatchItMixin {
           width: 1,
           child: Container(color: theme.accentColor.lighter),
         ),
+        // Preview rectangle
         Positioned(
           left: previewLeftPosition,
-          top: 0,
-          height: 60,
+          top: 4, // Add a bit of padding from the top
+          height: trackHeight - 8, // Leave some padding at bottom too
           width: previewWidth.clamp(2.0, double.infinity),
           child: Container(
             decoration: BoxDecoration(
-              color: theme.accentColor.normal.withValues(alpha: 0.5),
+              color: theme.accentColor.normal.withOpacity(0.5),
               borderRadius: BorderRadius.circular(4),
               border: Border.all(color: theme.accentColor.normal, width: 2),
             ),
@@ -340,18 +407,28 @@ class _DragPreview extends StatelessWidget with WatchItMixin {
             ),
           ),
         ),
+        // Frame and time information
         Positioned(
           left: previewLeftPosition + previewWidth + 5,
           top: 5,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.7),
+              color: Colors.black.withOpacity(0.7),
               borderRadius: BorderRadius.circular(2),
             ),
-            child: Text(
-              'Frame: $frameAtDropPosition',
-              style: const TextStyle(color: Colors.white, fontSize: 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Frame: $frameAtDropPosition',
+                  style: const TextStyle(color: Colors.white, fontSize: 10),
+                ),
+                Text(
+                  'Time: $formattedTime',
+                  style: const TextStyle(color: Colors.white, fontSize: 10),
+                ),
+              ],
             ),
           ),
         ),

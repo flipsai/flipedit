@@ -35,7 +35,7 @@ class PlayerPanel extends StatelessWidget with WatchItMixin {
     }
 
     final playerFuture = watchFuture(
-      (VideoPlayerManager m) => m.getOrCreatePlayerController(currentVideoUrl!),
+      (VideoPlayerManager m) => m.getOrCreatePlayerController(currentVideoUrl),
       initialValue: null, // Assuming null works or PlayerManager handles default
     );
 

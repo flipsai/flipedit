@@ -6,6 +6,8 @@ import 'package:flipedit/viewmodels/project_viewmodel.dart';
 import 'package:flipedit/services/media_import_service.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/utils/logger.dart';
+import 'dart:developer' as developer;
+import 'package:flutter/material.dart' as material;
 
 const _logTag = 'ClipsListPanel';
 
@@ -237,20 +239,35 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
       // Drag ClipModel data
       data: draggableClipData,
       dragAnchorStrategy: pointerDragAnchorStrategy,
-      feedback: Opacity(
-        opacity: 0.7,
+      // Add onDragStarted callback to debug drag events
+      onDragStarted: () {
+        developer.log('🟢 Drag started for asset: ${asset.name}', name: 'MediasListPanel');
+      },
+      // Add onDragEnd callback to debug drag events
+      onDragEnd: (details) {
+        developer.log('🛑 Drag ended with velocity: ${details.velocity}', name: 'MediasListPanel');
+        developer.log('🛑 Was it accepted: ${details.wasAccepted}', name: 'MediasListPanel');
+      },
+      onDragCompleted: () {
+        developer.log('✅ Drag completed successfully for: ${asset.name}', name: 'MediasListPanel');
+      },
+      onDraggableCanceled: (velocity, offset) {
+        developer.log('❌ Drag canceled at offset: $offset', name: 'MediasListPanel');
+      },
+      maxSimultaneousDrags: 1,
+      affinity: Axis.horizontal,
+      hitTestBehavior: HitTestBehavior.translucent,
+      feedback: material.Material(
+        elevation: 4.0,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
             color: theme.accentColor.lighter,
             borderRadius: BorderRadius.circular(4),
-            boxShadow: kElevationToShadow[4],
           ),
-          child: Acrylic(
-            child: Text(
-              asset.name, // Display asset name
-              style: theme.typography.body?.copyWith(color: Colors.black),
-            ),
+          child: Text(
+            asset.name, // Display asset name
+            style: theme.typography.body?.copyWith(color: Colors.black),
           ),
         ),
       ),

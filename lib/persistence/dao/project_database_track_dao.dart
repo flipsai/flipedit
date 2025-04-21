@@ -1,7 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:flipedit/persistence/database/project_database.dart';
 import 'package:flipedit/persistence/tables/tracks.dart';
-import 'package:flipedit/utils/logger.dart';
 
 part 'project_database_track_dao.g.dart';
 

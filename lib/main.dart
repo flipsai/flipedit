@@ -1,7 +1,6 @@
 import 'package:flipedit/app.dart';
 import 'package:flipedit/di/service_locator.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
-import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:fvp/fvp.dart';
 import 'package:window_manager/window_manager.dart';

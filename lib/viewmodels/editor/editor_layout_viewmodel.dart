@@ -1,7 +1,6 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart'; // For debugPrint
 import 'package:docking/docking.dart';
-import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/views/widgets/inspector/inspector_panel.dart';
 import 'package:flipedit/views/widgets/timeline/timeline.dart';
 import 'package:flipedit/views/widgets/preview/preview_panel.dart';

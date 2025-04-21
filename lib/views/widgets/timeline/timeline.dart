@@ -6,6 +6,7 @@ import 'package:flipedit/views/widgets/timeline/components/timeline_controls.dar
 import 'package:flipedit/views/widgets/timeline/timeline_track.dart';
 import 'package:watch_it/watch_it.dart';
 import 'dart:math' as math; // Add math import for max function
+import 'package:flipedit/utils/logger.dart'; // Import for logging functions
 
 /// Main timeline widget that shows clips and tracks
 /// Similar to the timeline in video editors like Premiere Pro or Final Cut
@@ -36,6 +37,23 @@ class Timeline extends StatelessWidget with WatchItMixin {
     final tracks = watchValue(
       (ProjectDatabaseService ps) => ps.tracksNotifier,
     );
+    
+    // Log clips for debugging
+    if (clips.isNotEmpty) {
+      logDebug(
+        'Timeline',
+        '🧩 Timeline build with ${clips.length} clips, ${tracks.length} tracks, totalFrames: $totalFrames'
+      );
+    }
+    
+    // Force refresh clips when mounted (ensure clips are loaded)
+    // This is called once after initial widget build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (clips.isEmpty && tracks.isNotEmpty) {
+        logInfo('Timeline', '🔄 Forcing clip refresh as clips are empty but tracks exist');
+        timelineViewModel.refreshClips();
+      }
+    });
 
     // Only horizontal scroll controller needed from ViewModel now
     final trackContentHorizontalScrollController =

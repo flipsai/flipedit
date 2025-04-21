@@ -35,7 +35,7 @@ class PreviewPanel extends StatelessWidget with WatchItMixin {
     }
 
     final playerFuture = watchFuture(
-      (VideoPlayerManager m) => m.getOrCreatePlayerController(currentVideoUrl!),
+      (VideoPlayerManager m) => m.getOrCreatePlayerController(currentVideoUrl),
       // Provide a default value. The type needs to match the Future's result.
       // Using null for the controller and false for the bool initially.
       initialValue: null, 
