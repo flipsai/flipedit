@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
-import 'package:flutter/services.dart' show rootBundle;
 import 'uv_downloader.dart';
 import 'package:flipedit/utils/logger.dart';
 

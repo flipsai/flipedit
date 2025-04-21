@@ -107,8 +107,6 @@ class InspectorPanel extends StatelessWidget with WatchItMixin {
   }
 
   Widget _buildEffectsSection(BuildContext context, ClipModel clip) {
-    // Access timelineVm via di() if needed for effects modification
-    final timelineVm = di<TimelineViewModel>();
     final effects = clip.effects;
     
     return Column(

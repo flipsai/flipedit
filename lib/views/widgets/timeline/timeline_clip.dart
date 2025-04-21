@@ -4,19 +4,22 @@ import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:watch_it/watch_it.dart';
-import 'dart:math' as math;
-import 'package:flipedit/utils/logger.dart';
+import 'painters/video_frames_painter.dart';
+import 'painters/image_grid_painter.dart';
+import 'painters/text_lines_painter.dart';
+import 'painters/effect_pattern_painter.dart';
+import 'painters/audio_waveform_painter.dart';
 
 /// A clip in the timeline track
 class TimelineClip extends StatefulWidget with WatchItStatefulWidgetMixin {
   final ClipModel clip;
-  final int trackIndex;
+  final int trackId;
   final bool isDragging;
 
   const TimelineClip({
     super.key,
     required this.clip,
-    required this.trackIndex,
+    required this.trackId,
     this.isDragging = false,
   });
 
@@ -30,7 +33,10 @@ class _TimelineClipState extends State<TimelineClip> {
   double _dragStartX = 0;
   int _originalStartFrame = 0;
   int _currentDragFrame = 0; // Track current drag position for smooth preview
-  
+
+  // Controller for the context menu flyout
+  final FlyoutController _contextMenuController = FlyoutController();
+
   // Define base colors for clip types (consider making these theme-dependent later)
   static const Map<ClipType, Color> _clipTypeColors = {
     ClipType.video: Color(0xFF264F78), // Blueish
@@ -44,31 +50,47 @@ class _TimelineClipState extends State<TimelineClip> {
   Color _getContrastColor(Color backgroundColor) {
     // Calculate luminance
     final luminance =
-        (0.299 * backgroundColor.red +
-            0.587 * backgroundColor.green +
-            0.114 * backgroundColor.blue) /
+        (0.299 * backgroundColor.r +
+            0.587 * backgroundColor.g +
+            0.114 * backgroundColor.b) /
         255;
     return luminance > 0.5 ? Colors.black : Colors.white;
   }
 
   @override
+  void initState() {
+    super.initState();
+    // Initialize _currentDragFrame based on the initial clip position
+    // This prevents the clip appearing at 0s initially when first added.
+    _currentDragFrame = widget.clip.startFrame;
+  }
+
+  @override
+  void dispose() {
+    _contextMenuController.dispose(); // Dispose the controller
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
-    
+
     // Get view models
     final editorVm = di<EditorViewModel>();
-    final timelineVm = di<TimelineViewModel>();
-    
+
     // Use watchValue here in the State's build method
-    final selectedClipId = watchValue((EditorViewModel vm) => vm.selectedClipIdNotifier);
+    final selectedClipId = watchValue(
+      (EditorViewModel vm) => vm.selectedClipIdNotifier,
+    );
     final zoom = watchValue((TimelineViewModel vm) => vm.zoomNotifier);
 
     final isSelected = selectedClipId == widget.clip.databaseId?.toString();
-    
-    // Calculate the visual offset for smooth dragging preview
-    final double dragOffset = _isDragging 
-        ? (_currentDragFrame - widget.clip.startFrame) * 5.0 * zoom
-        : 0.0;
+
+    // Calculate the visual offset based on the difference between the current drag frame
+    // and the clip's official start frame. Apply this offset always to keep the visual
+    // position consistent until the parent rebuilds with the updated data.
+    final double dragOffset =
+        (_currentDragFrame - widget.clip.startFrame) * 5.0 * zoom;
 
     // Get base color for clip type
     final baseClipColor =
@@ -80,175 +102,169 @@ class _TimelineClipState extends State<TimelineClip> {
 
     // Use theme accent color for selection border
     final selectionBorderColor = theme.accentColor.normal;
+    
+    // Format duration in seconds with 1 decimal place
+    final durationInSec = widget.clip.durationMs / 1000.0;
+    final formattedDuration = durationInSec.toStringAsFixed(1);
+    
+    // UI constants
+    const double fixedClipHeight = 65.0;
+    const double borderRadiusValue = 10.0;
+    const double borderWidth = 2.5;
+    const double shadowBlur = 12.0;
 
     return Transform.translate(
-      offset: Offset(dragOffset, 0), // Apply the drag offset for smooth visual movement
-      child: GestureDetector(
-        onTap: () {
-          // Use databaseId for selection
-          editorVm.selectedClipId = widget.clip.databaseId?.toString();
-        },
-        onHorizontalDragStart: (details) {
-          setState(() {
-            _isDragging = true;
-            _dragStartX = details.localPosition.dx;
-            _originalStartFrame = widget.clip.startFrame;
-            _currentDragFrame = _originalStartFrame;
-          });
-          // Select the clip when starting to drag using databaseId
-          editorVm.selectedClipId = widget.clip.databaseId?.toString();
-        },
-        onHorizontalDragUpdate: (details) {
-          if (!_isDragging) return;
-          
-          // Calculate frame movement based on horizontal drag distance and zoom
-          final pixelsPerFrame = 5.0 * zoom; // Use watched zoom
-          final dragDeltaInFrames = (details.localPosition.dx - _dragStartX) ~/ pixelsPerFrame;
-          
-          // Calculate new start frame
-          final newStartFrame = _originalStartFrame + dragDeltaInFrames;
-          
-          // Clamp to prevent negative frames
-          final clampedStartFrame = newStartFrame < 0 ? 0 : newStartFrame;
-          
-          // Update the visual state for smooth drag preview
-          if (_currentDragFrame != clampedStartFrame) {
+      offset: Offset(dragOffset, 0), // Apply the visual offset
+      child: FlyoutTarget(
+        controller: _contextMenuController,
+        child: GestureDetector(
+          onTap: () {
+            editorVm.selectedClipId = widget.clip.databaseId?.toString();
+          },
+          onPanStart: (details) {
             setState(() {
-              _currentDragFrame = clampedStartFrame;
+              _isDragging = true;
+              _dragStartX = details.localPosition.dx;
+              _originalStartFrame = widget.clip.startFrame;
+              _currentDragFrame = _originalStartFrame;
             });
-          }
-        },
-        onHorizontalDragEnd: (details) {
-          if (!_isDragging) return;
-          
-          // Move the clip in the ViewModel to the current preview position
-          if (_originalStartFrame != _currentDragFrame) {
-            // Use the new method and databaseId
-            if (widget.clip.databaseId != null) { // Ensure ID exists before calling
-               final newStartTimeMs = ClipModel.framesToMs(_currentDragFrame);
-               timelineVm.updateClipPosition(widget.clip.databaseId!, newStartTimeMs);
-            } else {
-               logWarning(runtimeType.toString(), "Warning: Cannot move clip - databaseId is null.");
+            editorVm.selectedClipId = widget.clip.databaseId?.toString();
+          },
+          onPanUpdate: (details) {
+            if (!_isDragging) return;
+            final pixelsPerFrame = 5.0 * zoom;
+            final dragDeltaInFrames =
+                (details.localPosition.dx - _dragStartX) ~/ pixelsPerFrame;
+            final newStartFrame = _originalStartFrame + dragDeltaInFrames;
+            final clampedStartFrame = newStartFrame < 0 ? 0 : newStartFrame;
+            if (_currentDragFrame != clampedStartFrame) {
+              setState(() {
+                _currentDragFrame = clampedStartFrame;
+              });
             }
-          }
-          
-          setState(() {
-            _isDragging = false;
-          });
-        },
-        child: Stack(
-          children: [
-            Container(
-              // Add margin for spacing between clips
-              margin: const EdgeInsets.only(right: 2),
-              decoration: BoxDecoration(
-                // Use lighter color and maybe less opacity when dragging
-                color: _isDragging || widget.isDragging ? clipColor.withOpacity(0.5) : clipColor,
-                border: Border.all(
-                  // Use theme accent for selection, different color for dragging feedback
-                  color:
-                      _isDragging || widget.isDragging
-                          ? theme.accentColor.light
-                          : (isSelected ? selectionBorderColor : Colors.transparent),
-                  width: _isDragging || widget.isDragging ? 1 : (isSelected ? 2 : 1), // Adjust width
-                ),
-                borderRadius: BorderRadius.circular(4),
+          },
+          onPanEnd: (details) {
+            if (!_isDragging) return;
+            if (_originalStartFrame != _currentDragFrame) {
+              if (widget.clip.databaseId != null) {
+                final newStartTimeMs = ClipModel.framesToMs(_currentDragFrame);
+                di<TimelineViewModel>().moveClip(
+                  clipId: widget.clip.databaseId!,
+                  newTrackId: widget.clip.trackId, // If supporting cross-track drag, update this
+                  newStartTimeOnTrackMs: newStartTimeMs,
+                );
+              }
+            }
+            setState(() {
+              _isDragging = false;
+            });
+          },
+          onSecondaryTapUp: (details) {
+            editorVm.selectedClipId = widget.clip.databaseId?.toString();
+            _contextMenuController.showFlyout(
+              barrierDismissible: true,
+              position: details.globalPosition,
+              builder: (context) => _buildContextMenu(context),
+            );
+          },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            curve: Curves.easeOutCubic,
+            height: fixedClipHeight,
+            padding: const EdgeInsets.all(borderWidth), // Ensure border is not covered
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(borderRadiusValue),
+              border: Border.all(
+                color: isSelected ? selectionBorderColor : clipColor.withAlpha(70),
+                width: isSelected ? borderWidth : 1.0,
               ),
-              // Slightly reduce opacity of content when dragging
-              child: Opacity(
-                opacity: _isDragging || widget.isDragging ? 0.8 : 1.0,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Clip header with title
-                    Container(
-                      height: 18,
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      decoration: BoxDecoration(
-                        // Slightly darker/lighter shade for header background
-                        color: clipColor.withOpacity(0.8),
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(
-                            3,
-                          ), // Match container radius slightly
-                          topRight: Radius.circular(3),
-                        ),
-                      ),
-                      child: Row(
-                        // No need for min size, let it fill
-                        children: [
-                          Expanded(
-                            // Allow title to take available space
-                            child: Text(
-                              widget.clip.name,
-                              // Use theme caption style with contrast color
-                              style: theme.typography.caption?.copyWith(
-                                color: contrastColor,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              overflow: TextOverflow.ellipsis, // Prevent overflow
-                              maxLines: 1,
-                            ),
-                          ),
-                          // Display frame position when dragging, otherwise duration
-                          Text(
-                            _isDragging 
-                                ? 'Frame: $_currentDragFrame' 
-                                : '${widget.clip.durationFrames}f',
-                            // Use theme caption style with contrast color
-                            style: theme.typography.caption?.copyWith(
-                              color: contrastColor,
-                              fontSize: 9,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Clip content area
-                    Expanded(
-                      // Use ShapeBorderClipper for rounded corners on the bottom
-                      child: ClipPath(
-                        clipper: const ShapeBorderClipper(
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.only(
-                              bottomLeft: Radius.circular(3),
-                              bottomRight: Radius.circular(3),
-                            ),
-                          ),
-                        ),
-                        child: _buildClipContent(clipColor, contrastColor, theme),
-                      ),
-                    ),
-                  ],
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.10),
+                  blurRadius: shadowBlur,
+                  offset: const Offset(0, 3),
                 ),
+                if (isSelected)
+                  BoxShadow(
+                    color: selectionBorderColor.withValues(alpha: 0.25),
+                    blurRadius: shadowBlur * 1.2,
+                    spreadRadius: 1.5,
+                  ),
+              ],
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  clipColor.withAlpha(210),
+                  clipColor.withAlpha(160),
+                ],
               ),
             ),
-            // Show edge indicators when dragging
-            if (_isDragging)
-              Positioned(
-                left: 0,
-                top: 0,
-                bottom: 0,
-                child: Container(
-                  width: 2,
-                  color: theme.accentColor.darker,
+            child: Stack(
+              children: [
+                // Main content visualization
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(borderRadiusValue - 2),
+                  child: _buildClipContent(
+                    clipColor,
+                    contrastColor,
+                    theme,
+                  ),
                 ),
-              ),
-            if (_isDragging)
-              Positioned(
-                right: 0,
-                top: 0,
-                bottom: 0,
-                child: Container(
-                  width: 2,
-                  color: theme.accentColor.darker,
+                // Info overlay at bottom (now inset, not covering border)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    height: 16,
+                    margin: const EdgeInsets.only(bottom: 2), // Give a bit more space from the border
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.09),
+                      borderRadius: const BorderRadius.only(
+                        bottomLeft: Radius.circular(borderRadiusValue - 1),
+                        bottomRight: Radius.circular(borderRadiusValue - 1),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Display duration
+                        Text(
+                          '${formattedDuration}s',
+                          style: theme.typography.caption?.copyWith(
+                            color: contrastColor.withAlpha(220),
+                            fontSize: 9,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        // Display position
+                        Text(
+                          _getTimePosition(),
+                          style: theme.typography.caption?.copyWith(
+                            color: contrastColor.withAlpha(220),
+                            fontSize: 9,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-          ],
+              ],
+            ),
+          ),
         ),
       ),
     );
+  }
+  
+  // Helper to format time position
+  String _getTimePosition() {
+    final startMs = widget.clip.startTimeOnTrackMs;
+    final startSec = startMs / 1000.0;
+    return '${startSec.toStringAsFixed(1)}s';
   }
 
   Widget _buildClipContent(
@@ -257,102 +273,296 @@ class _TimelineClipState extends State<TimelineClip> {
     FluentThemeData theme,
   ) {
     // Use a semi-transparent version of the contrast color for icons/content
-    final contentColor = contrastColor.withOpacity(0.7);
+    final contentColor = contrastColor.withAlpha(200);
     // Use a slightly transparent version of the base color for backgrounds
-    final contentBackgroundColor = clipColor.withOpacity(0.6);
+    final contentBackgroundColor = clipColor.withAlpha(170);
+
+    // Extract filename without extension for display
+    final fileName = widget.clip.sourcePath.split('/').last;
+    final fileNameNoExt = fileName.contains('.')
+        ? fileName.substring(0, fileName.lastIndexOf('.'))
+        : fileName;
+
+    // Track height should be fixed and match the track height everywhere (e.g. 65.0)
+    const double fixedClipHeight = 65.0;
 
     switch (widget.clip.type) {
       case ClipType.video:
-        return Container(
-          color: contentBackgroundColor,
-          child: Center(
-            child: Icon(FluentIcons.video, size: 16, color: contentColor),
+        return SizedBox(
+          height: fixedClipHeight,
+          child: Stack(
+            children: [
+              Container(
+                height: fixedClipHeight,
+                decoration: BoxDecoration(
+                  color: contentBackgroundColor,
+                  // Add a subtle gradient
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      clipColor.withAlpha(170),
+                      clipColor.withAlpha(140),
+                    ],
+                  ),
+                ),
+              ),
+              // Video frame grid pattern
+              CustomPaint(
+                painter: VideoFramesPainter(
+                  color: contentColor.withAlpha(30),
+                ),
+                child: const SizedBox.expand(),
+              ),
+              // Center icon and file info
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(FluentIcons.video, size: 16, color: contentColor),
+                    if (widget.clip.durationFrames > 20) // Only show on larger clips
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          fileNameNoExt,
+                          style: theme.typography.caption?.copyWith(
+                            color: contentColor,
+                            fontSize: 8,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
           ),
         );
 
       case ClipType.audio:
-        // Use CustomPaint for waveform
-        return CustomPaint(
-          painter: _AudioWaveformPainter(
-            // Pass the content color for the waveform
-            color: contentColor,
-            // Pass clip hashcode for deterministic random waveform
-            seed: widget.clip.hashCode,
+        return SizedBox(
+          height: fixedClipHeight,
+          child: Stack(
+            children: [
+              Container(
+                height: fixedClipHeight,
+                color: contentBackgroundColor.withValues(alpha: 0.5),
+              ),
+              // Waveform visualization
+              CustomPaint(
+                painter: AudioWaveformPainter(
+                  color: contentColor,
+                  seed: widget.clip.hashCode,
+                ),
+                child: const SizedBox.expand(),
+              ),
+              // Audio level indicators
+              Positioned(
+                right: 4,
+                top: 4,
+                child: Icon(
+                  FluentIcons.volume2,
+                  size: 10,
+                  color: contentColor.withAlpha(150),
+                ),
+              ),
+            ],
           ),
-          child: Container(
-            color: contentBackgroundColor.withOpacity(0.5),
-          ), // Fainter background behind waveform
         );
 
       case ClipType.image:
-        return Container(
-          color: contentBackgroundColor,
-          child: Center(
-            child: Icon(FluentIcons.picture, size: 16, color: contentColor),
+        return SizedBox(
+          height: fixedClipHeight,
+          child: Stack(
+            children: [
+              Container(
+                height: fixedClipHeight,
+                decoration: BoxDecoration(
+                  color: contentBackgroundColor,
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      clipColor.withAlpha(170),
+                      clipColor.withAlpha(130),
+                    ],
+                  ),
+                ),
+              ),
+              // Image grid pattern
+              CustomPaint(
+                painter: ImageGridPainter(
+                  color: contentColor.withAlpha(40),
+                ),
+                child: const SizedBox.expand(),
+              ),
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(FluentIcons.picture, size: 16, color: contentColor),
+                    if (widget.clip.durationFrames > 20)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          fileNameNoExt,
+                          style: theme.typography.caption?.copyWith(
+                            color: contentColor,
+                            fontSize: 8,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
           ),
         );
 
       case ClipType.text:
-        return Container(
-          color: contentBackgroundColor,
-          child: Center(
-            child: Icon(
-              FluentIcons.text_document,
-              size: 16,
-              color: contentColor,
-            ),
+        return SizedBox(
+          height: fixedClipHeight,
+          child: Stack(
+            children: [
+              Container(
+                height: fixedClipHeight,
+                decoration: BoxDecoration(
+                  color: contentBackgroundColor,
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      clipColor.withAlpha(170),
+                      clipColor.withAlpha(130),
+                    ],
+                  ),
+                ),
+              ),
+              // Text line pattern
+              CustomPaint(
+                painter: TextLinesPainter(
+                  color: contentColor.withAlpha(40),
+                ),
+                child: const SizedBox.expand(),
+              ),
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(FluentIcons.text_document, size: 16, color: contentColor),
+                    if (widget.clip.durationFrames > 20)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          fileNameNoExt,
+                          style: theme.typography.caption?.copyWith(
+                            color: contentColor,
+                            fontSize: 8,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
           ),
         );
 
       case ClipType.effect:
-        return Container(
-          color: contentBackgroundColor,
-          child: Center(
-            child: Icon(FluentIcons.filter, size: 16, color: contentColor),
+        return SizedBox(
+          height: fixedClipHeight,
+          child: Stack(
+            children: [
+              Container(
+                height: fixedClipHeight,
+                decoration: BoxDecoration(
+                  color: contentBackgroundColor,
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      clipColor.withAlpha(170),
+                      clipColor.withAlpha(130),
+                    ],
+                  ),
+                ),
+              ),
+              // Effect pattern
+              CustomPaint(
+                painter: EffectPatternPainter(
+                  color: contentColor.withAlpha(40),
+                  seed: widget.clip.hashCode,
+                ),
+                child: const SizedBox.expand(),
+              ),
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(FluentIcons.filter, size: 16, color: contentColor),
+                    if (widget.clip.durationFrames > 20)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          fileNameNoExt,
+                          style: theme.typography.caption?.copyWith(
+                            color: contentColor,
+                            fontSize: 8,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
           ),
         );
     }
   }
-}
 
-/// Paints a simple audio waveform
-class _AudioWaveformPainter extends CustomPainter {
-  final Color color;
-  final int seed;
-
-  _AudioWaveformPainter({required this.color, required this.seed});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (size.width <= 0 || size.height <= 0) {
-      return; // Avoid painting on zero size
-    }
-
-    final paint =
-        Paint()
-          ..color = color
-          ..strokeWidth =
-              1.5 // Slightly thicker line
-          ..style = PaintingStyle.stroke;
-
-    final path = Path();
-    final random = math.Random(seed); // Use the passed seed
-    final waveHeight = size.height * 0.6; // Max height of waveform
-    final middleY = size.height / 2;
-
-    path.moveTo(0, middleY);
-
-    const step = 3.0; // Draw line every 3 pixels
-    for (double x = step; x < size.width; x += step) {
-      final y = middleY + (random.nextDouble() * 2 - 1) * (waveHeight / 2);
-      path.lineTo(x, y);
-    }
-
-    canvas.drawPath(path, paint);
+  // Context menu for right-click
+  Widget _buildContextMenu(BuildContext context) {
+    final timelineVm = di<TimelineViewModel>();
+    return MenuFlyout(
+      items: [
+        MenuFlyoutItem(
+          leading: const Icon(FluentIcons.delete),
+          text: const Text('Remove'),
+          onPressed: () {
+            if (widget.clip.databaseId != null) {
+              timelineVm.removeClip(widget.clip.databaseId!);
+            }
+            Flyout.of(context).close();
+          },
+        ),
+        MenuFlyoutItem(
+          leading: const Icon(FluentIcons.edit),
+          text: const Text('Edit'),
+          onPressed: () {
+            // TODO: Implement edit functionality
+            Flyout.of(context).close();
+          },
+        ),
+        MenuFlyoutItem(
+          leading: const Icon(FluentIcons.copy),
+          text: const Text('Duplicate'),
+          onPressed: () {
+            // TODO: Implement duplicate functionality
+            Flyout.of(context).close();
+          },
+        ),
+      ],
+    );
   }
-
-  // Repaint if color changes (though unlikely here)
-  @override
-  bool shouldRepaint(covariant _AudioWaveformPainter oldDelegate) =>
-      oldDelegate.color != color || oldDelegate.seed != seed;
-} 
+}

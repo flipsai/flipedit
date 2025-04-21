@@ -1,11 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flipedit/models/clip.dart';
-import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
-import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/views/widgets/extensions/panels/panels.dart';
 import 'package:watch_it/watch_it.dart';
-import 'package:flutter/foundation.dart';
 
 /// Container that displays the content of a selected extension
 /// Similar to VS Code's sidebar panels
@@ -86,7 +82,7 @@ class ExtensionPanelContainer extends StatelessWidget with WatchItMixin {
       case 'composition':
       default:
         // For media and composition tabs, show the clips list
-        return ClipsListPanel(
+        return MediasListPanel(
           selectedExtension: selectedExtension,
           searchController: _searchController,
           searchTermNotifier: _searchTermNotifier,

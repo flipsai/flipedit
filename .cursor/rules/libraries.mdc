@@ -1,7 +1,0 @@
----
-description: 
-globs: 
-alwaysApply: true
----
-Never use material, use fluent ui instead
-Never create StatefulWidget, use watch_it mixins instead.

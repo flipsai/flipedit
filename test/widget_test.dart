@@ -5,10 +5,10 @@
 // gestures. You can also use WidgetTester to find child widgets in the widget
 // tree, read text, and verify that the values of widget properties are correct.
 
-import 'package:flutter_test/flutter_test.dart';
+// import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('App can be launched', (WidgetTester tester) async {
+  // testWidgets('App can be launched', (WidgetTester tester) async {
     // Set up dependency injection
     // setupServiceLocator();
     
@@ -17,5 +17,5 @@ void main() {
 
     // Basic test to ensure the app builds
     // expect(find.text('FlipEdit'), findsOneWidget);
-  });
+  // });
 }
