@@ -1,14 +1,13 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart'; // For debugPrint
 import 'package:docking/docking.dart';
-import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/views/widgets/inspector/inspector_panel.dart';
 import 'package:flipedit/views/widgets/timeline/timeline.dart';
 import 'package:flipedit/views/widgets/preview/preview_panel.dart';
 import 'package:flipedit/utils/logger.dart'; // Add logger import
 
 /// Manages the editor's docking layout state and visibility toggles.
-class EditorLayoutViewModel with Disposable { // Remove LoggerExtension
+class EditorLayoutViewModel { // Remove LoggerExtension
   // --- State Notifiers ---
   final ValueNotifier<DockingLayout?> layoutNotifier = ValueNotifier<DockingLayout?>(null);
   // Keep visibility notifiers for backwards compatibility/menu state
@@ -21,9 +20,6 @@ class EditorLayoutViewModel with Disposable { // Remove LoggerExtension
 
   // Listener for layout changes
   VoidCallback? _layoutListener;
-
-  // Flag to prevent saving during initial load (if needed later)
-  bool _isInitialLoad = true;
 
   // Add a tag for logging within this class
   String get _logTag => runtimeType.toString();
@@ -70,8 +66,7 @@ class EditorLayoutViewModel with Disposable { // Remove LoggerExtension
     _buildInitialLayout();
   }
 
-  @override
-  void onDispose() {
+  void dispose() {
     layoutNotifier.dispose();
     isTimelineVisibleNotifier.dispose();
     isInspectorVisibleNotifier.dispose();
@@ -226,14 +221,8 @@ class EditorLayoutViewModel with Disposable { // Remove LoggerExtension
 
   // Simplified initial layout build
   void _buildInitialLayout() {
-     _isInitialLoad = true;
      layout = _buildDefaultLayout();
      logDebug(_logTag, "LayoutManager: Built default layout."); // Use top-level function with tag
-     // Set flag after a delay if needed for saving logic later
-     Future.delayed(const Duration(milliseconds: 100), () {
-      _isInitialLoad = false;
-      logDebug(_logTag, "LayoutManager: Initial load complete."); // Use top-level function with tag
-    });
   }
 
   // --- Default Layout ---

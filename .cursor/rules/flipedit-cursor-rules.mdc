@@ -1,0 +1,93 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+ # FlipEdit Cursor Rules
+
+## Architecture
+- **Framework**: Flutter/Dart application for cross-platform video editing
+- **Architecture Pattern**: MVVM (Model-View-ViewModel) with clear separation of concerns
+- **State Management**: `watch_it` package for reactive state management and dependency injection
+- **Database**: `drift` (SQLite wrapper for Flutter) for persistent storage
+- **UI Framework**: `fluent_ui` for Windows-style UI components
+
+## State Management
+- Use the `WatchItMixin` for reactive state in StatelessWidget classes
+- State is managed via ValueNotifier objects in ViewModels
+- Global dependency injection is accessed through the `di` object from watch_it
+- Follow the pattern: declare ValueNotifier in ViewModel, expose getter/setter, use watchValue in View
+- Example pattern:
+  ```dart
+  // In ViewModel
+  final ValueNotifier<bool> isVisibleNotifier = ValueNotifier<bool>(true);
+  bool get isVisible => isVisibleNotifier.value;
+  set isVisible(bool value) {
+    if (isVisibleNotifier.value == value) return;
+    isVisibleNotifier.value = value;
+  }
+  
+  // In View with WatchItMixin
+  final isVisible = watchValue((MyViewModel vm) => vm.isVisibleNotifier);
+  ```
+
+## UI Guidelines
+- Use `fluent_ui` instead of Material Design components
+- Use StatelessWidget with WatchItMixin rather than StatefulWidget
+- Follow platform-specific UI patterns (macOS/Windows vs Linux)
+- Use DockingLayout for editor panels (similar to VS Code)
+- Follow the panel structure: Preview, Timeline, Inspector
+
+## File Organization
+- Maximum file size: 500 lines (split files that exceed this limit)
+- Follow the established directory structure:
+  - `/lib/models`: Domain models and enums
+  - `/lib/viewmodels`: MVVM ViewModels
+  - `/lib/views`: UI components (screens and widgets)
+  - `/lib/services`: Core application services
+  - `/lib/persistence`: Database, DAOs, and tables
+  - `/lib/comfyui`: AI integration with ComfyUI
+  - `/lib/di`: Dependency injection setup
+  - `/lib/utils`: Utility functions and helpers
+
+## Models & Persistence
+- Use `drift` for database operations with defined tables and DAOs
+- Models have both in-memory representation and database companions
+- Follow the pattern of Model classes with factory constructors from database entities
+- Use Value objects from drift for nullable fields
+
+## Video Editing Concepts
+- Work with frame-based and time-based (ms) representations
+- Use non-destructive editing with clips and effects
+- Follow the track/clip/effect hierarchy for timeline elements
+- Maintain source vs timeline positioning for clips
+- Standard framerate is 30 FPS (used for conversion between frames and ms)
+
+## ComfyUI Integration
+- AI-based video effects via ComfyUI workflows
+- External process management for the ComfyUI server
+- HTTP-based API for workflow execution
+
+## Logging
+- Use the logger utility for consistent logging
+- Include class tags with `_logTag` for better traceability
+- Use appropriate log levels: debug, info, error
+
+## Error Handling
+- Wrap initialization and async operations in try/catch blocks
+- Provide meaningful error messages
+- Update status notifiers to reflect error states
+
+## Naming Conventions
+- Use camelCase for variables and methods
+- Use PascalCase for classes
+- Prefix private members with underscore
+- Use "Notifier" suffix for ValueNotifier objects
+- Use "Command" suffix for ViewModel methods that execute actions
+
+## Development Patterns
+- ViewModels should be thin and delegate to Services
+- Services perform actual business logic
+- DAOs handle database operations
+- Use composition over inheritance
+- Implement dispose methods to clean up resources

@@ -35,7 +35,7 @@ class PreviewPanel extends StatelessWidget with WatchItMixin {
     }
 
     final playerFuture = watchFuture(
-      (VideoPlayerManager m) => m.getOrCreatePlayerController(currentVideoUrl!),
+      (VideoPlayerManager m) => m.getOrCreatePlayerController(currentVideoUrl),
       // Provide a default value. The type needs to match the Future's result.
       // Using null for the controller and false for the bool initially.
       initialValue: null, 
@@ -76,7 +76,7 @@ class PreviewPanel extends StatelessWidget with WatchItMixin {
       return Center(
         child: Icon(
           FluentIcons.error,
-          color: Colors.red.withOpacity(opacity),
+          color: Colors.red.withValues(alpha: opacity),
           size: 24,
         ),
       );
@@ -103,7 +103,7 @@ class PreviewPanel extends StatelessWidget with WatchItMixin {
       return Center(
         child: Icon(
           FluentIcons.help,
-          color: Colors.orange.withOpacity(opacity),
+          color: Colors.orange.withValues(alpha: opacity),
           size: 24,
         ),
       );

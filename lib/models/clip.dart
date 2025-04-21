@@ -1,7 +1,9 @@
 import 'package:flipedit/models/effect.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
-import 'package:flipedit/persistence/database/app_database.dart' show Clip, ClipsCompanion;
 import 'package:drift/drift.dart' show Value;
+
+// Import the generated part of project_database which contains the Clip class
+import 'package:flipedit/persistence/database/project_database.dart' show Clip, ClipsCompanion;
 
 class ClipModel {
   final int? databaseId;

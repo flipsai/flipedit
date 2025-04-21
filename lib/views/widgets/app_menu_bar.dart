@@ -1,13 +1,9 @@
 import 'package:fluent_ui/fluent_ui.dart';
-import 'dart:io';
-import 'package:file_picker/file_picker.dart';
-import 'package:flipedit/persistence/database/app_database.dart';
+import 'package:flipedit/persistence/database/project_metadata_database.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
-import 'package:flipedit/models/clip.dart';
-import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
-import 'package:watch_it/watch_it.dart';
+import 'package:flipedit/services/media_import_service.dart';
 import 'package:flipedit/utils/logger.dart';
 
 // --- Action Handlers (Now using ProjectViewModel) ---
@@ -51,8 +47,11 @@ Future<void> _handleNewProject(
         );
         logInfo(_logTag, "Created new project with ID: $newProjectId");
         // TODO: Optionally load the newly created project using projectVm.loadProjectCommand(newProjectId)
+        // Load the newly created project
+        await projectVm.loadProjectCommand(newProjectId);
+        logInfo(_logTag, "Loaded newly created project ID: $newProjectId");
       } catch (e) {
-        logError(_logTag, "Error creating project: $e");
+        logError(_logTag, "Error creating or loading project: $e");
         // TODO: Show error dialog to user (e.g., using context)
       }
     } else if (projectName != null) {
@@ -68,7 +67,7 @@ Future<void> _handleOpenProject(
   BuildContext context,
   ProjectViewModel projectVm,
 ) async {
-  List<Project> projects = [];
+  List<ProjectMetadata> projects = [];
 
   try {
     // Get the current list of projects via ViewModel
@@ -113,10 +112,7 @@ Future<void> _handleOpenProject(
               return ListTile.selectable(
                 title: Text(project.name),
                 // Ensure createdAt is not null before formatting
-                subtitle: Text(
-                  project.createdAt != null
-                      ? 'Created: ${project.createdAt!.toLocal()}'
-                      : 'Created: Unknown',
+                subtitle: Text('Created: ${project.createdAt.toLocal()}'
                 ),
                 selected: false, // Selection handled by tapping
                 onPressed: () {
@@ -146,58 +142,49 @@ Future<void> _handleOpenProject(
   });
 }
 
-// Updated to use TimelineViewModel
-Future<void> _handleImportMedia(TimelineViewModel timelineVm) async {
+// Updated to use MediaImportService for importing assets
+Future<void> _handleImportMedia(
+  BuildContext context,
+  ProjectViewModel projectVm, // Change to ProjectViewModel
+) async {
+  final mediaImportService = MediaImportService(projectVm);
+  final loadingOverlay = MediaImportService.showLoadingOverlay(
+    context, 
+    'Selecting file...'
+  );
+  
   try {
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
-      type: FileType.video, // Or FileType.media for audio/images too
-      allowMultiple: false, // Adjust if multiple imports are needed
-    );
-    if (result != null && result.files.isNotEmpty) {
-      String? filePath = result.files.single.path;
-      if (filePath != null) {
-        // TODO: Get actual duration and potentially other metadata
-
-        // Get the first track ID or default/error if none
-        final int targetTrackId;
-        if (timelineVm.currentTrackIds.isNotEmpty) {
-          targetTrackId = timelineVm.currentTrackIds.first;
-        } else {
-          logError(_logTag, "Error: No tracks loaded to import media into.");
-          // Optionally show a user message
-          return; // Don't proceed if no track is available
-        }
-
-        // For now, using placeholder values
-        // Create ClipModel instead of Clip
-        // Needs source start/end times instead of durationFrames
-        final dummyClipData = ClipModel(
-          databaseId: null, // No ID yet
-          trackId: targetTrackId, // Use determined track ID
-          name: filePath.split(Platform.pathSeparator).last,
-          type: ClipType.video, // TODO: Detect type
-          sourcePath: filePath,
-          startTimeInSourceMs: 0, // Placeholder
-          endTimeInSourceMs: 5000, // Placeholder: 5 seconds
-          startTimeOnTrackMs: 0, // Placeholder, set by addClipAtPosition
-        );
-        // Use addClipAtPosition
-        await timelineVm.addClipAtPosition(
-          clipData: dummyClipData,
-          trackId: targetTrackId, // Use determined track ID
-          startTimeInSourceMs: dummyClipData.startTimeInSourceMs,
-          endTimeInSourceMs: dummyClipData.endTimeInSourceMs,
-          // Let addClipAtPosition handle placement at playhead
-        );
-      } else {
-        logWarning(_logTag, "File path is null after picking.");
-      }
+    // Use the service to import media
+    final importSuccess = await mediaImportService.importMediaFromFilePicker(context);
+    
+    // Remove loading overlay
+    loadingOverlay.remove();
+    
+    // Show success/failure notification
+    if (importSuccess) {
+      MediaImportService.showNotification(
+        context,
+        'Media imported successfully',
+        severity: InfoBarSeverity.success
+      );
     } else {
-      logInfo(_logTag, "File picking cancelled or no file selected.");
+      MediaImportService.showNotification(
+        context,
+        'Failed to import media',
+        severity: InfoBarSeverity.error
+      );
     }
   } catch (e) {
-    logError(_logTag, "Error picking file: $e");
-    // TODO: Show user-friendly error message
+    // Remove loading overlay if an error occurs
+    loadingOverlay.remove();
+    
+    MediaImportService.showNotification(
+      context,
+      'Error importing media: ${e.toString()}',
+      severity: InfoBarSeverity.error
+    );
+    
+    logError(_logTag, "Unexpected error in import flow: $e");
   }
 }
 
@@ -250,7 +237,7 @@ void _handleAddAudioTrack(ProjectViewModel projectVm) {
 }
 
 // --- Widget for macOS / Windows ---
-class PlatformAppMenuBar extends StatelessWidget with WatchItMixin {
+class PlatformAppMenuBar extends StatefulWidget {
   final EditorViewModel editorVm;
   final ProjectViewModel projectVm;
   final TimelineViewModel timelineVm;
@@ -265,20 +252,16 @@ class PlatformAppMenuBar extends StatelessWidget with WatchItMixin {
   });
 
   @override
+  State<PlatformAppMenuBar> createState() => _PlatformAppMenuBarState();
+}
+
+class _PlatformAppMenuBarState extends State<PlatformAppMenuBar> {
+  @override
   Widget build(BuildContext context) {
-    // Use watchValue instead of ValueListenableBuilder
-    final bool isProjectLoaded = watchValue(
-      (ProjectViewModel x) => x.isProjectLoadedNotifier,
-    );
-    final bool isInspectorVisible = watchValue(
-      (EditorViewModel x) => x.isInspectorVisibleNotifier,
-    );
-    final bool isTimelineVisible = watchValue(
-      (EditorViewModel x) => x.isTimelineVisibleNotifier,
-    );
-    final bool isPreviewVisible = watchValue(
-      (EditorViewModel x) => x.isPreviewVisibleNotifier,
-    );
+    final bool isProjectLoaded = widget.projectVm.isProjectLoadedNotifier.value;
+    final bool isInspectorVisible = widget.editorVm.isInspectorVisibleNotifier.value;
+    final bool isTimelineVisible = widget.editorVm.isTimelineVisibleNotifier.value;
+    final bool isPreviewVisible = widget.editorVm.isPreviewVisibleNotifier.value;
 
     return PlatformMenuBar(
       menus: [
@@ -287,21 +270,19 @@ class PlatformAppMenuBar extends StatelessWidget with WatchItMixin {
           menus: [
             PlatformMenuItem(
               label: 'New Project',
-              onSelected: () => _handleNewProject(context, projectVm),
+              onSelected: () => _handleNewProject(context, widget.projectVm),
             ),
             PlatformMenuItem(
               label: 'Open Project...',
-              onSelected: () => _handleOpenProject(context, projectVm),
+              onSelected: () => _handleOpenProject(context, widget.projectVm),
             ),
             PlatformMenuItem(
               label: 'Import Media...',
-              onSelected:
-                  isProjectLoaded ? () => _handleImportMedia(timelineVm) : null,
+              onSelected: isProjectLoaded ? () => _handleImportMedia(context, widget.projectVm) : null,
             ),
             PlatformMenuItem(
               label: 'Save Project',
-              onSelected:
-                  isProjectLoaded ? () => _handleSaveProject(projectVm) : null,
+              onSelected: isProjectLoaded ? () => _handleSaveProject(widget.projectVm) : null,
             ),
           ],
         ),
@@ -317,17 +298,11 @@ class PlatformAppMenuBar extends StatelessWidget with WatchItMixin {
           menus: [
             PlatformMenuItem(
               label: 'Add Video Track',
-              onSelected:
-                  isProjectLoaded
-                      ? () => _handleAddVideoTrack(projectVm)
-                      : null,
+              onSelected: isProjectLoaded ? () => _handleAddVideoTrack(widget.projectVm) : null,
             ),
             PlatformMenuItem(
               label: 'Add Audio Track',
-              onSelected:
-                  isProjectLoaded
-                      ? () => _handleAddAudioTrack(projectVm)
-                      : null,
+              onSelected: isProjectLoaded ? () => _handleAddAudioTrack(widget.projectVm) : null,
             ),
           ],
         ),
@@ -336,26 +311,26 @@ class PlatformAppMenuBar extends StatelessWidget with WatchItMixin {
           menus: [
             PlatformMenuItem(
               label: isInspectorVisible ? '✓ Inspector' : '  Inspector',
-              onSelected: () => editorVm.toggleInspector(),
+              onSelected: () => widget.editorVm.toggleInspector(),
             ),
             PlatformMenuItem(
               label: isTimelineVisible ? '✓ Timeline' : '  Timeline',
-              onSelected: () => editorVm.toggleTimeline(),
+              onSelected: () => widget.editorVm.toggleTimeline(),
             ),
             PlatformMenuItem(
               label: isPreviewVisible ? '✓ Preview' : '  Preview',
-              onSelected: () => editorVm.togglePreview(),
+              onSelected: () => widget.editorVm.togglePreview(),
             ),
           ],
         ),
       ],
-      child: child,
+      child: widget.child,
     );
   }
 }
 
 // --- Widget for Linux / Other ---
-class FluentAppMenuBar extends StatelessWidget with WatchItMixin {
+class FluentAppMenuBar extends StatefulWidget {
   final EditorViewModel editorVm;
   final ProjectViewModel projectVm;
   final TimelineViewModel timelineVm;
@@ -368,20 +343,16 @@ class FluentAppMenuBar extends StatelessWidget with WatchItMixin {
   });
 
   @override
+  State<FluentAppMenuBar> createState() => _FluentAppMenuBarState();
+}
+
+class _FluentAppMenuBarState extends State<FluentAppMenuBar> {
+  @override
   Widget build(BuildContext context) {
-    // Use watchValue instead of ValueListenableBuilder
-    final bool isProjectLoaded = watchValue(
-      (ProjectViewModel x) => x.isProjectLoadedNotifier,
-    );
-    final bool isInspectorVisible = watchValue(
-      (EditorViewModel x) => x.isInspectorVisibleNotifier,
-    );
-    final bool isTimelineVisible = watchValue(
-      (EditorViewModel x) => x.isTimelineVisibleNotifier,
-    );
-    final bool isPreviewVisible = watchValue(
-      (EditorViewModel x) => x.isPreviewVisibleNotifier,
-    );
+    final bool isProjectLoaded = widget.projectVm.isProjectLoadedNotifier.value;
+    final bool isInspectorVisible = widget.editorVm.isInspectorVisibleNotifier.value;
+    final bool isTimelineVisible = widget.editorVm.isTimelineVisibleNotifier.value;
+    final bool isPreviewVisible = widget.editorVm.isPreviewVisibleNotifier.value;
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -391,22 +362,19 @@ class FluentAppMenuBar extends StatelessWidget with WatchItMixin {
           items: [
             MenuFlyoutItem(
               text: const Text('New Project'),
-              onPressed: () => _handleNewProject(context, projectVm),
+              onPressed: () => _handleNewProject(context, widget.projectVm),
             ),
             MenuFlyoutItem(
               text: const Text('Open Project...'),
-              onPressed: () => _handleOpenProject(context, projectVm),
+              onPressed: () => _handleOpenProject(context, widget.projectVm),
             ),
-            MenuFlyoutSeparator(),
             MenuFlyoutItem(
               text: const Text('Import Media...'),
-              onPressed:
-                  isProjectLoaded ? () => _handleImportMedia(timelineVm) : null,
+              onPressed: isProjectLoaded ? () => _handleImportMedia(context, widget.projectVm) : null,
             ),
             MenuFlyoutItem(
               text: const Text('Save Project'),
-              onPressed:
-                  isProjectLoaded ? () => _handleSaveProject(projectVm) : null,
+              onPressed: isProjectLoaded ? () => _handleSaveProject(widget.projectVm) : null,
             ),
           ],
         ),
@@ -424,17 +392,11 @@ class FluentAppMenuBar extends StatelessWidget with WatchItMixin {
           items: [
             MenuFlyoutItem(
               text: const Text('Add Video Track'),
-              onPressed:
-                  isProjectLoaded
-                      ? () => _handleAddVideoTrack(projectVm)
-                      : null,
+              onPressed: isProjectLoaded ? () => _handleAddVideoTrack(widget.projectVm) : null,
             ),
             MenuFlyoutItem(
               text: const Text('Add Audio Track'),
-              onPressed:
-                  isProjectLoaded
-                      ? () => _handleAddAudioTrack(projectVm)
-                      : null,
+              onPressed: isProjectLoaded ? () => _handleAddAudioTrack(widget.projectVm) : null,
             ),
           ],
         ),
@@ -448,19 +410,19 @@ class FluentAppMenuBar extends StatelessWidget with WatchItMixin {
                       ? const Icon(FluentIcons.check_mark)
                       : null,
               text: const Text('Inspector'),
-              onPressed: () => editorVm.toggleInspector(),
+              onPressed: () => widget.editorVm.toggleInspector(),
             ),
             MenuFlyoutItem(
               leading:
                   isTimelineVisible ? const Icon(FluentIcons.check_mark) : null,
               text: const Text('Timeline'),
-              onPressed: () => editorVm.toggleTimeline(),
+              onPressed: () => widget.editorVm.toggleTimeline(),
             ),
             MenuFlyoutItem(
               leading:
                   isPreviewVisible ? const Icon(FluentIcons.check_mark) : null,
               text: const Text('Preview'),
-              onPressed: () => editorVm.togglePreview(),
+              onPressed: () => widget.editorVm.togglePreview(),
             ),
           ],
         ),

@@ -9,7 +9,7 @@ import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/utils/logger.dart'; // Add logger import
 
 /// Handles synchronization between the timeline and the preview player.
-class EditorPreviewViewModel with Disposable { // Remove LoggerExtension
+class EditorPreviewViewModel { // Remove LoggerExtension
   // Dependencies (injected)
   final TimelineViewModel _timelineViewModel = di<TimelineViewModel>();
   final VideoPlayerManager _videoPlayerManager = di<VideoPlayerManager>();
@@ -21,7 +21,6 @@ class EditorPreviewViewModel with Disposable { // Remove LoggerExtension
   // --- Internal State ---
   // Subscription listeners for timeline changes
   VoidCallback? _timelineFrameListener;
-  VoidCallback? _timelineClipsListener;
   VoidCallback? _timelinePlayStateListener; // Listener for play state
 
   // --- Getters ---
@@ -34,7 +33,6 @@ class EditorPreviewViewModel with Disposable { // Remove LoggerExtension
     _subscribeToTimelineChanges();
   }
 
-  @override
   void onDispose() {
     currentPreviewVideoUrlNotifier.dispose();
 
@@ -53,9 +51,6 @@ class EditorPreviewViewModel with Disposable { // Remove LoggerExtension
     // Listen to changes in the timeline ViewModel (clips and current frame)
     _timelineFrameListener = _updatePreviewVideo;
     _timelineViewModel.currentFrameNotifier.addListener(_timelineFrameListener!);
-
-    // Also listen to clip changes, as adding/removing clips affects the preview
-    _timelineClipsListener = _updatePreviewVideo;
 
     // Add listener for play state changes
     _timelinePlayStateListener = _updatePreviewPlaybackState;

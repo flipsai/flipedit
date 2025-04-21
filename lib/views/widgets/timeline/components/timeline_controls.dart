@@ -1,11 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flipedit/models/clip.dart';
-import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:video_player/video_player.dart';
 import 'package:watch_it/watch_it.dart';
-import 'package:flipedit/services/project_service.dart';
-import 'package:flipedit/utils/logger.dart';
 
 /// Controls widget for the timeline including playback controls and zoom
 class TimelineControls extends StatelessWidget with WatchItMixin {
@@ -102,67 +98,6 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
                 fontFamily: 'monospace', // Use monospace for frame count too
               ),
             ),
-
-          const Spacer(),
-
-          // Add Media Button
-          Tooltip(
-            message: 'Add Media',
-            child: _buildAddMediaButton(context, timelineViewModel, theme, controlsContentColor),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Helper method for Add Media button
-  Widget _buildAddMediaButton(
-    BuildContext context,
-    TimelineViewModel timelineViewModel,
-    FluentThemeData theme,
-    Color controlsContentColor,
-  ) {
-    // Get ProjectService instance
-    final projectService = di<ProjectService>();
-    return FilledButton(
-      onPressed: () async {
-        logInfo(runtimeType.toString(), "Add Media button pressed - Placeholder");
-        
-        // Get the first track ID or default/error if none
-        final int targetTrackId;
-        // Access tracks directly from the ProjectService notifier
-        final currentTracks = projectService.currentProjectTracksNotifier.value;
-        if (currentTracks.isNotEmpty) {
-           targetTrackId = currentTracks.first.id;
-        } else {
-           logError(runtimeType.toString(), "Error: No tracks loaded to add clip to.");
-           // Optionally show a user message
-           return; // Don't proceed if no track is available
-        }
-
-        final dummyClipData = ClipModel(
-          databaseId: null,
-          trackId: targetTrackId, // Use determined track ID
-          name: 'New Video Clip',
-          type: ClipType.video,
-          sourcePath: 'https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4',
-          startTimeInSourceMs: 0,
-          endTimeInSourceMs: 5000,
-          startTimeOnTrackMs: 0,
-        );
-        await timelineViewModel.addClipAtPosition(
-          clipData: dummyClipData,
-          trackId: targetTrackId, // Use determined track ID
-          startTimeInSourceMs: dummyClipData.startTimeInSourceMs,
-          endTimeInSourceMs: dummyClipData.endTimeInSourceMs,
-        );
-      },
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(FluentIcons.add, size: 12, color: controlsContentColor),
-          const SizedBox(width: 4),
-          Text('Add Clip', style: theme.typography.caption?.copyWith(color: controlsContentColor)),
         ],
       ),
     );
