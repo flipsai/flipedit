@@ -5,38 +5,13 @@ import 'package:drift/drift.dart' as drift; // Added Value import
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/models/enums/edit_mode.dart';
-import 'package:flipedit/persistence/database/project_database.dart' as project_db;
+import 'package:flipedit/persistence/database/project_database.dart'
+    as project_db;
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:video_player/video_player.dart';
 import 'package:flipedit/utils/logger.dart' as logger; // Import logger
-const double _defaultFrameRate = 30.0;
-
-// Simple debounce utility
-void Function() _debounce(VoidCallback func, Duration delay) {
-  Timer? debounceTimer;
-  return () {
-    debounceTimer?.cancel();
-    debounceTimer = Timer(delay, func);
-  };
-}
-
-// Helper method to convert project database clip to ClipModel
-ClipModel clipFromProjectDb(project_db.Clip dbData) {
-  return ClipModel(
-    databaseId: dbData.id,
-    trackId: dbData.trackId,
-    name: dbData.name,
-    type: ClipType.values.firstWhere(
-      (e) => e.toString().split('.').last == dbData.type,
-      orElse: () => ClipType.video,
-    ),
-    sourcePath: dbData.sourcePath,
-    startTimeInSourceMs: dbData.startTimeInSourceMs,
-    endTimeInSourceMs: dbData.endTimeInSourceMs,
-    startTimeOnTrackMs: dbData.startTimeOnTrackMs,
-  );
-}
+import 'package:flipedit/viewmodels/timeline_utils.dart';
 
 class TimelineViewModel {
   // Add a tag for logging within this class
@@ -89,8 +64,10 @@ class TimelineViewModel {
   // Added back Notifier for the width of the track label area
   final ValueNotifier<double> trackLabelWidthNotifier = ValueNotifier(120.0);
 
-  final ValueNotifier<EditMode> currentEditMode = ValueNotifier(EditMode.select);
-  
+  final ValueNotifier<EditMode> currentEditMode = ValueNotifier(
+    EditMode.select,
+  );
+
   // Helper to set edit mode and notify
   void setEditMode(EditMode mode) {
     if (currentEditMode.value != mode) {
@@ -107,11 +84,11 @@ class TimelineViewModel {
   TimelineViewModel(this._projectDatabaseService) {
     _recalculateAndUpdateTotalFrames();
 
-    _debouncedFrameUpdate = _debounce(() {
+    _debouncedFrameUpdate = debounce(() {
       if (!isPlayingNotifier.value) return;
 
       final currentMs = ClipModel.framesToMs(currentFrame);
-      final nextFrameMs = currentMs + (1000 / _defaultFrameRate);
+      final nextFrameMs = currentMs + (1000 / kDefaultFrameRate);
       final nextFrame = ClipModel.msToFrames(nextFrameMs.round());
 
       final totalFrames = _calculateTotalFrames();
@@ -127,27 +104,21 @@ class TimelineViewModel {
         _stopPlaybackTimer();
         isPlayingNotifier.value = false;
       }
-    }, Duration(milliseconds: (1000 / _defaultFrameRate).round()));
+    }, Duration(milliseconds: (1000 / kDefaultFrameRate).round()));
   }
 
   Future<void> loadClipsForProject(int projectId) async {
-    logger.logInfo(
-      '🔄 Loading clips for project $projectId',
-      _logTag,
-    );
-    
+    logger.logInfo('🔄 Loading clips for project $projectId', _logTag);
+
     // Load the project using the service
     final success = await _projectDatabaseService.loadProject(projectId);
     if (!success) {
-      logger.logError(
-        '❌ Failed to load project $projectId',
-        _logTag,
-      );
+      logger.logError('❌ Failed to load project $projectId', _logTag);
       clipsNotifier.value = [];
       _recalculateAndUpdateTotalFrames();
       return;
     }
-    
+
     // Use the tracks from the service
     final tracks = _projectDatabaseService.tracksNotifier.value;
 
@@ -158,10 +129,7 @@ class TimelineViewModel {
     );
 
     if (tracks.isEmpty) {
-      logger.logInfo(
-        '⚠️ No tracks found for project $projectId',
-        _logTag,
-      );
+      logger.logInfo('⚠️ No tracks found for project $projectId', _logTag);
       clipsNotifier.value = [];
       _recalculateAndUpdateTotalFrames();
       return;
@@ -206,10 +174,14 @@ class TimelineViewModel {
   }
 
   /// Calculates exact frame position from pixel coordinates on the timeline
-  int calculateFramePosition(double pixelPosition, double scrollOffset, double zoom) {
+  int calculateFramePosition(
+    double pixelPosition,
+    double scrollOffset,
+    double zoom,
+  ) {
     final adjustedPosition = pixelPosition + scrollOffset;
     final frameWidth = 5.0 * zoom; // 5px per frame at 1.0 zoom
-    
+
     final framePosition = (adjustedPosition / frameWidth).floor();
     return framePosition < 0 ? 0 : framePosition;
   }
@@ -218,10 +190,18 @@ class TimelineViewModel {
   int frameToMs(int framePosition) {
     return ClipModel.framesToMs(framePosition);
   }
-  
+
   /// Calculates millisecond position directly from pixel coordinates
-  int calculateMsPositionFromPixels(double pixelPosition, double scrollOffset, double zoom) {
-    final framePosition = calculateFramePosition(pixelPosition, scrollOffset, zoom);
+  int calculateMsPositionFromPixels(
+    double pixelPosition,
+    double scrollOffset,
+    double zoom,
+  ) {
+    final framePosition = calculateFramePosition(
+      pixelPosition,
+      scrollOffset,
+      zoom,
+    );
     return frameToMs(framePosition);
   }
 
@@ -243,8 +223,17 @@ class TimelineViewModel {
     int newStart = startTimeOnTrackMs;
     int newEnd = startTimeOnTrackMs + newClipDuration;
     // 1. Gather and sort neighbors
-    final neighbors = clips.where((c) => c.trackId == trackId && (clipId == null || c.databaseId != clipId)).toList()
-      ..sort((a, b) => a.startTimeOnTrackMs.compareTo(b.startTimeOnTrackMs));
+    final neighbors =
+        clips
+            .where(
+              (c) =>
+                  c.trackId == trackId &&
+                  (clipId == null || c.databaseId != clipId),
+            )
+            .toList()
+          ..sort(
+            (a, b) => a.startTimeOnTrackMs.compareTo(b.startTimeOnTrackMs),
+          );
     // 2. Trim or remove neighbors (no splitting)
     bool changed = false;
     List<ClipModel> updatedClips = List<ClipModel>.from(clips);
@@ -253,58 +242,70 @@ class TimelineViewModel {
       final ne = neighbor.startTimeOnTrackMs + neighbor.durationMs;
       if (ne <= newStart || ns >= newEnd) continue; // No overlap
       if (ns >= newStart && ne <= newEnd) {
-          updatedClips.removeWhere((c) => c.databaseId == neighbor.databaseId);
-          changed = true;
-          await removeClip(neighbor.databaseId!);
+        updatedClips.removeWhere((c) => c.databaseId == neighbor.databaseId);
+        changed = true;
+        await removeClip(neighbor.databaseId!);
       } else if (ns < newStart && ne > newStart && ne <= newEnd) {
         // Overlap on right: trim neighbor's end to the intersection
-          final updated = neighbor.copyWith(endTimeInSourceMs: neighbor.startTimeInSourceMs + (newStart - ns));
-          updatedClips[updatedClips.indexWhere((c) => c.databaseId == neighbor.databaseId)] = updated;
-          changed = true;
-          await _projectDatabaseService.clipDao!.updateClipFields(
-            neighbor.databaseId!,
-            {
-              'endTimeInSourceMs': neighbor.startTimeInSourceMs + (newStart - ns),
-            },
-          );
+        final updated = neighbor.copyWith(
+          endTimeInSourceMs: neighbor.startTimeInSourceMs + (newStart - ns),
+        );
+        updatedClips[updatedClips.indexWhere(
+              (c) => c.databaseId == neighbor.databaseId,
+            )] =
+            updated;
+        changed = true;
+        await _projectDatabaseService.clipDao!.updateClipFields(
+          neighbor.databaseId!,
+          {'endTimeInSourceMs': neighbor.startTimeInSourceMs + (newStart - ns)},
+        );
       } else if (ns >= newStart && ns < newEnd && ne > newEnd) {
         // Overlap on left: trim neighbor's start to the intersection
-          final updated = neighbor.copyWith(
-            startTimeInSourceMs: neighbor.startTimeInSourceMs + (newEnd - ns),
-            startTimeOnTrackMs: newEnd,
-          );
-          updatedClips[updatedClips.indexWhere((c) => c.databaseId == neighbor.databaseId)] = updated;
-          changed = true;
-          await _projectDatabaseService.clipDao!.updateClipFields(
-            neighbor.databaseId!,
-            {
-              'startTimeInSourceMs': neighbor.startTimeInSourceMs + (newEnd - ns),
-              'startTimeOnTrackMs': newEnd,
-            },
-          );
+        final updated = neighbor.copyWith(
+          startTimeInSourceMs: neighbor.startTimeInSourceMs + (newEnd - ns),
+          startTimeOnTrackMs: newEnd,
+        );
+        updatedClips[updatedClips.indexWhere(
+              (c) => c.databaseId == neighbor.databaseId,
+            )] =
+            updated;
+        changed = true;
+        await _projectDatabaseService.clipDao!.updateClipFields(
+          neighbor.databaseId!,
+          {
+            'startTimeInSourceMs': neighbor.startTimeInSourceMs + (newEnd - ns),
+            'startTimeOnTrackMs': newEnd,
+          },
+        );
       } else if (ns < newStart && ne > newEnd) {
         // Moved clip is fully inside neighbor: trim neighbor's end to newStart (left part remains)
-          final updated = neighbor.copyWith(endTimeInSourceMs: neighbor.startTimeInSourceMs + (newStart - ns));
-          updatedClips[updatedClips.indexWhere((c) => c.databaseId == neighbor.databaseId)] = updated;
-          changed = true;
-          await _projectDatabaseService.clipDao!.updateClipFields(
-            neighbor.databaseId!,
-            {
-              'endTimeInSourceMs': neighbor.startTimeInSourceMs + (newStart - ns),
-            },
-          );
+        final updated = neighbor.copyWith(
+          endTimeInSourceMs: neighbor.startTimeInSourceMs + (newStart - ns),
+        );
+        updatedClips[updatedClips.indexWhere(
+              (c) => c.databaseId == neighbor.databaseId,
+            )] =
+            updated;
+        changed = true;
+        await _projectDatabaseService.clipDao!.updateClipFields(
+          neighbor.databaseId!,
+          {'endTimeInSourceMs': neighbor.startTimeInSourceMs + (newStart - ns)},
+        );
       }
       // NEW CASE: If the left neighbor's end overlaps the new start, trim its end to newStart
       else if (ne > newStart && ne <= newEnd && ns < newStart) {
-          final updated = neighbor.copyWith(endTimeInSourceMs: neighbor.startTimeInSourceMs + (newStart - ns));
-          updatedClips[updatedClips.indexWhere((c) => c.databaseId == neighbor.databaseId)] = updated;
-          changed = true;
-          await _projectDatabaseService.clipDao!.updateClipFields(
-            neighbor.databaseId!,
-            {
-              'endTimeInSourceMs': neighbor.startTimeInSourceMs + (newStart - ns),
-            },
-          );
+        final updated = neighbor.copyWith(
+          endTimeInSourceMs: neighbor.startTimeInSourceMs + (newStart - ns),
+        );
+        updatedClips[updatedClips.indexWhere(
+              (c) => c.databaseId == neighbor.databaseId,
+            )] =
+            updated;
+        changed = true;
+        await _projectDatabaseService.clipDao!.updateClipFields(
+          neighbor.databaseId!,
+          {'endTimeInSourceMs': neighbor.startTimeInSourceMs + (newStart - ns)},
+        );
       }
     }
     // 3. Clamp new clip to available space
@@ -333,28 +334,35 @@ class TimelineViewModel {
           sourcePath: drift.Value(sourcePath),
           startTimeOnTrackMs: drift.Value(newStart),
           startTimeInSourceMs: drift.Value(startTimeInSourceMs),
-          endTimeInSourceMs: drift.Value(startTimeInSourceMs + (newEnd - newStart)),
+          endTimeInSourceMs: drift.Value(
+            startTimeInSourceMs + (newEnd - newStart),
+          ),
           createdAt: drift.Value(DateTime.now()),
           updatedAt: drift.Value(DateTime.now()),
         ),
       );
       // Optimistically add to memory
-      updatedClips.add(ClipModel(
-        databaseId: newClipId,
-        trackId: trackId,
-        name: '',
-        type: type,
-        sourcePath: sourcePath,
-        startTimeInSourceMs: startTimeInSourceMs,
-        endTimeInSourceMs: startTimeInSourceMs + (newEnd - newStart),
-        startTimeOnTrackMs: newStart,
-        effects: [],
-        metadata: {},
-      ));
+      updatedClips.add(
+        ClipModel(
+          databaseId: newClipId,
+          trackId: trackId,
+          name: '',
+          type: type,
+          sourcePath: sourcePath,
+          startTimeInSourceMs: startTimeInSourceMs,
+          endTimeInSourceMs: startTimeInSourceMs + (newEnd - newStart),
+          startTimeOnTrackMs: newStart,
+          effects: [],
+          metadata: {},
+        ),
+      );
       changed = true;
       clipsNotifier.value = List<ClipModel>.from(updatedClips);
       await refreshClips();
-      logger.logInfo('Added new clip with ID $newClipId (auto-trimmed)', _logTag);
+      logger.logInfo(
+        'Added new clip with ID $newClipId (auto-trimmed)',
+        _logTag,
+      );
       return true;
     } else {
       // Update existing
@@ -369,16 +377,13 @@ class TimelineViewModel {
         changed = true;
       }
       clipsNotifier.value = List<ClipModel>.from(updatedClips);
-      await _projectDatabaseService.clipDao!.updateClipFields(
-        clipId,
-        {
-          'trackId': trackId,
-          'startTimeOnTrackMs': newStart,
-          'startTimeInSourceMs': startTimeInSourceMs,
-          'endTimeInSourceMs': startTimeInSourceMs + (newEnd - newStart),
-          'updatedAt': DateTime.now(),
-        },
-      );
+      await _projectDatabaseService.clipDao!.updateClipFields(clipId, {
+        'trackId': trackId,
+        'startTimeOnTrackMs': newStart,
+        'startTimeInSourceMs': startTimeInSourceMs,
+        'endTimeInSourceMs': startTimeInSourceMs + (newEnd - newStart),
+        'updatedAt': DateTime.now(),
+      });
       await refreshClips();
       logger.logInfo('Moved/resized clip $clipId (auto-trimmed)', _logTag);
       return true;
@@ -408,7 +413,10 @@ class TimelineViewModel {
     required int newTrackId,
     required int newStartTimeOnTrackMs,
   }) async {
-    final clip = clips.firstWhere((c) => c.databaseId == clipId, orElse: () => throw Exception('Clip not found'));
+    final clip = clips.firstWhere(
+      (c) => c.databaseId == clipId,
+      orElse: () => throw Exception('Clip not found'),
+    );
     return await placeClipOnTrack(
       clipId: clipId,
       trackId: newTrackId,
@@ -425,7 +433,10 @@ class TimelineViewModel {
     required String direction, // 'left' or 'right'
     required int newFrame,
   }) async {
-    final clip = clips.firstWhere((c) => c.databaseId == clipId, orElse: () => throw Exception('Clip not found'));
+    final clip = clips.firstWhere(
+      (c) => c.databaseId == clipId,
+      orElse: () => throw Exception('Clip not found'),
+    );
     int newStart = clip.startTimeOnTrackMs;
     int newEnd = clip.startTimeOnTrackMs + clip.durationMs;
     if (direction == 'left') {
@@ -439,8 +450,10 @@ class TimelineViewModel {
       type: clip.type,
       sourcePath: clip.sourcePath,
       startTimeOnTrackMs: newStart,
-      startTimeInSourceMs: clip.startTimeInSourceMs + (newStart - clip.startTimeOnTrackMs),
-      endTimeInSourceMs: clip.startTimeInSourceMs + (newEnd - clip.startTimeOnTrackMs),
+      startTimeInSourceMs:
+          clip.startTimeInSourceMs + (newStart - clip.startTimeOnTrackMs),
+      endTimeInSourceMs:
+          clip.startTimeInSourceMs + (newEnd - clip.startTimeOnTrackMs),
     );
   }
 
@@ -466,10 +479,14 @@ class TimelineViewModel {
     final tracks = _projectDatabaseService.tracksNotifier.value;
     List<ClipModel> allClips = [];
     for (final track in tracks) {
-      final dbClips = await _projectDatabaseService.clipDao!.getClipsForTrack(track.id);
+      final dbClips = await _projectDatabaseService.clipDao!.getClipsForTrack(
+        track.id,
+      );
       allClips.addAll(dbClips.map(clipFromProjectDb));
     }
-    allClips.sort((a, b) => a.startTimeOnTrackMs.compareTo(b.startTimeOnTrackMs));
+    allClips.sort(
+      (a, b) => a.startTimeOnTrackMs.compareTo(b.startTimeOnTrackMs),
+    );
     clipsNotifier.value = allClips;
     _recalculateAndUpdateTotalFrames();
   }
@@ -519,7 +536,7 @@ class TimelineViewModel {
     _stopPlaybackTimer();
     if (isPlayingNotifier.value) {
       _playbackTimer = Timer(
-        Duration(milliseconds: (1000 / _defaultFrameRate).round()),
+        Duration(milliseconds: (1000 / kDefaultFrameRate).round()),
         _debouncedFrameUpdate,
       );
     }
@@ -542,10 +559,7 @@ class TimelineViewModel {
     } else {
       final file = File(videoPath);
       if (!await file.exists()) {
-        logger.logError(
-          "Error: Video file not found at $videoPath",
-          _logTag,
-        );
+        logger.logError("Error: Video file not found at $videoPath", _logTag);
         _recalculateAndUpdateTotalFrames();
         return;
       }
@@ -566,15 +580,9 @@ class TimelineViewModel {
       _stopPlaybackTimer();
       isPlayingNotifier.value = false;
 
-      logger.logInfo(
-        'Video loaded for preview: $videoPath',
-        _logTag,
-      );
+      logger.logInfo('Video loaded for preview: $videoPath', _logTag);
     } catch (e) {
-      logger.logError(
-        "Error initializing video player: $e",
-        _logTag,
-      );
+      logger.logError("Error initializing video player: $e", _logTag);
       _videoPlayerController = null;
       videoPlayerControllerNotifier.value = null;
       _recalculateAndUpdateTotalFrames();
@@ -649,16 +657,13 @@ class TimelineViewModel {
       'addClipAtPosition called: trackId=$trackId, clip=${clipData.name}, type=${clipData.type}',
       _logTag,
     );
-    
+
     // Update currentTrackIds from the database service to ensure it's current
     final tracks = _projectDatabaseService.tracksNotifier.value;
     currentTrackIds = tracks.map((t) => t.id).toList();
-    
-    logger.logInfo(
-      'Available track IDs: $currentTrackIds',
-      _logTag,
-    );
-    
+
+    logger.logInfo('Available track IDs: $currentTrackIds', _logTag);
+
     if (!currentTrackIds.contains(trackId)) {
       logger.logError(
         'Track ID $trackId is not in current tracks list: $currentTrackIds',
@@ -684,7 +689,7 @@ class TimelineViewModel {
         _logTag,
       );
     }
-    
+
     final result = await addClip(
       trackId: trackId,
       type: clipData.type,
@@ -693,11 +698,8 @@ class TimelineViewModel {
       startTimeInSourceMs: startTimeInSourceMs,
       endTimeInSourceMs: endTimeInSourceMs,
     );
-    
-    logger.logInfo(
-      'addClip result: $result',
-      _logTag,
-    );
+
+    logger.logInfo('addClip result: $result', _logTag);
   }
 
   Future<bool> createTimelineClip({
@@ -709,17 +711,17 @@ class TimelineViewModel {
       'Creating timeline clip at frame $framePosition on track $trackId for ${clipData.name}',
       _logTag,
     );
-    
+
     // Convert the frame position to milliseconds using the helper method
     final startTimeOnTrackMs = frameToMs(framePosition);
-    
+
     // Additional debug info about timing
     final clipDurationFrames = ClipModel.msToFrames(clipData.durationMs);
     logger.logInfo(
       'Frame metrics: startFrame=$framePosition, durationFrames=$clipDurationFrames, startTimeMs=$startTimeOnTrackMs',
       _logTag,
     );
-    
+
     // Call the existing createClip method with the calculated position
     return await addClip(
       trackId: trackId,
@@ -739,47 +741,69 @@ class TimelineViewModel {
     required int rightClipId,
     required int newBoundaryFrame,
   }) async {
-    final left = clips.firstWhere((c) => c.databaseId == leftClipId, orElse: () => throw Exception('Left clip not found'));
-    final right = clips.firstWhere((c) => c.databaseId == rightClipId, orElse: () => throw Exception('Right clip not found'));
+    final left = clips.firstWhere(
+      (c) => c.databaseId == leftClipId,
+      orElse: () => throw Exception('Left clip not found'),
+    );
+    final right = clips.firstWhere(
+      (c) => c.databaseId == rightClipId,
+      orElse: () => throw Exception('Right clip not found'),
+    );
     // Must be on same track and adjacent
     if (left.trackId != right.trackId) return false;
     if (left.endFrame != right.startFrame) return false;
     // Compute valid range for the boundary
     final leftMinBoundary = left.startFrame + 1;
-    final leftMaxBoundary = left.startFrame + (left.endFrameInSource - left.startFrameInSource);
-    final rightMinBoundary = right.endFrame - (right.endFrameInSource - right.startFrameInSource);
+    final leftMaxBoundary =
+        left.startFrame + (left.endFrameInSource - left.startFrameInSource);
+    final rightMinBoundary =
+        right.endFrame - (right.endFrameInSource - right.startFrameInSource);
     final rightMaxBoundary = right.endFrame - 1;
     // The valid range is the intersection of both
-    final minBoundary = [leftMinBoundary, rightMinBoundary].reduce((a, b) => a > b ? a : b);
-    final maxBoundary = [leftMaxBoundary, rightMaxBoundary].reduce((a, b) => a < b ? a : b);
+    final minBoundary = [
+      leftMinBoundary,
+      rightMinBoundary,
+    ].reduce((a, b) => a > b ? a : b);
+    final maxBoundary = [
+      leftMaxBoundary,
+      rightMaxBoundary,
+    ].reduce((a, b) => a < b ? a : b);
     final clampedBoundary = newBoundaryFrame.clamp(minBoundary, maxBoundary);
-    if (clampedBoundary <= left.startFrame || clampedBoundary >= right.endFrame) return false;
+    if (clampedBoundary <= left.startFrame || clampedBoundary >= right.endFrame)
+      return false;
     // Compute new times
     final newLeftEndMs = ClipModel.framesToMs(clampedBoundary);
     final newRightStartMs = ClipModel.framesToMs(clampedBoundary);
-    final newLeftEndInSourceMs = left.startTimeInSourceMs + (newLeftEndMs - left.startTimeOnTrackMs);
-    final newRightStartInSourceMs = right.startTimeInSourceMs + (newRightStartMs - right.startTimeOnTrackMs);
+    final newLeftEndInSourceMs =
+        left.startTimeInSourceMs + (newLeftEndMs - left.startTimeOnTrackMs);
+    final newRightStartInSourceMs =
+        right.startTimeInSourceMs +
+        (newRightStartMs - right.startTimeOnTrackMs);
     // --- FIX: Always update right's startTimeOnTrackMs to match boundary ---
-      await _projectDatabaseService.clipDao!.updateClipFields(
-        left.databaseId!,
-        {
-          'endTimeInSourceMs': newLeftEndInSourceMs,
-        },
-      );
-      await _projectDatabaseService.clipDao!.updateClipFields(
-        right.databaseId!,
-        {
-          'startTimeOnTrackMs': newRightStartMs,
-          'startTimeInSourceMs': newRightStartInSourceMs,
-        },
-      );
-      await refreshClips();
-      return true;
+    await _projectDatabaseService.clipDao!.updateClipFields(left.databaseId!, {
+      'endTimeInSourceMs': newLeftEndInSourceMs,
+    });
+    await _projectDatabaseService.clipDao!.updateClipFields(right.databaseId!, {
+      'startTimeOnTrackMs': newRightStartMs,
+      'startTimeInSourceMs': newRightStartInSourceMs,
+    });
+    await refreshClips();
+    return true;
   }
 
   /// Trims, removes, or splits clips that overlap with [startMs, endMs) on [trackId]. Optionally excludes a clip by ID.
-  Future<void> trimOrRemoveOverlappingClips(int trackId, int startMs, int endMs, [int? excludeClipId]) async {
-    final overlapping = getOverlappingClips(trackId, startMs, endMs, excludeClipId);
+  Future<void> trimOrRemoveOverlappingClips(
+    int trackId,
+    int startMs,
+    int endMs, [
+    int? excludeClipId,
+  ]) async {
+    final overlapping = getOverlappingClips(
+      trackId,
+      startMs,
+      endMs,
+      excludeClipId,
+    );
     for (final clip in overlapping) {
       final clipStart = clip.startTimeOnTrackMs;
       final clipEnd = clip.startTimeOnTrackMs + clip.durationMs;
@@ -790,64 +814,83 @@ class TimelineViewModel {
         // Overlap on left: trim neighbor's start (neighbor is to the right of the new clip)
         if (clip.databaseId != null) {
           final neighborClip = clip; // Use a clearer variable name
-          final amountToTrimMs = endMs - neighborClip.startTimeOnTrackMs; // Calculate trim amount explicitly
+          final amountToTrimMs =
+              endMs -
+              neighborClip
+                  .startTimeOnTrackMs; // Calculate trim amount explicitly
 
           // Ensure we don't trim more than the clip's duration
           if (amountToTrimMs >= neighborClip.durationMs) {
             // If the overlap implies the entire neighbor clip should be removed
-            await _projectDatabaseService.clipDao!.deleteClip(neighborClip.databaseId!);
+            await _projectDatabaseService.clipDao!.deleteClip(
+              neighborClip.databaseId!,
+            );
             // Log this removal for clarity
-            logger.logInfo('Neighbor clip ${neighborClip.databaseId} fully overlapped and removed.', _logTag);
+            logger.logInfo(
+              'Neighbor clip ${neighborClip.databaseId} fully overlapped and removed.',
+              _logTag,
+            );
           } else if (amountToTrimMs > 0) {
             // Only update if there's actually something to trim
-            final newStartTimeInSourceMs = neighborClip.startTimeInSourceMs + amountToTrimMs;
-            final newStartTimeOnTrackMs = endMs; // Set the neighbor's start time to the new clip's end time
+            final newStartTimeInSourceMs =
+                neighborClip.startTimeInSourceMs + amountToTrimMs;
+            final newStartTimeOnTrackMs =
+                endMs; // Set the neighbor's start time to the new clip's end time
 
             await _projectDatabaseService.clipDao!.updateClipFields(
               neighborClip.databaseId!,
               {
                 'startTimeInSourceMs': newStartTimeInSourceMs,
-                'startTimeOnTrackMs': newStartTimeOnTrackMs, // Update track start time
+                'startTimeOnTrackMs':
+                    newStartTimeOnTrackMs, // Update track start time
               },
             );
             // Log the update
-            logger.logDebug('Neighbor clip ${neighborClip.databaseId} trimmed (left): new track start $newStartTimeOnTrackMs ms, new source start $newStartTimeInSourceMs ms.', _logTag);
+            logger.logDebug(
+              'Neighbor clip ${neighborClip.databaseId} trimmed (left): new track start $newStartTimeOnTrackMs ms, new source start $newStartTimeInSourceMs ms.',
+              _logTag,
+            );
           } else {
             // Log if no trim was needed (e.g., endMs exactly matched clipStart)
-            logger.logDebug('Neighbor clip ${neighborClip.databaseId} touches new clip end, no trim needed.', _logTag);
+            logger.logDebug(
+              'Neighbor clip ${neighborClip.databaseId} touches new clip end, no trim needed.',
+              _logTag,
+            );
           }
         }
       } else if (clipStart < startMs && clipEnd > startMs) {
         // Overlap on right: trim neighbor's end
-        if (clip.databaseId != null) {
-          await _projectDatabaseService.clipDao!.updateClipFields(
-            clip.databaseId!,
-            {
-              'endTimeInSourceMs': clip.startTimeInSourceMs + (startMs - clipStart),
-            },
-          );
-        }
+        await _projectDatabaseService.clipDao!.updateClipFields(
+          clip.databaseId!,
+          {
+            'endTimeInSourceMs':
+                clip.startTimeInSourceMs + (startMs - clipStart),
+          },
+        );
       } else if (clipStart < endMs && clipEnd > endMs) {
         // Overlap on left: trim neighbor's start
-        if (clip.databaseId != null) {
-          await _projectDatabaseService.clipDao!.updateClipFields(
-            clip.databaseId!,
-            {
-              'startTimeInSourceMs': clip.startTimeInSourceMs + (endMs - clipStart),
+        await _projectDatabaseService.clipDao!
+            .updateClipFields(clip.databaseId!, {
+              'startTimeInSourceMs':
+                  clip.startTimeInSourceMs + (endMs - clipStart),
               'startTimeOnTrackMs': endMs,
-            },
-          );
-        }
+            });
       }
     }
     await refreshClips();
   }
 
   /// Returns all clips on the same track that overlap with [startMs, endMs). Optionally excludes a clip by ID.
-  List<ClipModel> getOverlappingClips(int trackId, int startMs, int endMs, [int? excludeClipId]) {
+  List<ClipModel> getOverlappingClips(
+    int trackId,
+    int startMs,
+    int endMs, [
+    int? excludeClipId,
+  ]) {
     return clips.where((clip) {
       if (clip.trackId != trackId) return false;
-      if (excludeClipId != null && clip.databaseId == excludeClipId) return false;
+      if (excludeClipId != null && clip.databaseId == excludeClipId)
+        return false;
       final clipStart = clip.startTimeOnTrackMs;
       final clipEnd = clip.startTimeOnTrackMs + clip.durationMs;
       // Overlap if ranges intersect
@@ -883,30 +926,40 @@ class TimelineViewModel {
         continue;
       } else if (ns < newStart && ne > newStart && ne <= newEnd) {
         // Overlap on right: trim neighbor's end
-        preview.add(neighbor.copyWith(
-          endTimeInSourceMs: neighbor.startTimeInSourceMs + (newStart - ns),
-        ));
+        preview.add(
+          neighbor.copyWith(
+            endTimeInSourceMs: neighbor.startTimeInSourceMs + (newStart - ns),
+          ),
+        );
       } else if (ns >= newStart && ns < newEnd && ne > newEnd) {
         // Overlap on left: trim neighbor's start
-        preview.add(neighbor.copyWith(
-          startTimeInSourceMs: neighbor.startTimeInSourceMs + (newEnd - ns),
-          startTimeOnTrackMs: newEnd,
-        ));
+        preview.add(
+          neighbor.copyWith(
+            startTimeInSourceMs: neighbor.startTimeInSourceMs + (newEnd - ns),
+            startTimeOnTrackMs: newEnd,
+          ),
+        );
       } else if (ns < newStart && ne > newEnd) {
         // Dragged clip is fully inside neighbor: only left part remains (trim at newStart)
-        preview.add(neighbor.copyWith(
-          endTimeInSourceMs: neighbor.startTimeInSourceMs + (newStart - ns),
-        ));
+        preview.add(
+          neighbor.copyWith(
+            endTimeInSourceMs: neighbor.startTimeInSourceMs + (newStart - ns),
+          ),
+        );
       }
     }
     // Add the dragged clip at the preview position
-    preview.add(dragged.copyWith(
-      trackId: targetTrackId,
-      startTimeOnTrackMs: newStart,
-      // Optionally update startTimeInSourceMs/endTimeInSourceMs if you want to preview source trim
-    ));
+    preview.add(
+      dragged.copyWith(
+        trackId: targetTrackId,
+        startTimeOnTrackMs: newStart,
+        // Optionally update startTimeInSourceMs/endTimeInSourceMs if you want to preview source trim
+      ),
+    );
     // Sort by start time
-    preview.sort((a, b) => a.startTimeOnTrackMs.compareTo(b.startTimeOnTrackMs));
+    preview.sort(
+      (a, b) => a.startTimeOnTrackMs.compareTo(b.startTimeOnTrackMs),
+    );
     return preview;
   }
 }
