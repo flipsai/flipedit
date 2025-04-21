@@ -89,8 +89,9 @@ class _TimelineClipState extends State<TimelineClip> {
     // Calculate the visual offset based on the difference between the current drag frame
     // and the clip's official start frame. Apply this offset always to keep the visual
     // position consistent until the parent rebuilds with the updated data.
-    final double dragOffset =
-        (_currentDragFrame - widget.clip.startFrame) * 5.0 * zoom;
+    final double dragOffset = _isDragging
+        ? (_currentDragFrame - widget.clip.startFrame) * 5.0 * zoom
+        : 0.0;
 
     // Get base color for clip type
     final baseClipColor =

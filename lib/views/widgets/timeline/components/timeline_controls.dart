@@ -2,6 +2,8 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:video_player/video_player.dart';
 import 'package:watch_it/watch_it.dart';
+import 'package:flipedit/models/enums/edit_mode.dart';
+import 'package:hugeicons/hugeicons.dart';
 
 /// Controls widget for the timeline including playback controls and zoom
 class TimelineControls extends StatelessWidget with WatchItMixin {
@@ -22,6 +24,96 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
     // Watch the controller itself (can be null)
     final controller = watchValue((TimelineViewModel vm) => vm.videoPlayerControllerNotifier);
 
+    // Edit mode toolbar
+    final currentMode = watchValue((TimelineViewModel vm) => vm.currentEditMode);
+    final modeButtons = <Widget>[
+      Tooltip(
+        message: 'Select',
+        child: Container(
+          decoration: BoxDecoration(
+            color: currentMode == EditMode.select ? theme.accentColor.lightest : Colors.transparent,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: IconButton(
+            icon: const Icon(HugeIcons.strokeRoundedCursor01, size: 16),
+            onPressed: () => timelineViewModel.setEditMode(EditMode.select),
+            style: ButtonStyle(
+              padding: WidgetStateProperty.all(const EdgeInsets.all(4)),
+              foregroundColor: WidgetStateProperty.all(controlsContentColor),
+            ),
+          ),
+        ),
+      ),
+      Tooltip(
+        message: 'Ripple Trim',
+        child: Container(
+          decoration: BoxDecoration(
+            color: currentMode == EditMode.rippleTrim ? theme.accentColor.lightest : Colors.transparent,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: IconButton(
+            icon: const Icon(HugeIcons.strokeRoundedCrop, size: 16),
+            onPressed: () => timelineViewModel.setEditMode(EditMode.rippleTrim),
+            style: ButtonStyle(
+              padding: WidgetStateProperty.all(const EdgeInsets.all(4)),
+              foregroundColor: WidgetStateProperty.all(controlsContentColor),
+            ),
+          ),
+        ),
+      ),
+      Tooltip(
+        message: 'Roll',
+        child: Container(
+          decoration: BoxDecoration(
+            color: currentMode == EditMode.rollEdit ? theme.accentColor.lightest : Colors.transparent,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: IconButton(
+            icon: const Icon(HugeIcons.strokeRoundedArrowHorizontal, size: 16),
+            onPressed: () => timelineViewModel.setEditMode(EditMode.rollEdit),
+            style: ButtonStyle(
+              padding: WidgetStateProperty.all(const EdgeInsets.all(4)),
+              foregroundColor: WidgetStateProperty.all(controlsContentColor),
+            ),
+          ),
+        ),
+      ),
+      Tooltip(
+        message: 'Slip',
+        child: Container(
+          decoration: BoxDecoration(
+            color: currentMode == EditMode.slip ? theme.accentColor.lightest : Colors.transparent,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: IconButton(
+            icon: const Icon(HugeIcons.strokeRoundedCursorMove01, size: 16),
+            onPressed: () => timelineViewModel.setEditMode(EditMode.slip),
+            style: ButtonStyle(
+              padding: WidgetStateProperty.all(const EdgeInsets.all(4)),
+              foregroundColor: WidgetStateProperty.all(controlsContentColor),
+            ),
+          ),
+        ),
+      ),
+      Tooltip(
+        message: 'Slide',
+        child: Container(
+          decoration: BoxDecoration(
+            color: currentMode == EditMode.slide ? theme.accentColor.lightest : Colors.transparent,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: IconButton(
+            icon: const Icon(HugeIcons.strokeRoundedArrowHorizontal, size: 16),
+            onPressed: () => timelineViewModel.setEditMode(EditMode.slide),
+            style: ButtonStyle(
+              padding: WidgetStateProperty.all(const EdgeInsets.all(4)),
+              foregroundColor: WidgetStateProperty.all(controlsContentColor),
+            ),
+          ),
+        ),
+      ),
+    ];
+
     return Container(
       height: 40,
       color: theme.resources.subtleFillColorSecondary,
@@ -31,7 +123,7 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
           Tooltip(
             message: 'Zoom Out',
             child: IconButton(
-              icon: Icon(FluentIcons.remove, size: 16, color: controlsContentColor),
+              icon: Icon(HugeIcons.strokeRoundedMinusSign, size: 16, color: controlsContentColor),
               onPressed: zoom > 0.2 // Use watched zoom directly
                   ? () => timelineViewModel.zoom = zoom / 1.2
                   : null,
@@ -48,7 +140,7 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
           Tooltip(
             message: 'Zoom In',
             child: IconButton(
-              icon: Icon(FluentIcons.add, size: 16, color: controlsContentColor),
+              icon: Icon(HugeIcons.strokeRoundedAdd01, size: 16, color: controlsContentColor),
               onPressed: zoom < 5.0 // Use watched zoom directly
                   ? () => timelineViewModel.zoom = zoom * 1.2
                   : null,
@@ -60,7 +152,7 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
           Tooltip(
             message: 'Go to Start',
             child: IconButton(
-              icon: Icon(FluentIcons.previous, size: 16, color: controlsContentColor),
+              icon: Icon(HugeIcons.strokeRoundedBackward01, size: 16, color: controlsContentColor),
               onPressed: () => timelineViewModel.currentFrame = 0,
             ),
           ),
@@ -68,7 +160,7 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
             message: isPlaying ? 'Pause' : 'Play', // Use watched isPlaying
             child: IconButton(
               icon: Icon(
-                isPlaying ? FluentIcons.pause : FluentIcons.play, // Use watched isPlaying
+                isPlaying ? HugeIcons.strokeRoundedPause : HugeIcons.strokeRoundedPlay, // Use watched isPlaying
                 size: 16,
                 color: controlsContentColor, // Ensure color consistency
               ),
@@ -78,11 +170,15 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
           Tooltip(
             message: 'Go to End',
             child: IconButton(
-              icon: Icon(FluentIcons.next, size: 16, color: controlsContentColor),
+              icon: Icon(HugeIcons.strokeRoundedForward01, size: 16, color: controlsContentColor),
               // Use watched totalFrames
               onPressed: () => timelineViewModel.currentFrame = totalFrames,
             ),
           ),
+
+          const SizedBox(width: 16),
+
+          ...modeButtons,
 
           const SizedBox(width: 16),
 

@@ -136,6 +136,22 @@ class _TimelineTrackState extends State<TimelineTrack> {
     }
   }
 
+  Future<void> _handleClipDrop(ClipModel draggedClip, int frameForPreview, double zoom, double trackHeight) async {
+    final timelineVm = di<TimelineViewModel>();
+      // Compute the start time in source and on track
+      final startTimeInSourceMs = draggedClip.startTimeInSourceMs;
+      final endTimeInSourceMs = draggedClip.endTimeInSourceMs;
+      // Insert into DB and refresh timeline
+      await timelineVm.addClipAtPosition(
+        clipData: draggedClip,
+        trackId: widget.track.id,
+        startTimeInSourceMs: startTimeInSourceMs,
+        endTimeInSourceMs: endTimeInSourceMs,
+        // Optionally pass pixel/scroll info if available
+      );
+      // No need to do anything else: refreshClips will update UI
+  }
+
   @override
   Widget build(BuildContext context) {
     final double zoom = watchValue((TimelineViewModel vm) => vm.zoomNotifier);
@@ -222,7 +238,7 @@ class _TimelineTrackState extends State<TimelineTrack> {
           Expanded(
             child: DragTarget<ClipModel>(
               key: _trackContentKey,
-              onAcceptWithDetails: (details) {
+              onAcceptWithDetails: (details) async {
                 final draggedClip = details.data;
                 developer.log('✅ Clip drop detected: ${draggedClip.name}', name: 'TimelineTrack');
                 final RenderBox? renderBox =
@@ -240,15 +256,7 @@ class _TimelineTrackState extends State<TimelineTrack> {
                   '📏 Position metrics: local=$posX, scroll=$scrollOffsetX, frame=$framePosition, ms=$framePositionMs',
                   name: 'TimelineTrack'
                 );
-                // Use new robust addClip API
-                di<TimelineViewModel>().addClip(
-                  trackId: widget.track.id,
-                  type: draggedClip.type,
-                  sourcePath: draggedClip.sourcePath,
-                  startTimeOnTrackMs: framePositionMs.toInt(),
-                  startTimeInSourceMs: draggedClip.startTimeInSourceMs,
-                  endTimeInSourceMs: draggedClip.endTimeInSourceMs,
-                );
+                await _handleClipDrop(draggedClip, framePosition, zoom, trackHeight);
                 _updateHoverPosition(null);
               },
               onWillAcceptWithDetails: (details) {
@@ -294,22 +302,25 @@ class _TimelineTrackState extends State<TimelineTrack> {
                       // Background grid with frame markings
                       Positioned.fill(child: _TrackBackground(zoom: zoom)),
                       
-                      // Display existing clips on this track
-                      ...clips.map((clip) {
-                        final leftPosition = clip.startFrame * zoom * 5.0;
-                        final clipWidth = clip.durationFrames * zoom * 5.0;
-                        return Positioned(
-                          left: leftPosition,
-                          top: 0,
-                          height: trackHeight,
-                          width: clipWidth.clamp(4.0, double.infinity),
-                          child: TimelineClip(
-                            key: ValueKey(clip.databaseId ?? clip.sourcePath),
-                            clip: clip,
-                            trackId: widget.track.id,
-                          ),
-                        );
-                      }),
+                      // Display existing clips on this track, or preview if dragging
+                      if (candidateData.isNotEmpty && frameForPreview >= 0)
+                        ..._getPreviewClips(candidateData.first!, frameForPreview, zoom, trackHeight)
+                      else
+                        ...clips.whereType<ClipModel>().map((clip) {
+                          final leftPosition = clip.startFrame * zoom * 5.0;
+                          final clipWidth = clip.durationFrames * zoom * 5.0;
+                          return Positioned(
+                            left: leftPosition,
+                            top: 0,
+                            height: trackHeight,
+                            width: clipWidth.clamp(4.0, double.infinity),
+                            child: TimelineClip(
+                              key: ValueKey(clip.databaseId ?? clip.sourcePath),
+                              clip: clip,
+                              trackId: widget.track.id,
+                            ),
+                          );
+                        }),
                       
                       // Show preview for where the clip will be placed when dragging
                       if (frameForPreview >= 0)
@@ -328,6 +339,34 @@ class _TimelineTrackState extends State<TimelineTrack> {
         ],
       ),
     );
+  }
+
+  List<Widget> _getPreviewClips(ClipModel draggedClip, int frameForPreview, double zoom, double trackHeight) {
+    if (draggedClip.databaseId == null) {
+      debugPrint('Warning: draggedClip.databaseId is null. Skipping preview.');
+      return [];
+    }
+    final timelineVm = di<TimelineViewModel>();
+    final previewClips = timelineVm.getPreviewClipsForDrag(
+      clipId: draggedClip.databaseId!,
+      targetTrackId: widget.track.id,
+      targetStartTimeOnTrackMs: (frameForPreview * (1000 / 30)).toInt(),
+    ).where((clip) => clip.trackId == widget.track.id).whereType<ClipModel>().toList();
+    return previewClips.map((clip) {
+      final leftPosition = clip.startFrame * zoom * 5.0;
+      final clipWidth = clip.durationFrames * zoom * 5.0;
+      return Positioned(
+        left: leftPosition,
+        top: 0,
+        height: trackHeight,
+        width: clipWidth.clamp(4.0, double.infinity),
+        child: TimelineClip(
+          key: ValueKey('preview_${clip.databaseId ?? clip.sourcePath}'),
+          clip: clip,
+          trackId: widget.track.id,
+        ),
+      );
+    }).toList();
   }
 }
 
@@ -456,6 +495,81 @@ class _TrackBackground extends StatelessWidget {
           textColor: textColor,
         ),
         child: Container(),
+      ),
+    );
+  }
+}
+
+class _RollEditHandle extends StatefulWidget {
+  final int leftClipId;
+  final int rightClipId;
+  final int initialFrame;
+  final double zoom;
+
+  const _RollEditHandle({
+    super.key,
+    required this.leftClipId,
+    required this.rightClipId,
+    required this.initialFrame,
+    required this.zoom,
+  });
+
+  @override
+  State<_RollEditHandle> createState() => _RollEditHandleState();
+}
+
+class _RollEditHandleState extends State<_RollEditHandle> {
+  double _startX = 0;
+  int _startFrame = 0;
+  int _initialFrame = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _startFrame = widget.initialFrame;
+    _initialFrame = widget.initialFrame;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragStart: (details) {
+        _startX = details.globalPosition.dx;
+        _startFrame = _initialFrame;
+      },
+      onHorizontalDragUpdate: (details) async {
+        final pixelsPerFrame = 5.0 * widget.zoom;
+        final frameDelta = ((details.globalPosition.dx - _startX) / pixelsPerFrame).round();
+        final newBoundary = _startFrame + frameDelta;
+        await di<TimelineViewModel>().rollEditClips(
+          leftClipId: widget.leftClipId,
+          rightClipId: widget.rightClipId,
+          newBoundaryFrame: newBoundary,
+        );
+      },
+      onHorizontalDragEnd: (_) {
+        _startX = 0;
+        _startFrame = widget.initialFrame;
+      },
+      onHorizontalDragCancel: () {
+        _startX = 0;
+        _startFrame = widget.initialFrame;
+      },
+      child: MouseRegion(
+        cursor: SystemMouseCursors.resizeLeftRight,
+        child: Container(
+          decoration: BoxDecoration(
+            color: theme.accentColor.normal.withAlpha(70),
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: theme.accentColor.normal, width: 1),
+          ),
+          margin: const EdgeInsets.symmetric(vertical: 8),
+          child: Center(
+            child: Icon(FluentIcons.a_a_d_logo, size: 14, color: theme.accentColor.darker),
+          ),
+        ),
       ),
     );
   }
