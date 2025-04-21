@@ -295,10 +295,7 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
             // Maybe select it for properties view?
             // For now, let's not link it to EditorViewModel's selectedClipId
             // as that refers to a Clip *instance* on the timeline.
-            print("Selected project asset: ${asset.name}");
-            // if (asset.databaseId != null) {
-            //   di<EditorViewModel>().selectedClipId = asset.databaseId.toString();
-            // }
+            logInfo(_logTag, "Selected project asset: ${asset.name}");
           },
         ),
       ),
@@ -318,8 +315,6 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
       case ClipType.effect:
         // Effects likely won't be ProjectAssets in this way
         return FluentIcons.settings;
-      default:
-        return FluentIcons.unknown;
     }
   }
 } 

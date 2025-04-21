@@ -1,7 +1,6 @@
 import 'dart:io' show Platform;
 import 'package:fluent_ui/fluent_ui.dart' as fluent;
 import 'package:flutter/widgets.dart'; // Import WidgetsBinding
-import 'package:flipedit/viewmodels/app_viewmodel.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
@@ -15,10 +14,6 @@ class FlipEditApp extends fluent.StatelessWidget with WatchItMixin {
 
   @override
   fluent.Widget build(fluent.BuildContext context) {
-    // Watch values
-    final isInitialized = watchValue((AppViewModel vm) => vm.isInitializedNotifier);
-    final isInspectorVisible = watchValue((EditorViewModel vm) => vm.isInspectorVisibleNotifier);
-    final isTimelineVisible = watchValue((EditorViewModel vm) => vm.isTimelineVisibleNotifier);
     // Get ViewModels needed for menu actions and title
     final editorVm = di<EditorViewModel>();
     final projectVm = di<ProjectViewModel>();

@@ -21,9 +21,6 @@ class EditorLayoutViewModel { // Remove LoggerExtension
   // Listener for layout changes
   VoidCallback? _layoutListener;
 
-  // Flag to prevent saving during initial load (if needed later)
-  bool _isInitialLoad = true;
-
   // Add a tag for logging within this class
   String get _logTag => runtimeType.toString();
 
@@ -69,8 +66,7 @@ class EditorLayoutViewModel { // Remove LoggerExtension
     _buildInitialLayout();
   }
 
-  @override
-  void onDispose() {
+  void dispose() {
     layoutNotifier.dispose();
     isTimelineVisibleNotifier.dispose();
     isInspectorVisibleNotifier.dispose();
@@ -225,14 +221,8 @@ class EditorLayoutViewModel { // Remove LoggerExtension
 
   // Simplified initial layout build
   void _buildInitialLayout() {
-     _isInitialLoad = true;
      layout = _buildDefaultLayout();
      logDebug(_logTag, "LayoutManager: Built default layout."); // Use top-level function with tag
-     // Set flag after a delay if needed for saving logic later
-     Future.delayed(const Duration(milliseconds: 100), () {
-      _isInitialLoad = false;
-      logDebug(_logTag, "LayoutManager: Initial load complete."); // Use top-level function with tag
-    });
   }
 
   // --- Default Layout ---

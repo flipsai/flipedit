@@ -101,15 +101,15 @@ class ProjectViewModel {
       try {
         // Attempt to load the project using the stored ID
         await loadProjectCommand(lastProjectId);
-        print('ProjectViewModel: Successfully loaded last project ID: $lastProjectId');
+        logInfo("ProjectViewModel", "Successfully loaded last project ID: $lastProjectId");
       } catch (e) {
         // Handle cases where the last project might have been deleted or is otherwise inaccessible
-        print('ProjectViewModel: Failed to load last project ID $lastProjectId: $e');
+        logError("ProjectViewModel", "Failed to load last project ID $lastProjectId: $e");
         // Optionally clear the invalid ID
         await _prefs.remove(_lastProjectIdKey);
       }
     } else {
-      print('ProjectViewModel: No last project ID found in SharedPreferences.');
+      logInfo("ProjectViewModel", "No last project ID found in SharedPreferences.");
     }
   }
 
@@ -119,7 +119,7 @@ class ProjectViewModel {
 
   Future<void> saveProjectCommand() async {
     // No explicit save needed in new architecture - handled automatically
-    print("ProjectViewModel: Project changes are saved automatically in new architecture.");
+    logInfo("ProjectViewModel", "Project changes are saved automatically in new architecture.");
   }
 
   // Media importing implementation
@@ -215,8 +215,7 @@ class ProjectViewModel {
     }
   }
 
-  @override
-  void onDispose() {
+  void dispose() {
     currentProjectNotifier.removeListener(_onProjectChanged);
     isProjectLoadedNotifier.dispose();
   }

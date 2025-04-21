@@ -449,7 +449,6 @@ class TimelineViewModel {
     ); // Example constraints
   }
 
-  @override
   void onDispose() {
     logInfo(_logTag, 'Disposing TimelineViewModel');
     clipsNotifier.dispose();

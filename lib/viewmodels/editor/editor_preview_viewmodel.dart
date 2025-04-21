@@ -21,7 +21,6 @@ class EditorPreviewViewModel { // Remove LoggerExtension
   // --- Internal State ---
   // Subscription listeners for timeline changes
   VoidCallback? _timelineFrameListener;
-  VoidCallback? _timelineClipsListener;
   VoidCallback? _timelinePlayStateListener; // Listener for play state
 
   // --- Getters ---
@@ -34,7 +33,6 @@ class EditorPreviewViewModel { // Remove LoggerExtension
     _subscribeToTimelineChanges();
   }
 
-  @override
   void onDispose() {
     currentPreviewVideoUrlNotifier.dispose();
 
@@ -53,9 +51,6 @@ class EditorPreviewViewModel { // Remove LoggerExtension
     // Listen to changes in the timeline ViewModel (clips and current frame)
     _timelineFrameListener = _updatePreviewVideo;
     _timelineViewModel.currentFrameNotifier.addListener(_timelineFrameListener!);
-
-    // Also listen to clip changes, as adding/removing clips affects the preview
-    _timelineClipsListener = _updatePreviewVideo;
 
     // Add listener for play state changes
     _timelinePlayStateListener = _updatePreviewPlaybackState;

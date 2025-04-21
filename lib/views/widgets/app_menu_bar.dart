@@ -4,7 +4,6 @@ import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/services/media_import_service.dart';
-import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/utils/logger.dart';
 
 // --- Action Handlers (Now using ProjectViewModel) ---
@@ -113,10 +112,7 @@ Future<void> _handleOpenProject(
               return ListTile.selectable(
                 title: Text(project.name),
                 // Ensure createdAt is not null before formatting
-                subtitle: Text(
-                  project.createdAt != null
-                      ? 'Created: ${project.createdAt.toLocal()}'
-                      : 'Created: Unknown',
+                subtitle: Text('Created: ${project.createdAt.toLocal()}'
                 ),
                 selected: false, // Selection handled by tapping
                 onPressed: () {
@@ -241,7 +237,7 @@ void _handleAddAudioTrack(ProjectViewModel projectVm) {
 }
 
 // --- Widget for macOS / Windows ---
-class PlatformAppMenuBar extends StatelessWidget with WatchItMixin {
+class PlatformAppMenuBar extends StatefulWidget {
   final EditorViewModel editorVm;
   final ProjectViewModel projectVm;
   final TimelineViewModel timelineVm;
@@ -256,20 +252,16 @@ class PlatformAppMenuBar extends StatelessWidget with WatchItMixin {
   });
 
   @override
+  State<PlatformAppMenuBar> createState() => _PlatformAppMenuBarState();
+}
+
+class _PlatformAppMenuBarState extends State<PlatformAppMenuBar> {
+  @override
   Widget build(BuildContext context) {
-    // Use watchValue instead of ValueListenableBuilder
-    final bool isProjectLoaded = watchValue(
-      (ProjectViewModel x) => x.isProjectLoadedNotifier,
-    );
-    final bool isInspectorVisible = watchValue(
-      (EditorViewModel x) => x.isInspectorVisibleNotifier,
-    );
-    final bool isTimelineVisible = watchValue(
-      (EditorViewModel x) => x.isTimelineVisibleNotifier,
-    );
-    final bool isPreviewVisible = watchValue(
-      (EditorViewModel x) => x.isPreviewVisibleNotifier,
-    );
+    final bool isProjectLoaded = widget.projectVm.isProjectLoadedNotifier.value;
+    final bool isInspectorVisible = widget.editorVm.isInspectorVisibleNotifier.value;
+    final bool isTimelineVisible = widget.editorVm.isTimelineVisibleNotifier.value;
+    final bool isPreviewVisible = widget.editorVm.isPreviewVisibleNotifier.value;
 
     return PlatformMenuBar(
       menus: [
@@ -278,20 +270,19 @@ class PlatformAppMenuBar extends StatelessWidget with WatchItMixin {
           menus: [
             PlatformMenuItem(
               label: 'New Project',
-              onSelected: () => _handleNewProject(context, projectVm),
+              onSelected: () => _handleNewProject(context, widget.projectVm),
             ),
             PlatformMenuItem(
               label: 'Open Project...',
-              onSelected: () => _handleOpenProject(context, projectVm),
+              onSelected: () => _handleOpenProject(context, widget.projectVm),
             ),
             PlatformMenuItem(
               label: 'Import Media...',
-              onSelected: isProjectLoaded ? () => _handleImportMedia(context, projectVm) : null,
+              onSelected: isProjectLoaded ? () => _handleImportMedia(context, widget.projectVm) : null,
             ),
             PlatformMenuItem(
               label: 'Save Project',
-              onSelected:
-                  isProjectLoaded ? () => _handleSaveProject(projectVm) : null,
+              onSelected: isProjectLoaded ? () => _handleSaveProject(widget.projectVm) : null,
             ),
           ],
         ),
@@ -307,17 +298,11 @@ class PlatformAppMenuBar extends StatelessWidget with WatchItMixin {
           menus: [
             PlatformMenuItem(
               label: 'Add Video Track',
-              onSelected:
-                  isProjectLoaded
-                      ? () => _handleAddVideoTrack(projectVm)
-                      : null,
+              onSelected: isProjectLoaded ? () => _handleAddVideoTrack(widget.projectVm) : null,
             ),
             PlatformMenuItem(
               label: 'Add Audio Track',
-              onSelected:
-                  isProjectLoaded
-                      ? () => _handleAddAudioTrack(projectVm)
-                      : null,
+              onSelected: isProjectLoaded ? () => _handleAddAudioTrack(widget.projectVm) : null,
             ),
           ],
         ),
@@ -326,26 +311,26 @@ class PlatformAppMenuBar extends StatelessWidget with WatchItMixin {
           menus: [
             PlatformMenuItem(
               label: isInspectorVisible ? '✓ Inspector' : '  Inspector',
-              onSelected: () => editorVm.toggleInspector(),
+              onSelected: () => widget.editorVm.toggleInspector(),
             ),
             PlatformMenuItem(
               label: isTimelineVisible ? '✓ Timeline' : '  Timeline',
-              onSelected: () => editorVm.toggleTimeline(),
+              onSelected: () => widget.editorVm.toggleTimeline(),
             ),
             PlatformMenuItem(
               label: isPreviewVisible ? '✓ Preview' : '  Preview',
-              onSelected: () => editorVm.togglePreview(),
+              onSelected: () => widget.editorVm.togglePreview(),
             ),
           ],
         ),
       ],
-      child: child,
+      child: widget.child,
     );
   }
 }
 
 // --- Widget for Linux / Other ---
-class FluentAppMenuBar extends StatelessWidget with WatchItMixin {
+class FluentAppMenuBar extends StatefulWidget {
   final EditorViewModel editorVm;
   final ProjectViewModel projectVm;
   final TimelineViewModel timelineVm;
@@ -358,20 +343,16 @@ class FluentAppMenuBar extends StatelessWidget with WatchItMixin {
   });
 
   @override
+  State<FluentAppMenuBar> createState() => _FluentAppMenuBarState();
+}
+
+class _FluentAppMenuBarState extends State<FluentAppMenuBar> {
+  @override
   Widget build(BuildContext context) {
-    // Use watchValue instead of ValueListenableBuilder
-    final bool isProjectLoaded = watchValue(
-      (ProjectViewModel x) => x.isProjectLoadedNotifier,
-    );
-    final bool isInspectorVisible = watchValue(
-      (EditorViewModel x) => x.isInspectorVisibleNotifier,
-    );
-    final bool isTimelineVisible = watchValue(
-      (EditorViewModel x) => x.isTimelineVisibleNotifier,
-    );
-    final bool isPreviewVisible = watchValue(
-      (EditorViewModel x) => x.isPreviewVisibleNotifier,
-    );
+    final bool isProjectLoaded = widget.projectVm.isProjectLoadedNotifier.value;
+    final bool isInspectorVisible = widget.editorVm.isInspectorVisibleNotifier.value;
+    final bool isTimelineVisible = widget.editorVm.isTimelineVisibleNotifier.value;
+    final bool isPreviewVisible = widget.editorVm.isPreviewVisibleNotifier.value;
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -381,20 +362,19 @@ class FluentAppMenuBar extends StatelessWidget with WatchItMixin {
           items: [
             MenuFlyoutItem(
               text: const Text('New Project'),
-              onPressed: () => _handleNewProject(context, projectVm),
+              onPressed: () => _handleNewProject(context, widget.projectVm),
             ),
             MenuFlyoutItem(
               text: const Text('Open Project...'),
-              onPressed: () => _handleOpenProject(context, projectVm),
+              onPressed: () => _handleOpenProject(context, widget.projectVm),
             ),
             MenuFlyoutItem(
               text: const Text('Import Media...'),
-              onPressed: isProjectLoaded ? () => _handleImportMedia(context, projectVm) : null,
+              onPressed: isProjectLoaded ? () => _handleImportMedia(context, widget.projectVm) : null,
             ),
             MenuFlyoutItem(
               text: const Text('Save Project'),
-              onPressed:
-                  isProjectLoaded ? () => _handleSaveProject(projectVm) : null,
+              onPressed: isProjectLoaded ? () => _handleSaveProject(widget.projectVm) : null,
             ),
           ],
         ),
@@ -412,17 +392,11 @@ class FluentAppMenuBar extends StatelessWidget with WatchItMixin {
           items: [
             MenuFlyoutItem(
               text: const Text('Add Video Track'),
-              onPressed:
-                  isProjectLoaded
-                      ? () => _handleAddVideoTrack(projectVm)
-                      : null,
+              onPressed: isProjectLoaded ? () => _handleAddVideoTrack(widget.projectVm) : null,
             ),
             MenuFlyoutItem(
               text: const Text('Add Audio Track'),
-              onPressed:
-                  isProjectLoaded
-                      ? () => _handleAddAudioTrack(projectVm)
-                      : null,
+              onPressed: isProjectLoaded ? () => _handleAddAudioTrack(widget.projectVm) : null,
             ),
           ],
         ),
@@ -436,19 +410,19 @@ class FluentAppMenuBar extends StatelessWidget with WatchItMixin {
                       ? const Icon(FluentIcons.check_mark)
                       : null,
               text: const Text('Inspector'),
-              onPressed: () => editorVm.toggleInspector(),
+              onPressed: () => widget.editorVm.toggleInspector(),
             ),
             MenuFlyoutItem(
               leading:
                   isTimelineVisible ? const Icon(FluentIcons.check_mark) : null,
               text: const Text('Timeline'),
-              onPressed: () => editorVm.toggleTimeline(),
+              onPressed: () => widget.editorVm.toggleTimeline(),
             ),
             MenuFlyoutItem(
               leading:
                   isPreviewVisible ? const Icon(FluentIcons.check_mark) : null,
               text: const Text('Preview'),
-              onPressed: () => editorVm.togglePreview(),
+              onPressed: () => widget.editorVm.togglePreview(),
             ),
           ],
         ),

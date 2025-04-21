@@ -76,7 +76,7 @@ class PreviewPanel extends StatelessWidget with WatchItMixin {
       return Center(
         child: Icon(
           FluentIcons.error,
-          color: Colors.red.withOpacity(opacity),
+          color: Colors.red.withValues(alpha: opacity),
           size: 24,
         ),
       );
@@ -103,7 +103,7 @@ class PreviewPanel extends StatelessWidget with WatchItMixin {
       return Center(
         child: Icon(
           FluentIcons.help,
-          color: Colors.orange.withOpacity(opacity),
+          color: Colors.orange.withValues(alpha: opacity),
           size: 24,
         ),
       );

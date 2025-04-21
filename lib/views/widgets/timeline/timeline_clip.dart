@@ -4,7 +4,6 @@ import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:watch_it/watch_it.dart';
-import 'package:flipedit/utils/logger.dart';
 import 'painters/video_frames_painter.dart';
 import 'painters/image_grid_painter.dart';
 import 'painters/text_lines_painter.dart';
@@ -78,7 +77,6 @@ class _TimelineClipState extends State<TimelineClip> {
 
     // Get view models
     final editorVm = di<EditorViewModel>();
-    final timelineVm = di<TimelineViewModel>();
 
     // Use watchValue here in the State's build method
     final selectedClipId = watchValue(
@@ -182,13 +180,13 @@ class _TimelineClipState extends State<TimelineClip> {
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.10),
+                  color: Colors.black.withValues(alpha: 0.10),
                   blurRadius: shadowBlur,
                   offset: const Offset(0, 3),
                 ),
                 if (isSelected)
                   BoxShadow(
-                    color: selectionBorderColor.withOpacity(0.25),
+                    color: selectionBorderColor.withValues(alpha: 0.25),
                     blurRadius: shadowBlur * 1.2,
                     spreadRadius: 1.5,
                   ),
@@ -223,7 +221,7 @@ class _TimelineClipState extends State<TimelineClip> {
                     margin: const EdgeInsets.only(bottom: 2), // Give a bit more space from the border
                     padding: const EdgeInsets.symmetric(horizontal: 6),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.09),
+                      color: Colors.black.withValues(alpha: 0.09),
                       borderRadius: const BorderRadius.only(
                         bottomLeft: Radius.circular(borderRadiusValue - 1),
                         bottomRight: Radius.circular(borderRadiusValue - 1),
@@ -350,7 +348,7 @@ class _TimelineClipState extends State<TimelineClip> {
             children: [
               Container(
                 height: fixedClipHeight,
-                color: contentBackgroundColor.withOpacity(0.5),
+                color: contentBackgroundColor.withValues(alpha: 0.5),
               ),
               // Waveform visualization
               CustomPaint(

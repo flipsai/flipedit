@@ -285,7 +285,7 @@ class _TimelineTrackState extends State<TimelineTrack> {
                   margin: EdgeInsets.zero,
                   decoration: BoxDecoration(
                     color: candidateData.isNotEmpty
-                        ? theme.accentColor.lightest.withOpacity(0.3)
+                        ? theme.accentColor.lightest.withValues(alpha: 0.3)
                         : theme.resources.subtleFillColorSecondary,
                   ),
                   child: Stack(
@@ -389,7 +389,7 @@ class _DragPreview extends StatelessWidget with WatchItMixin {
           width: previewWidth.clamp(2.0, double.infinity),
           child: Container(
             decoration: BoxDecoration(
-              color: theme.accentColor.normal.withOpacity(0.5),
+              color: theme.accentColor.normal.withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(4),
               border: Border.all(color: theme.accentColor.normal, width: 2),
             ),
@@ -412,7 +412,7 @@ class _DragPreview extends StatelessWidget with WatchItMixin {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
             decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.7),
+              color: Colors.black.withValues(alpha: 0.7),
               borderRadius: BorderRadius.circular(2),
             ),
             child: Column(

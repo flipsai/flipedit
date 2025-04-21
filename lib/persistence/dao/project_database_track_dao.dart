@@ -8,8 +8,6 @@ part 'project_database_track_dao.g.dart';
 class ProjectDatabaseTrackDao extends DatabaseAccessor<ProjectDatabase> with _$ProjectDatabaseTrackDaoMixin {
   ProjectDatabaseTrackDao(super.db);
 
-  String get _logTag => 'ProjectDatabaseTrackDao';
-
   // Watch all tracks, ordered by their order value
   Stream<List<Track>> watchAllTracks() {
     return (select(tracks)
