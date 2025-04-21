@@ -1,12 +1,15 @@
 import 'dart:async';
+import 'package:flipedit/models/project_asset.dart' as model;
+import 'package:flipedit/persistence/dao/project_database_asset_dao.dart';
 import 'package:flipedit/persistence/dao/project_database_clip_dao.dart';
 import 'package:flipedit/persistence/dao/project_database_track_dao.dart';
-import 'package:flipedit/persistence/database/project_database.dart';
+import 'package:flipedit/persistence/database/project_database.dart' hide ProjectAsset;
 import 'package:flipedit/services/project_metadata_service.dart';
 import 'package:flipedit/utils/logger.dart';
 import 'package:flutter/foundation.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:drift/drift.dart';
+import 'package:flipedit/models/enums/clip_type.dart';
 
 /// Service for working with per-project databases
 class ProjectDatabaseService {
@@ -20,12 +23,15 @@ class ProjectDatabaseService {
   // The current active DAOs
   ProjectDatabaseTrackDao? _trackDao;
   ProjectDatabaseClipDao? _clipDao;
+  ProjectDatabaseAssetDao? _assetDao;
   
   // Value notifiers for reactive UI
   final ValueNotifier<List<Track>> tracksNotifier = ValueNotifier<List<Track>>([]);
+  final ValueNotifier<List<model.ProjectAsset>> assetsNotifier = ValueNotifier<List<model.ProjectAsset>>([]);
   
   // Stream subscriptions
   StreamSubscription<List<Track>>? _tracksSubscription;
+  StreamSubscription<List<model.ProjectAsset>>? _assetsSubscription;
   
   /// Load a project by its ID and initialize all necessary DAOs and subscriptions
   Future<bool> loadProject(int projectId) async {
@@ -45,6 +51,7 @@ class ProjectDatabaseService {
       // Initialize DAOs
       _trackDao = ProjectDatabaseTrackDao(_currentDatabase!);
       _clipDao = ProjectDatabaseClipDao(_currentDatabase!);
+      _assetDao = ProjectDatabaseAssetDao(_currentDatabase!);
       
       // Start watching tracks
       _tracksSubscription = _trackDao!.watchAllTracks().listen((tracks) {
@@ -52,6 +59,14 @@ class ProjectDatabaseService {
         logInfo(_logTag, "Updated tracks: ${tracks.length} tracks");
       }, onError: (error) {
         logError(_logTag, "Error watching tracks: $error");
+      });
+      
+      // Start watching assets
+      _assetsSubscription = _assetDao!.watchAllAssets().listen((assets) {
+        assetsNotifier.value = assets;
+        logInfo(_logTag, "Updated assets: ${assets.length} assets");
+      }, onError: (error) {
+        logError(_logTag, "Error watching assets: $error");
       });
       
       logInfo(_logTag, "Successfully loaded project database for ID: $projectId");
@@ -69,8 +84,12 @@ class ProjectDatabaseService {
     await _tracksSubscription?.cancel();
     _tracksSubscription = null;
     
+    await _assetsSubscription?.cancel();
+    _assetsSubscription = null;
+    
     // Clear data
     tracksNotifier.value = [];
+    assetsNotifier.value = [];
     
     // Close database
     if (_currentDatabase != null) {
@@ -78,6 +97,7 @@ class ProjectDatabaseService {
       _currentDatabase = null;
       _trackDao = null;
       _clipDao = null;
+      _assetDao = null;
     }
     
     logInfo(_logTag, "Closed current project database");
@@ -110,6 +130,62 @@ class ProjectDatabaseService {
     } catch (e) {
       logError(_logTag, "Error adding track: $e");
       return null;
+    }
+  }
+  
+  /// Import a media asset to the project
+  Future<int?> importAsset({
+    required String filePath,
+    required ClipType type,
+    required int durationMs,
+    int? width,
+    int? height,
+    double? fileSize,
+    String? thumbnailPath,
+  }) async {
+    if (_assetDao == null || _currentDatabase == null) {
+      logError(_logTag, "Cannot import asset: No project loaded");
+      return null;
+    }
+    
+    try {
+      final assetId = await _assetDao!.importAsset(
+        filePath: filePath,
+        type: type,
+        durationMs: durationMs,
+        width: width,
+        height: height,
+        fileSize: fileSize,
+        thumbnailPath: thumbnailPath,
+      );
+      
+      logInfo(_logTag, "Imported asset with ID: $assetId");
+      return assetId;
+    } catch (e) {
+      logError(_logTag, "Error importing asset: $e");
+      return null;
+    }
+  }
+  
+  /// Delete an asset by ID
+  Future<bool> deleteAsset(int assetId) async {
+    if (_assetDao == null) {
+      logError(_logTag, "Cannot delete asset: No project loaded");
+      return false;
+    }
+    
+    try {
+      final deletedCount = await _assetDao!.deleteAsset(assetId);
+      if (deletedCount > 0) {
+        logInfo(_logTag, "Deleted asset with ID: $assetId");
+        return true;
+      } else {
+        logWarning(_logTag, "Asset with ID $assetId not found or already deleted");
+        return false;
+      }
+    } catch (e) {
+      logError(_logTag, "Error deleting asset: $e");
+      return false;
     }
   }
   
@@ -166,4 +242,5 @@ class ProjectDatabaseService {
   // Add public getters to access the DAOs
   ProjectDatabaseTrackDao? get trackDao => _trackDao;
   ProjectDatabaseClipDao? get clipDao => _clipDao;
+  ProjectDatabaseAssetDao? get assetDao => _assetDao;
 } 

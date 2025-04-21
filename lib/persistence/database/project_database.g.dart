@@ -1254,10 +1254,12 @@ class $ProjectAssetsTable extends ProjectAssets
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _pathMeta = const VerificationMeta('path');
+  static const VerificationMeta _sourcePathMeta = const VerificationMeta(
+    'sourcePath',
+  );
   @override
-  late final GeneratedColumn<String> path = GeneratedColumn<String>(
-    'path',
+  late final GeneratedColumn<String> sourcePath = GeneratedColumn<String>(
+    'source_path',
     aliasedName,
     false,
     type: DriftSqlType.string,
@@ -1373,7 +1375,7 @@ class $ProjectAssetsTable extends ProjectAssets
   List<GeneratedColumn> get $columns => [
     id,
     name,
-    path,
+    sourcePath,
     type,
     mimeType,
     durationMs,
@@ -1408,13 +1410,13 @@ class $ProjectAssetsTable extends ProjectAssets
     } else if (isInserting) {
       context.missing(_nameMeta);
     }
-    if (data.containsKey('path')) {
+    if (data.containsKey('source_path')) {
       context.handle(
-        _pathMeta,
-        path.isAcceptableOrUnknown(data['path']!, _pathMeta),
+        _sourcePathMeta,
+        sourcePath.isAcceptableOrUnknown(data['source_path']!, _sourcePathMeta),
       );
     } else if (isInserting) {
-      context.missing(_pathMeta);
+      context.missing(_sourcePathMeta);
     }
     if (data.containsKey('type')) {
       context.handle(
@@ -1503,10 +1505,10 @@ class $ProjectAssetsTable extends ProjectAssets
             DriftSqlType.string,
             data['${effectivePrefix}name'],
           )!,
-      path:
+      sourcePath:
           attachedDatabase.typeMapping.read(
             DriftSqlType.string,
-            data['${effectivePrefix}path'],
+            data['${effectivePrefix}source_path'],
           )!,
       type:
           attachedDatabase.typeMapping.read(
@@ -1563,7 +1565,7 @@ class $ProjectAssetsTable extends ProjectAssets
 class ProjectAsset extends DataClass implements Insertable<ProjectAsset> {
   final int id;
   final String name;
-  final String path;
+  final String sourcePath;
   final String type;
   final String? mimeType;
   final int? durationMs;
@@ -1577,7 +1579,7 @@ class ProjectAsset extends DataClass implements Insertable<ProjectAsset> {
   const ProjectAsset({
     required this.id,
     required this.name,
-    required this.path,
+    required this.sourcePath,
     required this.type,
     this.mimeType,
     this.durationMs,
@@ -1594,7 +1596,7 @@ class ProjectAsset extends DataClass implements Insertable<ProjectAsset> {
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
     map['name'] = Variable<String>(name);
-    map['path'] = Variable<String>(path);
+    map['source_path'] = Variable<String>(sourcePath);
     map['type'] = Variable<String>(type);
     if (!nullToAbsent || mimeType != null) {
       map['mime_type'] = Variable<String>(mimeType);
@@ -1626,7 +1628,7 @@ class ProjectAsset extends DataClass implements Insertable<ProjectAsset> {
     return ProjectAssetsCompanion(
       id: Value(id),
       name: Value(name),
-      path: Value(path),
+      sourcePath: Value(sourcePath),
       type: Value(type),
       mimeType:
           mimeType == null && nullToAbsent
@@ -1665,7 +1667,7 @@ class ProjectAsset extends DataClass implements Insertable<ProjectAsset> {
     return ProjectAsset(
       id: serializer.fromJson<int>(json['id']),
       name: serializer.fromJson<String>(json['name']),
-      path: serializer.fromJson<String>(json['path']),
+      sourcePath: serializer.fromJson<String>(json['sourcePath']),
       type: serializer.fromJson<String>(json['type']),
       mimeType: serializer.fromJson<String?>(json['mimeType']),
       durationMs: serializer.fromJson<int?>(json['durationMs']),
@@ -1684,7 +1686,7 @@ class ProjectAsset extends DataClass implements Insertable<ProjectAsset> {
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
       'name': serializer.toJson<String>(name),
-      'path': serializer.toJson<String>(path),
+      'sourcePath': serializer.toJson<String>(sourcePath),
       'type': serializer.toJson<String>(type),
       'mimeType': serializer.toJson<String?>(mimeType),
       'durationMs': serializer.toJson<int?>(durationMs),
@@ -1701,7 +1703,7 @@ class ProjectAsset extends DataClass implements Insertable<ProjectAsset> {
   ProjectAsset copyWith({
     int? id,
     String? name,
-    String? path,
+    String? sourcePath,
     String? type,
     Value<String?> mimeType = const Value.absent(),
     Value<int?> durationMs = const Value.absent(),
@@ -1715,7 +1717,7 @@ class ProjectAsset extends DataClass implements Insertable<ProjectAsset> {
   }) => ProjectAsset(
     id: id ?? this.id,
     name: name ?? this.name,
-    path: path ?? this.path,
+    sourcePath: sourcePath ?? this.sourcePath,
     type: type ?? this.type,
     mimeType: mimeType.present ? mimeType.value : this.mimeType,
     durationMs: durationMs.present ? durationMs.value : this.durationMs,
@@ -1732,7 +1734,8 @@ class ProjectAsset extends DataClass implements Insertable<ProjectAsset> {
     return ProjectAsset(
       id: data.id.present ? data.id.value : this.id,
       name: data.name.present ? data.name.value : this.name,
-      path: data.path.present ? data.path.value : this.path,
+      sourcePath:
+          data.sourcePath.present ? data.sourcePath.value : this.sourcePath,
       type: data.type.present ? data.type.value : this.type,
       mimeType: data.mimeType.present ? data.mimeType.value : this.mimeType,
       durationMs:
@@ -1758,7 +1761,7 @@ class ProjectAsset extends DataClass implements Insertable<ProjectAsset> {
     return (StringBuffer('ProjectAsset(')
           ..write('id: $id, ')
           ..write('name: $name, ')
-          ..write('path: $path, ')
+          ..write('sourcePath: $sourcePath, ')
           ..write('type: $type, ')
           ..write('mimeType: $mimeType, ')
           ..write('durationMs: $durationMs, ')
@@ -1777,7 +1780,7 @@ class ProjectAsset extends DataClass implements Insertable<ProjectAsset> {
   int get hashCode => Object.hash(
     id,
     name,
-    path,
+    sourcePath,
     type,
     mimeType,
     durationMs,
@@ -1795,7 +1798,7 @@ class ProjectAsset extends DataClass implements Insertable<ProjectAsset> {
       (other is ProjectAsset &&
           other.id == this.id &&
           other.name == this.name &&
-          other.path == this.path &&
+          other.sourcePath == this.sourcePath &&
           other.type == this.type &&
           other.mimeType == this.mimeType &&
           other.durationMs == this.durationMs &&
@@ -1811,7 +1814,7 @@ class ProjectAsset extends DataClass implements Insertable<ProjectAsset> {
 class ProjectAssetsCompanion extends UpdateCompanion<ProjectAsset> {
   final Value<int> id;
   final Value<String> name;
-  final Value<String> path;
+  final Value<String> sourcePath;
   final Value<String> type;
   final Value<String?> mimeType;
   final Value<int?> durationMs;
@@ -1825,7 +1828,7 @@ class ProjectAssetsCompanion extends UpdateCompanion<ProjectAsset> {
   const ProjectAssetsCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
-    this.path = const Value.absent(),
+    this.sourcePath = const Value.absent(),
     this.type = const Value.absent(),
     this.mimeType = const Value.absent(),
     this.durationMs = const Value.absent(),
@@ -1840,7 +1843,7 @@ class ProjectAssetsCompanion extends UpdateCompanion<ProjectAsset> {
   ProjectAssetsCompanion.insert({
     this.id = const Value.absent(),
     required String name,
-    required String path,
+    required String sourcePath,
     required String type,
     this.mimeType = const Value.absent(),
     this.durationMs = const Value.absent(),
@@ -1852,12 +1855,12 @@ class ProjectAssetsCompanion extends UpdateCompanion<ProjectAsset> {
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
   }) : name = Value(name),
-       path = Value(path),
+       sourcePath = Value(sourcePath),
        type = Value(type);
   static Insertable<ProjectAsset> custom({
     Expression<int>? id,
     Expression<String>? name,
-    Expression<String>? path,
+    Expression<String>? sourcePath,
     Expression<String>? type,
     Expression<String>? mimeType,
     Expression<int>? durationMs,
@@ -1872,7 +1875,7 @@ class ProjectAssetsCompanion extends UpdateCompanion<ProjectAsset> {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (name != null) 'name': name,
-      if (path != null) 'path': path,
+      if (sourcePath != null) 'source_path': sourcePath,
       if (type != null) 'type': type,
       if (mimeType != null) 'mime_type': mimeType,
       if (durationMs != null) 'duration_ms': durationMs,
@@ -1889,7 +1892,7 @@ class ProjectAssetsCompanion extends UpdateCompanion<ProjectAsset> {
   ProjectAssetsCompanion copyWith({
     Value<int>? id,
     Value<String>? name,
-    Value<String>? path,
+    Value<String>? sourcePath,
     Value<String>? type,
     Value<String?>? mimeType,
     Value<int?>? durationMs,
@@ -1904,7 +1907,7 @@ class ProjectAssetsCompanion extends UpdateCompanion<ProjectAsset> {
     return ProjectAssetsCompanion(
       id: id ?? this.id,
       name: name ?? this.name,
-      path: path ?? this.path,
+      sourcePath: sourcePath ?? this.sourcePath,
       type: type ?? this.type,
       mimeType: mimeType ?? this.mimeType,
       durationMs: durationMs ?? this.durationMs,
@@ -1927,8 +1930,8 @@ class ProjectAssetsCompanion extends UpdateCompanion<ProjectAsset> {
     if (name.present) {
       map['name'] = Variable<String>(name.value);
     }
-    if (path.present) {
-      map['path'] = Variable<String>(path.value);
+    if (sourcePath.present) {
+      map['source_path'] = Variable<String>(sourcePath.value);
     }
     if (type.present) {
       map['type'] = Variable<String>(type.value);
@@ -1968,7 +1971,7 @@ class ProjectAssetsCompanion extends UpdateCompanion<ProjectAsset> {
     return (StringBuffer('ProjectAssetsCompanion(')
           ..write('id: $id, ')
           ..write('name: $name, ')
-          ..write('path: $path, ')
+          ..write('sourcePath: $sourcePath, ')
           ..write('type: $type, ')
           ..write('mimeType: $mimeType, ')
           ..write('durationMs: $durationMs, ')
@@ -1994,6 +1997,8 @@ abstract class _$ProjectDatabase extends GeneratedDatabase {
       ProjectDatabaseTrackDao(this as ProjectDatabase);
   late final ProjectDatabaseClipDao projectDatabaseClipDao =
       ProjectDatabaseClipDao(this as ProjectDatabase);
+  late final ProjectDatabaseAssetDao projectDatabaseAssetDao =
+      ProjectDatabaseAssetDao(this as ProjectDatabase);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2601,7 +2606,7 @@ typedef $$ProjectAssetsTableCreateCompanionBuilder =
     ProjectAssetsCompanion Function({
       Value<int> id,
       required String name,
-      required String path,
+      required String sourcePath,
       required String type,
       Value<String?> mimeType,
       Value<int?> durationMs,
@@ -2617,7 +2622,7 @@ typedef $$ProjectAssetsTableUpdateCompanionBuilder =
     ProjectAssetsCompanion Function({
       Value<int> id,
       Value<String> name,
-      Value<String> path,
+      Value<String> sourcePath,
       Value<String> type,
       Value<String?> mimeType,
       Value<int?> durationMs,
@@ -2649,8 +2654,8 @@ class $$ProjectAssetsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get path => $composableBuilder(
-    column: $table.path,
+  ColumnFilters<String> get sourcePath => $composableBuilder(
+    column: $table.sourcePath,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -2724,8 +2729,8 @@ class $$ProjectAssetsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get path => $composableBuilder(
-    column: $table.path,
+  ColumnOrderings<String> get sourcePath => $composableBuilder(
+    column: $table.sourcePath,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -2795,8 +2800,10 @@ class $$ProjectAssetsTableAnnotationComposer
   GeneratedColumn<String> get name =>
       $composableBuilder(column: $table.name, builder: (column) => column);
 
-  GeneratedColumn<String> get path =>
-      $composableBuilder(column: $table.path, builder: (column) => column);
+  GeneratedColumn<String> get sourcePath => $composableBuilder(
+    column: $table.sourcePath,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get type =>
       $composableBuilder(column: $table.type, builder: (column) => column);
@@ -2878,7 +2885,7 @@ class $$ProjectAssetsTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 Value<String> name = const Value.absent(),
-                Value<String> path = const Value.absent(),
+                Value<String> sourcePath = const Value.absent(),
                 Value<String> type = const Value.absent(),
                 Value<String?> mimeType = const Value.absent(),
                 Value<int?> durationMs = const Value.absent(),
@@ -2892,7 +2899,7 @@ class $$ProjectAssetsTableTableManager
               }) => ProjectAssetsCompanion(
                 id: id,
                 name: name,
-                path: path,
+                sourcePath: sourcePath,
                 type: type,
                 mimeType: mimeType,
                 durationMs: durationMs,
@@ -2908,7 +2915,7 @@ class $$ProjectAssetsTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 required String name,
-                required String path,
+                required String sourcePath,
                 required String type,
                 Value<String?> mimeType = const Value.absent(),
                 Value<int?> durationMs = const Value.absent(),
@@ -2922,7 +2929,7 @@ class $$ProjectAssetsTableTableManager
               }) => ProjectAssetsCompanion.insert(
                 id: id,
                 name: name,
-                path: path,
+                sourcePath: sourcePath,
                 type: type,
                 mimeType: mimeType,
                 durationMs: durationMs,

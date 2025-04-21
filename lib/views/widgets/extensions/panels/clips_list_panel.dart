@@ -1,9 +1,13 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flipedit/models/clip.dart';
-import 'package:flipedit/models/project_asset.dart';
+import 'package:flipedit/models/project_asset.dart' as model;
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
+import 'package:flipedit/services/media_import_service.dart';
 import 'package:watch_it/watch_it.dart';
+import 'package:flipedit/utils/logger.dart';
+
+const _logTag = 'ClipsListPanel';
 
 /// Panel for displaying project assets in the media tab
 class ClipsListPanel extends StatelessWidget with WatchItMixin {
@@ -22,6 +26,9 @@ class ClipsListPanel extends StatelessWidget with WatchItMixin {
   Widget build(BuildContext context) {
     // Watch ProjectViewModel for project assets
     final assets = watchValue((ProjectViewModel vm) => vm.projectAssetsNotifier);
+    final projectVm = di<ProjectViewModel>();
+    final mediaImportService = MediaImportService(projectVm);
+    
     // Watch the notifier to trigger rebuilds
     watch(searchTermNotifier);
     // Get the value *after* watching
@@ -53,27 +60,134 @@ class ClipsListPanel extends StatelessWidget with WatchItMixin {
           ),
         ),
         Expanded(
-          // Show a message explaining the migration to the new architecture
           child: assets.isEmpty 
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Text('Media importing is currently unavailable during architecture migration.'),
+                      const Text('No media imported yet'),
                       const SizedBox(height: 10),
-                      const Text('This feature will be available again soon.'),
+                      Button(
+                        child: const Text('Import Media'),
+                        onPressed: () async {
+                          // Show loading indicator
+                          final loadingOverlay = MediaImportService.showLoadingOverlay(
+                            context, 
+                            'Selecting file...'
+                          );
+                          
+                          try {
+                            // Use the service to import media
+                            final importSuccess = await mediaImportService.importMediaFromFilePicker(context);
+                            
+                            // Remove loading overlay
+                            loadingOverlay.remove();
+                            
+                            // Show success/failure notification
+                            if (importSuccess) {
+                              MediaImportService.showNotification(
+                                context,
+                                'Media imported successfully',
+                                severity: InfoBarSeverity.success
+                              );
+                            } else {
+                              MediaImportService.showNotification(
+                                context,
+                                'Failed to import media',
+                                severity: InfoBarSeverity.error
+                              );
+                            }
+                          } catch (e) {
+                            // Remove loading overlay if an error occurs
+                            loadingOverlay.remove();
+                            
+                            MediaImportService.showNotification(
+                              context,
+                              'Error importing media: ${e.toString()}',
+                              severity: InfoBarSeverity.error
+                            );
+                            
+                            logError(_logTag, "Unexpected error in import flow: $e");
+                          }
+                        },
+                      ),
                     ],
                   ),
                 )
-              : _buildClipsList(context, List<ProjectAsset>.from(assets), searchTerm),
+              : _buildClipsList(context, assets, searchTerm),
         ),
       ],
     );
   }
+  
+  // Display a progress ring indicator
+  OverlayEntry displayProgressRing(BuildContext context) {
+    final overlay = Overlay.of(context);
+    final entry = OverlayEntry(
+      builder: (context) => Center(
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: FluentTheme.of(context).resources.subtleFillColorSecondary,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ProgressRing(),
+              SizedBox(height: 16),
+              Text('Selecting file...'),
+            ],
+          ),
+        ),
+      ),
+    );
+    
+    overlay.insert(entry);
+    return entry;
+  }
+  
+  // Display a progress dialog
+  OverlayEntry displayProgressDialog(BuildContext context, String message) {
+    final overlay = Overlay.of(context);
+    final entry = OverlayEntry(
+      builder: (context) => Center(
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: FluentTheme.of(context).resources.subtleFillColorSecondary,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const ProgressRing(),
+              const SizedBox(height: 16),
+              Text(message),
+            ],
+          ),
+        ),
+      ),
+    );
+    
+    overlay.insert(entry);
+    return entry;
+  }
+  
+  // Show a snackbar message
+  void showSnackbar(BuildContext context, String message, {InfoBarSeverity severity = InfoBarSeverity.info}) {
+    displayInfoBar(context, builder: (context, close) {
+      return InfoBar(
+        title: Text(message),
+        severity: severity,
+        onClose: close,
+      );
+    });
+  }
 
-  // Update method to accept List<ProjectAsset>
+  // Update method to accept List<model.ProjectAsset>
   Widget _buildClipsList(
-      BuildContext context, List<ProjectAsset> assets, String searchTerm) {
+      BuildContext context, List<model.ProjectAsset> assets, String searchTerm) {
     if (assets.isEmpty) {
       return const Center(child: Text('No media imported yet'));
     }
@@ -92,16 +206,16 @@ class ClipsListPanel extends StatelessWidget with WatchItMixin {
       itemCount: filteredAssets.length,
       itemBuilder: (context, index) {
         final asset = filteredAssets[index];
-        // Pass ProjectAsset to item builder
+        // Pass model.ProjectAsset to item builder
         return _buildClipListItem(context, asset);
       },
     );
   }
 
-  // Update method to accept ProjectAsset
-  Widget _buildClipListItem(BuildContext context, ProjectAsset asset) {
+  // Update method to accept model.ProjectAsset
+  Widget _buildClipListItem(BuildContext context, model.ProjectAsset asset) {
     final theme = FluentTheme.of(context);
-    // Use durationMs from ProjectAsset
+    // Use durationMs from model.ProjectAsset
     final String durationString = asset.type == ClipType.image
         ? 'Image'
         : '${(asset.durationMs / 1000).toStringAsFixed(1)}s'; // Convert ms to s

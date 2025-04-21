@@ -1,12 +1,9 @@
 import 'package:fluent_ui/fluent_ui.dart';
-import 'dart:io';
-import 'package:file_picker/file_picker.dart';
 import 'package:flipedit/persistence/database/project_metadata_database.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
-import 'package:flipedit/models/clip.dart';
-import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
+import 'package:flipedit/services/media_import_service.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/utils/logger.dart';
 
@@ -149,31 +146,49 @@ Future<void> _handleOpenProject(
   });
 }
 
-// Updated to use ProjectViewModel for importing assets - function is commented out
-// until we implement media asset importing in the new architecture
+// Updated to use MediaImportService for importing assets
 Future<void> _handleImportMedia(
+  BuildContext context,
   ProjectViewModel projectVm, // Change to ProjectViewModel
 ) async {
+  final mediaImportService = MediaImportService(projectVm);
+  final loadingOverlay = MediaImportService.showLoadingOverlay(
+    context, 
+    'Selecting file...'
+  );
+  
   try {
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
-      type: FileType.video, // Or FileType.media for audio/images too
-      allowMultiple: false, // Adjust if multiple imports are needed
-    );
-    if (result != null && result.files.isNotEmpty) {
-      String? filePath = result.files.single.path;
-      if (filePath != null) {
-        // Re-enable so our temporary implementation can show the message
-        await projectVm.importMediaAssetCommand(filePath);
-        logInfo(_logTag, "Selected file: $filePath");
-      } else {
-        logWarning(_logTag, "File path is null after picking.");
-      }
+    // Use the service to import media
+    final importSuccess = await mediaImportService.importMediaFromFilePicker(context);
+    
+    // Remove loading overlay
+    loadingOverlay.remove();
+    
+    // Show success/failure notification
+    if (importSuccess) {
+      MediaImportService.showNotification(
+        context,
+        'Media imported successfully',
+        severity: InfoBarSeverity.success
+      );
     } else {
-      logInfo(_logTag, "File picking cancelled or no file selected.");
+      MediaImportService.showNotification(
+        context,
+        'Failed to import media',
+        severity: InfoBarSeverity.error
+      );
     }
   } catch (e) {
-    logError(_logTag, "Error picking file or importing asset: $e");
-    // TODO: Show user-friendly error message (using context if available/needed)
+    // Remove loading overlay if an error occurs
+    loadingOverlay.remove();
+    
+    MediaImportService.showNotification(
+      context,
+      'Error importing media: ${e.toString()}',
+      severity: InfoBarSeverity.error
+    );
+    
+    logError(_logTag, "Unexpected error in import flow: $e");
   }
 }
 
@@ -271,7 +286,7 @@ class PlatformAppMenuBar extends StatelessWidget with WatchItMixin {
             ),
             PlatformMenuItem(
               label: 'Import Media...',
-              onSelected: isProjectLoaded ? () => _handleImportMedia(projectVm) : null,
+              onSelected: isProjectLoaded ? () => _handleImportMedia(context, projectVm) : null,
             ),
             PlatformMenuItem(
               label: 'Save Project',
@@ -374,7 +389,7 @@ class FluentAppMenuBar extends StatelessWidget with WatchItMixin {
             ),
             MenuFlyoutItem(
               text: const Text('Import Media...'),
-              onPressed: isProjectLoaded ? () => _handleImportMedia(projectVm) : null,
+              onPressed: isProjectLoaded ? () => _handleImportMedia(context, projectVm) : null,
             ),
             MenuFlyoutItem(
               text: const Text('Save Project'),

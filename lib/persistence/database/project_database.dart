@@ -2,9 +2,9 @@ import 'dart:io';
 
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
-import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/persistence/dao/project_database_clip_dao.dart';
 import 'package:flipedit/persistence/dao/project_database_track_dao.dart';
+import 'package:flipedit/persistence/dao/project_database_asset_dao.dart';
 import 'package:flipedit/persistence/tables/clips.dart';
 import 'package:flipedit/persistence/tables/project_assets.dart';
 import 'package:flipedit/persistence/tables/tracks.dart';
@@ -16,7 +16,7 @@ part 'project_database.g.dart';
 /// Each project will have its own database file with this schema
 @DriftDatabase(
   tables: [Tracks, Clips, ProjectAssets],
-  daos: [ProjectDatabaseTrackDao, ProjectDatabaseClipDao],
+  daos: [ProjectDatabaseTrackDao, ProjectDatabaseClipDao, ProjectDatabaseAssetDao],
 )
 class ProjectDatabase extends _$ProjectDatabase {
   ProjectDatabase(String databasePath) : super(_openConnection(databasePath));
@@ -67,5 +67,9 @@ class ProjectDatabaseFactory {
   
   static ProjectDatabaseClipDao createClipDao(ProjectDatabase db) {
     return ProjectDatabaseClipDao(db);
+  }
+  
+  static ProjectDatabaseAssetDao createAssetDao(ProjectDatabase db) {
+    return ProjectDatabaseAssetDao(db);
   }
 } 

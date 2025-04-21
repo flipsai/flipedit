@@ -7,7 +7,7 @@ class ProjectAssets extends Table {
   
   // Asset properties
   TextColumn get name => text()();
-  TextColumn get path => text()(); // Path to the asset file
+  TextColumn get sourcePath => text()(); // Path to the asset file (column is named 'source_path' in the DB)
   TextColumn get type => text()(); // video, audio, image, etc.
   TextColumn get mimeType => text().nullable()(); // For web/preview compatibility
   

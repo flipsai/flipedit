@@ -1,12 +1,16 @@
 import 'dart:async';
+import 'dart:io';
 
-import 'package:flipedit/models/project_asset.dart'; // Required for ProjectAsset
-import 'package:flipedit/persistence/database/project_database.dart' hide ProjectAsset; // Hide ProjectAsset from database import
+import 'package:flipedit/models/enums/clip_type.dart';
+import 'package:flipedit/models/project_asset.dart' as model;
+import 'package:flipedit/persistence/database/project_database.dart';
 import 'package:flipedit/persistence/database/project_metadata_database.dart';
 import 'package:flipedit/services/project_metadata_service.dart';
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/utils/logger.dart'; // Import logger
+import 'package:flipedit/utils/media_utils.dart'; // Import media utilities
 import 'package:flutter/foundation.dart';
+import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart'; // Import shared_preferences
 import 'package:watch_it/watch_it.dart';
 
@@ -21,8 +25,8 @@ class ProjectViewModel {
   late final ValueNotifier<bool> isProjectLoadedNotifier;
   // Use the notifier from ProjectDatabaseService for tracks
   late final ValueNotifier<List<Track>> tracksNotifier;
-  // Add a temporary empty assets notifier for backward compatibility
-  final ValueNotifier<List<ProjectAsset>> projectAssetsNotifier = ValueNotifier([]);
+  // Use the notifier from ProjectDatabaseService for assets
+  late final ValueNotifier<List<model.ProjectAsset>> projectAssetsNotifier;
 
   ProjectViewModel({required SharedPreferences prefs}) : _prefs = prefs { 
     currentProjectNotifier = _metadataService.currentProjectMetadataNotifier;
@@ -32,6 +36,9 @@ class ProjectViewModel {
     
     // Use tracks from the database service
     tracksNotifier = _databaseService.tracksNotifier;
+    
+    // Use assets from the database service
+    projectAssetsNotifier = _databaseService.assetsNotifier;
 
     // Listen to the service's project notifier to update the load status
     currentProjectNotifier.addListener(_onProjectChanged);
@@ -50,6 +57,8 @@ class ProjectViewModel {
   bool get isProjectLoaded => isProjectLoadedNotifier.value;
   // Getter for tracks from database service
   List<Track> get tracks => tracksNotifier.value;
+  // Getter for assets from database service
+  List<model.ProjectAsset> get projectAssets => projectAssetsNotifier.value;
 
   Future<int> createNewProjectCommand(String name) async {
     if (name.trim().isEmpty) {
@@ -113,18 +122,98 @@ class ProjectViewModel {
     print("ProjectViewModel: Project changes are saved automatically in new architecture.");
   }
 
-  // Temporary media asset command for backward compatibility
-  Future<void> importMediaAssetCommand(String filePath) async {
+  // Media importing implementation
+  Future<int?> importMediaAssetCommand(String filePath) async {
     if (!isProjectLoaded) {
       throw StateError("Cannot import media: No project loaded.");
     }
     
-    logInfo("ProjectViewModel", "Media importing not implemented in new architecture yet");
-    logInfo("ProjectViewModel", "Selected file: $filePath");
-    // In the future, this will use the database service to import media
+    logInfo("ProjectViewModel", "Importing media: $filePath");
+    
+    try {
+      final file = File(filePath);
+      if (!await file.exists()) {
+        throw FileSystemException("File does not exist", filePath);
+      }
+      
+      // Get file info
+      final fileSize = await file.length();
+      final extension = p.extension(filePath).toLowerCase();
+      
+      // Determine asset type based on file extension
+      final assetType = _getAssetTypeFromExtension(extension);
+      
+      // Get media duration and dimensions
+      int durationMs = 0;
+      int? width;
+      int? height;
+      
+      // For video and audio assets, get the duration
+      if (assetType == ClipType.video || assetType == ClipType.audio) {
+        // Use a media utility to get the duration
+        final mediaDuration = await MediaUtils.getMediaDuration(filePath);
+        durationMs = mediaDuration?.inMilliseconds ?? 0;
+        
+        // For video, also get dimensions
+        if (assetType == ClipType.video) {
+          final dimensions = await MediaUtils.getVideoDimensions(filePath);
+          width = dimensions?.width;
+          height = dimensions?.height;
+        }
+      } else if (assetType == ClipType.image) {
+        // For images, set duration to 0 (static) and get dimensions
+        final dimensions = await MediaUtils.getImageDimensions(filePath);
+        width = dimensions?.width;
+        height = dimensions?.height;
+      }
+      
+      // Generate thumbnail
+      String? thumbnailPath = await MediaUtils.generateThumbnail(filePath, assetType);
+      
+      // Import asset to database
+      return await _databaseService.importAsset(
+        filePath: filePath,
+        type: assetType,
+        durationMs: durationMs,
+        width: width,
+        height: height,
+        fileSize: fileSize.toDouble(),
+        thumbnailPath: thumbnailPath,
+      );
+    } catch (e) {
+      logError("ProjectViewModel", "Error importing media: $e");
+      return null;
+    }
   }
-
-  // Media asset management will be handled by the database service in future updates
+  
+  // Helper to determine asset type from file extension
+  ClipType _getAssetTypeFromExtension(String extension) {
+    switch (extension) {
+      case '.mp4':
+      case '.mov':
+      case '.avi':
+      case '.mkv':
+      case '.webm':
+        return ClipType.video;
+      case '.mp3':
+      case '.wav':
+      case '.aac':
+      case '.ogg':
+      case '.flac':
+        return ClipType.audio;
+      case '.jpg':
+      case '.jpeg':
+      case '.png':
+      case '.gif':
+      case '.bmp':
+      case '.webp':
+        return ClipType.image;
+      default:
+        // Default to video for unknown types
+        logWarning("ProjectViewModel", "Unknown file extension: $extension, defaulting to video");
+        return ClipType.video;
+    }
+  }
 
   @override
   void onDispose() {
