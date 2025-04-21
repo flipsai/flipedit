@@ -10,12 +10,12 @@ import 'package:flipedit/utils/logger.dart';
 const _logTag = 'ClipsListPanel';
 
 /// Panel for displaying project assets in the media tab
-class ClipsListPanel extends StatelessWidget with WatchItMixin {
+class MediasListPanel extends StatelessWidget with WatchItMixin {
   final String selectedExtension;
   final TextEditingController searchController;
   final ValueNotifier<String> searchTermNotifier;
 
-  const ClipsListPanel({
+  const MediasListPanel({
     super.key,
     required this.selectedExtension,
     required this.searchController,
