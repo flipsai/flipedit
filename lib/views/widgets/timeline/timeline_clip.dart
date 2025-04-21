@@ -4,8 +4,12 @@ import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:watch_it/watch_it.dart';
-import 'dart:math' as math;
 import 'package:flipedit/utils/logger.dart';
+import 'painters/video_frames_painter.dart';
+import 'painters/image_grid_painter.dart';
+import 'painters/text_lines_painter.dart';
+import 'painters/effect_pattern_painter.dart';
+import 'painters/audio_waveform_painter.dart';
 
 /// A clip in the timeline track
 class TimelineClip extends StatefulWidget with WatchItStatefulWidgetMixin {
@@ -262,22 +266,6 @@ class _TimelineClipState extends State<TimelineClip> {
       ),
     );
   }
-
-  // Helper to get icon for clip type
-  IconData _getIconForClipType(ClipType type) {
-    switch (type) {
-      case ClipType.video:
-        return FluentIcons.video;
-      case ClipType.audio:
-        return FluentIcons.volume2;
-      case ClipType.image:
-        return FluentIcons.picture;
-      case ClipType.text:
-        return FluentIcons.text_document;
-      case ClipType.effect:
-        return FluentIcons.filter;
-    }
-  }
   
   // Helper to format time position
   String _getTimePosition() {
@@ -328,7 +316,7 @@ class _TimelineClipState extends State<TimelineClip> {
               ),
               // Video frame grid pattern
               CustomPaint(
-                painter: _VideoFramesPainter(
+                painter: VideoFramesPainter(
                   color: contentColor.withAlpha(30),
                 ),
                 child: const SizedBox.expand(),
@@ -371,7 +359,7 @@ class _TimelineClipState extends State<TimelineClip> {
               ),
               // Waveform visualization
               CustomPaint(
-                painter: _AudioWaveformPainter(
+                painter: AudioWaveformPainter(
                   color: contentColor,
                   seed: widget.clip.hashCode,
                 ),
@@ -412,7 +400,7 @@ class _TimelineClipState extends State<TimelineClip> {
               ),
               // Image grid pattern
               CustomPaint(
-                painter: _ImageGridPainter(
+                painter: ImageGridPainter(
                   color: contentColor.withAlpha(40),
                 ),
                 child: const SizedBox.expand(),
@@ -464,7 +452,7 @@ class _TimelineClipState extends State<TimelineClip> {
               ),
               // Text line pattern
               CustomPaint(
-                painter: _TextLinesPainter(
+                painter: TextLinesPainter(
                   color: contentColor.withAlpha(40),
                 ),
                 child: const SizedBox.expand(),
@@ -516,7 +504,7 @@ class _TimelineClipState extends State<TimelineClip> {
               ),
               // Effect pattern
               CustomPaint(
-                painter: _EffectPatternPainter(
+                painter: EffectPatternPainter(
                   color: contentColor.withAlpha(40),
                   seed: widget.clip.hashCode,
                 ),
@@ -584,176 +572,4 @@ class _TimelineClipState extends State<TimelineClip> {
       ],
     );
   }
-}
-
-// New painter for video frames pattern
-class _VideoFramesPainter extends CustomPainter {
-  final Color color;
-
-  _VideoFramesPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (size.width <= 0 || size.height <= 0) return;
-    
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1
-      ..style = PaintingStyle.stroke;
-      
-    final cellWidth = size.width / 4;
-    final cellHeight = size.height / 3;
-    
-    // Draw vertical lines
-    for (int i = 1; i < 4; i++) {
-      final x = cellWidth * i;
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-    
-    // Draw horizontal lines
-    for (int i = 1; i < 3; i++) {
-      final y = cellHeight * i;
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-// New painter for image grid pattern
-class _ImageGridPainter extends CustomPainter {
-  final Color color;
-
-  _ImageGridPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (size.width <= 0 || size.height <= 0) return;
-    
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1
-      ..style = PaintingStyle.stroke;
-      
-    // Draw diagonal lines
-    canvas.drawLine(Offset(0, 0), Offset(size.width, size.height), paint);
-    canvas.drawLine(Offset(size.width, 0), Offset(0, size.height), paint);
-    
-    // Draw frame border
-    canvas.drawRect(Rect.fromLTWH(4, 4, size.width-8, size.height-8), paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-// New painter for text lines pattern
-class _TextLinesPainter extends CustomPainter {
-  final Color color;
-
-  _TextLinesPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (size.width <= 0 || size.height <= 0) return;
-    
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1
-      ..style = PaintingStyle.stroke;
-      
-    final lineSpacing = size.height / 5;
-    
-    // Draw text lines
-    for (int i = 1; i < 5; i++) {
-      final y = lineSpacing * i;
-      canvas.drawLine(Offset(5, y), Offset(size.width - 5, y), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-// New painter for effect pattern
-class _EffectPatternPainter extends CustomPainter {
-  final Color color;
-  final int seed;
-
-  _EffectPatternPainter({required this.color, required this.seed});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (size.width <= 0 || size.height <= 0) return;
-    
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1
-      ..style = PaintingStyle.stroke;
-      
-    final random = math.Random(seed);
-    final path = Path();
-    
-    // Draw effect zigzag
-    path.moveTo(0, size.height / 2);
-    
-    double step = size.width / 10;
-    double amplitude = size.height / 3;
-    double x = 0;
-    
-    while (x < size.width) {
-      double y = size.height / 2 + (random.nextDouble() * 2 - 1) * amplitude;
-      path.lineTo(x, y);
-      x += step;
-    }
-    
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => 
-      oldDelegate is _EffectPatternPainter && oldDelegate.seed != seed;
-}
-
-/// Paints a simple audio waveform
-class _AudioWaveformPainter extends CustomPainter {
-  final Color color;
-  final int seed;
-
-  _AudioWaveformPainter({required this.color, required this.seed});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (size.width <= 0 || size.height <= 0) {
-      return; // Avoid painting on zero size
-    }
-
-    final paint =
-        Paint()
-          ..color = color
-          ..strokeWidth =
-              1.5 // Slightly thicker line
-          ..style = PaintingStyle.stroke;
-
-    final path = Path();
-    final random = math.Random(seed); // Use the passed seed
-    final waveHeight = size.height * 0.6; // Max height of waveform
-    final middleY = size.height / 2;
-
-    path.moveTo(0, middleY);
-
-    const step = 3.0; // Draw line every 3 pixels
-    for (double x = step; x < size.width; x += step) {
-      final y = middleY + (random.nextDouble() * 2 - 1) * (waveHeight / 2);
-      path.lineTo(x, y);
-    }
-
-    canvas.drawPath(path, paint);
-  }
-
-  // Repaint if color changes (though unlikely here)
-  @override
-  bool shouldRepaint(covariant _AudioWaveformPainter oldDelegate) =>
-      oldDelegate.color != color || oldDelegate.seed != seed;
 }
