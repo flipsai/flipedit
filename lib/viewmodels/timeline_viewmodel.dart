@@ -74,8 +74,6 @@ class TimelineViewModel {
     _seekControllerToFrame(clampedValue);
   }
 
-  final int _totalFrames = 0;
-  int get totalFrames => _totalFrames;
   final ValueNotifier<int> totalFramesNotifier = ValueNotifier<int>(0);
 
   final ValueNotifier<bool> isPlayingNotifier = ValueNotifier<bool>(false);
