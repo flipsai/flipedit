@@ -11,14 +11,12 @@ import 'painters/track_background_painter.dart';
 
 class TimelineTrack extends StatefulWidget with WatchItStatefulWidgetMixin {
   final Track track;
-  final List<ClipModel> clips;
   final VoidCallback onDelete;
   final double trackLabelWidth;
 
   const TimelineTrack({
     super.key,
     required this.track,
-    required this.clips,
     required this.onDelete,
     required this.trackLabelWidth,
   });
@@ -53,7 +51,7 @@ class _TimelineTrackState extends State<TimelineTrack> {
 
     // Force a refresh of clips when mounted
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _timelineViewModel.forceRefreshClips();
+      _timelineViewModel.refreshClips();
     });
   }
 
@@ -144,14 +142,19 @@ class _TimelineTrackState extends State<TimelineTrack> {
     final theme = FluentTheme.of(context);
     const trackHeight = 65.0;
 
+    // Watch only the clips for this track
+    final clips = watchValue((TimelineViewModel vm) => vm.clipsNotifier)
+        .where((clip) => clip.trackId == widget.track.id)
+        .toList();
+
     // Log clips for debugging
-    if (widget.clips.isNotEmpty) {
+    if (clips.isNotEmpty) {
       developer.log(
-        '📼 Building TimelineTrack "${widget.track.name}" with ${widget.clips.length} clips',
+        '📼 Building TimelineTrack "${widget.track.name}" with ${clips.length} clips',
         name: 'TimelineTrack'
       );
       developer.log(
-        '📼 First clip: ${widget.clips.first.name}, startFrame: ${widget.clips.first.startFrame}',
+        '📼 First clip: ${clips.first.name}, startFrame: ${clips.first.startFrame}',
         name: 'TimelineTrack'
       );
     } else {
@@ -222,37 +225,30 @@ class _TimelineTrackState extends State<TimelineTrack> {
               onAcceptWithDetails: (details) {
                 final draggedClip = details.data;
                 developer.log('✅ Clip drop detected: ${draggedClip.name}', name: 'TimelineTrack');
-                
                 final RenderBox? renderBox =
                     _trackContentKey.currentContext?.findRenderObject() as RenderBox?;
                 if (renderBox == null) {
                   developer.log('❌ Error: renderBox is null in onAcceptWithDetails', name: 'TimelineTrack');
                   return;
                 }
-
-                // Get local position within the track
                 final localPosition = renderBox.globalToLocal(details.offset);
-                
-                // Calculate the proper position with scroll offset
                 final scrollOffsetX = getHorizontalScrollOffset();
                 final posX = localPosition.dx;
-                
-                // Calculate the exact frame position
                 final framePosition = ((posX + scrollOffsetX) / (5.0 * zoom)).floor();
                 final framePositionMs = framePosition * (1000 / 30); // Convert to ms (30fps)
-                
                 developer.log(
                   '📏 Position metrics: local=$posX, scroll=$scrollOffsetX, frame=$framePosition, ms=$framePositionMs',
                   name: 'TimelineTrack'
                 );
-                
-                // Using the TimelineViewModel directly through watch_it
-                di<TimelineViewModel>().createTimelineClip(
+                // Use new robust addClip API
+                di<TimelineViewModel>().addClip(
                   trackId: widget.track.id,
-                  clipData: draggedClip,
-                  framePosition: framePosition,
+                  type: draggedClip.type,
+                  sourcePath: draggedClip.sourcePath,
+                  startTimeOnTrackMs: framePositionMs.toInt(),
+                  startTimeInSourceMs: draggedClip.startTimeInSourceMs,
+                  endTimeInSourceMs: draggedClip.endTimeInSourceMs,
                 );
-                
                 _updateHoverPosition(null);
               },
               onWillAcceptWithDetails: (details) {
@@ -299,7 +295,7 @@ class _TimelineTrackState extends State<TimelineTrack> {
                       Positioned.fill(child: _TrackBackground(zoom: zoom)),
                       
                       // Display existing clips on this track
-                      ...widget.clips.map((clip) {
+                      ...clips.map((clip) {
                         final leftPosition = clip.startFrame * zoom * 5.0;
                         final clipWidth = clip.durationFrames * zoom * 5.0;
                         return Positioned(
@@ -308,6 +304,7 @@ class _TimelineTrackState extends State<TimelineTrack> {
                           height: trackHeight,
                           width: clipWidth.clamp(4.0, double.infinity),
                           child: TimelineClip(
+                            key: ValueKey(clip.databaseId ?? clip.sourcePath),
                             clip: clip,
                             trackId: widget.track.id,
                           ),

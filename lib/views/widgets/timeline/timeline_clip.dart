@@ -150,15 +150,10 @@ class _TimelineClipState extends State<TimelineClip> {
             if (_originalStartFrame != _currentDragFrame) {
               if (widget.clip.databaseId != null) {
                 final newStartTimeMs = ClipModel.framesToMs(_currentDragFrame);
-                timelineVm.updateClipPosition(
-                  widget.clip.databaseId!,
-                  widget.clip.trackId,
-                  newStartTimeMs,
-                );
-              } else {
-                logWarning(
-                  runtimeType.toString(),
-                  "Warning: Cannot move clip - databaseId is null.",
+                di<TimelineViewModel>().moveClip(
+                  clipId: widget.clip.databaseId!,
+                  newTrackId: widget.clip.trackId, // If supporting cross-track drag, update this
+                  newStartTimeOnTrackMs: newStartTimeMs,
                 );
               }
             }

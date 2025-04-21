@@ -1,16 +1,13 @@
 import 'dart:async';
 import 'dart:io'; // Added for File access
-import 'dart:ui'; // Required for lerpDouble
-import 'package:drift/drift.dart' show Value; // Added Value import
+import 'package:drift/drift.dart' as drift; // Added Value import
 
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/persistence/database/project_database.dart' as project_db;
-import 'package:flipedit/persistence/tables/clips.dart';
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:video_player/video_player.dart';
-import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/utils/logger.dart';
 
 const double _defaultFrameRate = 30.0;
@@ -164,76 +161,7 @@ class TimelineViewModel {
       return;
     }
 
-    final List<ClipModel> allClips = [];
-    for (final track in tracks) {
-      logDebug(
-        _logTag,
-        '🔍 Processing track ID: ${track.id} (${track.name})',
-      );
-      
-      // Since ProjectDatabaseTrackDao doesn't have getClipsForTrack, we need to use the ClipDao
-      if (_projectDatabaseService.clipDao != null) {
-        final trackClipsData = await _projectDatabaseService.clipDao!.getClipsForTrack(track.id);
-        
-        final trackClips = trackClipsData.map((dbData) => clipFromProjectDb(dbData)).toList();
-        
-        logDebug(
-          _logTag,
-          '📋 Found ${trackClips.length} clips for track ${track.name} (ID: ${track.id})',
-        );
-        
-        if (trackClips.isNotEmpty) {
-          logDebug(
-            _logTag,
-            '🎬 First clip: ${trackClips.first.name}, startFrame: ${trackClips.first.startFrame}',
-          );
-        }
-        
-        allClips.addAll(trackClips);
-      }
-    }
-
-    logInfo(
-      _logTag,
-      '✅ Loaded ${allClips.length} total clips',
-    );
-    
-    // Set clips and recalculate total frames
-    clipsNotifier.value = allClips;
-    _recalculateAndUpdateTotalFrames();
-    
-    // Force a refresh to ensure UI updates
-    await forceRefreshClips();
-
-    logInfo(
-      _logTag,
-      '🔄 UI refresh complete. Clips count: ${clipsNotifier.value.length}, Total frames: ${totalFramesNotifier.value}',
-    );
-    
-    ClipModel? firstVideo; // Use nullable type
-    try {
-      firstVideo = allClips.firstWhere((c) => c.type == ClipType.video);
-    } catch (e) {
-      // Handle stateError if no element is found (no video clips)
-      firstVideo = null;
-    }
-
-    if (firstVideo != null) {
-      logInfo(
-        _logTag,
-        '🎥 First video clip: ${firstVideo.name}',
-      );
-      // await loadVideo(firstVideo.sourcePath); // Decide if auto-loading is desired
-    } else {
-      logInfo(
-        _logTag,
-        '⚠️ No video clips found in project',
-      );
-      // Ensure player is cleared if no video clips
-      // await _videoPlayerController?.dispose();
-      // _videoPlayerController = null;
-      // videoPlayerControllerNotifier.value = null;
-    }
+    await refreshClips();
   }
 
   void _updateFrameFromController() {
@@ -293,203 +221,95 @@ class TimelineViewModel {
     return frameToMs(framePosition);
   }
 
+  Future<bool> addClip({
+    required int trackId,
+    required ClipType type,
+    required String sourcePath,
+    required int startTimeOnTrackMs,
+    required int startTimeInSourceMs,
+    required int endTimeInSourceMs,
+  }) async {
+    if (_projectDatabaseService.clipDao == null) {
+      logError(_logTag, 'Clip DAO not initialized');
+      return false;
+    }
+    try {
+      final newClipId = await _projectDatabaseService.clipDao!.insertClip(
+        project_db.ClipsCompanion(
+          trackId: drift.Value(trackId),
+          type: drift.Value(type.name),
+          sourcePath: drift.Value(sourcePath),
+          startTimeOnTrackMs: drift.Value(startTimeOnTrackMs),
+          startTimeInSourceMs: drift.Value(startTimeInSourceMs),
+          endTimeInSourceMs: drift.Value(endTimeInSourceMs),
+          createdAt: drift.Value(DateTime.now()),
+          updatedAt: drift.Value(DateTime.now()),
+        ),
+      );
+      await refreshClips();
+      logInfo(_logTag, 'Added new clip with ID $newClipId');
+      return true;
+    } catch (e) {
+      logError(_logTag, 'Error adding clip: $e');
+      return false;
+    }
+  }
+
   Future<bool> removeClip(int clipId) async {
+    if (_projectDatabaseService.clipDao == null) {
+      logError(_logTag, 'Clip DAO not initialized');
+      return false;
+    }
     try {
-      // Ensure the project database service has the clip DAO initialized
-      if (_projectDatabaseService.clipDao == null) {
-        logError(
-          _logTag,
-          'Clip DAO not initialized in ProjectDatabaseService',
-        );
-        return false;
-      }
-
-      // Delete the clip
-      final deleteResult = await _projectDatabaseService.clipDao!.deleteClip(clipId);
-      if (deleteResult <= 0) {
-        logWarning(
-          _logTag,
-          'No clip found to delete with ID $clipId',
-        );
-        return false;
-      }
-
-      // Update local state
-      final updatedClips = clipsNotifier.value
-          .where((clip) => clip.databaseId != clipId)
-          .toList();
-      clipsNotifier.value = updatedClips;
-      _recalculateAndUpdateTotalFrames();
-
-      logInfo(
-        _logTag,
-        'Removed clip with ID $clipId',
-      );
+      await _projectDatabaseService.clipDao!.deleteClip(clipId);
+      await refreshClips();
+      logInfo(_logTag, 'Removed clip with ID $clipId');
       return true;
     } catch (e) {
-      logError(
-        _logTag,
-        'Error removing clip: $e',
-      );
+      logError(_logTag, 'Error removing clip: $e');
       return false;
     }
   }
 
-  Future<bool> updateClipPosition(
-    int clipId,
-    int trackId,
-    int startTimeOnTrackMs,
-  ) async {
+  Future<bool> moveClip({
+    required int clipId,
+    required int newTrackId,
+    required int newStartTimeOnTrackMs,
+  }) async {
+    if (_projectDatabaseService.clipDao == null) {
+      logError(_logTag, 'Clip DAO not initialized');
+      return false;
+    }
     try {
-      // Ensure the project database service has the clip DAO initialized
-      if (_projectDatabaseService.clipDao == null) {
-        logError(
-          _logTag,
-          'Clip DAO not initialized in ProjectDatabaseService',
-        );
-        return false;
-      }
-
-      // Find the clip in our local state first
-      final clipIndex =
-          clipsNotifier.value.indexWhere((clip) => clip.databaseId == clipId);
-      if (clipIndex < 0) {
-        logError(
-          _logTag,
-          'Clip not found for position update: ID $clipId',
-        );
-        return false;
-      }
-
-      final clip = clipsNotifier.value[clipIndex];
-      
-      // Use the new partial update method instead of full update
-      logInfo(
-        _logTag,
-        'Updating position with fields-based update: trackId=$trackId, startTimeOnTrackMs=$startTimeOnTrackMs',
-      );
-      
-      final updateResult = await _projectDatabaseService.clipDao!.updateClipFields(
-        clipId, 
+      final updated = await _projectDatabaseService.clipDao!.updateClipFields(
+        clipId,
         {
-          'trackId': trackId,
-          'startTimeOnTrackMs': startTimeOnTrackMs,
+          'trackId': newTrackId,
+          'startTimeOnTrackMs': newStartTimeOnTrackMs,
+          'updatedAt': DateTime.now(),
         },
       );
-      
-      if (!updateResult) {
-        logError(
-          _logTag,
-          'Failed to update clip position in database: ID $clipId',
-        );
-        return false;
-      }
-
-      // Update local state
-      final updatedClip = clip.copyWith(
-        trackId: trackId,
-        startTimeOnTrackMs: startTimeOnTrackMs,
-      );
-      final updatedClips = [...clipsNotifier.value];
-      updatedClips[clipIndex] = updatedClip;
-      clipsNotifier.value = updatedClips;
-      _recalculateAndUpdateTotalFrames();
-
-      logInfo(
-        _logTag,
-        'Updated position for clip ID $clipId: Track $trackId, Start $startTimeOnTrackMs ms',
-      );
-      return true;
+      await refreshClips();
+      logInfo(_logTag, 'Moved clip $clipId to track $newTrackId, start $newStartTimeOnTrackMs');
+      return updated;
     } catch (e) {
-      logError(
-        _logTag,
-        'Error updating clip position: $e',
-      );
+      logError(_logTag, 'Error moving clip: $e');
       return false;
     }
   }
 
-  Future<bool> updateClipTrim(
-    int clipId,
-    int startTimeInSourceMs,
-    int endTimeInSourceMs,
-  ) async {
-    try {
-      // Ensure the project database service has the clip DAO initialized
-      if (_projectDatabaseService.clipDao == null) {
-        logError(
-          _logTag,
-          'Clip DAO not initialized in ProjectDatabaseService',
-        );
-        return false;
-      }
-
-      final durationMs = endTimeInSourceMs - startTimeInSourceMs;
-      if (durationMs <= 0) {
-        logError(
-          _logTag,
-          'Invalid clip duration for trim: $durationMs ms',
-        );
-        return false;
-      }
-
-      // Find the clip in our local state first
-      final clipIndex =
-          clipsNotifier.value.indexWhere((clip) => clip.databaseId == clipId);
-      if (clipIndex < 0) {
-        logError(
-          _logTag,
-          'Clip not found for trim update: ID $clipId',
-        );
-        return false;
-      }
-
-      final clip = clipsNotifier.value[clipIndex];
-      
-      // Use the new partial update method instead of full update
-      logInfo(
-        _logTag,
-        'Updating trim with fields-based update: startTimeInSourceMs=$startTimeInSourceMs, endTimeInSourceMs=$endTimeInSourceMs',
-      );
-      
-      final updateResult = await _projectDatabaseService.clipDao!.updateClipFields(
-        clipId, 
-        {
-          'startTimeInSourceMs': startTimeInSourceMs,
-          'endTimeInSourceMs': endTimeInSourceMs,
-        },
-      );
-      
-      if (!updateResult) {
-        logError(
-          _logTag,
-          'Failed to update clip trim in database: ID $clipId',
-        );
-        return false;
-      }
-
-      // Update local state
-      final updatedClip = clip.copyWith(
-        startTimeInSourceMs: startTimeInSourceMs,
-        endTimeInSourceMs: endTimeInSourceMs,
-      );
-      final updatedClips = [...clipsNotifier.value];
-      updatedClips[clipIndex] = updatedClip;
-      clipsNotifier.value = updatedClips;
-      _recalculateAndUpdateTotalFrames();
-
-      logInfo(
-        _logTag,
-        'Updated trim for clip ID $clipId: $startTimeInSourceMs to $endTimeInSourceMs ms',
-      );
-      return true;
-    } catch (e) {
-      logError(
-        _logTag,
-        'Error updating clip trim: $e',
-      );
-      return false;
+  Future<void> refreshClips() async {
+    if (_projectDatabaseService.clipDao == null) return;
+    // Aggregate all clips from all tracks
+    final tracks = _projectDatabaseService.tracksNotifier.value;
+    List<ClipModel> allClips = [];
+    for (final track in tracks) {
+      final dbClips = await _projectDatabaseService.clipDao!.getClipsForTrack(track.id);
+      allClips.addAll(dbClips.map(clipFromProjectDb));
     }
+    allClips.sort((a, b) => a.startTimeOnTrackMs.compareTo(b.startTimeOnTrackMs));
+    clipsNotifier.value = allClips;
+    _recalculateAndUpdateTotalFrames();
   }
 
   void play() {
@@ -703,7 +523,7 @@ class TimelineViewModel {
       );
     }
     
-    final result = await createClip(
+    final result = await addClip(
       trackId: trackId,
       type: clipData.type,
       sourcePath: clipData.sourcePath,
@@ -714,177 +534,8 @@ class TimelineViewModel {
     
     logInfo(
       _logTag,
-      'createClip result: $result'
+      'addClip result: $result'
     );
-  }
-
-  // New method that uses the ProjectDatabaseService
-  Future<bool> createClip({
-    required int trackId,
-    required ClipType type,
-    required String sourcePath,
-    required int startTimeOnTrackMs,
-    required int startTimeInSourceMs,
-    required int endTimeInSourceMs,
-  }) async {
-    // Update track IDs list to ensure it's current
-    final tracks = _projectDatabaseService.tracksNotifier.value;
-    currentTrackIds = tracks.map((t) => t.id).toList();
-    
-    if (!currentTrackIds.contains(trackId)) {
-      logError(
-        _logTag,
-        'Invalid track ID: $trackId, available tracks: $currentTrackIds'
-      );
-      // Continue anyway - we'll assume the track exists
-    }
-
-    final durationMs = endTimeInSourceMs - startTimeInSourceMs;
-    if (durationMs <= 0) {
-      logError(
-        _logTag,
-        'Invalid clip duration: $durationMs'
-      );
-      return false;
-    }
-
-    try {
-      // Ensure the project database service has the clip DAO initialized
-      if (_projectDatabaseService.clipDao == null) {
-        logError(
-          _logTag,
-          'Clip DAO not initialized in ProjectDatabaseService'
-        );
-        return false;
-      }
-
-      // Get a more descriptive name based on the file path
-      final fileName = sourcePath.split('/').last;
-      final clipName = 'Clip: $fileName';
-
-      // Create the clip companion for project database
-      final clipCompanion = project_db.ClipsCompanion(
-        trackId: Value(trackId),
-        type: Value(type.name),
-        name: Value(clipName),
-        sourcePath: Value(sourcePath),
-        startTimeOnTrackMs: Value(startTimeOnTrackMs),
-        startTimeInSourceMs: Value(startTimeInSourceMs),
-        endTimeInSourceMs: Value(endTimeInSourceMs),
-        createdAt: Value(DateTime.now()),
-        updatedAt: Value(DateTime.now()),
-      );
-
-      logInfo(
-        _logTag, 
-        'Attempting to insert clip: trackId=$trackId, startTime=$startTimeOnTrackMs, source=$sourcePath'
-      );
-
-      // Insert the clip
-      final newClipId = await _projectDatabaseService.clipDao!.insertClip(clipCompanion);
-      
-      if (newClipId <= 0) {
-        logError(
-          _logTag,
-          'Failed to insert clip into database'
-        );
-        return false;
-      }
-
-      // Get the inserted clip
-      final dbData = await _projectDatabaseService.clipDao!.getClipById(newClipId);
-      if (dbData == null) {
-        logError(
-          _logTag,
-          'Inserted clip not found in database: ID $newClipId'
-        );
-        return false;
-      }
-
-      // Create a ClipModel from the database data
-      final newClip = clipFromProjectDb(dbData);
-      
-      // Make a defensive copy of the current clips list
-      final currentClips = List<ClipModel>.from(clipsNotifier.value);
-      
-      // Add the new clip to the list
-      final updatedClips = [...currentClips, newClip];
-      
-      // Update the clips notifier
-      clipsNotifier.value = updatedClips;
-      
-      // Reload all clips to ensure the UI is updated
-      await refreshClips();
-      
-      logInfo(
-        _logTag,
-        'Added new clip with ID $newClipId'
-      );
-      return true;
-    } catch (e) {
-      logError(
-        _logTag,
-        'Error adding clip: $e'
-      );
-      return false;
-    }
-  }
-  
-  // Helper method to refresh clips from the database
-  Future<void> refreshClips() async {
-    try {
-      if (_projectDatabaseService.clipDao == null) {
-        logWarning(_logTag, "⚠️ Cannot refresh clips - clipDao is null");
-        return;
-      }
-      
-      // Update track IDs from service to ensure we have the latest
-      final tracks = _projectDatabaseService.tracksNotifier.value;
-      currentTrackIds = tracks.map((t) => t.id).toList();
-      
-      logInfo(_logTag, "🔄 Refreshing clips for ${currentTrackIds.length} tracks");
-      
-      final List<ClipModel> allClips = [];
-      for (final trackId in currentTrackIds) {
-        final trackClips = await _projectDatabaseService.clipDao!.getClipsForTrack(trackId);
-        final mappedClips = trackClips.map((dbData) => clipFromProjectDb(dbData)).toList();
-        
-        // Get track name for better logging
-        final track = tracks.firstWhere(
-          (t) => t.id == trackId, 
-          orElse: () => tracks.firstOrNull ?? project_db.Track(
-            id: trackId, 
-            name: "Unknown Track",
-            order: 0,
-            type: "video",
-            isVisible: true,
-            isLocked: false,
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
-          ),
-        );
-        
-        logDebug(
-          _logTag, 
-          "📋 Track '${track.name}' (ID: $trackId): Found ${mappedClips.length} clips"
-        );
-        
-        allClips.addAll(mappedClips);
-      }
-      
-      clipsNotifier.value = allClips;
-      _recalculateAndUpdateTotalFrames();
-      
-      logInfo(
-        _logTag,
-        '✅ Refreshed clips: found ${allClips.length} clips across ${currentTrackIds.length} tracks'
-      );
-    } catch (e) {
-      logError(
-        _logTag,
-        '❌ Error refreshing clips: $e'
-      );
-    }
   }
 
   Future<bool> createTimelineClip({
@@ -908,31 +559,13 @@ class TimelineViewModel {
     );
     
     // Call the existing createClip method with the calculated position
-    return await createClip(
+    return await addClip(
       trackId: trackId,
       type: clipData.type,
       sourcePath: clipData.sourcePath,
       startTimeOnTrackMs: startTimeOnTrackMs,
       startTimeInSourceMs: clipData.startTimeInSourceMs,
       endTimeInSourceMs: clipData.endTimeInSourceMs,
-    );
-  }
-
-  /// Forces a UI refresh of clips by creating a new list instance
-  Future<void> forceRefreshClips() async {
-    // Get current clips
-    final currentClips = clipsNotifier.value;
-    
-    // Create a new list with the same contents
-    // This triggers ValueNotifier listeners since it's a new reference
-    final refreshedClips = List<ClipModel>.from(currentClips);
-    
-    // Update the notifier with the new list reference
-    clipsNotifier.value = refreshedClips;
-    
-    logInfo(
-      _logTag,
-      'Force refreshed UI for ${refreshedClips.length} clips'
     );
   }
 }

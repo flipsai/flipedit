@@ -127,13 +127,6 @@ class Timeline extends StatelessWidget with WatchItMixin {
                                       return const SizedBox.shrink();
                                     }
                                     final track = tracks[index];
-                                    final trackClips =
-                                        clips
-                                            .where(
-                                              (clip) =>
-                                                  clip.trackId == track.id,
-                                            )
-                                            .toList();
 
                                     // Use the updated TimelineTrack widget
                                     return Padding(
@@ -142,7 +135,6 @@ class Timeline extends StatelessWidget with WatchItMixin {
                                       ),
                                       child: TimelineTrack(
                                         track: track,
-                                        clips: trackClips,
                                         onDelete: () {
                                           databaseService.deleteTrack(track.id);
                                         },
