@@ -52,6 +52,8 @@ dependencies:
   drift_flutter: ^0.2.4 # Added drift_flutter helper
   window_manager: ^0.4.3 # Use the latest appropriate version
   hugeicons: ^0.0.10
+  path_provider_platform_interface: ^2.1.2
+  plugin_platform_interface: ^2.1.8
 
 dev_dependencies:
   flutter_lints: ^5.0.0
@@ -59,6 +61,12 @@ dev_dependencies:
     sdk: flutter
   drift_dev: ^2.26.0 # Updated drift build runner
   mockito: ^5.4.6
+  integration_test:
+    sdk: flutter
+  flutter_driver:
+    sdk: flutter
+  test: any
+  collection: ^1.17.0
 
 dependency_overrides:
   archive: 3.6.1

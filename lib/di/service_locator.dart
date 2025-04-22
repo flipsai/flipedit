@@ -21,7 +21,10 @@ Future<void> setupServiceLocator() async {
   await di.isReady<SharedPreferences>();
 
   // Project Metadata Database (for managing separate project databases)
-  di.registerLazySingleton<ProjectMetadataDatabase>(() => ProjectMetadataDatabase());
+  di.registerLazySingleton<ProjectMetadataDatabase>(
+    () => ProjectMetadataDatabase(),
+    dispose: (db) async => await db.close(),
+  );
   di.registerFactory<ProjectMetadataDao>(() => ProjectMetadataDao(di<ProjectMetadataDatabase>()));
 
   // Services - remove ProjectService and keep only new services
