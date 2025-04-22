@@ -46,8 +46,7 @@ class FlipEditApp extends fluent.StatelessWidget with WatchItMixin {
       );
     } else {
        // --- Linux / Other: Use Fluent UI Structure with FluentAppMenuBar ---
-       homeWidget = fluent.ScaffoldPage(
-        content: fluent.NavigationView(
+       homeWidget = fluent.NavigationView(
           appBar: fluent.NavigationAppBar(
             title: const fluent.Text('FlipEdit'),
             // Instantiate FluentAppMenuBar for the actions
@@ -58,7 +57,6 @@ class FlipEditApp extends fluent.StatelessWidget with WatchItMixin {
             ),
           ),
           content: const EditorScreen(), // Place main content here
-        ),
       );
     }
 
