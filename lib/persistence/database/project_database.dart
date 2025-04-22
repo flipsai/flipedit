@@ -8,6 +8,8 @@ import 'package:flipedit/persistence/dao/project_database_asset_dao.dart';
 import 'package:flipedit/persistence/tables/clips.dart';
 import 'package:flipedit/persistence/tables/project_assets.dart';
 import 'package:flipedit/persistence/tables/tracks.dart';
+import 'package:flipedit/persistence/tables/change_logs.dart';
+import 'package:flipedit/persistence/dao/change_log_dao.dart';
 import 'package:flipedit/utils/logger.dart';
 
 part 'project_database.g.dart';
@@ -15,8 +17,8 @@ part 'project_database.g.dart';
 /// ProjectDatabase represents a database for a single project
 /// Each project will have its own database file with this schema
 @DriftDatabase(
-  tables: [Tracks, Clips, ProjectAssets],
-  daos: [ProjectDatabaseTrackDao, ProjectDatabaseClipDao, ProjectDatabaseAssetDao],
+  tables: [Tracks, Clips, ProjectAssets, ChangeLogs],
+  daos: [ProjectDatabaseTrackDao, ProjectDatabaseClipDao, ProjectDatabaseAssetDao, ChangeLogDao],
 )
 class ProjectDatabase extends _$ProjectDatabase {
   ProjectDatabase(String databasePath) : super(_openConnection(databasePath));

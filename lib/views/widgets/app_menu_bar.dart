@@ -5,6 +5,8 @@ import 'package:flipedit/viewmodels/project_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/services/media_import_service.dart';
 import 'package:flipedit/utils/logger.dart';
+import 'package:watch_it/watch_it.dart';
+import 'package:flipedit/services/undo_redo_service.dart';
 
 // --- Action Handlers (Now using ProjectViewModel) ---
 const _logTag = 'AppMenuBarActions'; // Define tag for top-level functions
@@ -201,14 +203,28 @@ void _handleSaveProject(ProjectViewModel projectVm) {
       });
 }
 
-void _handleUndo() {
+Future<void> _handleUndo(TimelineViewModel timelineVm) async {
   logInfo(_logTag, "Action: Undo");
-  // TODO: Implement undo logic (likely via a dedicated Undo/Redo Service/ViewModel)
+  try {
+    await di<UndoRedoService>().undo();
+    logInfo(_logTag, "Undo completed.");
+    // Refresh timeline clips after undo
+    await timelineVm.refreshClips();
+  } catch (e) {
+    logError(_logTag, "Error during undo: $e");
+  }
 }
 
-void _handleRedo() {
+Future<void> _handleRedo(TimelineViewModel timelineVm) async {
   logInfo(_logTag, "Action: Redo");
-  // TODO: Implement redo logic
+  try {
+    await di<UndoRedoService>().redo();
+    logInfo(_logTag, "Redo completed.");
+    // Refresh timeline clips after redo
+    await timelineVm.refreshClips();
+  } catch (e) {
+    logError(_logTag, "Error during redo: $e");
+  }
 }
 
 // --- New Action Handlers for Tracks (using ProjectViewModel) ---
@@ -289,8 +305,14 @@ class _PlatformAppMenuBarState extends State<PlatformAppMenuBar> {
         PlatformMenu(
           label: 'Edit',
           menus: [
-            PlatformMenuItem(label: 'Undo', onSelected: _handleUndo),
-            PlatformMenuItem(label: 'Redo', onSelected: _handleRedo),
+            PlatformMenuItem(
+              label: 'Undo',
+              onSelected: () => _handleUndo(widget.timelineVm),
+            ),
+            PlatformMenuItem(
+              label: 'Redo',
+              onSelected: () => _handleRedo(widget.timelineVm),
+            ),
           ],
         ),
         PlatformMenu(
@@ -382,8 +404,14 @@ class _FluentAppMenuBarState extends State<FluentAppMenuBar> {
         DropDownButton(
           title: const Text('Edit'),
           items: [
-            MenuFlyoutItem(text: const Text('Undo'), onPressed: _handleUndo),
-            MenuFlyoutItem(text: const Text('Redo'), onPressed: _handleRedo),
+            MenuFlyoutItem(
+              text: const Text('Undo'),
+              onPressed: () => _handleUndo(widget.timelineVm),
+            ),
+            MenuFlyoutItem(
+              text: const Text('Redo'),
+              onPressed: () => _handleRedo(widget.timelineVm),
+            ),
           ],
         ),
         const SizedBox(width: 8),
