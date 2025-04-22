@@ -22,9 +22,12 @@ Future<void> _handleNewProject(
     builder:
         (context) => ContentDialog(
           title: const Text('New Project'),
-          content: TextBox(
-            controller: projectNameController,
-            placeholder: 'Enter project name',
+          content: SizedBox(
+            height: 50,
+            child: TextBox(
+              controller: projectNameController,
+              placeholder: 'Enter project name',
+            ),
           ),
           actions: [
             Button(
@@ -375,85 +378,88 @@ class _FluentAppMenuBarState extends State<FluentAppMenuBar> {
     final bool isTimelineVisible = widget.editorVm.isTimelineVisibleNotifier.value;
     final bool isPreviewVisible = widget.editorVm.isPreviewVisibleNotifier.value;
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        DropDownButton(
-          title: const Text('File'),
-          items: [
-            MenuFlyoutItem(
-              text: const Text('New Project'),
-              onPressed: () => _handleNewProject(context, widget.projectVm),
-            ),
-            MenuFlyoutItem(
-              text: const Text('Open Project...'),
-              onPressed: () => _handleOpenProject(context, widget.projectVm),
-            ),
-            MenuFlyoutItem(
-              text: const Text('Import Media...'),
-              onPressed: isProjectLoaded ? () => _handleImportMedia(context, widget.projectVm) : null,
-            ),
-            MenuFlyoutItem(
-              text: const Text('Save Project'),
-              onPressed: isProjectLoaded ? () => _handleSaveProject(widget.projectVm) : null,
-            ),
-          ],
-        ),
-        const SizedBox(width: 8),
-        DropDownButton(
-          title: const Text('Edit'),
-          items: [
-            MenuFlyoutItem(
-              text: const Text('Undo'),
-              onPressed: () => _handleUndo(widget.timelineVm),
-            ),
-            MenuFlyoutItem(
-              text: const Text('Redo'),
-              onPressed: () => _handleRedo(widget.timelineVm),
-            ),
-          ],
-        ),
-        const SizedBox(width: 8),
-        DropDownButton(
-          title: const Text('Track'),
-          items: [
-            MenuFlyoutItem(
-              text: const Text('Add Video Track'),
-              onPressed: isProjectLoaded ? () => _handleAddVideoTrack(widget.projectVm) : null,
-            ),
-            MenuFlyoutItem(
-              text: const Text('Add Audio Track'),
-              onPressed: isProjectLoaded ? () => _handleAddAudioTrack(widget.projectVm) : null,
-            ),
-          ],
-        ),
-        const SizedBox(width: 8),
-        DropDownButton(
-          title: const Text('View'),
-          items: [
-            MenuFlyoutItem(
-              leading:
-                  isInspectorVisible
-                      ? const Icon(FluentIcons.check_mark)
-                      : null,
-              text: const Text('Inspector'),
-              onPressed: () => widget.editorVm.toggleInspector(),
-            ),
-            MenuFlyoutItem(
-              leading:
-                  isTimelineVisible ? const Icon(FluentIcons.check_mark) : null,
-              text: const Text('Timeline'),
-              onPressed: () => widget.editorVm.toggleTimeline(),
-            ),
-            MenuFlyoutItem(
-              leading:
-                  isPreviewVisible ? const Icon(FluentIcons.check_mark) : null,
-              text: const Text('Preview'),
-              onPressed: () => widget.editorVm.togglePreview(),
-            ),
-          ],
-        ),
-      ],
+    return Padding(
+      padding: const EdgeInsets.only(top: 8.0, right: 8.0),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          DropDownButton(
+            title: const Text('File'),
+            items: [
+              MenuFlyoutItem(
+                text: const Text('New Project'),
+                onPressed: () => _handleNewProject(context, widget.projectVm),
+              ),
+              MenuFlyoutItem(
+                text: const Text('Open Project...'),
+                onPressed: () => _handleOpenProject(context, widget.projectVm),
+              ),
+              MenuFlyoutItem(
+                text: const Text('Import Media...'),
+                onPressed: isProjectLoaded ? () => _handleImportMedia(context, widget.projectVm) : null,
+              ),
+              MenuFlyoutItem(
+                text: const Text('Save Project'),
+                onPressed: isProjectLoaded ? () => _handleSaveProject(widget.projectVm) : null,
+              ),
+            ],
+          ),
+          const SizedBox(width: 8),
+          DropDownButton(
+            title: const Text('Edit'),
+            items: [
+              MenuFlyoutItem(
+                text: const Text('Undo'),
+                onPressed: () => _handleUndo(widget.timelineVm),
+              ),
+              MenuFlyoutItem(
+                text: const Text('Redo'),
+                onPressed: () => _handleRedo(widget.timelineVm),
+              ),
+            ],
+          ),
+          const SizedBox(width: 8),
+          DropDownButton(
+            title: const Text('Track'),
+            items: [
+              MenuFlyoutItem(
+                text: const Text('Add Video Track'),
+                onPressed: isProjectLoaded ? () => _handleAddVideoTrack(widget.projectVm) : null,
+              ),
+              MenuFlyoutItem(
+                text: const Text('Add Audio Track'),
+                onPressed: isProjectLoaded ? () => _handleAddAudioTrack(widget.projectVm) : null,
+              ),
+            ],
+          ),
+          const SizedBox(width: 8),
+          DropDownButton(
+            title: const Text('View'),
+            items: [
+              MenuFlyoutItem(
+                leading:
+                    isInspectorVisible
+                        ? const Icon(FluentIcons.check_mark)
+                        : null,
+                text: const Text('Inspector'),
+                onPressed: () => widget.editorVm.toggleInspector(),
+              ),
+              MenuFlyoutItem(
+                leading:
+                    isTimelineVisible ? const Icon(FluentIcons.check_mark) : null,
+                text: const Text('Timeline'),
+                onPressed: () => widget.editorVm.toggleTimeline(),
+              ),
+              MenuFlyoutItem(
+                leading:
+                    isPreviewVisible ? const Icon(FluentIcons.check_mark) : null,
+                text: const Text('Preview'),
+                onPressed: () => widget.editorVm.togglePreview(),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
