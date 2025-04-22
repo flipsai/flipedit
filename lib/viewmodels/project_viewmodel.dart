@@ -121,11 +121,6 @@ class ProjectViewModel {
     await _databaseService.addTrack(type: type);
   }
 
-  Future<void> saveProjectCommand() async {
-    // No explicit save needed in new architecture - handled automatically
-    logInfo("ProjectViewModel", "Project changes are saved automatically in new architecture.");
-  }
-
   // Public method to initiate media import, delegates to the command
   Future<bool> importMedia(BuildContext context) async {
     // Delegate directly to the command's execute method

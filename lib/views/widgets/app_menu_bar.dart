@@ -192,19 +192,6 @@ Future<void> _handleImportMedia(
   }
 }
 
-// Updated to use ProjectViewModel command
-void _handleSaveProject(ProjectViewModel projectVm) {
-  projectVm
-      .saveProjectCommand()
-      .then((_) {
-        logInfo(_logTag, "Action: Save Project initiated.");
-      })
-      .catchError((e) {
-        logError(_logTag, "Error saving project: $e");
-        // TODO: Show error to user
-      });
-}
-
 Future<void> _handleUndo(TimelineViewModel timelineVm) async {
   logInfo(_logTag, "Action: Undo");
   try {
@@ -297,11 +284,7 @@ class _PlatformAppMenuBarState extends State<PlatformAppMenuBar> {
             PlatformMenuItem(
               label: 'Import Media...',
               onSelected: isProjectLoaded ? () => _handleImportMedia(context, widget.projectVm) : null,
-            ),
-            PlatformMenuItem(
-              label: 'Save Project',
-              onSelected: isProjectLoaded ? () => _handleSaveProject(widget.projectVm) : null,
-            ),
+            )
           ],
         ),
         PlatformMenu(
@@ -397,11 +380,7 @@ class _FluentAppMenuBarState extends State<FluentAppMenuBar> {
               MenuFlyoutItem(
                 text: const Text('Import Media...'),
                 onPressed: isProjectLoaded ? () => _handleImportMedia(context, widget.projectVm) : null,
-              ),
-              MenuFlyoutItem(
-                text: const Text('Save Project'),
-                onPressed: isProjectLoaded ? () => _handleSaveProject(widget.projectVm) : null,
-              ),
+              )
             ],
           ),
           const SizedBox(width: 8),
