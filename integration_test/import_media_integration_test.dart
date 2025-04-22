@@ -31,7 +31,10 @@ void main() {
     if (testTempDir != null) await commonTearDown(testTempDir!.path);
   });
 
-  testWidgets('Import media via panel button shows Draggable<ClipModel>', (WidgetTester tester) async {
+  testWidgets('Import media via panel button shows Draggable<ClipModel>', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
     await tester.pumpWidget(FlipEditApp());
     await tester.pumpAndSettle(const Duration(seconds: 5));
 
@@ -57,7 +60,11 @@ void main() {
 
     // Verify that the imported asset appears in the media list
     final tileFinder = find.widgetWithText(ListTile, importedFileName);
-    expect(tileFinder, findsOneWidget, reason: 'Expected media list tile for "$importedFileName" in MediasListPanel.');
+    expect(
+      tileFinder,
+      findsOneWidget,
+      reason:
+          'Expected media list tile for "$importedFileName" in MediasListPanel.',
+    );
   });
-
 }
