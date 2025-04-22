@@ -3,7 +3,6 @@ import 'package:flipedit/persistence/database/project_metadata_database.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
-import 'package:flipedit/services/media_import_service.dart';
 import 'package:flipedit/utils/logger.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/services/undo_redo_service.dart';
@@ -44,13 +43,13 @@ Future<void> _handleNewProject(
     if (projectName != null && projectName.trim().isNotEmpty) {
       try {
         // Use ViewModel command
-        final newProjectId = await projectVm.createNewProjectCommand(
+        final newProjectId = await projectVm.createNewProject(
           projectName.trim(),
         );
         logInfo(_logTag, "Created new project with ID: $newProjectId");
-        // TODO: Optionally load the newly created project using projectVm.loadProjectCommand(newProjectId)
+        // TODO: Optionally load the newly created project using projectVm.loadProject(newProjectId)
         // Load the newly created project
-        await projectVm.loadProjectCommand(newProjectId);
+        await projectVm.loadProject(newProjectId);
         logInfo(_logTag, "Loaded newly created project ID: $newProjectId");
       } catch (e) {
         logError(_logTag, "Error creating or loading project: $e");
@@ -136,7 +135,7 @@ Future<void> _handleOpenProject(
     if (selectedProjectId != null) {
       logInfo(_logTag, "Attempting to load project ID: $selectedProjectId");
       // Use ViewModel command
-      projectVm.loadProjectCommand(selectedProjectId).catchError((e) {
+      projectVm.loadProject(selectedProjectId).catchError((e) {
         logError(_logTag, "Error loading project $selectedProjectId: $e");
         // TODO: Show error to user
       });
@@ -144,43 +143,43 @@ Future<void> _handleOpenProject(
   });
 }
 
-// Updated to use MediaImportService for importing assets
+// Updated to use ProjectViewModel command directly
 Future<void> _handleImportMedia(
   BuildContext context,
-  ProjectViewModel projectVm, // Change to ProjectViewModel
+  ProjectViewModel projectVm, // Already using ProjectViewModel
 ) async {
-  final mediaImportService = MediaImportService(projectVm);
-  final loadingOverlay = MediaImportService.showLoadingOverlay(
+  // Remove instantiation of MediaImportService
+  final loadingOverlay = _showLoadingOverlay( // Use local helper
     context, 
     'Selecting file...'
   );
   
   try {
-    // Use the service to import media
-    final importSuccess = await mediaImportService.importMediaFromFilePicker(context);
+    // Use the ViewModel command to import media
+    final importSuccess = await projectVm.importMedia(context);
     
     // Remove loading overlay
     loadingOverlay.remove();
     
-    // Show success/failure notification
+    // Show success/failure notification (Use local helper)
     if (importSuccess) {
-      MediaImportService.showNotification(
+      _showNotification( // Use local helper
         context,
         'Media imported successfully',
         severity: InfoBarSeverity.success
       );
     } else {
-      MediaImportService.showNotification(
+      _showNotification( // Use local helper
         context,
-        'Failed to import media',
-        severity: InfoBarSeverity.error
+        'Failed to import media or cancelled',
+        severity: InfoBarSeverity.warning // Use warning for cancellation
       );
     }
   } catch (e) {
     // Remove loading overlay if an error occurs
     loadingOverlay.remove();
     
-    MediaImportService.showNotification(
+    _showNotification( // Use local helper
       context,
       'Error importing media: ${e.toString()}',
       severity: InfoBarSeverity.error
@@ -457,4 +456,47 @@ class _FluentAppMenuBarState extends State<FluentAppMenuBar> {
       ],
     );
   }
+}
+
+// Add helper methods here (or move to a common UI utils file)
+// Shows a loading indicator overlay
+OverlayEntry _showLoadingOverlay(BuildContext context, String message) {
+  final overlay = Overlay.of(context);
+  final entry = OverlayEntry(
+    builder: (context) => Center(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: FluentTheme.of(context).resources.subtleFillColorSecondary,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ProgressRing(),
+            const SizedBox(height: 16),
+            Text(message),
+          ],
+        ),
+      ),
+    ),
+  );
+  
+  overlay.insert(entry);
+  return entry;
+}
+
+// Shows a notification message
+void _showNotification(
+  BuildContext context, 
+  String message, 
+  {InfoBarSeverity severity = InfoBarSeverity.info}
+) {
+  displayInfoBar(context, builder: (context, close) {
+    return InfoBar(
+      title: Text(message),
+      severity: severity,
+      onClose: close,
+    );
+  });
 }

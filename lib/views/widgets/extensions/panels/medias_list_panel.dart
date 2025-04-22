@@ -3,7 +3,6 @@ import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/project_asset.dart' as model;
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
-import 'package:flipedit/services/media_import_service.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/utils/logger.dart';
 import 'dart:developer' as developer;
@@ -29,7 +28,6 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
     // Watch ProjectViewModel for project assets
     final assets = watchValue((ProjectViewModel vm) => vm.projectAssetsNotifier);
     final projectVm = di<ProjectViewModel>();
-    final mediaImportService = MediaImportService(projectVm);
     
     // Watch the notifier to trigger rebuilds
     watch(searchTermNotifier);
@@ -72,38 +70,38 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
                       Button(
                         child: const Text('Import Media'),
                         onPressed: () async {
-                          // Show loading indicator
-                          final loadingOverlay = MediaImportService.showLoadingOverlay(
+                          // Show loading indicator (Consider moving this into the command or a UI helper)
+                          final loadingOverlay = _showLoadingOverlay(
                             context, 
                             'Selecting file...'
                           );
                           
                           try {
-                            // Use the service to import media
-                            final importSuccess = await mediaImportService.importMediaFromFilePicker(context);
+                            // Use the ViewModel command to import media
+                            final importSuccess = await projectVm.importMedia(context);
                             
                             // Remove loading overlay
                             loadingOverlay.remove();
                             
-                            // Show success/failure notification
+                            // Show success/failure notification (Consider moving this into the command or a UI helper)
                             if (importSuccess) {
-                              MediaImportService.showNotification(
+                              _showNotification(
                                 context,
                                 'Media imported successfully',
                                 severity: InfoBarSeverity.success
                               );
                             } else {
-                              MediaImportService.showNotification(
+                              _showNotification(
                                 context,
-                                'Failed to import media',
-                                severity: InfoBarSeverity.error
+                                'Failed to import media or cancelled',
+                                severity: InfoBarSeverity.warning // Changed severity as cancellation is not an error
                               );
                             }
                           } catch (e) {
                             // Remove loading overlay if an error occurs
                             loadingOverlay.remove();
                             
-                            MediaImportService.showNotification(
+                            _showNotification(
                               context,
                               'Error importing media: ${e.toString()}',
                               severity: InfoBarSeverity.error
@@ -122,35 +120,9 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
     );
   }
   
-  // Display a progress ring indicator
-  OverlayEntry displayProgressRing(BuildContext context) {
-    final overlay = Overlay.of(context);
-    final entry = OverlayEntry(
-      builder: (context) => Center(
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: FluentTheme.of(context).resources.subtleFillColorSecondary,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: const Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ProgressRing(),
-              SizedBox(height: 16),
-              Text('Selecting file...'),
-            ],
-          ),
-        ),
-      ),
-    );
-    
-    overlay.insert(entry);
-    return entry;
-  }
-  
-  // Display a progress dialog
-  OverlayEntry displayProgressDialog(BuildContext context, String message) {
+  // Move helper methods from MediaImportService here (or to a common UI utils file)
+  // Shows a loading indicator overlay
+  OverlayEntry _showLoadingOverlay(BuildContext context, String message) {
     final overlay = Overlay.of(context);
     final entry = OverlayEntry(
       builder: (context) => Center(
@@ -176,8 +148,12 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
     return entry;
   }
   
-  // Show a snackbar message
-  void showSnackbar(BuildContext context, String message, {InfoBarSeverity severity = InfoBarSeverity.info}) {
+  // Shows a notification message
+  void _showNotification(
+    BuildContext context, 
+    String message, 
+    {InfoBarSeverity severity = InfoBarSeverity.info}
+  ) {
     displayInfoBar(context, builder: (context, close) {
       return InfoBar(
         title: Text(message),
