@@ -13,6 +13,7 @@ import 'package:video_player/video_player.dart';
 import 'package:flipedit/utils/logger.dart' as logger; // Import logger
 import 'package:flipedit/viewmodels/timeline_utils.dart';
 import 'commands/timeline_command.dart';
+import 'commands/add_clip_command.dart';
 import 'package:flipedit/services/undo_redo_service.dart';
 
 class TimelineViewModel {
@@ -689,55 +690,16 @@ class TimelineViewModel {
     double? localPositionX,
     double? scrollOffsetX,
   }) async {
-    int targetStartTimeMs;
-
-    logger.logInfo(
-      'addClipAtPosition called: trackId=$trackId, clip=${clipData.name}, type=${clipData.type}',
-      _logTag,
-    );
-
-    // Update currentTrackIds from the database service to ensure it's current
-    final tracks = _projectDatabaseService.tracksNotifier.value;
-    currentTrackIds = tracks.map((t) => t.id).toList();
-
-    logger.logInfo('Available track IDs: $currentTrackIds', _logTag);
-
-    if (!currentTrackIds.contains(trackId)) {
-      logger.logError(
-        'Track ID $trackId is not in current tracks list: $currentTrackIds',
-        _logTag,
-      );
-      // Continue anyway - the track might exist but not be in our cached list
-    }
-
-    if (localPositionX != null && scrollOffsetX != null) {
-      targetStartTimeMs = calculateMsPositionFromPixels(
-        localPositionX,
-        scrollOffsetX,
-        zoom,
-      );
-      logger.logInfo(
-        'Calculated position: localX=$localPositionX, scrollX=$scrollOffsetX, targetMs=$targetStartTimeMs',
-        _logTag,
-      );
-    } else {
-      targetStartTimeMs = ClipModel.framesToMs(currentFrame);
-      logger.logInfo(
-        'Using current frame position: frame=$currentFrame, targetMs=$targetStartTimeMs',
-        _logTag,
-      );
-    }
-
-    final result = await addClip(
+    final cmd = AddClipCommand(
+      vm: this,
+      clipData: clipData,
       trackId: trackId,
-      type: clipData.type,
-      sourcePath: clipData.sourcePath,
-      startTimeOnTrackMs: targetStartTimeMs,
       startTimeInSourceMs: startTimeInSourceMs,
       endTimeInSourceMs: endTimeInSourceMs,
+      localPositionX: localPositionX,
+      scrollOffsetX: scrollOffsetX,
     );
-
-    logger.logInfo('addClip result: $result', _logTag);
+    await runCommand(cmd);
   }
 
   Future<bool> createTimelineClip({

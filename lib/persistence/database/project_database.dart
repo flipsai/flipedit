@@ -23,6 +23,9 @@ part 'project_database.g.dart';
 class ProjectDatabase extends _$ProjectDatabase {
   ProjectDatabase(String databasePath) : super(_openConnection(databasePath));
 
+  /// Named constructor for creating an in-memory database for testing.
+  ProjectDatabase.forTesting(super.executor);
+
   static const String _logTag = 'ProjectDatabase';
 
   @override
