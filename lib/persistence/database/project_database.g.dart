@@ -1987,18 +1987,472 @@ class ProjectAssetsCompanion extends UpdateCompanion<ProjectAsset> {
   }
 }
 
+class $ChangeLogsTable extends ChangeLogs
+    with TableInfo<$ChangeLogsTable, ChangeLog> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ChangeLogsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _entityMeta = const VerificationMeta('entity');
+  @override
+  late final GeneratedColumn<String> entity = GeneratedColumn<String>(
+    'entity',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _entityIdMeta = const VerificationMeta(
+    'entityId',
+  );
+  @override
+  late final GeneratedColumn<String> entityId = GeneratedColumn<String>(
+    'entity_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _actionMeta = const VerificationMeta('action');
+  @override
+  late final GeneratedColumn<String> action = GeneratedColumn<String>(
+    'action',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _oldDataMeta = const VerificationMeta(
+    'oldData',
+  );
+  @override
+  late final GeneratedColumn<String> oldData = GeneratedColumn<String>(
+    'old_data',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _newDataMeta = const VerificationMeta(
+    'newData',
+  );
+  @override
+  late final GeneratedColumn<String> newData = GeneratedColumn<String>(
+    'new_data',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _timestampMeta = const VerificationMeta(
+    'timestamp',
+  );
+  @override
+  late final GeneratedColumn<int> timestamp = GeneratedColumn<int>(
+    'timestamp',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    entity,
+    entityId,
+    action,
+    oldData,
+    newData,
+    timestamp,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'change_logs';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ChangeLog> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('entity')) {
+      context.handle(
+        _entityMeta,
+        entity.isAcceptableOrUnknown(data['entity']!, _entityMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_entityMeta);
+    }
+    if (data.containsKey('entity_id')) {
+      context.handle(
+        _entityIdMeta,
+        entityId.isAcceptableOrUnknown(data['entity_id']!, _entityIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_entityIdMeta);
+    }
+    if (data.containsKey('action')) {
+      context.handle(
+        _actionMeta,
+        action.isAcceptableOrUnknown(data['action']!, _actionMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_actionMeta);
+    }
+    if (data.containsKey('old_data')) {
+      context.handle(
+        _oldDataMeta,
+        oldData.isAcceptableOrUnknown(data['old_data']!, _oldDataMeta),
+      );
+    }
+    if (data.containsKey('new_data')) {
+      context.handle(
+        _newDataMeta,
+        newData.isAcceptableOrUnknown(data['new_data']!, _newDataMeta),
+      );
+    }
+    if (data.containsKey('timestamp')) {
+      context.handle(
+        _timestampMeta,
+        timestamp.isAcceptableOrUnknown(data['timestamp']!, _timestampMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_timestampMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ChangeLog map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ChangeLog(
+      id:
+          attachedDatabase.typeMapping.read(
+            DriftSqlType.int,
+            data['${effectivePrefix}id'],
+          )!,
+      entity:
+          attachedDatabase.typeMapping.read(
+            DriftSqlType.string,
+            data['${effectivePrefix}entity'],
+          )!,
+      entityId:
+          attachedDatabase.typeMapping.read(
+            DriftSqlType.string,
+            data['${effectivePrefix}entity_id'],
+          )!,
+      action:
+          attachedDatabase.typeMapping.read(
+            DriftSqlType.string,
+            data['${effectivePrefix}action'],
+          )!,
+      oldData: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}old_data'],
+      ),
+      newData: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}new_data'],
+      ),
+      timestamp:
+          attachedDatabase.typeMapping.read(
+            DriftSqlType.int,
+            data['${effectivePrefix}timestamp'],
+          )!,
+    );
+  }
+
+  @override
+  $ChangeLogsTable createAlias(String alias) {
+    return $ChangeLogsTable(attachedDatabase, alias);
+  }
+}
+
+class ChangeLog extends DataClass implements Insertable<ChangeLog> {
+  final int id;
+  final String entity;
+  final String entityId;
+  final String action;
+  final String? oldData;
+  final String? newData;
+  final int timestamp;
+  const ChangeLog({
+    required this.id,
+    required this.entity,
+    required this.entityId,
+    required this.action,
+    this.oldData,
+    this.newData,
+    required this.timestamp,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['entity'] = Variable<String>(entity);
+    map['entity_id'] = Variable<String>(entityId);
+    map['action'] = Variable<String>(action);
+    if (!nullToAbsent || oldData != null) {
+      map['old_data'] = Variable<String>(oldData);
+    }
+    if (!nullToAbsent || newData != null) {
+      map['new_data'] = Variable<String>(newData);
+    }
+    map['timestamp'] = Variable<int>(timestamp);
+    return map;
+  }
+
+  ChangeLogsCompanion toCompanion(bool nullToAbsent) {
+    return ChangeLogsCompanion(
+      id: Value(id),
+      entity: Value(entity),
+      entityId: Value(entityId),
+      action: Value(action),
+      oldData:
+          oldData == null && nullToAbsent
+              ? const Value.absent()
+              : Value(oldData),
+      newData:
+          newData == null && nullToAbsent
+              ? const Value.absent()
+              : Value(newData),
+      timestamp: Value(timestamp),
+    );
+  }
+
+  factory ChangeLog.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ChangeLog(
+      id: serializer.fromJson<int>(json['id']),
+      entity: serializer.fromJson<String>(json['entity']),
+      entityId: serializer.fromJson<String>(json['entityId']),
+      action: serializer.fromJson<String>(json['action']),
+      oldData: serializer.fromJson<String?>(json['oldData']),
+      newData: serializer.fromJson<String?>(json['newData']),
+      timestamp: serializer.fromJson<int>(json['timestamp']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'entity': serializer.toJson<String>(entity),
+      'entityId': serializer.toJson<String>(entityId),
+      'action': serializer.toJson<String>(action),
+      'oldData': serializer.toJson<String?>(oldData),
+      'newData': serializer.toJson<String?>(newData),
+      'timestamp': serializer.toJson<int>(timestamp),
+    };
+  }
+
+  ChangeLog copyWith({
+    int? id,
+    String? entity,
+    String? entityId,
+    String? action,
+    Value<String?> oldData = const Value.absent(),
+    Value<String?> newData = const Value.absent(),
+    int? timestamp,
+  }) => ChangeLog(
+    id: id ?? this.id,
+    entity: entity ?? this.entity,
+    entityId: entityId ?? this.entityId,
+    action: action ?? this.action,
+    oldData: oldData.present ? oldData.value : this.oldData,
+    newData: newData.present ? newData.value : this.newData,
+    timestamp: timestamp ?? this.timestamp,
+  );
+  ChangeLog copyWithCompanion(ChangeLogsCompanion data) {
+    return ChangeLog(
+      id: data.id.present ? data.id.value : this.id,
+      entity: data.entity.present ? data.entity.value : this.entity,
+      entityId: data.entityId.present ? data.entityId.value : this.entityId,
+      action: data.action.present ? data.action.value : this.action,
+      oldData: data.oldData.present ? data.oldData.value : this.oldData,
+      newData: data.newData.present ? data.newData.value : this.newData,
+      timestamp: data.timestamp.present ? data.timestamp.value : this.timestamp,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ChangeLog(')
+          ..write('id: $id, ')
+          ..write('entity: $entity, ')
+          ..write('entityId: $entityId, ')
+          ..write('action: $action, ')
+          ..write('oldData: $oldData, ')
+          ..write('newData: $newData, ')
+          ..write('timestamp: $timestamp')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, entity, entityId, action, oldData, newData, timestamp);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ChangeLog &&
+          other.id == this.id &&
+          other.entity == this.entity &&
+          other.entityId == this.entityId &&
+          other.action == this.action &&
+          other.oldData == this.oldData &&
+          other.newData == this.newData &&
+          other.timestamp == this.timestamp);
+}
+
+class ChangeLogsCompanion extends UpdateCompanion<ChangeLog> {
+  final Value<int> id;
+  final Value<String> entity;
+  final Value<String> entityId;
+  final Value<String> action;
+  final Value<String?> oldData;
+  final Value<String?> newData;
+  final Value<int> timestamp;
+  const ChangeLogsCompanion({
+    this.id = const Value.absent(),
+    this.entity = const Value.absent(),
+    this.entityId = const Value.absent(),
+    this.action = const Value.absent(),
+    this.oldData = const Value.absent(),
+    this.newData = const Value.absent(),
+    this.timestamp = const Value.absent(),
+  });
+  ChangeLogsCompanion.insert({
+    this.id = const Value.absent(),
+    required String entity,
+    required String entityId,
+    required String action,
+    this.oldData = const Value.absent(),
+    this.newData = const Value.absent(),
+    required int timestamp,
+  }) : entity = Value(entity),
+       entityId = Value(entityId),
+       action = Value(action),
+       timestamp = Value(timestamp);
+  static Insertable<ChangeLog> custom({
+    Expression<int>? id,
+    Expression<String>? entity,
+    Expression<String>? entityId,
+    Expression<String>? action,
+    Expression<String>? oldData,
+    Expression<String>? newData,
+    Expression<int>? timestamp,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (entity != null) 'entity': entity,
+      if (entityId != null) 'entity_id': entityId,
+      if (action != null) 'action': action,
+      if (oldData != null) 'old_data': oldData,
+      if (newData != null) 'new_data': newData,
+      if (timestamp != null) 'timestamp': timestamp,
+    });
+  }
+
+  ChangeLogsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? entity,
+    Value<String>? entityId,
+    Value<String>? action,
+    Value<String?>? oldData,
+    Value<String?>? newData,
+    Value<int>? timestamp,
+  }) {
+    return ChangeLogsCompanion(
+      id: id ?? this.id,
+      entity: entity ?? this.entity,
+      entityId: entityId ?? this.entityId,
+      action: action ?? this.action,
+      oldData: oldData ?? this.oldData,
+      newData: newData ?? this.newData,
+      timestamp: timestamp ?? this.timestamp,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (entity.present) {
+      map['entity'] = Variable<String>(entity.value);
+    }
+    if (entityId.present) {
+      map['entity_id'] = Variable<String>(entityId.value);
+    }
+    if (action.present) {
+      map['action'] = Variable<String>(action.value);
+    }
+    if (oldData.present) {
+      map['old_data'] = Variable<String>(oldData.value);
+    }
+    if (newData.present) {
+      map['new_data'] = Variable<String>(newData.value);
+    }
+    if (timestamp.present) {
+      map['timestamp'] = Variable<int>(timestamp.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ChangeLogsCompanion(')
+          ..write('id: $id, ')
+          ..write('entity: $entity, ')
+          ..write('entityId: $entityId, ')
+          ..write('action: $action, ')
+          ..write('oldData: $oldData, ')
+          ..write('newData: $newData, ')
+          ..write('timestamp: $timestamp')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$ProjectDatabase extends GeneratedDatabase {
   _$ProjectDatabase(QueryExecutor e) : super(e);
   $ProjectDatabaseManager get managers => $ProjectDatabaseManager(this);
   late final $TracksTable tracks = $TracksTable(this);
   late final $ClipsTable clips = $ClipsTable(this);
   late final $ProjectAssetsTable projectAssets = $ProjectAssetsTable(this);
+  late final $ChangeLogsTable changeLogs = $ChangeLogsTable(this);
   late final ProjectDatabaseTrackDao projectDatabaseTrackDao =
       ProjectDatabaseTrackDao(this as ProjectDatabase);
   late final ProjectDatabaseClipDao projectDatabaseClipDao =
       ProjectDatabaseClipDao(this as ProjectDatabase);
   late final ProjectDatabaseAssetDao projectDatabaseAssetDao =
       ProjectDatabaseAssetDao(this as ProjectDatabase);
+  late final ChangeLogDao changeLogDao = ChangeLogDao(this as ProjectDatabase);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2007,6 +2461,7 @@ abstract class _$ProjectDatabase extends GeneratedDatabase {
     tracks,
     clips,
     projectAssets,
+    changeLogs,
   ];
 }
 
@@ -2973,6 +3428,245 @@ typedef $$ProjectAssetsTableProcessedTableManager =
       ProjectAsset,
       PrefetchHooks Function()
     >;
+typedef $$ChangeLogsTableCreateCompanionBuilder =
+    ChangeLogsCompanion Function({
+      Value<int> id,
+      required String entity,
+      required String entityId,
+      required String action,
+      Value<String?> oldData,
+      Value<String?> newData,
+      required int timestamp,
+    });
+typedef $$ChangeLogsTableUpdateCompanionBuilder =
+    ChangeLogsCompanion Function({
+      Value<int> id,
+      Value<String> entity,
+      Value<String> entityId,
+      Value<String> action,
+      Value<String?> oldData,
+      Value<String?> newData,
+      Value<int> timestamp,
+    });
+
+class $$ChangeLogsTableFilterComposer
+    extends Composer<_$ProjectDatabase, $ChangeLogsTable> {
+  $$ChangeLogsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get entity => $composableBuilder(
+    column: $table.entity,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get entityId => $composableBuilder(
+    column: $table.entityId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get action => $composableBuilder(
+    column: $table.action,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get oldData => $composableBuilder(
+    column: $table.oldData,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get newData => $composableBuilder(
+    column: $table.newData,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get timestamp => $composableBuilder(
+    column: $table.timestamp,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ChangeLogsTableOrderingComposer
+    extends Composer<_$ProjectDatabase, $ChangeLogsTable> {
+  $$ChangeLogsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get entity => $composableBuilder(
+    column: $table.entity,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get entityId => $composableBuilder(
+    column: $table.entityId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get action => $composableBuilder(
+    column: $table.action,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get oldData => $composableBuilder(
+    column: $table.oldData,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get newData => $composableBuilder(
+    column: $table.newData,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get timestamp => $composableBuilder(
+    column: $table.timestamp,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ChangeLogsTableAnnotationComposer
+    extends Composer<_$ProjectDatabase, $ChangeLogsTable> {
+  $$ChangeLogsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get entity =>
+      $composableBuilder(column: $table.entity, builder: (column) => column);
+
+  GeneratedColumn<String> get entityId =>
+      $composableBuilder(column: $table.entityId, builder: (column) => column);
+
+  GeneratedColumn<String> get action =>
+      $composableBuilder(column: $table.action, builder: (column) => column);
+
+  GeneratedColumn<String> get oldData =>
+      $composableBuilder(column: $table.oldData, builder: (column) => column);
+
+  GeneratedColumn<String> get newData =>
+      $composableBuilder(column: $table.newData, builder: (column) => column);
+
+  GeneratedColumn<int> get timestamp =>
+      $composableBuilder(column: $table.timestamp, builder: (column) => column);
+}
+
+class $$ChangeLogsTableTableManager
+    extends
+        RootTableManager<
+          _$ProjectDatabase,
+          $ChangeLogsTable,
+          ChangeLog,
+          $$ChangeLogsTableFilterComposer,
+          $$ChangeLogsTableOrderingComposer,
+          $$ChangeLogsTableAnnotationComposer,
+          $$ChangeLogsTableCreateCompanionBuilder,
+          $$ChangeLogsTableUpdateCompanionBuilder,
+          (
+            ChangeLog,
+            BaseReferences<_$ProjectDatabase, $ChangeLogsTable, ChangeLog>,
+          ),
+          ChangeLog,
+          PrefetchHooks Function()
+        > {
+  $$ChangeLogsTableTableManager(_$ProjectDatabase db, $ChangeLogsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer:
+              () => $$ChangeLogsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer:
+              () => $$ChangeLogsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer:
+              () => $$ChangeLogsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> entity = const Value.absent(),
+                Value<String> entityId = const Value.absent(),
+                Value<String> action = const Value.absent(),
+                Value<String?> oldData = const Value.absent(),
+                Value<String?> newData = const Value.absent(),
+                Value<int> timestamp = const Value.absent(),
+              }) => ChangeLogsCompanion(
+                id: id,
+                entity: entity,
+                entityId: entityId,
+                action: action,
+                oldData: oldData,
+                newData: newData,
+                timestamp: timestamp,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String entity,
+                required String entityId,
+                required String action,
+                Value<String?> oldData = const Value.absent(),
+                Value<String?> newData = const Value.absent(),
+                required int timestamp,
+              }) => ChangeLogsCompanion.insert(
+                id: id,
+                entity: entity,
+                entityId: entityId,
+                action: action,
+                oldData: oldData,
+                newData: newData,
+                timestamp: timestamp,
+              ),
+          withReferenceMapper:
+              (p0) =>
+                  p0
+                      .map(
+                        (e) => (
+                          e.readTable(table),
+                          BaseReferences(db, table, e),
+                        ),
+                      )
+                      .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ChangeLogsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$ProjectDatabase,
+      $ChangeLogsTable,
+      ChangeLog,
+      $$ChangeLogsTableFilterComposer,
+      $$ChangeLogsTableOrderingComposer,
+      $$ChangeLogsTableAnnotationComposer,
+      $$ChangeLogsTableCreateCompanionBuilder,
+      $$ChangeLogsTableUpdateCompanionBuilder,
+      (
+        ChangeLog,
+        BaseReferences<_$ProjectDatabase, $ChangeLogsTable, ChangeLog>,
+      ),
+      ChangeLog,
+      PrefetchHooks Function()
+    >;
 
 class $ProjectDatabaseManager {
   final _$ProjectDatabase _db;
@@ -2983,4 +3677,6 @@ class $ProjectDatabaseManager {
       $$ClipsTableTableManager(_db, _db.clips);
   $$ProjectAssetsTableTableManager get projectAssets =>
       $$ProjectAssetsTableTableManager(_db, _db.projectAssets);
+  $$ChangeLogsTableTableManager get changeLogs =>
+      $$ChangeLogsTableTableManager(_db, _db.changeLogs);
 }

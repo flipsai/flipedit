@@ -7,6 +7,7 @@ import 'package:flipedit/persistence/database/project_database.dart';
 import 'package:flipedit/persistence/database/project_metadata_database.dart';
 import 'package:flipedit/services/project_metadata_service.dart';
 import 'package:flipedit/services/project_database_service.dart';
+import 'package:flipedit/services/undo_redo_service.dart';
 import 'package:flipedit/utils/logger.dart'; // Import logger
 import 'package:flipedit/utils/media_utils.dart'; // Import media utilities
 import 'package:flutter/foundation.dart';
@@ -90,6 +91,13 @@ class ProjectViewModel {
       // Save the loaded project ID if successful
       if (isProjectLoaded) {
         await _prefs.setInt(_lastProjectIdKey, projectId);
+        try {
+          // Initialize undo/redo stacks after project load
+          await di<UndoRedoService>().init();
+          logInfo('ProjectViewModel', 'UndoRedoService initialized');
+        } catch (e) {
+          logError('ProjectViewModel', 'Error initializing UndoRedoService: $e');
+        }
       }
     }
   }

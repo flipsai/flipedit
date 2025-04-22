@@ -12,12 +12,15 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:video_player/video_player.dart';
 import 'package:flipedit/utils/logger.dart' as logger; // Import logger
 import 'package:flipedit/viewmodels/timeline_utils.dart';
+import 'commands/timeline_command.dart';
+import 'package:flipedit/services/undo_redo_service.dart';
 
 class TimelineViewModel {
   // Add a tag for logging within this class
   String get _logTag => runtimeType.toString();
 
   final ProjectDatabaseService _projectDatabaseService;
+  final UndoRedoService _undoRedoService;
 
   final ValueNotifier<List<ClipModel>> clipsNotifier =
       ValueNotifier<List<ClipModel>>([]);
@@ -81,7 +84,31 @@ class TimelineViewModel {
 
   late final VoidCallback _debouncedFrameUpdate;
 
-  TimelineViewModel(this._projectDatabaseService) {
+  /// Executes a timeline command and refreshes undo stack
+  Future<void> runCommand(TimelineCommand cmd) async {
+    await cmd.execute();
+    await _undoRedoService.init();
+  }
+
+  /// Undoes the last operation via service
+  Future<void> undo() async {
+    await _undoRedoService.undo();
+  }
+
+  /// Redoes the last undone operation via service
+  Future<void> redo() async {
+    await _undoRedoService.redo();
+  }
+
+  /// Notifiers for UI binding
+  ValueNotifier<bool> get canUndoNotifier => _undoRedoService.canUndo;
+  ValueNotifier<bool> get canRedoNotifier => _undoRedoService.canRedo;
+
+  // Expose project database for commands
+  ProjectDatabaseService get projectDatabaseService => _projectDatabaseService;
+
+  /// Initializes frame info and debounce
+  TimelineViewModel(this._projectDatabaseService, this._undoRedoService) {
     _recalculateAndUpdateTotalFrames();
 
     _debouncedFrameUpdate = debounce(() {
@@ -258,6 +285,7 @@ class TimelineViewModel {
         await _projectDatabaseService.clipDao!.updateClipFields(
           neighbor.databaseId!,
           {'endTimeInSourceMs': neighbor.startTimeInSourceMs + (newStart - ns)},
+          log: false,
         );
       } else if (ns >= newStart && ns < newEnd && ne > newEnd) {
         // Overlap on left: trim neighbor's start to the intersection
@@ -276,6 +304,7 @@ class TimelineViewModel {
             'startTimeInSourceMs': neighbor.startTimeInSourceMs + (newEnd - ns),
             'startTimeOnTrackMs': newEnd,
           },
+          log: false,
         );
       } else if (ns < newStart && ne > newEnd) {
         // Moved clip is fully inside neighbor: trim neighbor's end to newStart (left part remains)
@@ -290,6 +319,7 @@ class TimelineViewModel {
         await _projectDatabaseService.clipDao!.updateClipFields(
           neighbor.databaseId!,
           {'endTimeInSourceMs': neighbor.startTimeInSourceMs + (newStart - ns)},
+          log: false,
         );
       }
       // NEW CASE: If the left neighbor's end overlaps the new start, trim its end to newStart
@@ -305,6 +335,7 @@ class TimelineViewModel {
         await _projectDatabaseService.clipDao!.updateClipFields(
           neighbor.databaseId!,
           {'endTimeInSourceMs': neighbor.startTimeInSourceMs + (newStart - ns)},
+          log: false,
         );
       }
     }
@@ -377,13 +408,20 @@ class TimelineViewModel {
         changed = true;
       }
       clipsNotifier.value = List<ClipModel>.from(updatedClips);
-      await _projectDatabaseService.clipDao!.updateClipFields(clipId, {
-        'trackId': trackId,
-        'startTimeOnTrackMs': newStart,
-        'startTimeInSourceMs': startTimeInSourceMs,
-        'endTimeInSourceMs': startTimeInSourceMs + (newEnd - newStart),
-        'updatedAt': DateTime.now(),
-      });
+      if (clipId != null) {
+        try {
+          await _projectDatabaseService.clipDao!.updateClipFields(clipId, {
+            'trackId': trackId,
+            'startTimeOnTrackMs': newStart,
+            'startTimeInSourceMs': startTimeInSourceMs,
+            'endTimeInSourceMs': endTimeInSourceMs,
+          });
+          changed = true;
+        } catch (e) {
+          logger.logError('Error saving moved clip: $e', _logTag);
+        }
+      }
+      await _undoRedoService.init();
       await refreshClips();
       logger.logInfo('Moved/resized clip $clipId (auto-trimmed)', _logTag);
       return true;
@@ -811,7 +849,7 @@ class TimelineViewModel {
       if (clipStart >= startMs && clipEnd <= endMs) {
         await removeClip(clip.databaseId!);
       } else if (clipStart < endMs && clipEnd > endMs) {
-        // Overlap on left: trim neighbor's start (neighbor is to the right of the new clip)
+        // Overlap on left: trim neighbor's end (neighbor is to the right of the new clip)
         if (clip.databaseId != null) {
           final neighborClip = clip; // Use a clearer variable name
           final amountToTrimMs =
@@ -844,6 +882,7 @@ class TimelineViewModel {
                 'startTimeOnTrackMs':
                     newStartTimeOnTrackMs, // Update track start time
               },
+              log: false,
             );
             // Log the update
             logger.logDebug(
@@ -866,6 +905,7 @@ class TimelineViewModel {
             'endTimeInSourceMs':
                 clip.startTimeInSourceMs + (startMs - clipStart),
           },
+          log: false,
         );
       } else if (clipStart < endMs && clipEnd > endMs) {
         // Overlap on left: trim neighbor's start
@@ -874,7 +914,8 @@ class TimelineViewModel {
               'startTimeInSourceMs':
                   clip.startTimeInSourceMs + (endMs - clipStart),
               'startTimeOnTrackMs': endMs,
-            });
+            },
+            log: false);
       }
     }
     await refreshClips();

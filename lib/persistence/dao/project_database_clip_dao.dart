@@ -2,11 +2,12 @@ import 'package:drift/drift.dart';
 import 'package:flipedit/persistence/database/project_database.dart';
 import 'package:flipedit/persistence/tables/clips.dart';
 import 'package:flipedit/utils/logger.dart';
+import 'package:flipedit/persistence/change_log_mixin.dart';
 
 part 'project_database_clip_dao.g.dart';
 
 @DriftAccessor(tables: [Clips])
-class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase> with _$ProjectDatabaseClipDaoMixin {
+class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase> with _$ProjectDatabaseClipDaoMixin, ChangeLogMixin {
   ProjectDatabaseClipDao(super.db);
 
   String get _logTag => 'ProjectDatabaseClipDao';
@@ -34,11 +35,18 @@ class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase> with _$Pr
   }
 
   // Insert a new clip
-  Future<int> insertClip(ClipsCompanion clip) {
+  Future<int> insertClip(ClipsCompanion clip) async {
     logInfo(_logTag, "Inserting new clip");
-    // In project-specific database, projectId is not needed
-    // since each project has its own database
-    return into(clips).insert(clip);
+    final id = await into(clips).insert(clip);
+    final newRow = await getClipById(id);
+    await logChange(
+      tableName: 'clips',
+      primaryKey: id.toString(),
+      action: 'insert',
+      oldRow: null,
+      newRow: newRow,
+    );
+    return id;
   }
 
   // Get a clip by ID
@@ -48,45 +56,95 @@ class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase> with _$Pr
   }
 
   // Update a clip
-  Future<bool> updateClip(ClipsCompanion clip) {
-    logInfo(_logTag, "Updating clip ID: ${clip.id.value}");
-    return update(clips).replace(clip);
+  Future<bool> updateClip(ClipsCompanion clip) async {
+    final id = clip.id.value;
+    logInfo(_logTag, "Updating clip ID: $id");
+    final oldRow = await getClipById(id);
+    final success = await update(clips).replace(clip);
+    if (success && oldRow != null) {
+      final newRow = Clip(
+        id: id,
+        trackId: clip.trackId.value!,
+        name: clip.name.value!,
+        type: clip.type.value!,
+        sourcePath: clip.sourcePath.value!,
+        startTimeInSourceMs: clip.startTimeInSourceMs.value!,
+        endTimeInSourceMs: clip.endTimeInSourceMs.value!,
+        startTimeOnTrackMs: clip.startTimeOnTrackMs.value!,
+        metadataJson: clip.metadataJson.present ? clip.metadataJson.value : null,
+        createdAt: clip.createdAt.value!,
+        updatedAt: clip.updatedAt.value!,
+      );
+      await logChange(
+        tableName: 'clips',
+        primaryKey: id.toString(),
+        action: 'update',
+        oldRow: oldRow,
+        newRow: newRow,
+      );
+    }
+    return success;
   }
 
   // Update only specific fields of a clip
-  Future<bool> updateClipFields(int clipId, Map<String, dynamic> fields) async {
-    logInfo(_logTag, "Updating specific fields for clip ID: $clipId - Fields: ${fields.keys.join(', ')}");
+  Future<bool> updateClipFields(int clipId, Map<String, dynamic> fields, {bool log = true}) async {
+    if (log) {
+      logInfo(_logTag, "Updating specific fields for clip ID: $clipId - Fields: ${fields.keys.join(', ')}");
+    }
     
     try {
-      // First, get the current clip
-      final currentClip = await getClipById(clipId);
-      if (currentClip == null) {
-        logError(_logTag, "Cannot update clip $clipId - clip not found");
+      final oldRow = await getClipById(clipId);
+      if (oldRow == null) {
+        if (log) {
+          logError(_logTag, "Cannot update clip $clipId - clip not found");
+        }
         return false;
       }
       
-      // Create a companion with all the current values as a base
       final companion = ClipsCompanion(
         id: Value(clipId),
-        trackId: Value(currentClip.trackId),
-        name: Value(currentClip.name),
-        type: Value(currentClip.type),
-        sourcePath: Value(currentClip.sourcePath),
-        startTimeInSourceMs: Value(currentClip.startTimeInSourceMs),
-        endTimeInSourceMs: Value(currentClip.endTimeInSourceMs),
-        startTimeOnTrackMs: Value(currentClip.startTimeOnTrackMs),
-        metadataJson: currentClip.metadataJson == null ? const Value.absent() : Value(currentClip.metadataJson!),
-        createdAt: Value(currentClip.createdAt),
+        trackId: Value(oldRow.trackId),
+        name: Value(oldRow.name),
+        type: Value(oldRow.type),
+        sourcePath: Value(oldRow.sourcePath),
+        startTimeInSourceMs: Value(oldRow.startTimeInSourceMs),
+        endTimeInSourceMs: Value(oldRow.endTimeInSourceMs),
+        startTimeOnTrackMs: Value(oldRow.startTimeOnTrackMs),
+        metadataJson: oldRow.metadataJson == null ? const Value.absent() : Value(oldRow.metadataJson!),
+        createdAt: Value(oldRow.createdAt),
         updatedAt: Value(DateTime.now()), // Always update the updatedAt timestamp
       );
       
-      // Create a new companion with updated fields
       final updatedCompanion = _applyFieldUpdates(companion, fields);
       
-      // Perform the update
-      return update(clips).replace(updatedCompanion);
+      final success = await update(clips).replace(updatedCompanion);
+      if (success && log) {
+        final newRow = Clip(
+          id: clipId,
+          trackId: updatedCompanion.trackId.value!,
+          name: updatedCompanion.name.value!,
+          type: updatedCompanion.type.value!,
+          sourcePath: updatedCompanion.sourcePath.value!,
+          startTimeInSourceMs: updatedCompanion.startTimeInSourceMs.value!,
+          endTimeInSourceMs: updatedCompanion.endTimeInSourceMs.value!,
+          startTimeOnTrackMs: updatedCompanion.startTimeOnTrackMs.value!,
+          metadataJson: updatedCompanion.metadataJson.present ? updatedCompanion.metadataJson.value : null,
+          createdAt: updatedCompanion.createdAt.value!,
+          updatedAt: updatedCompanion.updatedAt.value!,
+        );
+        await logChange(
+          tableName: 'clips',
+          primaryKey: clipId.toString(),
+          action: 'update',
+          oldRow: oldRow,
+          newRow: newRow,
+        );
+      }
+      return success;
     } catch (e) {
-      logError(_logTag, "Error updating clip fields: $e");
+      if (log) {
+        logError(_logTag, "Error updating clip fields: $e");
+      }
       return false;
     }
   }
@@ -136,9 +194,20 @@ class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase> with _$Pr
   }
 
   // Delete a clip by ID
-  Future<int> deleteClip(int id) {
+  Future<int> deleteClip(int id) async {
     logInfo(_logTag, "Deleting clip ID: $id");
-    return (delete(clips)..where((c) => c.id.equals(id))).go();
+    final oldRow = await getClipById(id);
+    final deleted = await (delete(clips)..where((c) => c.id.equals(id))).go();
+    if (oldRow != null) {
+      await logChange(
+        tableName: 'clips',
+        primaryKey: id.toString(),
+        action: 'delete',
+        oldRow: oldRow,
+        newRow: null,
+      );
+    }
+    return deleted;
   }
 
   // Delete all clips for a track

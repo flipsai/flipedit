@@ -10,6 +10,7 @@ import 'package:flutter/foundation.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:drift/drift.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
+import 'package:flipedit/persistence/dao/change_log_dao.dart';
 
 /// Service for working with per-project databases
 class ProjectDatabaseService {
@@ -243,4 +244,12 @@ class ProjectDatabaseService {
   ProjectDatabaseTrackDao? get trackDao => _trackDao;
   ProjectDatabaseClipDao? get clipDao => _clipDao;
   ProjectDatabaseAssetDao? get assetDao => _assetDao;
+  
+  /// DAO for reading change logs
+  ChangeLogDao get changeLogDao {
+    if (_currentDatabase == null) {
+      throw StateError('No project loaded');
+    }
+    return ChangeLogDao(_currentDatabase!);
+  }
 } 
