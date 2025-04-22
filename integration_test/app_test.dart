@@ -1,233 +1,46 @@
 import 'dart:io';
 
 import 'package:flipedit/app.dart';
-import 'package:flipedit/di/service_locator.dart';
 import 'package:flipedit/persistence/database/project_metadata_database.dart';
 import 'package:flipedit/persistence/dao/project_metadata_dao.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
-import 'package:flipedit/services/project_metadata_service.dart';
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart' as p;
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:watch_it/watch_it.dart';
-import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
-import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:collection/collection.dart';
 
-
-// Helper function to ensure SharedPreferences work in tests
-void setupTestSharedPreferences() {
-  // Set mock initial values for SharedPreferences testing
-  SharedPreferences.setMockInitialValues({});
-}
-
-// --- Mock PathProviderPlatform START ---
-// Use a fake platform implementation to redirect storage paths during tests
-class FakePathProviderPlatform extends Fake
-    with MockPlatformInterfaceMixin
-    implements PathProviderPlatform {
-  final String temporaryPath;
-
-  FakePathProviderPlatform(this.temporaryPath);
-
-  @override
-  Future<String?> getTemporaryPath() async {
-    return temporaryPath;
-  }
-
-  @override
-  Future<String?> getApplicationSupportPath() async {
-    // Point support path to a subdirectory within the temp path
-    final supportPath = p.join(temporaryPath, 'support');
-    await Directory(supportPath).create(recursive: true);
-    return supportPath;
-  }
-
-  @override
-  Future<String?> getApplicationDocumentsPath() async {
-    // Point documents path (where databases are stored) to a subdirectory
-    final docsPath = p.join(temporaryPath, 'documents');
-    await Directory(docsPath).create(recursive: true);
-    return docsPath;
-  }
-
-  // Implement other paths as needed, pointing them to the temp directory
-  @override
-  Future<String?> getLibraryPath() async {
-    final libPath = p.join(temporaryPath, 'library');
-    await Directory(libPath).create(recursive: true);
-    return libPath;
-  }
-
-  @override
-  Future<String?> getExternalStoragePath() async {
-    final externalPath = p.join(temporaryPath, 'external');
-    await Directory(externalPath).create(recursive: true);
-    return externalPath;
-  }
-
-  @override
-  Future<List<String>?> getExternalCachePaths() async {
-     final cachePath = p.join(temporaryPath, 'cache');
-     await Directory(cachePath).create(recursive: true);
-     return [cachePath];
-  }
-
-   @override
-   Future<List<String>?> getExternalStoragePaths({
-     StorageDirectory? type,
-   }) async {
-     final storagePath = p.join(temporaryPath, 'storage', type?.toString() ?? 'default');
-     await Directory(storagePath).create(recursive: true);
-     return [storagePath];
-   }
-
-  @override
-  Future<String?> getDownloadsPath() async {
-    final downloadsPath = p.join(temporaryPath, 'downloads');
-    await Directory(downloadsPath).create(recursive: true);
-    return downloadsPath;
-  }
-}
-// --- Mock PathProviderPlatform END ---
-
-
-// Helper function for DI setup - now uses the correct function
-Future<void> setupDependencyInjection() async {
-  // Ensure SharedPreferences are mocked before DI setup uses them
-  setupTestSharedPreferences();
-  // Call the correct DI setup function from its file
-  await setupServiceLocator();
-}
-
-// Function to clean up databases and DI before/after tests
-Future<void> cleanupState() async {
-  print('--- Starting Cleanup ---');
-  try {
-    // Close any active project in services that hold state
-     try {
-       // Check registration before accessing to avoid errors if DI was reset improperly
-       if (di.isRegistered<ProjectViewModel>()) {
-         // final projectVm = di<ProjectViewModel>();
-         // projectVm.resetState(); // Add a reset method if possible
-         print('Checked ProjectViewModel registration.');
-       }
-        if (di.isRegistered<ProjectMetadataService>()) {
-          final metaService = di<ProjectMetadataService>();
-          await metaService.closeProject(); // Close any open project DB connection
-           print('Closed current project database in ProjectMetadataService.');
-        } else {
-           print('ProjectMetadataService not registered during cleanup.');
-        }
-        if (di.isRegistered<ProjectDatabaseService>()) {
-           final dbService = di<ProjectDatabaseService>();
-           await dbService.closeCurrentProject(); // Ensure this service is also reset
-           print('Closed current project in ProjectDatabaseService.');
-         } else {
-           print('ProjectDatabaseService not registered during cleanup.');
-         }
-     } catch (e) {
-       print('Error during service state cleanup: $e');
-     }
-
-
-    // Delete database files
-    final dbFolder = await getApplicationDocumentsDirectory();
-    final metadataDbFile = File(p.join(dbFolder.path, 'flipedit_projects_metadata.sqlite'));
-    if (await metadataDbFile.exists()) {
-       try {
-        await metadataDbFile.delete();
-        print('Deleted metadata DB: ${metadataDbFile.path}');
-       } catch (e) {
-          print('Failed to delete metadata DB ${metadataDbFile.path}: $e');
-       }
-    }
-    // Delete project-specific databases
-    final dir = Directory(dbFolder.path);
-    if (await dir.exists()) {
-        final entities = dir.listSync();
-        for (var entity in entities) {
-          if (entity is File && entity.path.contains('flipedit_project_') && entity.path.endsWith('.sqlite')) {
-             try {
-               await entity.delete();
-               print('Deleted project DB: ${entity.path}');
-             } catch(e) {
-               print('Failed to delete project DB ${entity.path}: $e');
-             }
-          }
-        }
-    }
-
-
-     // Reset the DI container to ensure a clean slate for dependencies
-     print('Resetting DI container...');
-      // Check if reset is available and use it, otherwise re-setup might be the only way
-     await di.reset(dispose: true); // Assuming WatchIt supports this
-
-
-     // Re-initialize essential services for the next test
-     print('Re-initializing dependencies...');
-     await setupDependencyInjection(); // This now calls setupServiceLocator
-     print('--- Cleanup Complete ---');
-
-  } catch (e) {
-    print('Error during cleanup: $e');
-     // It might be better to not rethrow here, to allow other tests to run
-     // rethrow;
-  }
-}
+// Import the common setup file
+import 'common_test_setup.dart';
 
 void main() {
   // Ensure binding is initialized
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  // Temporary directory for this test run
+  // Temporary directory for this test run - now managed by common setup
   late Directory testTempDir;
+  // Use late initialization for the path string
+  late String testTempDirPath;
 
+  // Use common setUpAll
   setUpAll(() async {
-    print('Running setUpAll...');
-    // 1. Create a temporary directory for this test run
-    testTempDir = await Directory.systemTemp.createTemp('flipedit_test_');
-    print('Using temporary directory for tests: ${testTempDir.path}');
-
-    // 2. Set the mock PathProviderPlatform BEFORE anything else that might use paths
-    PathProviderPlatform.instance = FakePathProviderPlatform(testTempDir.path);
-    print('Mock PathProviderPlatform set.');
-
-    // 3. Clean up state thoroughly before any tests run (will now use the temp dir)
-    await cleanupState(); // Should run after mock is set
-    // 4. Setup DI (will also use the temp dir now)
-    // await setupDependencyInjection(); // cleanupState already calls this
-    print('setUpAll complete.');
+    testTempDir = await commonSetUpAll();
+    testTempDirPath = testTempDir.path; // Store the path string
   });
 
+  // Use common tearDown
    tearDown(() async {
-     print('Running tearDown...');
-     // Clean up after each test to isolate them
-     await cleanupState();
-     print('tearDown complete.');
+     // Pass the temp directory path string to common tearDown
+     await commonTearDown(testTempDirPath);
    });
 
-  // Add tearDownAll to clean up the temporary directory
+  // Use common tearDownAll
   tearDownAll(() async {
-    print('Running tearDownAll...');
-    try {
-      if (await testTempDir.exists()) {
-        print('Deleting temporary directory: ${testTempDir.path}');
-        await testTempDir.delete(recursive: true);
-        print('Temporary directory deleted.');
-      }
-    } catch (e) {
-      print('Error deleting temporary directory ${testTempDir.path}: $e');
-    }
-    // Reset the mock (optional, but good practice)
-    // PathProviderPlatform.instance = null; // Removed due to linter error
-    print('tearDownAll complete.');
+     // Pass the temp Directory object to common tearDownAll
+    await commonTearDownAll(testTempDir);
   });
 
+  // --- Test Cases Start Here ---
 
   testWidgets('Create new project test', (WidgetTester tester) async {
     print('--- Starting Test: Create new project test ---');
@@ -290,9 +103,6 @@ void main() {
     
     // Pump and settle again
     await tester.pumpAndSettle(const Duration(seconds: 1));
-
-    // Assert: Check if the project metadata exists in the DAO
-    final createdProject = await metadataDao.getProjectMetadataById(projectId);
 
 
     // Assert: Verify project creation
