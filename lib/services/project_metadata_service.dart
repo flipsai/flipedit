@@ -18,9 +18,6 @@ class ProjectMetadataService {
   /// Notifier for the current project metadata
   final ValueNotifier<ProjectMetadata?> currentProjectMetadataNotifier = ValueNotifier(null);
   
-  /// The current active project database
-  ProjectDatabase? _currentProjectDatabase;
-  
   /// Stream of all project metadata
   Stream<List<ProjectMetadata>> watchAllProjectsMetadata() {
     return _projectMetadataDao.watchAllProjects();
@@ -91,64 +88,12 @@ class ProjectMetadataService {
     }
   }
   
-  /// Gets the active project database or opens it if needed
-  Future<ProjectDatabase> getOrOpenProjectDatabase(ProjectMetadata projectMetadata) async {
-    // If we already have the database open and it's the right one, return it
-    if (_currentProjectDatabase != null && 
-        currentProjectMetadataNotifier.value?.id == projectMetadata.id) {
-      return _currentProjectDatabase!;
-    }
-    
-    // Close any currently open database
-    await closeCurrentDatabase();
-    
-    // Open the requested database
-    _currentProjectDatabase = ProjectDatabase(projectMetadata.databasePath);
-    currentProjectMetadataNotifier.value = projectMetadata;
-    
-    logInfo(_logTag, "Opened project database: ${projectMetadata.name}");
-    return _currentProjectDatabase!;
-  }
-  
-  /// Closes the currently open project database
-  Future<void> closeCurrentDatabase() async {
-    if (_currentProjectDatabase != null) {
-      await _currentProjectDatabase!.closeConnection();
-      _currentProjectDatabase = null;
-      logInfo(_logTag, "Closed current project database connection");
-    }
-  }
-  
-  /// Loads a project metadata by ID and opens its database
-  Future<ProjectDatabase?> loadProject(int projectId) async {
-    try {
-      final projectMetadata = await _projectMetadataDao.getProjectMetadataById(projectId);
-      
-      if (projectMetadata == null) {
-        logWarning(_logTag, "Failed to load project metadata with ID: $projectId");
-        currentProjectMetadataNotifier.value = null;
-        await closeCurrentDatabase();
-        return null;
-      }
-      
-      // Open the project database
-      final projectDb = await getOrOpenProjectDatabase(projectMetadata);
-      logInfo(_logTag, "Loaded project: ${projectMetadata.name}");
-      
-      return projectDb;
-    } catch (e) {
-      logError(_logTag, "Error loading project: $e");
-      currentProjectMetadataNotifier.value = null;
-      await closeCurrentDatabase();
-      return null;
-    }
-  }
-  
-  /// Closes the current project
+  /// Closes the current project by clearing the metadata notifier.
+  /// Database connection is managed elsewhere (e.g., LoadProjectCommand or relevant services).
   Future<void> closeProject() async {
-    await closeCurrentDatabase();
+    // Only clear the notifier now
     currentProjectMetadataNotifier.value = null;
-    logInfo(_logTag, "Closed current project");
+    logInfo(_logTag, "Closed current project (cleared metadata notifier)");
   }
   
   /// Deletes a project metadata and its database file

@@ -117,7 +117,7 @@ Future<void> cleanupState() async {
        }
         if (di.isRegistered<ProjectMetadataService>()) {
           final metaService = di<ProjectMetadataService>();
-          await metaService.closeCurrentDatabase(); // Close any open project DB connection
+          await metaService.closeProject(); // Close any open project DB connection
            print('Closed current project database in ProjectMetadataService.');
         } else {
            print('ProjectMetadataService not registered during cleanup.');
@@ -269,32 +269,30 @@ void main() {
     print('Initial project count: $initialProjectCount');
 
 
-    // Act: Simulate creating a new project by directly calling the ViewModel command
-    const newProjectName = 'My Test Project';
-    print('Calling createNewProjectCommand with name: "$newProjectName"'); // Fixed unterminated string
+    // Act: Use the ProjectViewModel to create a project
+    print('Attempting to create project...');
+    // Rename createNewProjectCommand to createNewProject and use positional argument
+    final projectId = await projectVm.createNewProject('Test Project 1');
+    print('Create project call returned ID: $projectId');
 
-    int? newProjectId;
-    try {
-      // Ensure projectVm is initialized before calling methods on it
-      newProjectId = await projectVm.createNewProjectCommand(newProjectName);
-      print('createNewProjectCommand completed, got ID: $newProjectId');
-      if (newProjectId == null) {
-         fail('createNewProjectCommand returned null ID');
-      }
+    // Expect a non-null project ID
+    expect(projectId, isNotNull);
+    expect(projectId, greaterThan(0));
 
-      print('Loading the newly created project (ID: $newProjectId)...');
-      await projectVm.loadProjectCommand(newProjectId);
-      print('loadProjectCommand completed.');
+    // Pump and settle to allow any UI updates or async operations
+    await tester.pumpAndSettle(const Duration(seconds: 1));
 
-      // Wait for UI updates and any async operations triggered by loading
-      print('Waiting for app to settle after project load...');
-      await tester.pumpAndSettle(const Duration(seconds: 3)); // Allow time for loading state changes
-       print('App settled after load.');
+    // Optional: Load the project to verify further (replace loadProjectCommand with loadProject)
+    print('Attempting to load created project...');
+    // Use await with loadProject
+    await projectVm.loadProject(projectId);
+    print('Load project call completed.');
+    
+    // Pump and settle again
+    await tester.pumpAndSettle(const Duration(seconds: 1));
 
-    } catch (e, stackTrace) {
-       print('Error during project creation/loading: $e\n$stackTrace');
-       fail('Failed during project creation or loading step: $e');
-    }
+    // Assert: Check if the project metadata exists in the DAO
+    final createdProject = await metadataDao.getProjectMetadataById(projectId);
 
 
     // Assert: Verify project creation
@@ -312,16 +310,16 @@ void main() {
     ProjectMetadata? createdProjectMetadata;
     try {
        // Use firstWhereOrNull for safer lookup (needs collection package import)
-       createdProjectMetadata = finalProjects.firstWhereOrNull((p) => p.id == newProjectId);
+       createdProjectMetadata = finalProjects.firstWhereOrNull((p) => p.id == projectId);
     } catch (e) {
       print("Error finding project in final list: $e");
       // Don't assign null here, let the expect handle it.
     }
 
-     expect(createdProjectMetadata, isNotNull, reason: 'Project metadata with ID $newProjectId should exist in the final list.');
+     expect(createdProjectMetadata, isNotNull, reason: 'Project metadata with ID $projectId should exist in the final list.');
      // Only access fields if not null
      if (createdProjectMetadata != null) {
-        expect(createdProjectMetadata.name, newProjectName, reason: 'Project metadata name should match.');
+        expect(createdProjectMetadata.name, 'Test Project 1', reason: 'Project metadata name should match.');
         print('Verified project in metadata: ${createdProjectMetadata.name} (ID: ${createdProjectMetadata.id}) Path: ${createdProjectMetadata.databasePath}');
      }
 

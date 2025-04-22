@@ -40,16 +40,25 @@ class ProjectDatabaseService {
       // First close any open project
       await closeCurrentProject();
       
-      // Load the project database using the metadata service
-      final database = await _metadataService.loadProject(projectId);
-      if (database == null) {
-        logError(_logTag, "Failed to load project database for ID: $projectId");
+      // Get the current project metadata from the metadata service
+      final currentMetadata = _metadataService.currentProjectMetadataNotifier.value;
+      
+      // Verify the metadata is for the requested project ID
+      if (currentMetadata == null || currentMetadata.id != projectId) {
+        logError(_logTag, "Metadata mismatch: Cannot load database for project $projectId. Expected metadata for this ID.");
+        // Optionally, try to fetch the metadata again, but LoadProjectCommand should have set it.
+        // For now, fail the load.
         return false;
       }
       
-      _currentDatabase = database;
+      // Get the database path from the metadata
+      final databasePath = currentMetadata.databasePath;
+      logInfo(_logTag, "Opening project database at path: $databasePath for ID: $projectId");
       
-      // Initialize DAOs
+      // Open the database connection
+      _currentDatabase = ProjectDatabase(databasePath);
+      
+      // Initialize DAOs with the new database connection
       _trackDao = ProjectDatabaseTrackDao(_currentDatabase!);
       _clipDao = ProjectDatabaseClipDao(_currentDatabase!);
       _assetDao = ProjectDatabaseAssetDao(_currentDatabase!);
