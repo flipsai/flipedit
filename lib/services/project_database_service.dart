@@ -19,7 +19,7 @@ class ProjectDatabaseService {
   final ProjectMetadataService _metadataService = di<ProjectMetadataService>();
   
   // The current active project database
-  ProjectDatabase? _currentDatabase;
+  ProjectDatabase? currentDatabase;
   
   // The current active DAOs
   ProjectDatabaseTrackDao? _trackDao;
@@ -56,12 +56,12 @@ class ProjectDatabaseService {
       logInfo(_logTag, "Opening project database at path: $databasePath for ID: $projectId");
       
       // Open the database connection
-      _currentDatabase = ProjectDatabase(databasePath);
+      currentDatabase = ProjectDatabase(databasePath);
       
       // Initialize DAOs with the new database connection
-      _trackDao = ProjectDatabaseTrackDao(_currentDatabase!);
-      _clipDao = ProjectDatabaseClipDao(_currentDatabase!);
-      _assetDao = ProjectDatabaseAssetDao(_currentDatabase!);
+      _trackDao = ProjectDatabaseTrackDao(currentDatabase!);
+      _clipDao = ProjectDatabaseClipDao(currentDatabase!);
+      _assetDao = ProjectDatabaseAssetDao(currentDatabase!);
       
       // Start watching tracks
       _tracksSubscription = _trackDao!.watchAllTracks().listen((tracks) {
@@ -102,9 +102,9 @@ class ProjectDatabaseService {
     assetsNotifier.value = [];
     
     // Close database
-    if (_currentDatabase != null) {
-      await _currentDatabase!.closeConnection();
-      _currentDatabase = null;
+    if (currentDatabase != null) {
+      await currentDatabase!.closeConnection();
+      currentDatabase = null;
       _trackDao = null;
       _clipDao = null;
       _assetDao = null;
@@ -119,7 +119,7 @@ class ProjectDatabaseService {
     String? name,
     int? order,
   }) async {
-    if (_trackDao == null || _currentDatabase == null) {
+    if (_trackDao == null || currentDatabase == null) {
       logError(_logTag, "Cannot add track: No project loaded");
       return null;
     }
@@ -153,7 +153,7 @@ class ProjectDatabaseService {
     double? fileSize,
     String? thumbnailPath,
   }) async {
-    if (_assetDao == null || _currentDatabase == null) {
+    if (_assetDao == null || currentDatabase == null) {
       logError(_logTag, "Cannot import asset: No project loaded");
       return null;
     }
@@ -168,8 +168,16 @@ class ProjectDatabaseService {
         fileSize: fileSize,
         thumbnailPath: thumbnailPath,
       );
-      
-      logInfo(_logTag, "Imported asset with ID: $assetId");
+
+      // Manually refresh the assets notifier after successful import
+      if (assetId != null) {
+        final updatedAssets = await _assetDao!.getAllAssets(); // Fetch the updated list
+        assetsNotifier.value = updatedAssets; // Update the notifier
+        logInfo(_logTag, "Imported asset with ID: $assetId and refreshed notifier.");
+      } else {
+         logWarning(_logTag, "Asset import returned null ID.");
+      }
+
       return assetId;
     } catch (e) {
       logError(_logTag, "Error importing asset: $e");
@@ -256,9 +264,9 @@ class ProjectDatabaseService {
   
   /// DAO for reading change logs
   ChangeLogDao get changeLogDao {
-    if (_currentDatabase == null) {
+    if (currentDatabase == null) {
       throw StateError('No project loaded');
     }
-    return ChangeLogDao(_currentDatabase!);
+    return ChangeLogDao(currentDatabase!);
   }
 } 

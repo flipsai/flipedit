@@ -8,6 +8,7 @@ import 'package:watch_it/watch_it.dart';
 import 'package:flutter/widgets.dart' as fw;
 import "dart:developer" as developer;
 import 'painters/track_background_painter.dart';
+import 'package:flipedit/viewmodels/commands/roll_edit_command.dart';
 
 class TimelineTrack extends StatefulWidget with WatchItStatefulWidgetMixin {
   final Track track;
@@ -136,20 +137,21 @@ class _TimelineTrackState extends State<TimelineTrack> {
     }
   }
 
-  Future<void> _handleClipDrop(ClipModel draggedClip, int frameForPreview, double zoom, double trackHeight) async {
+  Future<void> _handleClipDrop(ClipModel draggedClip, int startTimeOnTrackMs) async {
     final timelineVm = di<TimelineViewModel>();
-      // Compute the start time in source and on track
+      // Compute the start time in source
       final startTimeInSourceMs = draggedClip.startTimeInSourceMs;
       final endTimeInSourceMs = draggedClip.endTimeInSourceMs;
-      // Insert into DB and refresh timeline
-      await timelineVm.addClipAtPosition(
-        clipData: draggedClip,
+      // Use placeClipOnTrack which accepts the start time
+      await timelineVm.placeClipOnTrack(
         trackId: widget.track.id,
+        type: draggedClip.type,
+        sourcePath: draggedClip.sourcePath,
+        startTimeOnTrackMs: startTimeOnTrackMs, // Use the calculated start time
         startTimeInSourceMs: startTimeInSourceMs,
         endTimeInSourceMs: endTimeInSourceMs,
-        // Optionally pass pixel/scroll info if available
       );
-      // No need to do anything else: refreshClips will update UI
+      // ViewModel handles updates, no explicit refresh needed here
   }
 
   @override
@@ -256,7 +258,8 @@ class _TimelineTrackState extends State<TimelineTrack> {
                   '📏 Position metrics: local=$posX, scroll=$scrollOffsetX, frame=$framePosition, ms=$framePositionMs',
                   name: 'TimelineTrack'
                 );
-                await _handleClipDrop(draggedClip, framePosition, zoom, trackHeight);
+                // Pass the calculated milliseconds value
+                await _handleClipDrop(draggedClip, framePositionMs.toInt());
                 _updateHoverPosition(null);
               },
               onWillAcceptWithDetails: (details) {
@@ -543,11 +546,15 @@ class _RollEditHandleState extends State<_RollEditHandle> {
         final pixelsPerFrame = 5.0 * widget.zoom;
         final frameDelta = ((details.globalPosition.dx - _startX) / pixelsPerFrame).round();
         final newBoundary = _startFrame + frameDelta;
-        await di<TimelineViewModel>().rollEditClips(
+        final timelineVm = di<TimelineViewModel>();
+        final cmd = RollEditCommand(
+          vm: timelineVm,
           leftClipId: widget.leftClipId,
           rightClipId: widget.rightClipId,
           newBoundaryFrame: newBoundary,
         );
+        // Don't await UI updates, run command asynchronously
+        timelineVm.runCommand(cmd);
       },
       onHorizontalDragEnd: (_) {
         _startX = 0;

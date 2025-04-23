@@ -7,6 +7,8 @@ import 'package:watch_it/watch_it.dart';
 import 'painters/video_frames_painter.dart';
 import 'painters/image_grid_painter.dart';
 import 'painters/text_lines_painter.dart';
+import 'package:flipedit/viewmodels/commands/move_clip_command.dart';
+import 'package:flipedit/viewmodels/commands/remove_clip_command.dart';
 import 'painters/effect_pattern_painter.dart';
 import 'painters/audio_waveform_painter.dart';
 
@@ -149,11 +151,14 @@ class _TimelineClipState extends State<TimelineClip> {
             if (_originalStartFrame != _currentDragFrame) {
               if (widget.clip.databaseId != null) {
                 final newStartTimeMs = ClipModel.framesToMs(_currentDragFrame);
-                di<TimelineViewModel>().moveClip(
+                final cmd = MoveClipCommand(
+                  vm: di<TimelineViewModel>(), // Pass the ViewModel instance
                   clipId: widget.clip.databaseId!,
                   newTrackId: widget.clip.trackId, // If supporting cross-track drag, update this
                   newStartTimeOnTrackMs: newStartTimeMs,
                 );
+                // Execute the command via the ViewModel
+                di<TimelineViewModel>().runCommand(cmd);
               }
             }
             setState(() {
@@ -542,7 +547,11 @@ class _TimelineClipState extends State<TimelineClip> {
           text: const Text('Remove'),
           onPressed: () {
             if (widget.clip.databaseId != null) {
-              timelineVm.removeClip(widget.clip.databaseId!);
+              final cmd = RemoveClipCommand(
+                vm: timelineVm,
+                clipId: widget.clip.databaseId!,
+              );
+              timelineVm.runCommand(cmd);
             }
             Flyout.of(context).close();
           },
