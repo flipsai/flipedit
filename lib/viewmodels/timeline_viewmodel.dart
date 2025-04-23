@@ -86,6 +86,7 @@ class TimelineViewModel {
 
   Timer? _playbackTimer;
   StreamSubscription? _controllerPositionSubscription;
+
   StreamSubscription? _clipStreamSubscription;
 
   late final VoidCallback _debouncedFrameUpdate;
@@ -404,6 +405,7 @@ class TimelineViewModel {
       changed = true;
       // Update the notifier optimistically. The database stream will handle the definitive update.
       clipsNotifier.value = List<ClipModel>.from(updatedClips);
+      recalculateAndUpdateTotalFrames(); // Recalculate after optimistic add
       // await refreshClips(); // Removed immediate refresh - rely on stream
       logger.logInfo(
         'Added new clip with ID $newClipId (optimistic update)',
@@ -423,6 +425,7 @@ class TimelineViewModel {
         changed = true;
       }
       clipsNotifier.value = List<ClipModel>.from(updatedClips);
+      recalculateAndUpdateTotalFrames(); // Recalculate after optimistic update
       if (clipId != null) {
         try {
           await _projectDatabaseService.clipDao!.updateClipFields(clipId, {

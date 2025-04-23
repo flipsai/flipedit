@@ -258,12 +258,10 @@ class _TimelineTrackState extends State<TimelineTrack> {
                   '📏 Position metrics: local=$posX, scroll=$scrollOffsetX, frame=$framePosition, ms=$framePositionMs',
                   name: 'TimelineTrack'
                 );
-                // Pass the calculated milliseconds value
                 await _handleClipDrop(draggedClip, framePositionMs.toInt());
                 _updateHoverPosition(null);
               },
               onWillAcceptWithDetails: (details) {
-                // Log fewer messages to reduce noise
                 final RenderBox? renderBox =
                     _trackContentKey.currentContext?.findRenderObject() as RenderBox?;
                 if (renderBox != null) {
@@ -286,7 +284,7 @@ class _TimelineTrackState extends State<TimelineTrack> {
               builder: (context, candidateData, rejectedData) {
                 int frameForPreview = -1;
                 final currentHoverPos = _hoverPositionNotifier.value;
-                
+
                 if (currentHoverPos != null && candidateData.isNotEmpty) {
                   frameForPreview = _calculateFramePositionForPreview(currentHoverPos.dx, zoom);
                 }
@@ -304,7 +302,7 @@ class _TimelineTrackState extends State<TimelineTrack> {
                     children: [
                       // Background grid with frame markings
                       Positioned.fill(child: _TrackBackground(zoom: zoom)),
-                      
+
                       // Display existing clips on this track, or preview if dragging
                       if (candidateData.isNotEmpty && frameForPreview >= 0)
                         ..._getPreviewClips(candidateData.first!, frameForPreview, zoom, trackHeight)
@@ -324,7 +322,7 @@ class _TimelineTrackState extends State<TimelineTrack> {
                             ),
                           );
                         }),
-                      
+
                       // Show preview for where the clip will be placed when dragging
                       if (frameForPreview >= 0)
                         _DragPreview(
@@ -581,3 +579,4 @@ class _RollEditHandleState extends State<_RollEditHandle> {
     );
   }
 }
+
