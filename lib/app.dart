@@ -33,11 +33,12 @@ class FlipEditApp extends fluent.StatelessWidget with WatchItMixin {
       windowManager.setTitle(windowTitle);
     });
 
-    // Determine the root widget based on Platform
-    Widget homeWidget; 
+    // Determine the root widget based on Platform and test mode
+    Widget homeWidget;
+    const bool isTestMode = bool.fromEnvironment('TEST_MODE');
 
-    if (Platform.isMacOS || Platform.isWindows) {
-      // --- macOS / Windows: Use PlatformAppMenuBar --- 
+    if ((Platform.isMacOS || Platform.isWindows) && !isTestMode) {
+      // --- macOS / Windows (Non-Test): Use PlatformAppMenuBar ---
       homeWidget = PlatformAppMenuBar(
         editorVm: editorVm,
         projectVm: projectVm,
