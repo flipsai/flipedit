@@ -218,36 +218,35 @@ class Timeline extends StatelessWidget with WatchItMixin {
                                     child: Container(color: playheadColor), // Simple container as the playhead line
                                   );
                                 }
-                              )
+                              ),
+
+                              Positioned(
+                                top: 0,
+                                bottom: 0,
+                                left: trackLabelWidth - 3, // Position based on label width
+                                width: 6,
+                                child: GestureDetector(
+                                  onHorizontalDragUpdate: (DragUpdateDetails details) {
+                                    // Update width via ViewModel
+                                    timelineViewModel.updateTrackLabelWidth(
+                                      trackLabelWidth + details.delta.dx,
+                                    );
+                                  },
+                                  child: MouseRegion(
+                                    cursor: SystemMouseCursors.resizeLeftRight,
+                                    child: Container(
+                                      color: theme.resources.subtleFillColorSecondary,
+                                      alignment: Alignment.center,
+                                      child: Container(
+                                        width: 1.5,
+                                        color: theme.resources.controlStrokeColorDefault,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
                           ],
                         ),
-                        ),
-                      ),
-
-                      // Splitter - Positioned in the Outer Stack as a static separator
-                      Positioned(
-                        top: 0,
-                        bottom: 0,
-                        left: trackLabelWidth - 3, // Position based on label width
-                        width: 6,
-                        child: GestureDetector(
-                          onHorizontalDragUpdate: (DragUpdateDetails details) {
-                            // Update width via ViewModel
-                            timelineViewModel.updateTrackLabelWidth(
-                              trackLabelWidth + details.delta.dx,
-                            );
-                          },
-                          child: MouseRegion(
-                            cursor: SystemMouseCursors.resizeLeftRight,
-                            child: Container(
-                              color: theme.resources.subtleFillColorSecondary,
-                              alignment: Alignment.center,
-                              child: Container(
-                                width: 1.5,
-                                color: theme.resources.controlStrokeColorDefault,
-                              ),
-                            ),
-                          ),
                         ),
                       ),
                     ],
