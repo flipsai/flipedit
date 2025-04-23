@@ -68,11 +68,14 @@ class _TimelineTrackState extends State<TimelineTrack> {
   @override
   void didUpdateWidget(covariant TimelineTrack oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // If the track name changes from the parent widget AND we are not currently editing,
+    // update the text controller to reflect the external change.
     if (widget.track.name != oldWidget.track.name && !_isEditing) {
+      developer.log('Track name updated externally from "${oldWidget.track.name}" to "${widget.track.name}"');
       _textController.text = widget.track.name;
     }
   }
-
+ 
   void _enterEditingMode() {
     setState(() {
       _isEditing = true;
@@ -88,15 +91,28 @@ class _TimelineTrackState extends State<TimelineTrack> {
   }
 
   void _submitRename() {
-    developer.log('Attempting to submit rename...');
+    developer.log('Attempting to submit rename for track ${widget.track.id}...');
     final newName = _textController.text.trim();
     if (mounted && _isEditing) {
        developer.log('Mounted and isEditing: true. New name: "$newName"');
-       if (newName.isNotEmpty && newName != widget.track.name) {
+       final oldName = widget.track.name; // Store old name
+       if (newName.isNotEmpty && newName != oldName) {
         developer.log('New name is valid. Calling databaseService.updateTrackName...');
-        _databaseService.updateTrackName(widget.track.id, newName);
-       } else {
-         developer.log('New name is empty or same as old name. Not saving.');
+
+        // Call the database update asynchronously
+        _databaseService.updateTrackName(widget.track.id, newName).then((success) {
+          if (success) {
+            developer.log('✅ Database update reported SUCCESS for track ${widget.track.id}. Waiting for stream update...');
+            // The watchAllTracks stream should handle the UI update eventually by rebuilding the parent.
+          } else {
+            // If updateTrack returns false
+            developer.log('⚠️ Database update reported FAILURE (returned false) for track ${widget.track.id}. Name remains "$oldName".');
+          }
+        }).catchError((error) {
+           // If updateTrack throws an exception
+           developer.log('❌ Database update threw an ERROR for track ${widget.track.id}: $error');
+        });
+
        }
        setState(() {
          _isEditing = false;
