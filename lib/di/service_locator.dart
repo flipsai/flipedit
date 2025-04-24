@@ -46,7 +46,7 @@ Future<void> setupServiceLocator() async {
   di.registerLazySingleton<AppViewModel>(() => AppViewModel());
   di.registerLazySingleton<ProjectViewModel>(() => ProjectViewModel(prefs: di<SharedPreferences>()));
   di.registerLazySingleton<EditorViewModel>(() => EditorViewModel());
-  
+
   // Update TimelineViewModel to use ProjectDatabaseService
-  di.registerSingleton<TimelineViewModel>(TimelineViewModel(di<ProjectDatabaseService>(), di<UndoRedoService>()));
+  di.registerSingleton<TimelineViewModel>(TimelineViewModel(di<ProjectDatabaseService>(), di<UndoRedoService>(), di<VideoPlayerManager>()));
 }
