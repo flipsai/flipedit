@@ -29,9 +29,16 @@ class ProjectDatabaseTrackDao extends DatabaseAccessor<ProjectDatabase> with _$P
     return (select(tracks)..where((t) => t.id.equals(id))).getSingleOrNull();
   }
 
-  // Update a track
-  Future<bool> updateTrack(TracksCompanion track) {
-    return update(tracks).replace(track);
+  // Update specific fields of a track (e.g., name, updatedAt)
+  // Returns the number of rows affected (usually 1 if successful, 0 if not found)
+  Future<int> updateTrack(TracksCompanion track) {
+    // Use update().write() to only update the fields present in the companion
+    // Ensure the companion has the primary key (id) set for the where clause
+    if (track.id == const Value.absent()) { // Use Value directly from drift import
+      throw ArgumentError('Track ID must be provided in the companion for update');
+    }
+    return (update(tracks)..where((t) => t.id.equals(track.id.value)))
+           .write(track); // Returns Future<int>
   }
 
   // Delete a track by ID

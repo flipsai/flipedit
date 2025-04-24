@@ -264,9 +264,6 @@ class _PlatformAppMenuBarState extends State<PlatformAppMenuBar> {
   @override
   Widget build(BuildContext context) {
     final bool isProjectLoaded = widget.projectVm.isProjectLoadedNotifier.value;
-    final bool isInspectorVisible = widget.editorVm.isInspectorVisibleNotifier.value;
-    final bool isTimelineVisible = widget.editorVm.isTimelineVisibleNotifier.value;
-    final bool isPreviewVisible = widget.editorVm.isPreviewVisibleNotifier.value;
 
     return PlatformMenuBar(
       menus: [
@@ -317,15 +314,15 @@ class _PlatformAppMenuBarState extends State<PlatformAppMenuBar> {
           label: 'View',
           menus: [
             PlatformMenuItem(
-              label: isInspectorVisible ? '✓ Inspector' : '  Inspector',
+              label: 'Inspector', // Always show label without checkmark
               onSelected: () => widget.editorVm.toggleInspector(),
             ),
             PlatformMenuItem(
-              label: isTimelineVisible ? '✓ Timeline' : '  Timeline',
+              label: 'Timeline', // Always show label without checkmark
               onSelected: () => widget.editorVm.toggleTimeline(),
             ),
             PlatformMenuItem(
-              label: isPreviewVisible ? '✓ Preview' : '  Preview',
+              label: 'Preview', // Always show label without checkmark
               onSelected: () => widget.editorVm.togglePreview(),
             ),
           ],
@@ -356,10 +353,8 @@ class FluentAppMenuBar extends StatefulWidget {
 class _FluentAppMenuBarState extends State<FluentAppMenuBar> {
   @override
   Widget build(BuildContext context) {
-    final bool isProjectLoaded = widget.projectVm.isProjectLoadedNotifier.value;
-    final bool isInspectorVisible = widget.editorVm.isInspectorVisibleNotifier.value;
-    final bool isTimelineVisible = widget.editorVm.isTimelineVisibleNotifier.value;
-    final bool isPreviewVisible = widget.editorVm.isPreviewVisibleNotifier.value;
+    // No need to read notifiers here directly, ValueListenableBuilder will handle it.
+    final bool isProjectLoaded = widget.projectVm.isProjectLoadedNotifier.value; // Keep for non-View menus
 
     return Padding(
       padding: const EdgeInsets.only(top: 8.0, right: 8.0),
@@ -412,31 +407,49 @@ class _FluentAppMenuBarState extends State<FluentAppMenuBar> {
             ],
           ),
           const SizedBox(width: 8),
-          DropDownButton(
-            title: const Text('View'),
-            items: [
-              MenuFlyoutItem(
-                leading:
-                    isInspectorVisible
-                        ? const Icon(FluentIcons.check_mark)
-                        : null,
-                text: const Text('Inspector'),
-                onPressed: () => widget.editorVm.toggleInspector(),
-              ),
-              MenuFlyoutItem(
-                leading:
-                    isTimelineVisible ? const Icon(FluentIcons.check_mark) : null,
-                text: const Text('Timeline'),
-                onPressed: () => widget.editorVm.toggleTimeline(),
-              ),
-              MenuFlyoutItem(
-                leading:
-                    isPreviewVisible ? const Icon(FluentIcons.check_mark) : null,
-                text: const Text('Preview'),
-                onPressed: () => widget.editorVm.togglePreview(),
-              ),
-            ],
-          ),
+          // Wrap the entire DropDownButton with ValueListenableBuilders
+          ValueListenableBuilder<bool>(
+            valueListenable: widget.editorVm.isInspectorVisibleNotifier,
+            builder: (context, isInspectorVisible, _) {
+              return ValueListenableBuilder<bool>(
+                valueListenable: widget.editorVm.isTimelineVisibleNotifier,
+                builder: (context, isTimelineVisible, _) {
+                  return ValueListenableBuilder<bool>(
+                    valueListenable: widget.editorVm.isPreviewVisibleNotifier,
+                    builder: (context, isPreviewVisible, _) {
+                      // Build the DropDownButton inside the innermost builder
+                      return DropDownButton(
+                        title: const Text('View'),
+                        items: [
+                          MenuFlyoutItem(
+                            leading: isInspectorVisible
+                                ? const Icon(FluentIcons.check_mark)
+                                : null,
+                            text: const Text('Inspector'),
+                            onPressed: () => widget.editorVm.toggleInspector(),
+                          ),
+                          MenuFlyoutItem(
+                            leading: isTimelineVisible
+                                ? const Icon(FluentIcons.check_mark)
+                                : null,
+                            text: const Text('Timeline'),
+                            onPressed: () => widget.editorVm.toggleTimeline(),
+                          ),
+                          MenuFlyoutItem(
+                            leading: isPreviewVisible
+                                ? const Icon(FluentIcons.check_mark)
+                                : null,
+                            text: const Text('Preview'),
+                            onPressed: () => widget.editorVm.togglePreview(),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                },
+              ); // End of ValueListenableBuilder for Timeline
+            },
+          ), // End of ValueListenableBuilder for Inspector
         ],
       ),
     );

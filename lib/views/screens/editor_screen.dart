@@ -8,6 +8,7 @@ import 'package:flipedit/views/widgets/common/resizable_divider.dart';
 import 'package:flutter/services.dart'; // Import for keyboard services
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart'; // Import TimelineViewModel
 import 'package:flipedit/utils/logger.dart'; // Import logger
+import 'package:flipedit/viewmodels/commands/remove_clip_command.dart';
 
 // Convert EditorScreen to StatelessWidget as state is moved down
 class EditorScreen extends StatelessWidget with WatchItMixin {
@@ -92,8 +93,9 @@ class EditorScreen extends StatelessWidget with WatchItMixin {
         final clipId = int.tryParse(selectedIdString);
         logDebug('Parsed Clip ID: $clipId', 'EditorScreen'); // Log parsed ID
         if (clipId != null) {
-          logInfo('Calling removeClip for ID: $clipId', 'EditorScreen'); // Log remove call
-          timelineVm.removeClip(clipId);
+          logInfo('Running RemoveClipCommand for ID: $clipId', 'EditorScreen'); // Log command run
+          final cmd = RemoveClipCommand(vm: timelineVm, clipId: clipId);
+          timelineVm.runCommand(cmd);
           editorVm.selectedClipId = null; // Deselect after deletion
           return KeyEventResult.handled; // Mark event as handled
         }

@@ -59,7 +59,9 @@ class AddClipCommand implements TimelineCommand {
         logTag,
       );
     }
-    final result = await vm.addClip(
+    // Call placeClipOnTrack directly as it contains the core logic
+    final result = await vm.placeClipOnTrack(
+      clipId: null, // Indicate new clip
       trackId: trackId,
       type: clipData.type,
       sourcePath: clipData.sourcePath,
@@ -67,7 +69,8 @@ class AddClipCommand implements TimelineCommand {
       startTimeInSourceMs: startTimeInSourceMs,
       endTimeInSourceMs: endTimeInSourceMs,
     );
-    logger.logInfo('[AddClipCommand] addClip result: $result', logTag);
+    // Assuming placeClipOnTrack returns bool for success
+    logger.logInfo('[AddClipCommand] placeClipOnTrack result: $result', logTag);
   }
 
   @override

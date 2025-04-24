@@ -8,6 +8,7 @@ import 'package:watch_it/watch_it.dart';
 import 'package:flutter/widgets.dart' as fw;
 import "dart:developer" as developer;
 import 'painters/track_background_painter.dart';
+import 'package:flipedit/viewmodels/commands/roll_edit_command.dart';
 
 class TimelineTrack extends StatefulWidget with WatchItStatefulWidgetMixin {
   final Track track;
@@ -67,11 +68,14 @@ class _TimelineTrackState extends State<TimelineTrack> {
   @override
   void didUpdateWidget(covariant TimelineTrack oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // If the track name changes from the parent widget AND we are not currently editing,
+    // update the text controller to reflect the external change.
     if (widget.track.name != oldWidget.track.name && !_isEditing) {
+      developer.log('Track name updated externally from "${oldWidget.track.name}" to "${widget.track.name}"');
       _textController.text = widget.track.name;
     }
   }
-
+ 
   void _enterEditingMode() {
     setState(() {
       _isEditing = true;
@@ -87,15 +91,28 @@ class _TimelineTrackState extends State<TimelineTrack> {
   }
 
   void _submitRename() {
-    developer.log('Attempting to submit rename...');
+    developer.log('Attempting to submit rename for track ${widget.track.id}...');
     final newName = _textController.text.trim();
     if (mounted && _isEditing) {
        developer.log('Mounted and isEditing: true. New name: "$newName"');
-       if (newName.isNotEmpty && newName != widget.track.name) {
+       final oldName = widget.track.name; // Store old name
+       if (newName.isNotEmpty && newName != oldName) {
         developer.log('New name is valid. Calling databaseService.updateTrackName...');
-        _databaseService.updateTrackName(widget.track.id, newName);
-       } else {
-         developer.log('New name is empty or same as old name. Not saving.');
+
+        // Call the database update asynchronously
+        _databaseService.updateTrackName(widget.track.id, newName).then((success) {
+          if (success) {
+            developer.log('✅ Database update reported SUCCESS for track ${widget.track.id}. Waiting for stream update...');
+            // The watchAllTracks stream should handle the UI update eventually by rebuilding the parent.
+          } else {
+            // If updateTrack returns false
+            developer.log('⚠️ Database update reported FAILURE (returned false) for track ${widget.track.id}. Name remains "$oldName".');
+          }
+        }).catchError((error) {
+           // If updateTrack throws an exception
+           developer.log('❌ Database update threw an ERROR for track ${widget.track.id}: $error');
+        });
+
        }
        setState(() {
          _isEditing = false;
@@ -136,20 +153,21 @@ class _TimelineTrackState extends State<TimelineTrack> {
     }
   }
 
-  Future<void> _handleClipDrop(ClipModel draggedClip, int frameForPreview, double zoom, double trackHeight) async {
+  Future<void> _handleClipDrop(ClipModel draggedClip, int startTimeOnTrackMs) async {
     final timelineVm = di<TimelineViewModel>();
-      // Compute the start time in source and on track
+      // Compute the start time in source
       final startTimeInSourceMs = draggedClip.startTimeInSourceMs;
       final endTimeInSourceMs = draggedClip.endTimeInSourceMs;
-      // Insert into DB and refresh timeline
-      await timelineVm.addClipAtPosition(
-        clipData: draggedClip,
+      // Use placeClipOnTrack which accepts the start time
+      await timelineVm.placeClipOnTrack(
         trackId: widget.track.id,
+        type: draggedClip.type,
+        sourcePath: draggedClip.sourcePath,
+        startTimeOnTrackMs: startTimeOnTrackMs, // Use the calculated start time
         startTimeInSourceMs: startTimeInSourceMs,
         endTimeInSourceMs: endTimeInSourceMs,
-        // Optionally pass pixel/scroll info if available
       );
-      // No need to do anything else: refreshClips will update UI
+      // ViewModel handles updates, no explicit refresh needed here
   }
 
   @override
@@ -256,11 +274,10 @@ class _TimelineTrackState extends State<TimelineTrack> {
                   '📏 Position metrics: local=$posX, scroll=$scrollOffsetX, frame=$framePosition, ms=$framePositionMs',
                   name: 'TimelineTrack'
                 );
-                await _handleClipDrop(draggedClip, framePosition, zoom, trackHeight);
+                await _handleClipDrop(draggedClip, framePositionMs.toInt());
                 _updateHoverPosition(null);
               },
               onWillAcceptWithDetails: (details) {
-                // Log fewer messages to reduce noise
                 final RenderBox? renderBox =
                     _trackContentKey.currentContext?.findRenderObject() as RenderBox?;
                 if (renderBox != null) {
@@ -283,7 +300,7 @@ class _TimelineTrackState extends State<TimelineTrack> {
               builder: (context, candidateData, rejectedData) {
                 int frameForPreview = -1;
                 final currentHoverPos = _hoverPositionNotifier.value;
-                
+
                 if (currentHoverPos != null && candidateData.isNotEmpty) {
                   frameForPreview = _calculateFramePositionForPreview(currentHoverPos.dx, zoom);
                 }
@@ -301,7 +318,7 @@ class _TimelineTrackState extends State<TimelineTrack> {
                     children: [
                       // Background grid with frame markings
                       Positioned.fill(child: _TrackBackground(zoom: zoom)),
-                      
+
                       // Display existing clips on this track, or preview if dragging
                       if (candidateData.isNotEmpty && frameForPreview >= 0)
                         ..._getPreviewClips(candidateData.first!, frameForPreview, zoom, trackHeight)
@@ -321,7 +338,7 @@ class _TimelineTrackState extends State<TimelineTrack> {
                             ),
                           );
                         }),
-                      
+
                       // Show preview for where the clip will be placed when dragging
                       if (frameForPreview >= 0)
                         _DragPreview(
@@ -543,11 +560,15 @@ class _RollEditHandleState extends State<_RollEditHandle> {
         final pixelsPerFrame = 5.0 * widget.zoom;
         final frameDelta = ((details.globalPosition.dx - _startX) / pixelsPerFrame).round();
         final newBoundary = _startFrame + frameDelta;
-        await di<TimelineViewModel>().rollEditClips(
+        final timelineVm = di<TimelineViewModel>();
+        final cmd = RollEditCommand(
+          vm: timelineVm,
           leftClipId: widget.leftClipId,
           rightClipId: widget.rightClipId,
           newBoundaryFrame: newBoundary,
         );
+        // Don't await UI updates, run command asynchronously
+        timelineVm.runCommand(cmd);
       },
       onHorizontalDragEnd: (_) {
         _startX = 0;
@@ -574,3 +595,4 @@ class _RollEditHandleState extends State<_RollEditHandle> {
     );
   }
 }
+
