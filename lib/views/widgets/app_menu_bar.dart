@@ -3,8 +3,9 @@ import 'package:flipedit/persistence/database/project_metadata_database.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
-import 'package:flipedit/services/media_import_service.dart';
 import 'package:flipedit/utils/logger.dart';
+import 'package:watch_it/watch_it.dart';
+import 'package:flipedit/services/undo_redo_service.dart';
 
 // --- Action Handlers (Now using ProjectViewModel) ---
 const _logTag = 'AppMenuBarActions'; // Define tag for top-level functions
@@ -21,9 +22,12 @@ Future<void> _handleNewProject(
     builder:
         (context) => ContentDialog(
           title: const Text('New Project'),
-          content: TextBox(
-            controller: projectNameController,
-            placeholder: 'Enter project name',
+          content: SizedBox(
+            height: 50,
+            child: TextBox(
+              controller: projectNameController,
+              placeholder: 'Enter project name',
+            ),
           ),
           actions: [
             Button(
@@ -42,13 +46,13 @@ Future<void> _handleNewProject(
     if (projectName != null && projectName.trim().isNotEmpty) {
       try {
         // Use ViewModel command
-        final newProjectId = await projectVm.createNewProjectCommand(
+        final newProjectId = await projectVm.createNewProject(
           projectName.trim(),
         );
         logInfo(_logTag, "Created new project with ID: $newProjectId");
-        // TODO: Optionally load the newly created project using projectVm.loadProjectCommand(newProjectId)
+        // TODO: Optionally load the newly created project using projectVm.loadProject(newProjectId)
         // Load the newly created project
-        await projectVm.loadProjectCommand(newProjectId);
+        await projectVm.loadProject(newProjectId);
         logInfo(_logTag, "Loaded newly created project ID: $newProjectId");
       } catch (e) {
         logError(_logTag, "Error creating or loading project: $e");
@@ -134,7 +138,7 @@ Future<void> _handleOpenProject(
     if (selectedProjectId != null) {
       logInfo(_logTag, "Attempting to load project ID: $selectedProjectId");
       // Use ViewModel command
-      projectVm.loadProjectCommand(selectedProjectId).catchError((e) {
+      projectVm.loadProject(selectedProjectId).catchError((e) {
         logError(_logTag, "Error loading project $selectedProjectId: $e");
         // TODO: Show error to user
       });
@@ -142,43 +146,43 @@ Future<void> _handleOpenProject(
   });
 }
 
-// Updated to use MediaImportService for importing assets
+// Updated to use ProjectViewModel command directly
 Future<void> _handleImportMedia(
   BuildContext context,
-  ProjectViewModel projectVm, // Change to ProjectViewModel
+  ProjectViewModel projectVm, // Already using ProjectViewModel
 ) async {
-  final mediaImportService = MediaImportService(projectVm);
-  final loadingOverlay = MediaImportService.showLoadingOverlay(
+  // Remove instantiation of MediaImportService
+  final loadingOverlay = _showLoadingOverlay( // Use local helper
     context, 
     'Selecting file...'
   );
   
   try {
-    // Use the service to import media
-    final importSuccess = await mediaImportService.importMediaFromFilePicker(context);
+    // Use the ViewModel command to import media
+    final importSuccess = await projectVm.importMedia(context);
     
     // Remove loading overlay
     loadingOverlay.remove();
     
-    // Show success/failure notification
+    // Show success/failure notification (Use local helper)
     if (importSuccess) {
-      MediaImportService.showNotification(
+      _showNotification( // Use local helper
         context,
         'Media imported successfully',
         severity: InfoBarSeverity.success
       );
     } else {
-      MediaImportService.showNotification(
+      _showNotification( // Use local helper
         context,
-        'Failed to import media',
-        severity: InfoBarSeverity.error
+        'Failed to import media or cancelled',
+        severity: InfoBarSeverity.warning // Use warning for cancellation
       );
     }
   } catch (e) {
     // Remove loading overlay if an error occurs
     loadingOverlay.remove();
     
-    MediaImportService.showNotification(
+    _showNotification( // Use local helper
       context,
       'Error importing media: ${e.toString()}',
       severity: InfoBarSeverity.error
@@ -188,27 +192,28 @@ Future<void> _handleImportMedia(
   }
 }
 
-// Updated to use ProjectViewModel command
-void _handleSaveProject(ProjectViewModel projectVm) {
-  projectVm
-      .saveProjectCommand()
-      .then((_) {
-        logInfo(_logTag, "Action: Save Project initiated.");
-      })
-      .catchError((e) {
-        logError(_logTag, "Error saving project: $e");
-        // TODO: Show error to user
-      });
-}
-
-void _handleUndo() {
+Future<void> _handleUndo(TimelineViewModel timelineVm) async {
   logInfo(_logTag, "Action: Undo");
-  // TODO: Implement undo logic (likely via a dedicated Undo/Redo Service/ViewModel)
+  try {
+    await di<UndoRedoService>().undo();
+    logInfo(_logTag, "Undo completed.");
+    // Refresh timeline clips after undo
+    await timelineVm.refreshClips();
+  } catch (e) {
+    logError(_logTag, "Error during undo: $e");
+  }
 }
 
-void _handleRedo() {
+Future<void> _handleRedo(TimelineViewModel timelineVm) async {
   logInfo(_logTag, "Action: Redo");
-  // TODO: Implement redo logic
+  try {
+    await di<UndoRedoService>().redo();
+    logInfo(_logTag, "Redo completed.");
+    // Refresh timeline clips after redo
+    await timelineVm.refreshClips();
+  } catch (e) {
+    logError(_logTag, "Error during redo: $e");
+  }
 }
 
 // --- New Action Handlers for Tracks (using ProjectViewModel) ---
@@ -259,9 +264,6 @@ class _PlatformAppMenuBarState extends State<PlatformAppMenuBar> {
   @override
   Widget build(BuildContext context) {
     final bool isProjectLoaded = widget.projectVm.isProjectLoadedNotifier.value;
-    final bool isInspectorVisible = widget.editorVm.isInspectorVisibleNotifier.value;
-    final bool isTimelineVisible = widget.editorVm.isTimelineVisibleNotifier.value;
-    final bool isPreviewVisible = widget.editorVm.isPreviewVisibleNotifier.value;
 
     return PlatformMenuBar(
       menus: [
@@ -279,18 +281,20 @@ class _PlatformAppMenuBarState extends State<PlatformAppMenuBar> {
             PlatformMenuItem(
               label: 'Import Media...',
               onSelected: isProjectLoaded ? () => _handleImportMedia(context, widget.projectVm) : null,
-            ),
-            PlatformMenuItem(
-              label: 'Save Project',
-              onSelected: isProjectLoaded ? () => _handleSaveProject(widget.projectVm) : null,
-            ),
+            )
           ],
         ),
         PlatformMenu(
           label: 'Edit',
           menus: [
-            PlatformMenuItem(label: 'Undo', onSelected: _handleUndo),
-            PlatformMenuItem(label: 'Redo', onSelected: _handleRedo),
+            PlatformMenuItem(
+              label: 'Undo',
+              onSelected: () => _handleUndo(widget.timelineVm),
+            ),
+            PlatformMenuItem(
+              label: 'Redo',
+              onSelected: () => _handleRedo(widget.timelineVm),
+            ),
           ],
         ),
         PlatformMenu(
@@ -310,15 +314,15 @@ class _PlatformAppMenuBarState extends State<PlatformAppMenuBar> {
           label: 'View',
           menus: [
             PlatformMenuItem(
-              label: isInspectorVisible ? '✓ Inspector' : '  Inspector',
+              label: 'Inspector', // Always show label without checkmark
               onSelected: () => widget.editorVm.toggleInspector(),
             ),
             PlatformMenuItem(
-              label: isTimelineVisible ? '✓ Timeline' : '  Timeline',
+              label: 'Timeline', // Always show label without checkmark
               onSelected: () => widget.editorVm.toggleTimeline(),
             ),
             PlatformMenuItem(
-              label: isPreviewVisible ? '✓ Preview' : '  Preview',
+              label: 'Preview', // Always show label without checkmark
               onSelected: () => widget.editorVm.togglePreview(),
             ),
           ],
@@ -349,84 +353,148 @@ class FluentAppMenuBar extends StatefulWidget {
 class _FluentAppMenuBarState extends State<FluentAppMenuBar> {
   @override
   Widget build(BuildContext context) {
-    final bool isProjectLoaded = widget.projectVm.isProjectLoadedNotifier.value;
-    final bool isInspectorVisible = widget.editorVm.isInspectorVisibleNotifier.value;
-    final bool isTimelineVisible = widget.editorVm.isTimelineVisibleNotifier.value;
-    final bool isPreviewVisible = widget.editorVm.isPreviewVisibleNotifier.value;
+    // No need to read notifiers here directly, ValueListenableBuilder will handle it.
+    final bool isProjectLoaded = widget.projectVm.isProjectLoadedNotifier.value; // Keep for non-View menus
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        DropDownButton(
-          title: const Text('File'),
-          items: [
-            MenuFlyoutItem(
-              text: const Text('New Project'),
-              onPressed: () => _handleNewProject(context, widget.projectVm),
-            ),
-            MenuFlyoutItem(
-              text: const Text('Open Project...'),
-              onPressed: () => _handleOpenProject(context, widget.projectVm),
-            ),
-            MenuFlyoutItem(
-              text: const Text('Import Media...'),
-              onPressed: isProjectLoaded ? () => _handleImportMedia(context, widget.projectVm) : null,
-            ),
-            MenuFlyoutItem(
-              text: const Text('Save Project'),
-              onPressed: isProjectLoaded ? () => _handleSaveProject(widget.projectVm) : null,
-            ),
-          ],
-        ),
-        const SizedBox(width: 8),
-        DropDownButton(
-          title: const Text('Edit'),
-          items: [
-            MenuFlyoutItem(text: const Text('Undo'), onPressed: _handleUndo),
-            MenuFlyoutItem(text: const Text('Redo'), onPressed: _handleRedo),
-          ],
-        ),
-        const SizedBox(width: 8),
-        DropDownButton(
-          title: const Text('Track'),
-          items: [
-            MenuFlyoutItem(
-              text: const Text('Add Video Track'),
-              onPressed: isProjectLoaded ? () => _handleAddVideoTrack(widget.projectVm) : null,
-            ),
-            MenuFlyoutItem(
-              text: const Text('Add Audio Track'),
-              onPressed: isProjectLoaded ? () => _handleAddAudioTrack(widget.projectVm) : null,
-            ),
-          ],
-        ),
-        const SizedBox(width: 8),
-        DropDownButton(
-          title: const Text('View'),
-          items: [
-            MenuFlyoutItem(
-              leading:
-                  isInspectorVisible
-                      ? const Icon(FluentIcons.check_mark)
-                      : null,
-              text: const Text('Inspector'),
-              onPressed: () => widget.editorVm.toggleInspector(),
-            ),
-            MenuFlyoutItem(
-              leading:
-                  isTimelineVisible ? const Icon(FluentIcons.check_mark) : null,
-              text: const Text('Timeline'),
-              onPressed: () => widget.editorVm.toggleTimeline(),
-            ),
-            MenuFlyoutItem(
-              leading:
-                  isPreviewVisible ? const Icon(FluentIcons.check_mark) : null,
-              text: const Text('Preview'),
-              onPressed: () => widget.editorVm.togglePreview(),
-            ),
-          ],
-        ),
-      ],
+    return Padding(
+      padding: const EdgeInsets.only(top: 8.0, right: 8.0),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          DropDownButton(
+            title: const Text('File'),
+            items: [
+              MenuFlyoutItem(
+                text: const Text('New Project'),
+                onPressed: () => _handleNewProject(context, widget.projectVm),
+              ),
+              MenuFlyoutItem(
+                text: const Text('Open Project...'),
+                onPressed: () => _handleOpenProject(context, widget.projectVm),
+              ),
+              MenuFlyoutItem(
+                text: const Text('Import Media...'),
+                onPressed: isProjectLoaded ? () => _handleImportMedia(context, widget.projectVm) : null,
+              )
+            ],
+          ),
+          const SizedBox(width: 8),
+          DropDownButton(
+            title: const Text('Edit'),
+            items: [
+              MenuFlyoutItem(
+                text: const Text('Undo'),
+                onPressed: () => _handleUndo(widget.timelineVm),
+              ),
+              MenuFlyoutItem(
+                text: const Text('Redo'),
+                onPressed: () => _handleRedo(widget.timelineVm),
+              ),
+            ],
+          ),
+          const SizedBox(width: 8),
+          DropDownButton(
+            title: const Text('Track'),
+            items: [
+              MenuFlyoutItem(
+                text: const Text('Add Video Track'),
+                onPressed: isProjectLoaded ? () => _handleAddVideoTrack(widget.projectVm) : null,
+              ),
+              MenuFlyoutItem(
+                text: const Text('Add Audio Track'),
+                onPressed: isProjectLoaded ? () => _handleAddAudioTrack(widget.projectVm) : null,
+              ),
+            ],
+          ),
+          const SizedBox(width: 8),
+          // Wrap the entire DropDownButton with ValueListenableBuilders
+          ValueListenableBuilder<bool>(
+            valueListenable: widget.editorVm.isInspectorVisibleNotifier,
+            builder: (context, isInspectorVisible, _) {
+              return ValueListenableBuilder<bool>(
+                valueListenable: widget.editorVm.isTimelineVisibleNotifier,
+                builder: (context, isTimelineVisible, _) {
+                  return ValueListenableBuilder<bool>(
+                    valueListenable: widget.editorVm.isPreviewVisibleNotifier,
+                    builder: (context, isPreviewVisible, _) {
+                      // Build the DropDownButton inside the innermost builder
+                      return DropDownButton(
+                        title: const Text('View'),
+                        items: [
+                          MenuFlyoutItem(
+                            leading: isInspectorVisible
+                                ? const Icon(FluentIcons.check_mark)
+                                : null,
+                            text: const Text('Inspector'),
+                            onPressed: () => widget.editorVm.toggleInspector(),
+                          ),
+                          MenuFlyoutItem(
+                            leading: isTimelineVisible
+                                ? const Icon(FluentIcons.check_mark)
+                                : null,
+                            text: const Text('Timeline'),
+                            onPressed: () => widget.editorVm.toggleTimeline(),
+                          ),
+                          MenuFlyoutItem(
+                            leading: isPreviewVisible
+                                ? const Icon(FluentIcons.check_mark)
+                                : null,
+                            text: const Text('Preview'),
+                            onPressed: () => widget.editorVm.togglePreview(),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                },
+              ); // End of ValueListenableBuilder for Timeline
+            },
+          ), // End of ValueListenableBuilder for Inspector
+        ],
+      ),
     );
   }
+}
+
+// Add helper methods here (or move to a common UI utils file)
+// Shows a loading indicator overlay
+OverlayEntry _showLoadingOverlay(BuildContext context, String message) {
+  final overlay = Overlay.of(context);
+  final entry = OverlayEntry(
+    builder: (context) => Center(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: FluentTheme.of(context).resources.subtleFillColorSecondary,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ProgressRing(),
+            const SizedBox(height: 16),
+            Text(message),
+          ],
+        ),
+      ),
+    ),
+  );
+  
+  overlay.insert(entry);
+  return entry;
+}
+
+// Shows a notification message
+void _showNotification(
+  BuildContext context, 
+  String message, 
+  {InfoBarSeverity severity = InfoBarSeverity.info}
+) {
+  displayInfoBar(context, builder: (context, close) {
+    return InfoBar(
+      title: Text(message),
+      severity: severity,
+      onClose: close,
+    );
+  });
 }

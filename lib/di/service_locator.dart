@@ -12,21 +12,19 @@ import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/services/video_player_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:watch_it/watch_it.dart';
+import 'package:flipedit/services/undo_redo_service.dart';
 
-// Use the global di instance provided by watch_it package
-// No need to create our own GetIt instance
-
-/// Setup all service locator registrations
-/// This function is now async because SharedPreferences requires it.
 Future<void> setupServiceLocator() async {
   // Register SharedPreferences asynchronously
   di.registerSingletonAsync<SharedPreferences>(() => SharedPreferences.getInstance());
   // Ensure SharedPreferences is ready before proceeding
   await di.isReady<SharedPreferences>();
 
-  // Remove old database registrations and keep only the new architecture
   // Project Metadata Database (for managing separate project databases)
-  di.registerLazySingleton<ProjectMetadataDatabase>(() => ProjectMetadataDatabase());
+  di.registerLazySingleton<ProjectMetadataDatabase>(
+    () => ProjectMetadataDatabase(),
+    dispose: (db) async => await db.close(),
+  );
   di.registerFactory<ProjectMetadataDao>(() => ProjectMetadataDao(di<ProjectMetadataDatabase>()));
 
   // Services - remove ProjectService and keep only new services
@@ -37,11 +35,18 @@ Future<void> setupServiceLocator() async {
   di.registerLazySingleton<VideoPlayerManager>(() => VideoPlayerManager());
   di.registerLazySingleton<LayoutService>(() => LayoutService());
 
+  // Undo/Redo service for project clips
+  di.registerLazySingleton<UndoRedoService>(
+    () => UndoRedoService(
+      projectDatabaseService: di<ProjectDatabaseService>(),
+    ),
+  );
+
   // ViewModels
   di.registerLazySingleton<AppViewModel>(() => AppViewModel());
   di.registerLazySingleton<ProjectViewModel>(() => ProjectViewModel(prefs: di<SharedPreferences>()));
   di.registerLazySingleton<EditorViewModel>(() => EditorViewModel());
   
   // Update TimelineViewModel to use ProjectDatabaseService
-  di.registerSingleton<TimelineViewModel>(TimelineViewModel(di<ProjectDatabaseService>()));
+  di.registerSingleton<TimelineViewModel>(TimelineViewModel(di<ProjectDatabaseService>(), di<UndoRedoService>()));
 }

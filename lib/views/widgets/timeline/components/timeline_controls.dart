@@ -182,18 +182,22 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
 
           const SizedBox(width: 16),
 
-          // Timecode Display
-          if (controller != null)
-            _TimecodeDisplay(controller: controller) // Use the new widget
-          else
-            // Fallback display when no controller is available
-            Text(
-              'Frame: $currentFrame / $totalFrames', // Use watched values
-              style: theme.typography.caption?.copyWith(
-                color: controlsContentColor,
-                fontFamily: 'monospace', // Use monospace for frame count too
-              ),
+          // Timecode Display - Wrapped in Flexible to prevent overflow
+          Flexible(
+            child: Align( // Align the text to the right within the flexible space
+              alignment: Alignment.centerRight,
+              child: (controller != null)
+                  ? _TimecodeDisplay(controller: controller) // Use the new widget
+                  : Text( // Fallback display
+                      'Frame: $currentFrame / $totalFrames', // Use watched values
+                      style: theme.typography.caption?.copyWith(
+                        color: controlsContentColor,
+                        fontFamily: 'monospace', // Use monospace for frame count too
+                      ),
+                      overflow: TextOverflow.ellipsis, // Add ellipsis if it still overflows
+                    ),
             ),
+          ),
         ],
       ),
     );

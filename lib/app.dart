@@ -33,11 +33,12 @@ class FlipEditApp extends fluent.StatelessWidget with WatchItMixin {
       windowManager.setTitle(windowTitle);
     });
 
-    // Determine the root widget based on Platform
-    Widget homeWidget; 
+    // Determine the root widget based on Platform and test mode
+    Widget homeWidget;
+    const bool isTestMode = bool.fromEnvironment('TEST_MODE');
 
-    if (Platform.isMacOS || Platform.isWindows) {
-      // --- macOS / Windows: Use PlatformAppMenuBar --- 
+    if ((Platform.isMacOS || Platform.isWindows) && !isTestMode) {
+      // --- macOS / Windows (Non-Test): Use PlatformAppMenuBar ---
       homeWidget = PlatformAppMenuBar(
         editorVm: editorVm,
         projectVm: projectVm,
@@ -46,8 +47,7 @@ class FlipEditApp extends fluent.StatelessWidget with WatchItMixin {
       );
     } else {
        // --- Linux / Other: Use Fluent UI Structure with FluentAppMenuBar ---
-       homeWidget = fluent.ScaffoldPage(
-        content: fluent.NavigationView(
+       homeWidget = fluent.NavigationView(
           appBar: fluent.NavigationAppBar(
             title: const fluent.Text('FlipEdit'),
             // Instantiate FluentAppMenuBar for the actions
@@ -58,7 +58,6 @@ class FlipEditApp extends fluent.StatelessWidget with WatchItMixin {
             ),
           ),
           content: const EditorScreen(), // Place main content here
-        ),
       );
     }
 
