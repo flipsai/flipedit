@@ -94,30 +94,16 @@ class _TimelineTrackState extends State<TimelineTrack> {
     developer.log('Attempting to submit rename for track ${widget.track.id}...');
     final newName = _textController.text.trim();
     if (mounted && _isEditing) {
-       developer.log('Mounted and isEditing: true. New name: "$newName"');
-       final oldName = widget.track.name; // Store old name
-       if (newName.isNotEmpty && newName != oldName) {
-        developer.log('New name is valid. Calling databaseService.updateTrackName...');
-
-        // Call the database update asynchronously
-        _databaseService.updateTrackName(widget.track.id, newName).then((success) {
-          if (success) {
-            developer.log('✅ Database update reported SUCCESS for track ${widget.track.id}. Waiting for stream update...');
-            // The watchAllTracks stream should handle the UI update eventually by rebuilding the parent.
-          } else {
-            // If updateTrack returns false
-            developer.log('⚠️ Database update reported FAILURE (returned false) for track ${widget.track.id}. Name remains "$oldName".');
-          }
-        }).catchError((error) {
-           // If updateTrack throws an exception
-           developer.log('❌ Database update threw an ERROR for track ${widget.track.id}: $error');
-        });
-
-       }
-       setState(() {
-         _isEditing = false;
-         developer.log('Exiting editing mode.');
-       });
+      developer.log('Mounted and isEditing: true. New name: "$newName"');
+      final oldName = widget.track.name; // Store old name
+      if (newName.isNotEmpty && newName != oldName) {
+        developer.log('New name is valid. Calling timelineViewModel.updateTrackName...');
+        _timelineViewModel.updateTrackName(widget.track.id, newName);
+      }
+      setState(() {
+        _isEditing = false;
+        developer.log('Exiting editing mode.');
+      });
     } else {
       developer.log('Not submitting: mounted=$mounted, isEditing=$_isEditing');
     }
@@ -155,19 +141,12 @@ class _TimelineTrackState extends State<TimelineTrack> {
 
   Future<void> _handleClipDrop(ClipModel draggedClip, int startTimeOnTrackMs) async {
     final timelineVm = di<TimelineViewModel>();
-      // Compute the start time in source
-      final startTimeInSourceMs = draggedClip.startTimeInSourceMs;
-      final endTimeInSourceMs = draggedClip.endTimeInSourceMs;
-      // Use placeClipOnTrack which accepts the start time
-      await timelineVm.placeClipOnTrack(
-        trackId: widget.track.id,
-        type: draggedClip.type,
-        sourcePath: draggedClip.sourcePath,
-        startTimeOnTrackMs: startTimeOnTrackMs, // Use the calculated start time
-        startTimeInSourceMs: startTimeInSourceMs,
-        endTimeInSourceMs: endTimeInSourceMs,
-      );
-      // ViewModel handles updates, no explicit refresh needed here
+    await timelineVm.handleClipDrop(
+      clip: draggedClip,
+      trackId: widget.track.id,
+      startTimeOnTrackMs: startTimeOnTrackMs,
+    );
+    // ViewModel handles updates, no explicit refresh needed here
   }
 
   @override

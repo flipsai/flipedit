@@ -27,6 +27,11 @@ class AddClipCommand implements TimelineCommand {
 
   @override
   Future<void> execute() async {
+    // Validate clip parameters first
+    if (startTimeInSourceMs < 0 || endTimeInSourceMs <= startTimeInSourceMs) {
+      throw Exception("Invalid source time parameters: $startTimeInSourceMs-$endTimeInSourceMs");
+    }
+    logger.logInfo("Adding clip with track position: ${ClipModel.msToFrames(startTimeInSourceMs)} frames, duration: ${endTimeInSourceMs - startTimeInSourceMs}ms", _logTag);
     int targetStartTimeMs;
     final logTag = _logTag;
     logger.logInfo(

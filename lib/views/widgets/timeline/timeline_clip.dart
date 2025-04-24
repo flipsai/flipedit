@@ -182,14 +182,14 @@ class _TimelineClipState extends State<TimelineClip> {
             if (_isDragging && _originalStartFrame != _currentDragFrame) {
               if (widget.clip.databaseId != null) {
                 final newStartTimeMs = ClipModel.framesToMs(_currentDragFrame);
+                final timelineVm = di<TimelineViewModel>();
                 final cmd = MoveClipCommand(
-                  vm: di<TimelineViewModel>(), // Pass the ViewModel instance
+                  vm: timelineVm,
                   clipId: widget.clip.databaseId!,
-                  newTrackId: widget.clip.trackId, // If supporting cross-track drag, update this
+                  newTrackId: widget.clip.trackId,
                   newStartTimeOnTrackMs: newStartTimeMs,
                 );
-                // Execute the command via the ViewModel
-                di<TimelineViewModel>().runCommand(cmd);
+                timelineVm.runCommand(cmd);
               }
             }
             // Always reset dragging state on end
