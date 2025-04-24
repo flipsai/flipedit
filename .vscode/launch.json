@@ -8,7 +8,12 @@
         {
             "name": "flipedit",
             "request": "launch",
-            "type": "dart"
+            "type": "dart",
+            "args": [
+                "--observatory-port=8181",
+                "--enable-vm-service",
+                "--disable-service-auth-codes"
+            ]
         },
         {
             "name": "flipedit (profile mode)",
