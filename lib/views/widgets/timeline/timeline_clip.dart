@@ -1,4 +1,6 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/gestures.dart';
+import 'dart:ui' show PointerDeviceKind;
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
@@ -7,6 +9,8 @@ import 'package:watch_it/watch_it.dart';
 import 'painters/video_frames_painter.dart';
 import 'painters/image_grid_painter.dart';
 import 'painters/text_lines_painter.dart';
+import 'package:flipedit/viewmodels/commands/move_clip_command.dart';
+import 'package:flipedit/viewmodels/commands/remove_clip_command.dart';
 import 'painters/effect_pattern_painter.dart';
 import 'painters/audio_waveform_painter.dart';
 
@@ -119,43 +123,76 @@ class _TimelineClipState extends State<TimelineClip> {
       child: FlyoutTarget(
         controller: _contextMenuController,
         child: GestureDetector(
+          // Wait for movement before recognizing the drag, helps distinguish scroll from drag
+          dragStartBehavior: DragStartBehavior.start,
+          trackpadScrollCausesScale: false,
+          // Exclude trackpad to prevent two-finger scroll triggering pan/drag
+          supportedDevices: {
+             PointerDeviceKind.touch,
+             PointerDeviceKind.mouse,
+             PointerDeviceKind.stylus,
+             PointerDeviceKind.invertedStylus,
+             // PointerDeviceKind.trackpad is intentionally omitted
+           },
           onTap: () {
             editorVm.selectedClipId = widget.clip.databaseId?.toString();
           },
-          onPanStart: (details) {
-            setState(() {
-              _isDragging = true;
-              _dragStartX = details.localPosition.dx;
-              _originalStartFrame = widget.clip.startFrame;
-              _currentDragFrame = _originalStartFrame;
-            });
+          onHorizontalDragStart: (details) {
+            // Don't set _isDragging = true immediately.
+            // Just record start positions and select the clip.
+            _dragStartX = details.localPosition.dx;
+            _originalStartFrame = widget.clip.startFrame;
+            _currentDragFrame = _originalStartFrame; // Initialize visual position
             editorVm.selectedClipId = widget.clip.databaseId?.toString();
-          },
-          onPanUpdate: (details) {
-            if (!_isDragging) return;
-            final pixelsPerFrame = 5.0 * zoom;
-            final dragDeltaInFrames =
-                (details.localPosition.dx - _dragStartX) ~/ pixelsPerFrame;
-            final newStartFrame = _originalStartFrame + dragDeltaInFrames;
-            final clampedStartFrame = newStartFrame < 0 ? 0 : newStartFrame;
-            if (_currentDragFrame != clampedStartFrame) {
+            // Reset dragging state just in case (e.g., if previous drag ended abruptly)
+             if (_isDragging) {
               setState(() {
-                _currentDragFrame = clampedStartFrame;
+                _isDragging = false;
               });
+             }
+          },
+          onHorizontalDragUpdate: (details) {
+            final currentDragX = details.localPosition.dx;
+            final dragDistance = (currentDragX - _dragStartX).abs();
+
+            // Check if drag slop is exceeded OR if we are already dragging
+            if (_isDragging || dragDistance > kTouchSlop) {
+              // If we weren't dragging before, set the flag now
+              if (!_isDragging) {
+                 setState(() {
+                    _isDragging = true;
+                 });
+              }
+
+              // Proceed with calculating the new frame position
+              final pixelsPerFrame = 5.0 * zoom;
+              final dragDeltaInFrames = (currentDragX - _dragStartX) ~/ pixelsPerFrame;
+              final newStartFrame = _originalStartFrame + dragDeltaInFrames;
+              final clampedStartFrame = newStartFrame < 0 ? 0 : newStartFrame;
+
+              if (_currentDragFrame != clampedStartFrame) {
+                setState(() {
+                  _currentDragFrame = clampedStartFrame;
+                });
+              }
             }
           },
-          onPanEnd: (details) {
-            if (!_isDragging) return;
-            if (_originalStartFrame != _currentDragFrame) {
+          onHorizontalDragEnd: (details) {
+            // Only execute move if dragging actually started and position changed
+            if (_isDragging && _originalStartFrame != _currentDragFrame) {
               if (widget.clip.databaseId != null) {
                 final newStartTimeMs = ClipModel.framesToMs(_currentDragFrame);
-                di<TimelineViewModel>().moveClip(
+                final cmd = MoveClipCommand(
+                  vm: di<TimelineViewModel>(), // Pass the ViewModel instance
                   clipId: widget.clip.databaseId!,
                   newTrackId: widget.clip.trackId, // If supporting cross-track drag, update this
                   newStartTimeOnTrackMs: newStartTimeMs,
                 );
+                // Execute the command via the ViewModel
+                di<TimelineViewModel>().runCommand(cmd);
               }
             }
+            // Always reset dragging state on end
             setState(() {
               _isDragging = false;
             });
@@ -542,7 +579,11 @@ class _TimelineClipState extends State<TimelineClip> {
           text: const Text('Remove'),
           onPressed: () {
             if (widget.clip.databaseId != null) {
-              timelineVm.removeClip(widget.clip.databaseId!);
+              final cmd = RemoveClipCommand(
+                vm: timelineVm,
+                clipId: widget.clip.databaseId!,
+              );
+              timelineVm.runCommand(cmd);
             }
             Flyout.of(context).close();
           },
