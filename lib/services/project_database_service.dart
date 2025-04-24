@@ -19,7 +19,7 @@ class ProjectDatabaseService {
   final ProjectMetadataService _metadataService = di<ProjectMetadataService>();
   
   // The current active project database
-  ProjectDatabase? _currentDatabase;
+  ProjectDatabase? currentDatabase;
   
   // The current active DAOs
   ProjectDatabaseTrackDao? _trackDao;
@@ -56,19 +56,28 @@ class ProjectDatabaseService {
       logInfo(_logTag, "Opening project database at path: $databasePath for ID: $projectId");
       
       // Open the database connection
-      _currentDatabase = ProjectDatabase(databasePath);
+      currentDatabase = ProjectDatabase(databasePath);
       
       // Initialize DAOs with the new database connection
-      _trackDao = ProjectDatabaseTrackDao(_currentDatabase!);
-      _clipDao = ProjectDatabaseClipDao(_currentDatabase!);
-      _assetDao = ProjectDatabaseAssetDao(_currentDatabase!);
+      _trackDao = ProjectDatabaseTrackDao(currentDatabase!);
+      _clipDao = ProjectDatabaseClipDao(currentDatabase!);
+      _assetDao = ProjectDatabaseAssetDao(currentDatabase!);
       
       // Start watching tracks
-      _tracksSubscription = _trackDao!.watchAllTracks().listen((tracks) {
-        tracksNotifier.value = tracks;
-        logInfo(_logTag, "Updated tracks: ${tracks.length} tracks");
+      _tracksSubscription = _trackDao!.watchAllTracks().listen((updatedTracks) {
+        // Log the received tracks, including the name of the first track if available
+        final firstTrackName = updatedTracks.isNotEmpty ? updatedTracks.first.name : 'N/A';
+        logInfo(_logTag, "🔔 Tracks Stream Update Received: ${updatedTracks.length} tracks. First track name: '$firstTrackName'");
+        
+        // Check if the update is different from the current value to avoid unnecessary updates
+        if (!listEquals(tracksNotifier.value, updatedTracks)) {
+           tracksNotifier.value = updatedTracks;
+           logInfo(_logTag, "✅ tracksNotifier updated.");
+        } else {
+            logInfo(_logTag, "ℹ️ Tracks Stream Update Received, but data is identical to current state. Notifier not updated.");
+        }
       }, onError: (error) {
-        logError(_logTag, "Error watching tracks: $error");
+        logError(_logTag, "❌ Error watching tracks stream: $error");
       });
       
       // Start watching assets
@@ -102,9 +111,9 @@ class ProjectDatabaseService {
     assetsNotifier.value = [];
     
     // Close database
-    if (_currentDatabase != null) {
-      await _currentDatabase!.closeConnection();
-      _currentDatabase = null;
+    if (currentDatabase != null) {
+      await currentDatabase!.closeConnection();
+      currentDatabase = null;
       _trackDao = null;
       _clipDao = null;
       _assetDao = null;
@@ -119,7 +128,7 @@ class ProjectDatabaseService {
     String? name,
     int? order,
   }) async {
-    if (_trackDao == null || _currentDatabase == null) {
+    if (_trackDao == null || currentDatabase == null) {
       logError(_logTag, "Cannot add track: No project loaded");
       return null;
     }
@@ -153,7 +162,7 @@ class ProjectDatabaseService {
     double? fileSize,
     String? thumbnailPath,
   }) async {
-    if (_assetDao == null || _currentDatabase == null) {
+    if (_assetDao == null || currentDatabase == null) {
       logError(_logTag, "Cannot import asset: No project loaded");
       return null;
     }
@@ -168,8 +177,16 @@ class ProjectDatabaseService {
         fileSize: fileSize,
         thumbnailPath: thumbnailPath,
       );
-      
-      logInfo(_logTag, "Imported asset with ID: $assetId");
+
+      // Manually refresh the assets notifier after successful import
+      if (assetId != null) {
+        final updatedAssets = await _assetDao!.getAllAssets(); // Fetch the updated list
+        assetsNotifier.value = updatedAssets; // Update the notifier
+        logInfo(_logTag, "Imported asset with ID: $assetId and refreshed notifier.");
+      } else {
+         logWarning(_logTag, "Asset import returned null ID.");
+      }
+
       return assetId;
     } catch (e) {
       logError(_logTag, "Error importing asset: $e");
@@ -235,13 +252,16 @@ class ProjectDatabaseService {
         updatedAt: Value(DateTime.now()),
       );
       
-      final success = await _trackDao!.updateTrack(companion);
-      if (success) {
-        logInfo(_logTag, "Renamed track $trackId to '$newName'");
-        return true;
+      // DAO's updateTrack now returns Future<int> (rows affected)
+      final affectedRows = await _trackDao!.updateTrack(companion);
+      
+      // Consider the update successful if 1 or more rows were affected
+      if (affectedRows > 0) {
+        logInfo(_logTag, "Renamed track $trackId to '$newName' ($affectedRows row(s) affected)");
+        return true; // Return true if successful
       } else {
-        logWarning(_logTag, "Failed to rename track $trackId");
-        return false;
+        logWarning(_logTag, "Failed to rename track $trackId (0 rows affected)");
+        return false; // Return false if no rows were affected
       }
     } catch (e) {
       logError(_logTag, "Error renaming track: $e");
@@ -256,9 +276,9 @@ class ProjectDatabaseService {
   
   /// DAO for reading change logs
   ChangeLogDao get changeLogDao {
-    if (_currentDatabase == null) {
+    if (currentDatabase == null) {
       throw StateError('No project loaded');
     }
-    return ChangeLogDao(_currentDatabase!);
+    return ChangeLogDao(currentDatabase!);
   }
 } 

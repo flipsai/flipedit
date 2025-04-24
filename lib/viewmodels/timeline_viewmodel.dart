@@ -14,6 +14,11 @@ import 'package:flipedit/utils/logger.dart' as logger; // Import logger
 import 'package:flipedit/viewmodels/timeline_utils.dart';
 import 'commands/timeline_command.dart';
 import 'commands/add_clip_command.dart';
+import 'commands/add_clip_direct_command.dart'; // Added
+import 'commands/move_clip_command.dart'; // Added
+import 'commands/remove_clip_command.dart'; // Added
+import 'commands/resize_clip_command.dart'; // Added
+import 'commands/roll_edit_command.dart'; // Added
 import 'package:flipedit/services/undo_redo_service.dart';
 
 class TimelineViewModel {
@@ -81,6 +86,7 @@ class TimelineViewModel {
 
   Timer? _playbackTimer;
   StreamSubscription? _controllerPositionSubscription;
+
   StreamSubscription? _clipStreamSubscription;
 
   late final VoidCallback _debouncedFrameUpdate;
@@ -110,7 +116,7 @@ class TimelineViewModel {
 
   /// Initializes frame info and debounce
   TimelineViewModel(this._projectDatabaseService, this._undoRedoService) {
-    _recalculateAndUpdateTotalFrames();
+    recalculateAndUpdateTotalFrames(); // Updated call
 
     _debouncedFrameUpdate = debounce(() {
       if (!isPlayingNotifier.value) return;
@@ -143,7 +149,7 @@ class TimelineViewModel {
     if (!success) {
       logger.logError('❌ Failed to load project $projectId', _logTag);
       clipsNotifier.value = [];
-      _recalculateAndUpdateTotalFrames();
+      recalculateAndUpdateTotalFrames(); // Updated call
       return;
     }
 
@@ -159,7 +165,7 @@ class TimelineViewModel {
     if (tracks.isEmpty) {
       logger.logInfo('⚠️ No tracks found for project $projectId', _logTag);
       clipsNotifier.value = [];
-      _recalculateAndUpdateTotalFrames();
+      recalculateAndUpdateTotalFrames(); // Updated call
       return;
     }
 
@@ -270,9 +276,17 @@ class TimelineViewModel {
       final ne = neighbor.startTimeOnTrackMs + neighbor.durationMs;
       if (ne <= newStart || ns >= newEnd) continue; // No overlap
       if (ns >= newStart && ne <= newEnd) {
+        // Fully covered: remove using command
         updatedClips.removeWhere((c) => c.databaseId == neighbor.databaseId);
         changed = true;
-        await removeClip(neighbor.databaseId!);
+        final removeCmd = RemoveClipCommand(vm: this, clipId: neighbor.databaseId!);
+        // Don't await here directly, let the command run via runCommand if needed
+        // For internal logic like this, maybe direct DAO call is still okay?
+        // Reverting to direct DAO call for internal logic consistency for now.
+        // await runCommand(removeCmd); // This would add it to undo stack, maybe not desired here.
+         await _projectDatabaseService.clipDao!.deleteClip(neighbor.databaseId!);
+         // Need to manually update notifier if not using command
+         recalculateAndUpdateTotalFrames(); // Ensure total frames are updated
       } else if (ns < newStart && ne > newStart && ne <= newEnd) {
         // Overlap on right: trim neighbor's end to the intersection
         final updated = neighbor.copyWith(
@@ -389,10 +403,12 @@ class TimelineViewModel {
         ),
       );
       changed = true;
+      // Update the notifier optimistically. The database stream will handle the definitive update.
       clipsNotifier.value = List<ClipModel>.from(updatedClips);
-      await refreshClips();
+      recalculateAndUpdateTotalFrames(); // Recalculate after optimistic add
+      // await refreshClips(); // Removed immediate refresh - rely on stream
       logger.logInfo(
-        'Added new clip with ID $newClipId (auto-trimmed)',
+        'Added new clip with ID $newClipId (optimistic update)',
         _logTag,
       );
       return true;
@@ -409,6 +425,7 @@ class TimelineViewModel {
         changed = true;
       }
       clipsNotifier.value = List<ClipModel>.from(updatedClips);
+      recalculateAndUpdateTotalFrames(); // Recalculate after optimistic update
       if (clipId != null) {
         try {
           await _projectDatabaseService.clipDao!.updateClipFields(clipId, {
@@ -423,94 +440,19 @@ class TimelineViewModel {
         }
       }
       await _undoRedoService.init();
-      await refreshClips();
-      logger.logInfo('Moved/resized clip $clipId (auto-trimmed)', _logTag);
+      // await refreshClips(); // Removed immediate refresh - rely on stream
+      logger.logInfo('Moved/resized clip $clipId (optimistic update)', _logTag);
       return true;
     }
   }
 
-  Future<bool> addClip({
-    required int trackId,
-    required ClipType type,
-    required String sourcePath,
-    required int startTimeOnTrackMs,
-    required int startTimeInSourceMs,
-    required int endTimeInSourceMs,
-  }) async {
-    return await placeClipOnTrack(
-      trackId: trackId,
-      type: type,
-      sourcePath: sourcePath,
-      startTimeOnTrackMs: startTimeOnTrackMs,
-      startTimeInSourceMs: startTimeInSourceMs,
-      endTimeInSourceMs: endTimeInSourceMs,
-    );
-  }
+  // Removed addClip method - Use runCommand(AddClipDirectCommand(...)) instead
 
-  Future<bool> moveClip({
-    required int clipId,
-    required int newTrackId,
-    required int newStartTimeOnTrackMs,
-  }) async {
-    final clip = clips.firstWhere(
-      (c) => c.databaseId == clipId,
-      orElse: () => throw Exception('Clip not found'),
-    );
-    return await placeClipOnTrack(
-      clipId: clipId,
-      trackId: newTrackId,
-      type: clip.type,
-      sourcePath: clip.sourcePath,
-      startTimeOnTrackMs: newStartTimeOnTrackMs,
-      startTimeInSourceMs: clip.startTimeInSourceMs,
-      endTimeInSourceMs: clip.endTimeInSourceMs,
-    );
-  }
+  // Removed moveClip method - Use runCommand(MoveClipCommand(...)) instead
 
-  Future<bool> resizeClip({
-    required int clipId,
-    required String direction, // 'left' or 'right'
-    required int newFrame,
-  }) async {
-    final clip = clips.firstWhere(
-      (c) => c.databaseId == clipId,
-      orElse: () => throw Exception('Clip not found'),
-    );
-    int newStart = clip.startTimeOnTrackMs;
-    int newEnd = clip.startTimeOnTrackMs + clip.durationMs;
-    if (direction == 'left') {
-      newStart = ClipModel.framesToMs(newFrame);
-    } else if (direction == 'right') {
-      newEnd = ClipModel.framesToMs(newFrame);
-    }
-    return await placeClipOnTrack(
-      clipId: clipId,
-      trackId: clip.trackId,
-      type: clip.type,
-      sourcePath: clip.sourcePath,
-      startTimeOnTrackMs: newStart,
-      startTimeInSourceMs:
-          clip.startTimeInSourceMs + (newStart - clip.startTimeOnTrackMs),
-      endTimeInSourceMs:
-          clip.startTimeInSourceMs + (newEnd - clip.startTimeOnTrackMs),
-    );
-  }
+  // Removed resizeClip method - Use runCommand(ResizeClipCommand(...)) instead
 
-  Future<bool> removeClip(int clipId) async {
-    if (_projectDatabaseService.clipDao == null) {
-      logger.logError('Clip DAO not initialized', _logTag);
-      return false;
-    }
-    try {
-      await _projectDatabaseService.clipDao!.deleteClip(clipId);
-      await refreshClips();
-      logger.logInfo('Removed clip with ID $clipId', _logTag);
-      return true;
-    } catch (e) {
-      logger.logError('Error removing clip: $e', _logTag);
-      return false;
-    }
-  }
+  // Removed removeClip method - Use runCommand(RemoveClipCommand(...)) instead
 
   Future<void> refreshClips() async {
     if (_projectDatabaseService.clipDao == null) return;
@@ -527,7 +469,7 @@ class TimelineViewModel {
       (a, b) => a.startTimeOnTrackMs.compareTo(b.startTimeOnTrackMs),
     );
     clipsNotifier.value = allClips;
-    _recalculateAndUpdateTotalFrames();
+    recalculateAndUpdateTotalFrames(); // Updated call
   }
 
   void play() {
@@ -599,7 +541,7 @@ class TimelineViewModel {
       final file = File(videoPath);
       if (!await file.exists()) {
         logger.logError("Error: Video file not found at $videoPath", _logTag);
-        _recalculateAndUpdateTotalFrames();
+        recalculateAndUpdateTotalFrames(); // Updated call
         return;
       }
       videoUri = Uri.file(videoPath);
@@ -610,7 +552,7 @@ class TimelineViewModel {
       await _videoPlayerController!.initialize();
       _videoPlayerController!.setLooping(false);
 
-      _recalculateAndUpdateTotalFrames();
+      recalculateAndUpdateTotalFrames(); // Updated call
       currentFrame = 0;
 
       _videoPlayerController!.addListener(_updateFrameFromController);
@@ -624,7 +566,7 @@ class TimelineViewModel {
       logger.logError("Error initializing video player: $e", _logTag);
       _videoPlayerController = null;
       videoPlayerControllerNotifier.value = null;
-      _recalculateAndUpdateTotalFrames();
+      recalculateAndUpdateTotalFrames(); // Updated call
     }
     isPlayingNotifier.value = false;
   }
@@ -643,7 +585,8 @@ class TimelineViewModel {
     return ClipModel.msToFrames(maxEndTimeMs);
   }
 
-  void _recalculateAndUpdateTotalFrames() {
+  // Made public for commands to call when necessary
+  void recalculateAndUpdateTotalFrames() {
     final newTotalFrames = _calculateTotalFrames();
     if (totalFramesNotifier.value != newTotalFrames) {
       totalFramesNotifier.value = newTotalFrames;
@@ -682,114 +625,11 @@ class TimelineViewModel {
     _videoPlayerController?.dispose();
   }
 
-  Future<void> addClipAtPosition({
-    required ClipModel clipData,
-    required int trackId,
-    required int startTimeInSourceMs,
-    required int endTimeInSourceMs,
-    double? localPositionX,
-    double? scrollOffsetX,
-  }) async {
-    final cmd = AddClipCommand(
-      vm: this,
-      clipData: clipData,
-      trackId: trackId,
-      startTimeInSourceMs: startTimeInSourceMs,
-      endTimeInSourceMs: endTimeInSourceMs,
-      localPositionX: localPositionX,
-      scrollOffsetX: scrollOffsetX,
-    );
-    await runCommand(cmd);
-  }
+  // Removed addClipAtPosition - Callers should use runCommand(AddClipCommand(...)) directly.
 
-  Future<bool> createTimelineClip({
-    required int trackId,
-    required ClipModel clipData,
-    required int framePosition,
-  }) async {
-    logger.logInfo(
-      'Creating timeline clip at frame $framePosition on track $trackId for ${clipData.name}',
-      _logTag,
-    );
+  // Removed createTimelineClip - Callers should use runCommand(AddClipDirectCommand(...)) directly.
 
-    // Convert the frame position to milliseconds using the helper method
-    final startTimeOnTrackMs = frameToMs(framePosition);
-
-    // Additional debug info about timing
-    final clipDurationFrames = ClipModel.msToFrames(clipData.durationMs);
-    logger.logInfo(
-      'Frame metrics: startFrame=$framePosition, durationFrames=$clipDurationFrames, startTimeMs=$startTimeOnTrackMs',
-      _logTag,
-    );
-
-    // Call the existing createClip method with the calculated position
-    return await addClip(
-      trackId: trackId,
-      type: clipData.type,
-      sourcePath: clipData.sourcePath,
-      startTimeOnTrackMs: startTimeOnTrackMs,
-      startTimeInSourceMs: clipData.startTimeInSourceMs,
-      endTimeInSourceMs: clipData.endTimeInSourceMs,
-    );
-  }
-
-  /// Roll edit between two adjacent clips: moves the boundary between them.
-  /// [leftClipId] is the left clip, [rightClipId] is the right clip, [newBoundaryFrame] is the new frame for the boundary.
-  /// Returns true if successful, false if constraints prevent the operation.
-  Future<bool> rollEditClips({
-    required int leftClipId,
-    required int rightClipId,
-    required int newBoundaryFrame,
-  }) async {
-    final left = clips.firstWhere(
-      (c) => c.databaseId == leftClipId,
-      orElse: () => throw Exception('Left clip not found'),
-    );
-    final right = clips.firstWhere(
-      (c) => c.databaseId == rightClipId,
-      orElse: () => throw Exception('Right clip not found'),
-    );
-    // Must be on same track and adjacent
-    if (left.trackId != right.trackId) return false;
-    if (left.endFrame != right.startFrame) return false;
-    // Compute valid range for the boundary
-    final leftMinBoundary = left.startFrame + 1;
-    final leftMaxBoundary =
-        left.startFrame + (left.endFrameInSource - left.startFrameInSource);
-    final rightMinBoundary =
-        right.endFrame - (right.endFrameInSource - right.startFrameInSource);
-    final rightMaxBoundary = right.endFrame - 1;
-    // The valid range is the intersection of both
-    final minBoundary = [
-      leftMinBoundary,
-      rightMinBoundary,
-    ].reduce((a, b) => a > b ? a : b);
-    final maxBoundary = [
-      leftMaxBoundary,
-      rightMaxBoundary,
-    ].reduce((a, b) => a < b ? a : b);
-    final clampedBoundary = newBoundaryFrame.clamp(minBoundary, maxBoundary);
-    if (clampedBoundary <= left.startFrame || clampedBoundary >= right.endFrame)
-      return false;
-    // Compute new times
-    final newLeftEndMs = ClipModel.framesToMs(clampedBoundary);
-    final newRightStartMs = ClipModel.framesToMs(clampedBoundary);
-    final newLeftEndInSourceMs =
-        left.startTimeInSourceMs + (newLeftEndMs - left.startTimeOnTrackMs);
-    final newRightStartInSourceMs =
-        right.startTimeInSourceMs +
-        (newRightStartMs - right.startTimeOnTrackMs);
-    // --- FIX: Always update right's startTimeOnTrackMs to match boundary ---
-    await _projectDatabaseService.clipDao!.updateClipFields(left.databaseId!, {
-      'endTimeInSourceMs': newLeftEndInSourceMs,
-    });
-    await _projectDatabaseService.clipDao!.updateClipFields(right.databaseId!, {
-      'startTimeOnTrackMs': newRightStartMs,
-      'startTimeInSourceMs': newRightStartInSourceMs,
-    });
-    await refreshClips();
-    return true;
-  }
+  // Removed rollEditClips method - Use runCommand(RollEditCommand(...)) instead
 
   /// Trims, removes, or splits clips that overlap with [startMs, endMs) on [trackId]. Optionally excludes a clip by ID.
   Future<void> trimOrRemoveOverlappingClips(
@@ -809,7 +649,9 @@ class TimelineViewModel {
       final clipEnd = clip.startTimeOnTrackMs + clip.durationMs;
       // Fully covered: remove
       if (clipStart >= startMs && clipEnd <= endMs) {
-        await removeClip(clip.databaseId!);
+        // Use direct DAO call + recalculate for internal utility method
+        await _projectDatabaseService.clipDao!.deleteClip(clip.databaseId!);
+        recalculateAndUpdateTotalFrames(); // Ensure total frames are updated
       } else if (clipStart < endMs && clipEnd > endMs) {
         // Overlap on left: trim neighbor's end (neighbor is to the right of the new clip)
         if (clip.databaseId != null) {
@@ -880,7 +722,7 @@ class TimelineViewModel {
             log: false);
       }
     }
-    await refreshClips();
+    // await refreshClips(); // Removed immediate refresh - rely on stream
   }
 
   /// Returns all clips on the same track that overlap with [startMs, endMs). Optionally excludes a clip by ID.
