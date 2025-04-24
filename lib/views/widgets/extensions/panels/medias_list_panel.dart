@@ -13,26 +13,21 @@ const _logTag = 'ClipsListPanel';
 /// Panel for displaying project assets in the media tab
 class MediasListPanel extends StatelessWidget with WatchItMixin {
   final String selectedExtension;
-  final TextEditingController searchController;
-  final ValueNotifier<String> searchTermNotifier;
 
   const MediasListPanel({
     super.key,
     required this.selectedExtension,
-    required this.searchController,
-    required this.searchTermNotifier,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Watch ProjectViewModel for project assets
+    // Watch ProjectViewModel for project assets and search term
     final assets = watchValue((ProjectViewModel vm) => vm.projectAssetsNotifier);
+    final searchTerm = watchValue((ProjectViewModel vm) => vm.searchTermNotifier);
     final projectVm = di<ProjectViewModel>();
-    
-    // Watch the notifier to trigger rebuilds
-    watch(searchTermNotifier);
-    // Get the value *after* watching
-    final searchTerm = searchTermNotifier.value;
+
+    // Create a new controller each build, initialized with current search term
+    final searchController = TextEditingController(text: searchTerm);
 
     return Column(
       children: [
@@ -50,12 +45,12 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
                     icon: const Icon(FluentIcons.clear),
                     onPressed: () {
                       searchController.clear();
-                      searchTermNotifier.value = '';
+                      projectVm.setSearchTerm('');
                     },
                   )
                 : null,
             onChanged: (value) {
-              searchTermNotifier.value = value;
+              projectVm.setSearchTerm(value);
             },
           ),
         ),
@@ -70,45 +65,7 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
                       Button(
                         child: const Text('Import Media'),
                         onPressed: () async {
-                          // Show loading indicator (Consider moving this into the command or a UI helper)
-                          final loadingOverlay = _showLoadingOverlay(
-                            context, 
-                            'Selecting file...'
-                          );
-                          
-                          try {
-                            // Use the ViewModel command to import media
-                            final importSuccess = await projectVm.importMedia(context);
-                            
-                            // Remove loading overlay
-                            loadingOverlay.remove();
-                            
-                            // Show success/failure notification (Consider moving this into the command or a UI helper)
-                            if (importSuccess) {
-                              _showNotification(
-                                context,
-                                'Media imported successfully',
-                                severity: InfoBarSeverity.success
-                              );
-                            } else {
-                              _showNotification(
-                                context,
-                                'Failed to import media or cancelled',
-                                severity: InfoBarSeverity.warning // Changed severity as cancellation is not an error
-                              );
-                            }
-                          } catch (e) {
-                            // Remove loading overlay if an error occurs
-                            loadingOverlay.remove();
-                            
-                            _showNotification(
-                              context,
-                              'Error importing media: ${e.toString()}',
-                              severity: InfoBarSeverity.error
-                            );
-                            
-                            logError(_logTag, "Unexpected error in import flow: $e");
-                          }
+                          await projectVm.importMediaWithUI(context);
                         },
                       ),
                     ],
@@ -120,48 +77,6 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
     );
   }
   
-  // Move helper methods from MediaImportService here (or to a common UI utils file)
-  // Shows a loading indicator overlay
-  OverlayEntry _showLoadingOverlay(BuildContext context, String message) {
-    final overlay = Overlay.of(context);
-    final entry = OverlayEntry(
-      builder: (context) => Center(
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: FluentTheme.of(context).resources.subtleFillColorSecondary,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const ProgressRing(),
-              const SizedBox(height: 16),
-              Text(message),
-            ],
-          ),
-        ),
-      ),
-    );
-    
-    overlay.insert(entry);
-    return entry;
-  }
-  
-  // Shows a notification message
-  void _showNotification(
-    BuildContext context, 
-    String message, 
-    {InfoBarSeverity severity = InfoBarSeverity.info}
-  ) {
-    displayInfoBar(context, builder: (context, close) {
-      return InfoBar(
-        title: Text(message),
-        severity: severity,
-        onClose: close,
-      );
-    });
-  }
 
   // Update method to accept List<model.ProjectAsset>
   Widget _buildClipsList(

@@ -8,11 +8,10 @@ import 'package:watch_it/watch_it.dart';
 class ExtensionPanelContainer extends StatelessWidget with WatchItMixin {
   final String selectedExtension;
   final TextEditingController _searchController = TextEditingController();
-  final ValueNotifier<String> _searchTermNotifier = ValueNotifier<String>('');
 
   ExtensionPanelContainer({super.key, required this.selectedExtension}) {
     _searchController.addListener(() {
-      _searchTermNotifier.value = _searchController.text;
+      // No longer managing search term locally
     });
   }
 
@@ -84,8 +83,6 @@ class ExtensionPanelContainer extends StatelessWidget with WatchItMixin {
         // For media and composition tabs, show the clips list
         return MediasListPanel(
           selectedExtension: selectedExtension,
-          searchController: _searchController,
-          searchTermNotifier: _searchTermNotifier,
         );
     }
   }
