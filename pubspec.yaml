@@ -67,6 +67,7 @@ dev_dependencies:
     sdk: flutter
   test: any
   collection: ^1.17.0
+  devtools_mcp_extension: ^0.2.0
 
 dependency_overrides:
   archive: 3.6.1
