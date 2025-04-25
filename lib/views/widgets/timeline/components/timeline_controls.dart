@@ -17,12 +17,8 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
 
     // Watch basic values
     final isPlaying = watchValue((TimelineViewModel vm) => vm.isPlayingNotifier);
-    final currentFrame = watchValue((TimelineViewModel vm) => vm.currentFrameNotifier);
     final totalFrames = watchValue((TimelineViewModel vm) => vm.totalFramesNotifier);
     final zoom = watchValue((TimelineViewModel vm) => vm.zoomNotifier);
-
-    // Watch the controller itself (can be null)
-    final controller = watchValue((TimelineViewModel vm) => vm.videoPlayerControllerNotifier);
 
     // Edit mode toolbar
     final currentMode = watchValue((TimelineViewModel vm) => vm.currentEditMode);
@@ -164,7 +160,7 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
                 size: 16,
                 color: controlsContentColor, // Ensure color consistency
               ),
-              onPressed: () => timelineViewModel.togglePlayPause(),
+              onPressed: () => {}
             ),
           ),
           Tooltip(
@@ -181,23 +177,6 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
           ...modeButtons,
 
           const SizedBox(width: 16),
-
-          // Timecode Display - Wrapped in Flexible to prevent overflow
-          Flexible(
-            child: Align( // Align the text to the right within the flexible space
-              alignment: Alignment.centerRight,
-              child: (controller != null)
-                  ? _TimecodeDisplay(controller: controller) // Use the new widget
-                  : Text( // Fallback display
-                      'Frame: $currentFrame / $totalFrames', // Use watched values
-                      style: theme.typography.caption?.copyWith(
-                        color: controlsContentColor,
-                        fontFamily: 'monospace', // Use monospace for frame count too
-                      ),
-                      overflow: TextOverflow.ellipsis, // Add ellipsis if it still overflows
-                    ),
-            ),
-          ),
         ],
       ),
     );

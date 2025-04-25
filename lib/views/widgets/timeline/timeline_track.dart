@@ -1,7 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flipedit/persistence/database/project_database.dart';
-import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/models/clip.dart';
+import 'package:flipedit/services/timeline_logic_service.dart'; // Import the new service
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/views/widgets/timeline/timeline_clip.dart';
 import 'package:watch_it/watch_it.dart';
@@ -9,6 +9,7 @@ import 'package:flutter/widgets.dart' as fw;
 import "dart:developer" as developer;
 import 'painters/track_background_painter.dart';
 import 'package:flipedit/viewmodels/commands/roll_edit_command.dart';
+import 'package:flipedit/viewmodels/commands/add_clip_command.dart';
 
 class TimelineTrack extends StatefulWidget with WatchItStatefulWidgetMixin {
   final Track track;
@@ -34,13 +35,13 @@ class _TimelineTrackState extends State<TimelineTrack> {
   final GlobalKey _trackContentKey = GlobalKey();
 
   late TimelineViewModel _timelineViewModel;
-  late ProjectDatabaseService _databaseService;
+  late TimelineLogicService _timelineLogicService;
 
   @override
   void initState() {
     super.initState();
     _timelineViewModel = di<TimelineViewModel>();
-    _databaseService = di<ProjectDatabaseService>();
+    _timelineLogicService = di<TimelineLogicService>();
     _textController = TextEditingController(text: widget.track.name);
     _focusNode = FocusNode();
 
@@ -94,30 +95,16 @@ class _TimelineTrackState extends State<TimelineTrack> {
     developer.log('Attempting to submit rename for track ${widget.track.id}...');
     final newName = _textController.text.trim();
     if (mounted && _isEditing) {
-       developer.log('Mounted and isEditing: true. New name: "$newName"');
-       final oldName = widget.track.name; // Store old name
-       if (newName.isNotEmpty && newName != oldName) {
-        developer.log('New name is valid. Calling databaseService.updateTrackName...');
-
-        // Call the database update asynchronously
-        _databaseService.updateTrackName(widget.track.id, newName).then((success) {
-          if (success) {
-            developer.log('✅ Database update reported SUCCESS for track ${widget.track.id}. Waiting for stream update...');
-            // The watchAllTracks stream should handle the UI update eventually by rebuilding the parent.
-          } else {
-            // If updateTrack returns false
-            developer.log('⚠️ Database update reported FAILURE (returned false) for track ${widget.track.id}. Name remains "$oldName".');
-          }
-        }).catchError((error) {
-           // If updateTrack throws an exception
-           developer.log('❌ Database update threw an ERROR for track ${widget.track.id}: $error');
-        });
-
-       }
-       setState(() {
-         _isEditing = false;
-         developer.log('Exiting editing mode.');
-       });
+      developer.log('Mounted and isEditing: true. New name: "$newName"');
+      final oldName = widget.track.name; // Store old name
+      if (newName.isNotEmpty && newName != oldName) {
+        developer.log('New name is valid. Calling timelineViewModel.updateTrackName...');
+        _timelineViewModel.updateTrackName(widget.track.id, newName);
+      }
+      setState(() {
+        _isEditing = false;
+        developer.log('Exiting editing mode.');
+      });
     } else {
       developer.log('Not submitting: mounted=$mounted, isEditing=$_isEditing');
     }
@@ -155,19 +142,12 @@ class _TimelineTrackState extends State<TimelineTrack> {
 
   Future<void> _handleClipDrop(ClipModel draggedClip, int startTimeOnTrackMs) async {
     final timelineVm = di<TimelineViewModel>();
-      // Compute the start time in source
-      final startTimeInSourceMs = draggedClip.startTimeInSourceMs;
-      final endTimeInSourceMs = draggedClip.endTimeInSourceMs;
-      // Use placeClipOnTrack which accepts the start time
-      await timelineVm.placeClipOnTrack(
-        trackId: widget.track.id,
-        type: draggedClip.type,
-        sourcePath: draggedClip.sourcePath,
-        startTimeOnTrackMs: startTimeOnTrackMs, // Use the calculated start time
-        startTimeInSourceMs: startTimeInSourceMs,
-        endTimeInSourceMs: endTimeInSourceMs,
-      );
-      // ViewModel handles updates, no explicit refresh needed here
+    await timelineVm.handleClipDrop(
+      clip: draggedClip,
+      trackId: widget.track.id,
+      startTimeOnTrackMs: startTimeOnTrackMs,
+    );
+    // ViewModel handles updates, no explicit refresh needed here
   }
 
   @override
@@ -269,12 +249,25 @@ class _TimelineTrackState extends State<TimelineTrack> {
                 final scrollOffsetX = getHorizontalScrollOffset();
                 final posX = localPosition.dx;
                 final framePosition = ((posX + scrollOffsetX) / (5.0 * zoom)).floor();
-                final framePositionMs = framePosition * (1000 / 30); // Convert to ms (30fps)
+                // Calculate position in milliseconds using the ViewModel's helper
+                final startTimeOnTrackMs = _timelineLogicService.frameToMs(framePosition);
                 developer.log(
-                  '📏 Position metrics: local=$posX, scroll=$scrollOffsetX, frame=$framePosition, ms=$framePositionMs',
+                  '📏 Position metrics: local=$posX, scroll=$scrollOffsetX, frame=$framePosition, ms=$startTimeOnTrackMs',
                   name: 'TimelineTrack'
                 );
-                await _handleClipDrop(draggedClip, framePositionMs.toInt());
+                final addClipCmd = AddClipCommand(
+                  vm: _timelineViewModel,
+                  clipData: draggedClip,
+                  trackId: widget.track.id,
+                  // Pass the calculated start time on the track
+                  startTimeOnTrackMs: startTimeOnTrackMs,
+                  // Use the original source start time
+                  startTimeInSourceMs: draggedClip.startTimeInSourceMs,
+                  endTimeInSourceMs: draggedClip.endTimeInSourceMs,
+                  localPositionX: null,
+                  scrollOffsetX: null,
+                );
+                await _timelineViewModel.runCommand(addClipCmd);
                 _updateHoverPosition(null);
               },
               onWillAcceptWithDetails: (details) {
@@ -364,7 +357,8 @@ class _TimelineTrackState extends State<TimelineTrack> {
       return [];
     }
     final timelineVm = di<TimelineViewModel>();
-    final previewClips = timelineVm.getPreviewClipsForDrag(
+    final previewClips = _timelineLogicService.getPreviewClipsForDrag(
+      clips: timelineVm.clips,
       clipId: draggedClip.databaseId!,
       targetTrackId: widget.track.id,
       targetStartTimeOnTrackMs: (frameForPreview * (1000 / 30)).toInt(),
@@ -524,7 +518,6 @@ class _RollEditHandle extends StatefulWidget {
   final double zoom;
 
   const _RollEditHandle({
-    super.key,
     required this.leftClipId,
     required this.rightClipId,
     required this.initialFrame,
