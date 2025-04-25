@@ -1,14 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flipedit/persistence/database/project_metadata_database.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
-import 'package:flipedit/utils/logger.dart';
-import 'package:watch_it/watch_it.dart';
-import 'package:flipedit/services/undo_redo_service.dart';
-
-// --- Action Handlers (Now using ProjectViewModel) ---
-const _logTag = 'AppMenuBarActions'; // Define tag for top-level functions
 
 // Updated to accept BuildContext and ProjectViewModel
 Future<void> _handleNewProject(
