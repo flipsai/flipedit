@@ -42,7 +42,7 @@ class TimelineClipResizeService {
     required TimelineViewModel timelineVm,
     required ClipModel clip,
     required double zoom,
-    required void Function(ResizeClipCommand) runCommand,
+    required Future<void> Function(ResizeClipCommand) runCommand, // Correct type hint
   }) async {
     if (resizingDirection == null || previewStartFrame == null || previewEndFrame == null) return;
     final double pxPerFrame = (zoom > 0 ? 5.0 * zoom : 5.0);
@@ -68,7 +68,9 @@ class TimelineClipResizeService {
         newBoundaryFrame: newBoundaryFrame,
       );
       try {
-        runCommand(command);
+        // Await the command execution to ensure the view model state is updated
+        // before this service method returns.
+        await runCommand(command);
       } catch (e) {
         logger.logError('Error executing ResizeClipCommand: $e', 'TimelineClipResizeService');
       }

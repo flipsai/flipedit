@@ -44,6 +44,8 @@ class _TimelineClipState extends State<TimelineClip> {
   int? _previewStartFrame; // Store original start frame during resize
   int? _previewEndFrame; // Store original end frame during resize
 
+  bool _isResizing = false; // Tracks active resize gesture
+
   // Service for resize logic
   final TimelineClipResizeService _resizeService = TimelineClipResizeService();
 
@@ -94,8 +96,8 @@ class _TimelineClipState extends State<TimelineClip> {
 
     if (_isMoving) {
       dragOffset = (_currentMoveFrame - widget.clip.startFrame) * pixelsPerFrame;
-    } else if (_resizingDirection != null && _previewStartFrame != null && _previewEndFrame != null) {
-       // Calculate PREVIEW changes for RESIZE drag
+    } else if (_isResizing && _resizingDirection != null && _previewStartFrame != null && _previewEndFrame != null) {
+       // Calculate PREVIEW changes for RESIZE drag only when actively resizing
       int frameDelta = (pixelsPerFrame > 0 ? (_resizeAccumulatedDrag / pixelsPerFrame) : 0).round();
       int minFrameDuration = 1;
 
@@ -393,12 +395,15 @@ class _TimelineClipState extends State<TimelineClip> {
       startFrame: widget.clip.startFrame,
       endFrame: widget.clip.endFrame,
     );
-    setState(() {
-      _resizingDirection = result['resizingDirection'];
-      _resizeAccumulatedDrag = result['resizeAccumulatedDrag'];
-      _previewStartFrame = result['previewStartFrame'];
-      _previewEndFrame = result['previewEndFrame'];
-    });
+    if (result.containsKey('resizingDirection')) {
+      setState(() {
+        _isResizing = true; // Start resizing gesture
+        _resizingDirection = result['resizingDirection'];
+        _resizeAccumulatedDrag = result['resizeAccumulatedDrag'];
+        _previewStartFrame = result['previewStartFrame'];
+        _previewEndFrame = result['previewEndFrame'];
+      });
+    }
   }
 
   void _handleResizeUpdate(double accumulatedPixelDelta) {
@@ -424,7 +429,10 @@ class _TimelineClipState extends State<TimelineClip> {
       zoom: di<TimelineViewModel>().zoomNotifier.value,
       runCommand: (cmd) => di<TimelineViewModel>().runCommand(cmd),
     );
+    // Reset local state after command is dispatched.
+    // _isResizing flag prevents snap-back during the rebuild triggered by this setState.
     setState(() {
+      _isResizing = false; // End resizing gesture
       _resizingDirection = null;
       _resizeAccumulatedDrag = 0.0;
       _previewStartFrame = null;
