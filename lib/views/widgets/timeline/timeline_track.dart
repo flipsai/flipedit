@@ -9,6 +9,7 @@ import 'package:flutter/widgets.dart' as fw;
 import "dart:developer" as developer;
 import 'painters/track_background_painter.dart';
 import 'package:flipedit/viewmodels/commands/roll_edit_command.dart';
+import 'package:flipedit/viewmodels/commands/add_clip_command.dart';
 
 class TimelineTrack extends StatefulWidget with WatchItStatefulWidgetMixin {
   final Track track;
@@ -248,12 +249,25 @@ class _TimelineTrackState extends State<TimelineTrack> {
                 final scrollOffsetX = getHorizontalScrollOffset();
                 final posX = localPosition.dx;
                 final framePosition = ((posX + scrollOffsetX) / (5.0 * zoom)).floor();
-                final framePositionMs = framePosition * (1000 / 30); // Convert to ms (30fps)
+                // Calculate position in milliseconds using the ViewModel's helper
+                final startTimeOnTrackMs = _timelineViewModel.frameToMs(framePosition);
                 developer.log(
-                  '📏 Position metrics: local=$posX, scroll=$scrollOffsetX, frame=$framePosition, ms=$framePositionMs',
+                  '📏 Position metrics: local=$posX, scroll=$scrollOffsetX, frame=$framePosition, ms=$startTimeOnTrackMs',
                   name: 'TimelineTrack'
                 );
-                await _handleClipDrop(draggedClip, framePositionMs.toInt());
+                final addClipCmd = AddClipCommand(
+                  vm: _timelineViewModel,
+                  clipData: draggedClip,
+                  trackId: widget.track.id,
+                  // Pass the calculated start time on the track
+                  startTimeOnTrackMs: startTimeOnTrackMs,
+                  // Use the original source start time
+                  startTimeInSourceMs: draggedClip.startTimeInSourceMs,
+                  endTimeInSourceMs: draggedClip.endTimeInSourceMs,
+                  localPositionX: null,
+                  scrollOffsetX: null,
+                );
+                await _timelineViewModel.runCommand(addClipCmd);
                 _updateHoverPosition(null);
               },
               onWillAcceptWithDetails: (details) {
@@ -503,7 +517,6 @@ class _RollEditHandle extends StatefulWidget {
   final double zoom;
 
   const _RollEditHandle({
-    super.key,
     required this.leftClipId,
     required this.rightClipId,
     required this.initialFrame,

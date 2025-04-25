@@ -1,17 +1,16 @@
 import 'dart:async';
 
 import 'package:flipedit/persistence/dao/project_metadata_dao.dart';
-import 'package:flipedit/persistence/database/project_database.dart';
 import 'package:flipedit/persistence/database/project_metadata_database.dart';
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/services/project_metadata_service.dart';
 import 'package:flipedit/services/undo_redo_service.dart';
 import 'package:flipedit/utils/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:watch_it/watch_it.dart'; // For di
+import 'package:watch_it/watch_it.dart';
 
 const _logTag = 'LoadProjectCommand';
-const _lastProjectIdKey = 'last_opened_project_id'; // Key for SharedPreferences
+const _lastProjectIdKey = 'last_opened_project_id';
 
 class LoadProjectCommand {
   final ProjectMetadataService _metadataService;

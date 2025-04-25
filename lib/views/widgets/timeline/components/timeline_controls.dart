@@ -17,7 +17,6 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
 
     // Watch basic values
     final isPlaying = watchValue((TimelineViewModel vm) => vm.isPlayingNotifier);
-    final currentFrame = watchValue((TimelineViewModel vm) => vm.currentFrameNotifier);
     final totalFrames = watchValue((TimelineViewModel vm) => vm.totalFramesNotifier);
     final zoom = watchValue((TimelineViewModel vm) => vm.zoomNotifier);
 

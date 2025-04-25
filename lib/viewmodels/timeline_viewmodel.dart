@@ -1,11 +1,8 @@
 import 'dart:async';
-import 'package:drift/drift.dart' as drift;
 
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/models/enums/edit_mode.dart';
-import 'package:flipedit/persistence/database/project_database.dart'
-    as project_db;
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
@@ -13,7 +10,7 @@ import 'package:flipedit/utils/logger.dart' as logger;
 import 'package:flipedit/viewmodels/timeline_utils.dart';
 import 'package:watch_it/watch_it.dart';
 import 'commands/timeline_command.dart';
-import 'commands/remove_clip_command.dart';
+import 'commands/add_clip_command.dart';
 import 'package:flipedit/services/undo_redo_service.dart';
 
 class TimelineViewModel {
@@ -184,8 +181,9 @@ class TimelineViewModel {
     return frameToMs(framePosition);
   }
 
-  /// Centralized utility to place a clip on a track, trimming/removing/splitting neighbors as needed
-  Future<bool> placeClipOnTrack({
+  /// Calculates placement for a clip on a track, handling overlaps with neighbors
+  /// Returns placement information without performing database operations
+  Map<String, dynamic> prepareClipPlacement({
     int? clipId, // If updating an existing clip
     required int trackId,
     required ClipType type,
@@ -193,14 +191,11 @@ class TimelineViewModel {
     required int startTimeOnTrackMs,
     required int startTimeInSourceMs,
     required int endTimeInSourceMs,
-  }) async {
-    if (_projectDatabaseService.clipDao == null) {
-      logger.logError('Clip DAO not initialized', _logTag);
-      return false;
-    }
+  }) {
     final newClipDuration = endTimeInSourceMs - startTimeInSourceMs;
     int newStart = startTimeOnTrackMs;
     int newEnd = startTimeOnTrackMs + newClipDuration;
+    
     // 1. Gather and sort neighbors
     final neighbors =
         clips
@@ -213,28 +208,22 @@ class TimelineViewModel {
           ..sort(
             (a, b) => a.startTimeOnTrackMs.compareTo(b.startTimeOnTrackMs),
           );
-    // 2. Trim or remove neighbors (no splitting)
-    bool changed = false;
+          
+    // 2. Prepare neighbor modifications (no database operations)
     List<ClipModel> updatedClips = List<ClipModel>.from(clips);
+    List<Map<String, dynamic>> clipUpdates = [];
+    List<int> clipsToRemove = [];
+    
     for (final neighbor in neighbors) {
       final ns = neighbor.startTimeOnTrackMs;
       final ne = neighbor.startTimeOnTrackMs + neighbor.durationMs;
+      
       if (ne <= newStart || ns >= newEnd) continue; // No overlap
+      
       if (ns >= newStart && ne <= newEnd) {
-        // Fully covered: remove using command
+        // Fully covered: mark for removal
         updatedClips.removeWhere((c) => c.databaseId == neighbor.databaseId);
-        changed = true;
-        final removeCmd = RemoveClipCommand(
-          vm: this,
-          clipId: neighbor.databaseId!,
-        );
-        // Don't await here directly, let the command run via runCommand if needed
-        // For internal logic like this, maybe direct DAO call is still okay?
-        // Reverting to direct DAO call for internal logic consistency for now.
-        // await runCommand(removeCmd); // This would add it to undo stack, maybe not desired here.
-        await _projectDatabaseService.clipDao!.deleteClip(neighbor.databaseId!);
-        // Need to manually update notifier if not using command
-        recalculateAndUpdateTotalFrames(); // Ensure total frames are updated
+        clipsToRemove.add(neighbor.databaseId!);
       } else if (ns < newStart && ne > newStart && ne <= newEnd) {
         // Overlap on right: trim neighbor's end to the intersection
         final updated = neighbor.copyWith(
@@ -242,14 +231,12 @@ class TimelineViewModel {
         );
         updatedClips[updatedClips.indexWhere(
               (c) => c.databaseId == neighbor.databaseId,
-            )] =
-            updated;
-        changed = true;
-        await _projectDatabaseService.clipDao!.updateClipFields(
-          neighbor.databaseId!,
-          {'endTimeInSourceMs': neighbor.startTimeInSourceMs + (newStart - ns)},
-          log: false,
-        );
+            )] = updated;
+        
+        clipUpdates.add({
+          'id': neighbor.databaseId!,
+          'fields': {'endTimeInSourceMs': neighbor.startTimeInSourceMs + (newStart - ns)},
+        });
       } else if (ns >= newStart && ns < newEnd && ne > newEnd) {
         // Overlap on left: trim neighbor's start to the intersection
         final updated = neighbor.copyWith(
@@ -258,17 +245,15 @@ class TimelineViewModel {
         );
         updatedClips[updatedClips.indexWhere(
               (c) => c.databaseId == neighbor.databaseId,
-            )] =
-            updated;
-        changed = true;
-        await _projectDatabaseService.clipDao!.updateClipFields(
-          neighbor.databaseId!,
-          {
+            )] = updated;
+            
+        clipUpdates.add({
+          'id': neighbor.databaseId!,
+          'fields': {
             'startTimeInSourceMs': neighbor.startTimeInSourceMs + (newEnd - ns),
             'startTimeOnTrackMs': newEnd,
           },
-          log: false,
-        );
+        });
       } else if (ns < newStart && ne > newEnd) {
         // Moved clip is fully inside neighbor: trim neighbor's end to newStart (left part remains)
         final updated = neighbor.copyWith(
@@ -276,14 +261,12 @@ class TimelineViewModel {
         );
         updatedClips[updatedClips.indexWhere(
               (c) => c.databaseId == neighbor.databaseId,
-            )] =
-            updated;
-        changed = true;
-        await _projectDatabaseService.clipDao!.updateClipFields(
-          neighbor.databaseId!,
-          {'endTimeInSourceMs': neighbor.startTimeInSourceMs + (newStart - ns)},
-          log: false,
-        );
+            )] = updated;
+            
+        clipUpdates.add({
+          'id': neighbor.databaseId!,
+          'fields': {'endTimeInSourceMs': neighbor.startTimeInSourceMs + (newStart - ns)},
+        });
       }
       // NEW CASE: If the left neighbor's end overlaps the new start, trim its end to newStart
       else if (ne > newStart && ne <= newEnd && ns < newStart) {
@@ -292,16 +275,15 @@ class TimelineViewModel {
         );
         updatedClips[updatedClips.indexWhere(
               (c) => c.databaseId == neighbor.databaseId,
-            )] =
-            updated;
-        changed = true;
-        await _projectDatabaseService.clipDao!.updateClipFields(
-          neighbor.databaseId!,
-          {'endTimeInSourceMs': neighbor.startTimeInSourceMs + (newStart - ns)},
-          log: false,
-        );
+            )] = updated;
+            
+        clipUpdates.add({
+          'id': neighbor.databaseId!,
+          'fields': {'endTimeInSourceMs': neighbor.startTimeInSourceMs + (newStart - ns)},
+        });
       }
     }
+    
     // 3. Clamp new clip to available space
     int clampLeft = 0;
     int clampRight = 1 << 30;
@@ -317,51 +299,23 @@ class TimelineViewModel {
     }
     newStart = newStart.clamp(clampLeft, clampRight - 1);
     newEnd = (newStart + newClipDuration).clamp(clampLeft + 1, clampRight);
-    if (newEnd <= newStart) return false;
-    // 4. Add or update the clip
-    if (clipId == null) {
-      // Insert new
-      final newClipId = await _projectDatabaseService.clipDao!.insertClip(
-        project_db.ClipsCompanion(
-          trackId: drift.Value(trackId),
-          type: drift.Value(type.name),
-          sourcePath: drift.Value(sourcePath),
-          startTimeOnTrackMs: drift.Value(newStart),
-          startTimeInSourceMs: drift.Value(startTimeInSourceMs),
-          endTimeInSourceMs: drift.Value(
-            startTimeInSourceMs + (newEnd - newStart),
-          ),
-          createdAt: drift.Value(DateTime.now()),
-          updatedAt: drift.Value(DateTime.now()),
-        ),
-      );
-      // Optimistically add to memory
-      updatedClips.add(
-        ClipModel(
-          databaseId: newClipId,
-          trackId: trackId,
-          name: '',
-          type: type,
-          sourcePath: sourcePath,
-          startTimeInSourceMs: startTimeInSourceMs,
-          endTimeInSourceMs: startTimeInSourceMs + (newEnd - newStart),
-          startTimeOnTrackMs: newStart,
-          effects: [],
-          metadata: {},
-        ),
-      );
-      changed = true;
-      // Update the notifier optimistically. The database stream will handle the definitive update.
-      clipsNotifier.value = List<ClipModel>.from(updatedClips);
-      recalculateAndUpdateTotalFrames(); // Recalculate after optimistic add
-      // await refreshClips(); // Removed immediate refresh - rely on stream
-      logger.logInfo(
-        'Added new clip with ID $newClipId (optimistic update)',
-        _logTag,
-      );
-      return true;
-    } else {
-      // Update existing
+    
+    if (newEnd <= newStart) {
+      return {'success': false};
+    }
+    
+    // 4. Prepare new clip data
+    Map<String, dynamic> newClipData = {
+      'trackId': trackId,
+      'type': type,
+      'sourcePath': sourcePath,
+      'startTimeOnTrackMs': newStart,
+      'startTimeInSourceMs': startTimeInSourceMs,
+      'endTimeInSourceMs': startTimeInSourceMs + (newEnd - newStart),
+    };
+    
+    // For updating existing clip
+    if (clipId != null) {
       final idx = updatedClips.indexWhere((c) => c.databaseId == clipId);
       if (idx != -1) {
         updatedClips[idx] = updatedClips[idx].copyWith(
@@ -370,25 +324,129 @@ class TimelineViewModel {
           startTimeInSourceMs: startTimeInSourceMs,
           endTimeInSourceMs: startTimeInSourceMs + (newEnd - newStart),
         );
-        changed = true;
       }
-      clipsNotifier.value = List<ClipModel>.from(updatedClips);
-      recalculateAndUpdateTotalFrames(); // Recalculate after optimistic update
-      if (clipId != null) {
-        try {
-          await _projectDatabaseService.clipDao!.updateClipFields(clipId, {
-            'trackId': trackId,
-            'startTimeOnTrackMs': newStart,
-            'startTimeInSourceMs': startTimeInSourceMs,
-            'endTimeInSourceMs': endTimeInSourceMs,
-          });
-          changed = true;
-        } catch (e) {
-          logger.logError('Error saving moved clip: $e', _logTag);
-        }
+    } else {
+      // For new clip, prepare model for optimistic UI update
+      ClipModel newClipModel = ClipModel(
+        databaseId: -1, // Temporary ID, will be replaced with actual DB ID
+        trackId: trackId,
+        name: '',
+        type: type,
+        sourcePath: sourcePath,
+        startTimeInSourceMs: startTimeInSourceMs,
+        endTimeInSourceMs: startTimeInSourceMs + (newEnd - newStart),
+        startTimeOnTrackMs: newStart,
+        effects: [],
+        metadata: {},
+      );
+      updatedClips.add(newClipModel);
+    }
+    
+    return {
+      'success': true,
+      'newClipData': newClipData,
+      'clipId': clipId,
+      'updatedClips': updatedClips,
+      'clipUpdates': clipUpdates,
+      'clipsToRemove': clipsToRemove,
+    };
+  }
+  
+  /// Updates the UI state after clip placement (called by commands after persistence)
+  void updateClipsAfterPlacement(List<ClipModel> updatedClips) {
+    clipsNotifier.value = updatedClips;
+    recalculateAndUpdateTotalFrames();
+  }
+  
+  /// Legacy method for backward compatibility - delegates to command pattern
+  Future<bool> placeClipOnTrack({
+    int? clipId, // If updating an existing clip
+    required int trackId,
+    required ClipType type,
+    required String sourcePath,
+    required int startTimeOnTrackMs,
+    required int startTimeInSourceMs,
+    required int endTimeInSourceMs,
+  }) async {
+    if (_projectDatabaseService.clipDao == null) {
+      logger.logError('Clip DAO not initialized', _logTag);
+      return false;
+    }
+    
+    // For new clips, use the command pattern
+    if (clipId == null) {
+      final clipData = ClipModel(
+        databaseId: null,
+        trackId: trackId,
+        name: '',
+        type: type,
+        sourcePath: sourcePath,
+        startTimeInSourceMs: startTimeInSourceMs,
+        endTimeInSourceMs: endTimeInSourceMs,
+        startTimeOnTrackMs: startTimeOnTrackMs,
+        effects: [],
+        metadata: {},
+      );
+      
+      // Create an instance of the AddClipCommand class (imported at the top of the file)
+      final command = AddClipCommand(
+        vm: this,
+        clipData: clipData,
+        trackId: trackId,
+        // Pass the required startTimeOnTrackMs from the method's arguments
+        startTimeOnTrackMs: startTimeOnTrackMs,
+        startTimeInSourceMs: startTimeInSourceMs,
+        endTimeInSourceMs: endTimeInSourceMs,
+      );
+      
+      await runCommand(command);
+      return true;
+    } else {
+      // For existing clips, use the old direct approach for now
+      // This could be refactored to use a MoveClipCommand or similar
+      final placement = prepareClipPlacement(
+        clipId: clipId,
+        trackId: trackId,
+        type: type,
+        sourcePath: sourcePath,
+        startTimeOnTrackMs: startTimeOnTrackMs,
+        startTimeInSourceMs: startTimeInSourceMs,
+        endTimeInSourceMs: endTimeInSourceMs,
+      );
+      
+      if (!placement['success']) return false;
+      
+      // Apply updates to database
+      for (final update in placement['clipUpdates']) {
+        await _projectDatabaseService.clipDao!.updateClipFields(
+          update['id'],
+          update['fields'],
+          log: false,
+        );
       }
+      
+      // Remove clips
+      for (final id in placement['clipsToRemove']) {
+        await _projectDatabaseService.clipDao!.deleteClip(id);
+      }
+      
+      // Update existing clip
+      await _projectDatabaseService.clipDao!.updateClipFields(
+        clipId,
+        {
+          'trackId': trackId,
+          'startTimeOnTrackMs': placement['newClipData']['startTimeOnTrackMs'],
+          'startTimeInSourceMs': placement['newClipData']['startTimeInSourceMs'],
+          'endTimeInSourceMs': placement['newClipData']['endTimeInSourceMs'],
+        },
+        log: true,
+      );
+      
+      // Update UI
+      clipsNotifier.value = placement['updatedClips'];
+      recalculateAndUpdateTotalFrames();
+      
       await _undoRedoService.init();
-      // await refreshClips(); // Removed immediate refresh - rely on stream
       logger.logInfo('Moved/resized clip $clipId (optimistic update)', _logTag);
       return true;
     }
