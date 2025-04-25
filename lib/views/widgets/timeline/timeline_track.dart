@@ -1,7 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flipedit/persistence/database/project_database.dart';
-import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/models/clip.dart';
+import 'package:flipedit/services/timeline_logic_service.dart'; // Import the new service
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/views/widgets/timeline/timeline_clip.dart';
 import 'package:watch_it/watch_it.dart';
@@ -35,13 +35,13 @@ class _TimelineTrackState extends State<TimelineTrack> {
   final GlobalKey _trackContentKey = GlobalKey();
 
   late TimelineViewModel _timelineViewModel;
-  late ProjectDatabaseService _databaseService;
+  late TimelineLogicService _timelineLogicService;
 
   @override
   void initState() {
     super.initState();
     _timelineViewModel = di<TimelineViewModel>();
-    _databaseService = di<ProjectDatabaseService>();
+    _timelineLogicService = di<TimelineLogicService>();
     _textController = TextEditingController(text: widget.track.name);
     _focusNode = FocusNode();
 
@@ -250,7 +250,7 @@ class _TimelineTrackState extends State<TimelineTrack> {
                 final posX = localPosition.dx;
                 final framePosition = ((posX + scrollOffsetX) / (5.0 * zoom)).floor();
                 // Calculate position in milliseconds using the ViewModel's helper
-                final startTimeOnTrackMs = _timelineViewModel.frameToMs(framePosition);
+                final startTimeOnTrackMs = _timelineLogicService.frameToMs(framePosition);
                 developer.log(
                   '📏 Position metrics: local=$posX, scroll=$scrollOffsetX, frame=$framePosition, ms=$startTimeOnTrackMs',
                   name: 'TimelineTrack'
@@ -357,7 +357,8 @@ class _TimelineTrackState extends State<TimelineTrack> {
       return [];
     }
     final timelineVm = di<TimelineViewModel>();
-    final previewClips = timelineVm.getPreviewClipsForDrag(
+    final previewClips = _timelineLogicService.getPreviewClipsForDrag(
+      clips: timelineVm.clips,
       clipId: draggedClip.databaseId!,
       targetTrackId: widget.track.id,
       targetStartTimeOnTrackMs: (frameForPreview * (1000 / 30)).toInt(),
