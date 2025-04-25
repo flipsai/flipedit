@@ -165,14 +165,14 @@ class _TimelineClipState extends State<TimelineClip> {
             onHorizontalDragUpdate: (details) {
               if (_resizingDirection != null) return; // Ignore if resizing
               final currentDragX = details.localPosition.dx;
-              final dragDistance = (currentDragX - _moveDragStartX).abs();
+              final dragDeltaInPixels = currentDragX - _moveDragStartX;
+              final dragDeltaInFrames = (dragDeltaInPixels / pixelsPerFrame).round();
 
-              if (_isMoving || dragDistance > kTouchSlop) {
-                if (!_isMoving) { setState(() { _isMoving = true; }); }
-
+              if (!_isMoving && dragDeltaInFrames != 0) {
+                setState(() { _isMoving = true; });
+              }
+              if (_isMoving) {
                 if (pixelsPerFrame <= 0) return; // Safety check
-                final dragDeltaInPixels = currentDragX - _moveDragStartX;
-                final dragDeltaInFrames = (dragDeltaInPixels / pixelsPerFrame).round();
                 final newStartFrame = _originalMoveStartFrame + dragDeltaInFrames;
                 final clampedStartFrame = newStartFrame.clamp(0, 1000000000); // Clamp move
 
@@ -195,7 +195,8 @@ class _TimelineClipState extends State<TimelineClip> {
                   timelineVm.runCommand(cmd); // Use runCommand
                 }
               }
-              setState(() { _isMoving = false; }); // Always reset move state
+              // setState(() { _isMoving = false; }); // Resetting state immediately causes visual snap-back.
+                                                 // Rely on view model update to settle the UI.
             },
             // --- Context Menu ---
             onSecondaryTapUp: (details) {
