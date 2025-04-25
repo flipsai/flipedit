@@ -257,15 +257,10 @@ class _TimelineTrackState extends State<TimelineTrack> {
                 );
                 final addClipCmd = AddClipCommand(
                   vm: _timelineViewModel,
-                  clipData: draggedClip,
+                  clipData: draggedClip, // Pass the clip data containing source info
                   trackId: widget.track.id,
-                  // Pass the calculated start time on the track
-                  startTimeOnTrackMs: startTimeOnTrackMs,
-                  // Use the original source start time
-                  startTimeInSourceMs: draggedClip.startTimeInSourceMs,
-                  endTimeInSourceMs: draggedClip.endTimeInSourceMs,
-                  localPositionX: null,
-                  scrollOffsetX: null,
+                  startTimeOnTrackMs: startTimeOnTrackMs, // Pass calculated start time
+                  // Removed parameters: startTimeInSourceMs, endTimeInSourceMs, localPositionX, scrollOffsetX
                 );
                 await _timelineViewModel.runCommand(addClipCmd);
                 _updateHoverPosition(null);

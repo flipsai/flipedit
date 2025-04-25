@@ -37,6 +37,7 @@ class _TimelineClipState extends State<TimelineClip> {
   double _moveDragStartX = 0.0;
   int _originalMoveStartFrame = 0;
   int _currentMoveFrame = 0; // Tracks visual position during move drag
+  bool _awaitingMoveConfirmation = false; // Flag to keep visual position after move until VM updates
 
   // State for resizing preview
   String? _resizingDirection; // 'left', 'right', or null
@@ -78,6 +79,48 @@ class _TimelineClipState extends State<TimelineClip> {
   }
 
   @override
+  void didUpdateWidget(TimelineClip oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // If we were waiting for a move confirmation and the new widget data matches
+    // the expected frame, turn off the confirmation flag.
+    if (_awaitingMoveConfirmation && widget.clip.startFrame == _currentMoveFrame) {
+       // Use WidgetsBinding.instance.addPostFrameCallback to avoid calling setState during build/layout phase
+       WidgetsBinding.instance.addPostFrameCallback((_) {
+         if (mounted) { // Check if the widget is still mounted
+            setState(() {
+              _awaitingMoveConfirmation = false;
+            });
+         }
+       });
+    }
+     // If the underlying clip data changes externally while we are moving or resizing, reset interaction state.
+     // Check specific properties that indicate a fundamental change (like ID or track).
+     if ((_isMoving || _isResizing) &&
+         (widget.clip.databaseId != oldWidget.clip.databaseId ||
+          widget.clip.trackId != oldWidget.clip.trackId)) {
+       WidgetsBinding.instance.addPostFrameCallback((_) {
+         if (mounted) {
+           setState(() {
+             _isMoving = false;
+             _isResizing = false;
+             _resizingDirection = null;
+             _awaitingMoveConfirmation = false; // Also reset this flag
+             _currentMoveFrame = widget.clip.startFrame; // Reset visual frame too
+           });
+         }
+       });
+     } else if (!_isMoving && !_isResizing && !_awaitingMoveConfirmation) {
+        // If not interacting, keep _currentMoveFrame synchronized with widget data
+        if (widget.clip.startFrame != _currentMoveFrame) {
+             // Update _currentMoveFrame silently IF not interacting/awaiting
+             // Avoids unnecessary setState if only build is called
+             _currentMoveFrame = widget.clip.startFrame;
+        }
+     }
+  }
+
+
+  @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
     final editorVm = di<EditorViewModel>();
@@ -94,30 +137,73 @@ class _TimelineClipState extends State<TimelineClip> {
     int currentDisplayEndFrame = widget.clip.endFrame;
     final double pixelsPerFrame = (zoom > 0 ? 5.0 * zoom : 5.0); // Base pixels * zoom, safe default
 
-    if (_isMoving) {
-      dragOffset = (_currentMoveFrame - widget.clip.startFrame) * pixelsPerFrame;
-    } else if (_isResizing && _resizingDirection != null && _previewStartFrame != null && _previewEndFrame != null) {
-       // Calculate PREVIEW changes for RESIZE drag only when actively resizing
-      int frameDelta = (pixelsPerFrame > 0 ? (_resizeAccumulatedDrag / pixelsPerFrame) : 0).round();
-      int minFrameDuration = 1;
+    // Calculate visual offset: Use _currentMoveFrame if moving OR awaiting confirmation
+    if (_isMoving || _awaitingMoveConfirmation) {
+       // Base offset calculation on the difference between the visually dragged frame
+       // and the *current* frame data from the ViewModel.
+       // This prevents large jumps if the ViewModel updates mid-drag (less likely but possible).
+       dragOffset = (_currentMoveFrame - widget.clip.startFrame) * pixelsPerFrame;
+    }
+
+    // Calculate resize preview delta (only if resizing, not moving or awaiting move confirmation)
+    if (_isResizing && !_isMoving && !_awaitingMoveConfirmation && _resizingDirection != null && _previewStartFrame != null && _previewEndFrame != null) {
+       // --- Calculate Resize Preview Clamped by Source Duration ---
+
+      int rawFrameDelta = (pixelsPerFrame > 0 ? (_resizeAccumulatedDrag / pixelsPerFrame) : 0).round();
+      int trackDeltaMs = ClipModel.framesToMs(rawFrameDelta);
+      int minTrackFrameDuration = 1;
+      int minSourceMsDuration = 1; // Minimum allowed source duration in ms
+
+      // Original source times
+      final originalSourceStartMs = widget.clip.startTimeInSourceMs;
+      final originalSourceEndMs = widget.clip.endTimeInSourceMs;
+      final sourceDurationMs = widget.clip.sourceDurationMs;
+
+      int allowedTrackFrameDelta; // The frame delta allowed after considering source limits
 
       if (_resizingDirection == 'left') {
-         int previewBoundary = (_previewStartFrame! + frameDelta).clamp(0, _previewEndFrame! - minFrameDuration);
-         // Calculate delta relative to the original frame for width/offset adjustments
-         int actualFrameDelta = previewBoundary - _previewStartFrame!;
-         previewWidthDelta = actualFrameDelta * pixelsPerFrame;
-         dragOffset = previewWidthDelta; // Offset the whole clip visually
-         currentDisplayStartFrame = previewBoundary;
-         currentDisplayEndFrame = _previewEndFrame!; // End frame doesn't change visually during left resize preview
+        // Calculate target source start based on track drag
+        int targetSourceStartMs = originalSourceStartMs + trackDeltaMs;
+        // Clamp target source start: [0, originalSourceEnd - minDuration]
+        int clampedSourceStartMs = targetSourceStartMs.clamp(0, originalSourceEndMs - minSourceMsDuration);
+        // Calculate the allowed source delta
+        int allowedSourceDeltaMs = clampedSourceStartMs - originalSourceStartMs;
+        // Convert allowed source delta back to allowed track delta
+        allowedTrackFrameDelta = ClipModel.msToFrames(allowedSourceDeltaMs);
+
+        // Calculate final track preview boundary using the allowed delta
+        int previewBoundary = (_previewStartFrame! + allowedTrackFrameDelta)
+            // Also clamp by opposite track edge and 0
+            .clamp(0, _previewEndFrame! - minTrackFrameDuration);
+
+        // Use the difference from the original frame for visual width/offset
+        int actualFrameDelta = previewBoundary - _previewStartFrame!;
+        previewWidthDelta = actualFrameDelta * pixelsPerFrame;
+        dragOffset = previewWidthDelta;
+        currentDisplayStartFrame = previewBoundary;
+        currentDisplayEndFrame = _previewEndFrame!;
+
       } else { // direction == 'right'
-         // Calculate preview boundary, clamped
-         int previewBoundary = (_previewEndFrame! + frameDelta).clamp(_previewStartFrame! + minFrameDuration, _previewStartFrame! + 1000000); // Use large upper bound
-         // Calculate delta relative to original end frame
-         int actualFrameDelta = previewBoundary - _previewEndFrame!;
-         previewWidthDelta = actualFrameDelta * pixelsPerFrame;
-         dragOffset = 0; // No offset for right resize preview
-         currentDisplayStartFrame = _previewStartFrame!; // Start frame doesn't change visually
-         currentDisplayEndFrame = previewBoundary;
+        // Calculate target source end based on track drag
+        int targetSourceEndMs = originalSourceEndMs + trackDeltaMs;
+        // Clamp target source end: [originalSourceStart + minDuration, sourceDurationMs]
+        int clampedSourceEndMs = targetSourceEndMs.clamp(originalSourceStartMs + minSourceMsDuration, sourceDurationMs);
+        // Calculate the allowed source delta
+        int allowedSourceDeltaMs = clampedSourceEndMs - originalSourceEndMs;
+        // Convert allowed source delta back to allowed track delta
+        allowedTrackFrameDelta = ClipModel.msToFrames(allowedSourceDeltaMs);
+
+        // Calculate final track preview boundary using the allowed delta
+        int previewBoundary = (_previewEndFrame! + allowedTrackFrameDelta)
+            // Also clamp by opposite track edge
+            .clamp(_previewStartFrame! + minTrackFrameDuration, _previewStartFrame! + 10000000); // Large upper bound ok
+
+        // Use the difference from the original frame for visual width
+        int actualFrameDelta = previewBoundary - _previewEndFrame!;
+        previewWidthDelta = actualFrameDelta * pixelsPerFrame;
+        dragOffset = 0;
+        currentDisplayStartFrame = _previewStartFrame!;
+        currentDisplayEndFrame = previewBoundary;
       }
     }
 
@@ -131,7 +217,7 @@ class _TimelineClipState extends State<TimelineClip> {
     final clipColor = baseClipColor;
     final contrastColor = _getContrastColor(clipColor);
     final selectionBorderColor = theme.accentColor.normal;
-    final durationInSec = widget.clip.durationMs / 1000.0;
+    final durationInSec = widget.clip.durationOnTrackMs / 1000.0; // Use durationOnTrackMs
     final formattedDuration = durationInSec.toStringAsFixed(1);
     const double fixedClipHeight = 65.0;
     const double borderRadiusValue = 10.0;
@@ -195,10 +281,15 @@ class _TimelineClipState extends State<TimelineClip> {
                     newStartTimeOnTrackMs: newStartTimeMs,
                   );
                   timelineVm.runCommand(cmd); // Use runCommand
+                  // Set flag to wait for VM update
+                  _awaitingMoveConfirmation = true;
                 }
               }
-              // setState(() { _isMoving = false; }); // Resetting state immediately causes visual snap-back.
-                                                 // Rely on view model update to settle the UI.
+              // Always reset _isMoving flag immediately after drag ends to allow resize handles.
+              // SetState is called to reflect _isMoving=false and potentially _awaitingMoveConfirmation=true.
+              setState(() {
+                 _isMoving = false;
+              });
             },
             // --- Context Menu ---
             onSecondaryTapUp: (details) {
@@ -388,9 +479,10 @@ class _TimelineClipState extends State<TimelineClip> {
 
   // --- Resize Handle Callbacks (Inside State) ---
   void _handleResizeStart(String direction) {
-    if (_isMoving) return;
+    // Allow resize start only if NOT moving AND NOT awaiting move confirmation
+    if (_isMoving || _awaitingMoveConfirmation) return;
     final result = _resizeService.handleResizeStart(
-      isMoving: _isMoving,
+      isMoving: _isMoving, // Will be false here
       direction: direction,
       startFrame: widget.clip.startFrame,
       endFrame: widget.clip.endFrame,

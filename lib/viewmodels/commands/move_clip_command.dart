@@ -51,7 +51,7 @@ class MoveClipCommand implements TimelineCommand {
     _originalStartTimeOnTrackMs = clipToMove.startTimeOnTrackMs;
 
     // Find neighbors potentially affected by the *new* position
-    final newEndTimeMs = newStartTimeOnTrackMs + clipToMove.durationMs;
+    final newEndTimeMs = newStartTimeOnTrackMs + clipToMove.durationOnTrackMs; // Use durationOnTrackMs
     _originalNeighborStates = _timelineLogicService.getOverlappingClips( // Use the new service
       vm.clips, // Pass the current clips
       newTrackId,
@@ -61,7 +61,7 @@ class MoveClipCommand implements TimelineCommand {
     ).map((c) => c.copyWith()).toList(); // Deep copy for undo
 
     // Also store neighbors affected by the *old* position (needed if moving back overlaps differently)
-    final oldEndTimeMs = clipToMove.startTimeOnTrackMs + clipToMove.durationMs;
+    final oldEndTimeMs = clipToMove.startTimeOnTrackMs + clipToMove.durationOnTrackMs; // Use durationOnTrackMs
     final oldNeighbors = _timelineLogicService.getOverlappingClips( // Use the new service
       vm.clips, // Pass the current clips
       clipToMove.trackId,
@@ -84,11 +84,14 @@ class MoveClipCommand implements TimelineCommand {
       final success = await vm.placeClipOnTrack(
         clipId: clipId, // Pass clipId to indicate an update/move
         trackId: newTrackId,
-        type: clipToMove.type, // Use original type
-        sourcePath: clipToMove.sourcePath, // Use original source path
+        type: clipToMove.type,
+        sourcePath: clipToMove.sourcePath,
+        sourceDurationMs: clipToMove.sourceDurationMs, // Pass original source duration
         startTimeOnTrackMs: newStartTimeOnTrackMs,
+        // End time on track is calculated from start + duration for a move
+        endTimeOnTrackMs: newStartTimeOnTrackMs + clipToMove.durationOnTrackMs,
         startTimeInSourceMs: clipToMove.startTimeInSourceMs, // Keep original source times
-        endTimeInSourceMs: clipToMove.endTimeInSourceMs,
+        endTimeInSourceMs: clipToMove.endTimeInSourceMs,     // Keep original source times
       );
 
       if (success) {
@@ -155,11 +158,13 @@ class MoveClipCommand implements TimelineCommand {
       //    This will handle overlaps at the original location.
       logger.logInfo('[MoveClipCommand] Moving clip $clipId back to original position', _logTag);
       final success = await vm.placeClipOnTrack(
-        clipId: clipId,
+        clipId: clipId, // Identify the clip to restore
         trackId: _originalTrackId!,
         type: _originalClipState!.type,
         sourcePath: _originalClipState!.sourcePath,
+        sourceDurationMs: _originalClipState!.sourceDurationMs, // Restore original source duration
         startTimeOnTrackMs: _originalStartTimeOnTrackMs!,
+        endTimeOnTrackMs: _originalClipState!.endTimeOnTrackMs, // Restore original end time on track
         startTimeInSourceMs: _originalClipState!.startTimeInSourceMs,
         endTimeInSourceMs: _originalClipState!.endTimeInSourceMs,
       );

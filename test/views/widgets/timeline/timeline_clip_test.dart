@@ -58,17 +58,26 @@ void main() {
    // The previous lines already initialize them.
  
     // Create test clip
+    // Define source and track times for the test clip
+    const sourceStartMs = 0;
+    const sourceEndMs = 1000;
+    const trackStartMs = 0;
+    const sourceDuration = sourceEndMs - sourceStartMs;
+    const trackEndMs = trackStartMs + sourceDuration; // Initial track end matches source duration
+
     testClip = ClipModel(
       databaseId: 1,
       trackId: 1,
       name: 'Test Clip',
       type: ClipType.video,
       sourcePath: 'path/to/video.mp4',
-      startTimeInSourceMs: 0,
-      endTimeInSourceMs: 1000,
-      startTimeOnTrackMs: 0,
-      effects: [],
-      metadata: {},
+      sourceDurationMs: sourceDuration, // Required
+      startTimeInSourceMs: sourceStartMs,
+      endTimeInSourceMs: sourceEndMs,
+      startTimeOnTrackMs: trackStartMs,
+      endTimeOnTrackMs: trackEndMs, // Required
+      effects: [], // Keep existing optional fields
+      metadata: {}, // Keep existing optional fields
     );
   
     // 4. Stub properties BEFORE registering mocks

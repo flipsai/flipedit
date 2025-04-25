@@ -616,6 +616,17 @@ class $ClipsTable extends Clips with TableInfo<$ClipsTable, Clip> {
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _sourceDurationMsMeta = const VerificationMeta(
+    'sourceDurationMs',
+  );
+  @override
+  late final GeneratedColumn<int> sourceDurationMs = GeneratedColumn<int>(
+    'source_duration_ms',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _startTimeInSourceMsMeta =
       const VerificationMeta('startTimeInSourceMs');
   @override
@@ -647,6 +658,17 @@ class $ClipsTable extends Clips with TableInfo<$ClipsTable, Clip> {
     type: DriftSqlType.int,
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _endTimeOnTrackMsMeta = const VerificationMeta(
+    'endTimeOnTrackMs',
+  );
+  @override
+  late final GeneratedColumn<int> endTimeOnTrackMs = GeneratedColumn<int>(
+    'end_time_on_track_ms',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
   );
   static const VerificationMeta _metadataJsonMeta = const VerificationMeta(
     'metadataJson',
@@ -690,9 +712,11 @@ class $ClipsTable extends Clips with TableInfo<$ClipsTable, Clip> {
     name,
     type,
     sourcePath,
+    sourceDurationMs,
     startTimeInSourceMs,
     endTimeInSourceMs,
     startTimeOnTrackMs,
+    endTimeOnTrackMs,
     metadataJson,
     createdAt,
     updatedAt,
@@ -740,6 +764,15 @@ class $ClipsTable extends Clips with TableInfo<$ClipsTable, Clip> {
     } else if (isInserting) {
       context.missing(_sourcePathMeta);
     }
+    if (data.containsKey('source_duration_ms')) {
+      context.handle(
+        _sourceDurationMsMeta,
+        sourceDurationMs.isAcceptableOrUnknown(
+          data['source_duration_ms']!,
+          _sourceDurationMsMeta,
+        ),
+      );
+    }
     if (data.containsKey('start_time_in_source_ms')) {
       context.handle(
         _startTimeInSourceMsMeta,
@@ -768,6 +801,15 @@ class $ClipsTable extends Clips with TableInfo<$ClipsTable, Clip> {
         startTimeOnTrackMs.isAcceptableOrUnknown(
           data['start_time_on_track_ms']!,
           _startTimeOnTrackMsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('end_time_on_track_ms')) {
+      context.handle(
+        _endTimeOnTrackMsMeta,
+        endTimeOnTrackMs.isAcceptableOrUnknown(
+          data['end_time_on_track_ms']!,
+          _endTimeOnTrackMsMeta,
         ),
       );
     }
@@ -826,6 +868,10 @@ class $ClipsTable extends Clips with TableInfo<$ClipsTable, Clip> {
             DriftSqlType.string,
             data['${effectivePrefix}source_path'],
           )!,
+      sourceDurationMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}source_duration_ms'],
+      ),
       startTimeInSourceMs:
           attachedDatabase.typeMapping.read(
             DriftSqlType.int,
@@ -841,6 +887,10 @@ class $ClipsTable extends Clips with TableInfo<$ClipsTable, Clip> {
             DriftSqlType.int,
             data['${effectivePrefix}start_time_on_track_ms'],
           )!,
+      endTimeOnTrackMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}end_time_on_track_ms'],
+      ),
       metadataJson: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}metadata_json'],
@@ -870,9 +920,11 @@ class Clip extends DataClass implements Insertable<Clip> {
   final String name;
   final String type;
   final String sourcePath;
+  final int? sourceDurationMs;
   final int startTimeInSourceMs;
   final int endTimeInSourceMs;
   final int startTimeOnTrackMs;
+  final int? endTimeOnTrackMs;
   final String? metadataJson;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -882,9 +934,11 @@ class Clip extends DataClass implements Insertable<Clip> {
     required this.name,
     required this.type,
     required this.sourcePath,
+    this.sourceDurationMs,
     required this.startTimeInSourceMs,
     required this.endTimeInSourceMs,
     required this.startTimeOnTrackMs,
+    this.endTimeOnTrackMs,
     this.metadataJson,
     required this.createdAt,
     required this.updatedAt,
@@ -897,9 +951,15 @@ class Clip extends DataClass implements Insertable<Clip> {
     map['name'] = Variable<String>(name);
     map['type'] = Variable<String>(type);
     map['source_path'] = Variable<String>(sourcePath);
+    if (!nullToAbsent || sourceDurationMs != null) {
+      map['source_duration_ms'] = Variable<int>(sourceDurationMs);
+    }
     map['start_time_in_source_ms'] = Variable<int>(startTimeInSourceMs);
     map['end_time_in_source_ms'] = Variable<int>(endTimeInSourceMs);
     map['start_time_on_track_ms'] = Variable<int>(startTimeOnTrackMs);
+    if (!nullToAbsent || endTimeOnTrackMs != null) {
+      map['end_time_on_track_ms'] = Variable<int>(endTimeOnTrackMs);
+    }
     if (!nullToAbsent || metadataJson != null) {
       map['metadata_json'] = Variable<String>(metadataJson);
     }
@@ -915,9 +975,17 @@ class Clip extends DataClass implements Insertable<Clip> {
       name: Value(name),
       type: Value(type),
       sourcePath: Value(sourcePath),
+      sourceDurationMs:
+          sourceDurationMs == null && nullToAbsent
+              ? const Value.absent()
+              : Value(sourceDurationMs),
       startTimeInSourceMs: Value(startTimeInSourceMs),
       endTimeInSourceMs: Value(endTimeInSourceMs),
       startTimeOnTrackMs: Value(startTimeOnTrackMs),
+      endTimeOnTrackMs:
+          endTimeOnTrackMs == null && nullToAbsent
+              ? const Value.absent()
+              : Value(endTimeOnTrackMs),
       metadataJson:
           metadataJson == null && nullToAbsent
               ? const Value.absent()
@@ -938,11 +1006,13 @@ class Clip extends DataClass implements Insertable<Clip> {
       name: serializer.fromJson<String>(json['name']),
       type: serializer.fromJson<String>(json['type']),
       sourcePath: serializer.fromJson<String>(json['sourcePath']),
+      sourceDurationMs: serializer.fromJson<int?>(json['sourceDurationMs']),
       startTimeInSourceMs: serializer.fromJson<int>(
         json['startTimeInSourceMs'],
       ),
       endTimeInSourceMs: serializer.fromJson<int>(json['endTimeInSourceMs']),
       startTimeOnTrackMs: serializer.fromJson<int>(json['startTimeOnTrackMs']),
+      endTimeOnTrackMs: serializer.fromJson<int?>(json['endTimeOnTrackMs']),
       metadataJson: serializer.fromJson<String?>(json['metadataJson']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
@@ -957,9 +1027,11 @@ class Clip extends DataClass implements Insertable<Clip> {
       'name': serializer.toJson<String>(name),
       'type': serializer.toJson<String>(type),
       'sourcePath': serializer.toJson<String>(sourcePath),
+      'sourceDurationMs': serializer.toJson<int?>(sourceDurationMs),
       'startTimeInSourceMs': serializer.toJson<int>(startTimeInSourceMs),
       'endTimeInSourceMs': serializer.toJson<int>(endTimeInSourceMs),
       'startTimeOnTrackMs': serializer.toJson<int>(startTimeOnTrackMs),
+      'endTimeOnTrackMs': serializer.toJson<int?>(endTimeOnTrackMs),
       'metadataJson': serializer.toJson<String?>(metadataJson),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
@@ -972,9 +1044,11 @@ class Clip extends DataClass implements Insertable<Clip> {
     String? name,
     String? type,
     String? sourcePath,
+    Value<int?> sourceDurationMs = const Value.absent(),
     int? startTimeInSourceMs,
     int? endTimeInSourceMs,
     int? startTimeOnTrackMs,
+    Value<int?> endTimeOnTrackMs = const Value.absent(),
     Value<String?> metadataJson = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -984,9 +1058,17 @@ class Clip extends DataClass implements Insertable<Clip> {
     name: name ?? this.name,
     type: type ?? this.type,
     sourcePath: sourcePath ?? this.sourcePath,
+    sourceDurationMs:
+        sourceDurationMs.present
+            ? sourceDurationMs.value
+            : this.sourceDurationMs,
     startTimeInSourceMs: startTimeInSourceMs ?? this.startTimeInSourceMs,
     endTimeInSourceMs: endTimeInSourceMs ?? this.endTimeInSourceMs,
     startTimeOnTrackMs: startTimeOnTrackMs ?? this.startTimeOnTrackMs,
+    endTimeOnTrackMs:
+        endTimeOnTrackMs.present
+            ? endTimeOnTrackMs.value
+            : this.endTimeOnTrackMs,
     metadataJson: metadataJson.present ? metadataJson.value : this.metadataJson,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
@@ -999,6 +1081,10 @@ class Clip extends DataClass implements Insertable<Clip> {
       type: data.type.present ? data.type.value : this.type,
       sourcePath:
           data.sourcePath.present ? data.sourcePath.value : this.sourcePath,
+      sourceDurationMs:
+          data.sourceDurationMs.present
+              ? data.sourceDurationMs.value
+              : this.sourceDurationMs,
       startTimeInSourceMs:
           data.startTimeInSourceMs.present
               ? data.startTimeInSourceMs.value
@@ -1011,6 +1097,10 @@ class Clip extends DataClass implements Insertable<Clip> {
           data.startTimeOnTrackMs.present
               ? data.startTimeOnTrackMs.value
               : this.startTimeOnTrackMs,
+      endTimeOnTrackMs:
+          data.endTimeOnTrackMs.present
+              ? data.endTimeOnTrackMs.value
+              : this.endTimeOnTrackMs,
       metadataJson:
           data.metadataJson.present
               ? data.metadataJson.value
@@ -1028,9 +1118,11 @@ class Clip extends DataClass implements Insertable<Clip> {
           ..write('name: $name, ')
           ..write('type: $type, ')
           ..write('sourcePath: $sourcePath, ')
+          ..write('sourceDurationMs: $sourceDurationMs, ')
           ..write('startTimeInSourceMs: $startTimeInSourceMs, ')
           ..write('endTimeInSourceMs: $endTimeInSourceMs, ')
           ..write('startTimeOnTrackMs: $startTimeOnTrackMs, ')
+          ..write('endTimeOnTrackMs: $endTimeOnTrackMs, ')
           ..write('metadataJson: $metadataJson, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
@@ -1045,9 +1137,11 @@ class Clip extends DataClass implements Insertable<Clip> {
     name,
     type,
     sourcePath,
+    sourceDurationMs,
     startTimeInSourceMs,
     endTimeInSourceMs,
     startTimeOnTrackMs,
+    endTimeOnTrackMs,
     metadataJson,
     createdAt,
     updatedAt,
@@ -1061,9 +1155,11 @@ class Clip extends DataClass implements Insertable<Clip> {
           other.name == this.name &&
           other.type == this.type &&
           other.sourcePath == this.sourcePath &&
+          other.sourceDurationMs == this.sourceDurationMs &&
           other.startTimeInSourceMs == this.startTimeInSourceMs &&
           other.endTimeInSourceMs == this.endTimeInSourceMs &&
           other.startTimeOnTrackMs == this.startTimeOnTrackMs &&
+          other.endTimeOnTrackMs == this.endTimeOnTrackMs &&
           other.metadataJson == this.metadataJson &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
@@ -1075,9 +1171,11 @@ class ClipsCompanion extends UpdateCompanion<Clip> {
   final Value<String> name;
   final Value<String> type;
   final Value<String> sourcePath;
+  final Value<int?> sourceDurationMs;
   final Value<int> startTimeInSourceMs;
   final Value<int> endTimeInSourceMs;
   final Value<int> startTimeOnTrackMs;
+  final Value<int?> endTimeOnTrackMs;
   final Value<String?> metadataJson;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
@@ -1087,9 +1185,11 @@ class ClipsCompanion extends UpdateCompanion<Clip> {
     this.name = const Value.absent(),
     this.type = const Value.absent(),
     this.sourcePath = const Value.absent(),
+    this.sourceDurationMs = const Value.absent(),
     this.startTimeInSourceMs = const Value.absent(),
     this.endTimeInSourceMs = const Value.absent(),
     this.startTimeOnTrackMs = const Value.absent(),
+    this.endTimeOnTrackMs = const Value.absent(),
     this.metadataJson = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -1100,9 +1200,11 @@ class ClipsCompanion extends UpdateCompanion<Clip> {
     this.name = const Value.absent(),
     this.type = const Value.absent(),
     required String sourcePath,
+    this.sourceDurationMs = const Value.absent(),
     required int startTimeInSourceMs,
     required int endTimeInSourceMs,
     this.startTimeOnTrackMs = const Value.absent(),
+    this.endTimeOnTrackMs = const Value.absent(),
     this.metadataJson = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -1116,9 +1218,11 @@ class ClipsCompanion extends UpdateCompanion<Clip> {
     Expression<String>? name,
     Expression<String>? type,
     Expression<String>? sourcePath,
+    Expression<int>? sourceDurationMs,
     Expression<int>? startTimeInSourceMs,
     Expression<int>? endTimeInSourceMs,
     Expression<int>? startTimeOnTrackMs,
+    Expression<int>? endTimeOnTrackMs,
     Expression<String>? metadataJson,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
@@ -1129,11 +1233,13 @@ class ClipsCompanion extends UpdateCompanion<Clip> {
       if (name != null) 'name': name,
       if (type != null) 'type': type,
       if (sourcePath != null) 'source_path': sourcePath,
+      if (sourceDurationMs != null) 'source_duration_ms': sourceDurationMs,
       if (startTimeInSourceMs != null)
         'start_time_in_source_ms': startTimeInSourceMs,
       if (endTimeInSourceMs != null) 'end_time_in_source_ms': endTimeInSourceMs,
       if (startTimeOnTrackMs != null)
         'start_time_on_track_ms': startTimeOnTrackMs,
+      if (endTimeOnTrackMs != null) 'end_time_on_track_ms': endTimeOnTrackMs,
       if (metadataJson != null) 'metadata_json': metadataJson,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -1146,9 +1252,11 @@ class ClipsCompanion extends UpdateCompanion<Clip> {
     Value<String>? name,
     Value<String>? type,
     Value<String>? sourcePath,
+    Value<int?>? sourceDurationMs,
     Value<int>? startTimeInSourceMs,
     Value<int>? endTimeInSourceMs,
     Value<int>? startTimeOnTrackMs,
+    Value<int?>? endTimeOnTrackMs,
     Value<String?>? metadataJson,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
@@ -1159,9 +1267,11 @@ class ClipsCompanion extends UpdateCompanion<Clip> {
       name: name ?? this.name,
       type: type ?? this.type,
       sourcePath: sourcePath ?? this.sourcePath,
+      sourceDurationMs: sourceDurationMs ?? this.sourceDurationMs,
       startTimeInSourceMs: startTimeInSourceMs ?? this.startTimeInSourceMs,
       endTimeInSourceMs: endTimeInSourceMs ?? this.endTimeInSourceMs,
       startTimeOnTrackMs: startTimeOnTrackMs ?? this.startTimeOnTrackMs,
+      endTimeOnTrackMs: endTimeOnTrackMs ?? this.endTimeOnTrackMs,
       metadataJson: metadataJson ?? this.metadataJson,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -1186,6 +1296,9 @@ class ClipsCompanion extends UpdateCompanion<Clip> {
     if (sourcePath.present) {
       map['source_path'] = Variable<String>(sourcePath.value);
     }
+    if (sourceDurationMs.present) {
+      map['source_duration_ms'] = Variable<int>(sourceDurationMs.value);
+    }
     if (startTimeInSourceMs.present) {
       map['start_time_in_source_ms'] = Variable<int>(startTimeInSourceMs.value);
     }
@@ -1194,6 +1307,9 @@ class ClipsCompanion extends UpdateCompanion<Clip> {
     }
     if (startTimeOnTrackMs.present) {
       map['start_time_on_track_ms'] = Variable<int>(startTimeOnTrackMs.value);
+    }
+    if (endTimeOnTrackMs.present) {
+      map['end_time_on_track_ms'] = Variable<int>(endTimeOnTrackMs.value);
     }
     if (metadataJson.present) {
       map['metadata_json'] = Variable<String>(metadataJson.value);
@@ -1215,9 +1331,11 @@ class ClipsCompanion extends UpdateCompanion<Clip> {
           ..write('name: $name, ')
           ..write('type: $type, ')
           ..write('sourcePath: $sourcePath, ')
+          ..write('sourceDurationMs: $sourceDurationMs, ')
           ..write('startTimeInSourceMs: $startTimeInSourceMs, ')
           ..write('endTimeInSourceMs: $endTimeInSourceMs, ')
           ..write('startTimeOnTrackMs: $startTimeOnTrackMs, ')
+          ..write('endTimeOnTrackMs: $endTimeOnTrackMs, ')
           ..write('metadataJson: $metadataJson, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
@@ -2745,9 +2863,11 @@ typedef $$ClipsTableCreateCompanionBuilder =
       Value<String> name,
       Value<String> type,
       required String sourcePath,
+      Value<int?> sourceDurationMs,
       required int startTimeInSourceMs,
       required int endTimeInSourceMs,
       Value<int> startTimeOnTrackMs,
+      Value<int?> endTimeOnTrackMs,
       Value<String?> metadataJson,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
@@ -2759,9 +2879,11 @@ typedef $$ClipsTableUpdateCompanionBuilder =
       Value<String> name,
       Value<String> type,
       Value<String> sourcePath,
+      Value<int?> sourceDurationMs,
       Value<int> startTimeInSourceMs,
       Value<int> endTimeInSourceMs,
       Value<int> startTimeOnTrackMs,
+      Value<int?> endTimeOnTrackMs,
       Value<String?> metadataJson,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
@@ -2801,6 +2923,11 @@ class $$ClipsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<int> get sourceDurationMs => $composableBuilder(
+    column: $table.sourceDurationMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<int> get startTimeInSourceMs => $composableBuilder(
     column: $table.startTimeInSourceMs,
     builder: (column) => ColumnFilters(column),
@@ -2813,6 +2940,11 @@ class $$ClipsTableFilterComposer
 
   ColumnFilters<int> get startTimeOnTrackMs => $composableBuilder(
     column: $table.startTimeOnTrackMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get endTimeOnTrackMs => $composableBuilder(
+    column: $table.endTimeOnTrackMs,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -2866,6 +2998,11 @@ class $$ClipsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get sourceDurationMs => $composableBuilder(
+    column: $table.sourceDurationMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get startTimeInSourceMs => $composableBuilder(
     column: $table.startTimeInSourceMs,
     builder: (column) => ColumnOrderings(column),
@@ -2878,6 +3015,11 @@ class $$ClipsTableOrderingComposer
 
   ColumnOrderings<int> get startTimeOnTrackMs => $composableBuilder(
     column: $table.startTimeOnTrackMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get endTimeOnTrackMs => $composableBuilder(
+    column: $table.endTimeOnTrackMs,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -2923,6 +3065,11 @@ class $$ClipsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<int> get sourceDurationMs => $composableBuilder(
+    column: $table.sourceDurationMs,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<int> get startTimeInSourceMs => $composableBuilder(
     column: $table.startTimeInSourceMs,
     builder: (column) => column,
@@ -2935,6 +3082,11 @@ class $$ClipsTableAnnotationComposer
 
   GeneratedColumn<int> get startTimeOnTrackMs => $composableBuilder(
     column: $table.startTimeOnTrackMs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get endTimeOnTrackMs => $composableBuilder(
+    column: $table.endTimeOnTrackMs,
     builder: (column) => column,
   );
 
@@ -2983,9 +3135,11 @@ class $$ClipsTableTableManager
                 Value<String> name = const Value.absent(),
                 Value<String> type = const Value.absent(),
                 Value<String> sourcePath = const Value.absent(),
+                Value<int?> sourceDurationMs = const Value.absent(),
                 Value<int> startTimeInSourceMs = const Value.absent(),
                 Value<int> endTimeInSourceMs = const Value.absent(),
                 Value<int> startTimeOnTrackMs = const Value.absent(),
+                Value<int?> endTimeOnTrackMs = const Value.absent(),
                 Value<String?> metadataJson = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -2995,9 +3149,11 @@ class $$ClipsTableTableManager
                 name: name,
                 type: type,
                 sourcePath: sourcePath,
+                sourceDurationMs: sourceDurationMs,
                 startTimeInSourceMs: startTimeInSourceMs,
                 endTimeInSourceMs: endTimeInSourceMs,
                 startTimeOnTrackMs: startTimeOnTrackMs,
+                endTimeOnTrackMs: endTimeOnTrackMs,
                 metadataJson: metadataJson,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -3009,9 +3165,11 @@ class $$ClipsTableTableManager
                 Value<String> name = const Value.absent(),
                 Value<String> type = const Value.absent(),
                 required String sourcePath,
+                Value<int?> sourceDurationMs = const Value.absent(),
                 required int startTimeInSourceMs,
                 required int endTimeInSourceMs,
                 Value<int> startTimeOnTrackMs = const Value.absent(),
+                Value<int?> endTimeOnTrackMs = const Value.absent(),
                 Value<String?> metadataJson = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -3021,9 +3179,11 @@ class $$ClipsTableTableManager
                 name: name,
                 type: type,
                 sourcePath: sourcePath,
+                sourceDurationMs: sourceDurationMs,
                 startTimeInSourceMs: startTimeInSourceMs,
                 endTimeInSourceMs: endTimeInSourceMs,
                 startTimeOnTrackMs: startTimeOnTrackMs,
+                endTimeOnTrackMs: endTimeOnTrackMs,
                 metadataJson: metadataJson,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
