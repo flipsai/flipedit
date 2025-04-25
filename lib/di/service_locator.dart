@@ -9,7 +9,6 @@ import 'package:flipedit/viewmodels/app_viewmodel.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
-import 'package:flipedit/services/video_player_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/services/undo_redo_service.dart';
@@ -32,7 +31,6 @@ Future<void> setupServiceLocator() async {
   di.registerLazySingleton<ProjectDatabaseService>(() => ProjectDatabaseService());
   di.registerLazySingleton<UvManager>(() => UvManager());
   di.registerLazySingleton<ComfyUIService>(() => ComfyUIService());
-  di.registerLazySingleton<VideoPlayerManager>(() => VideoPlayerManager());
   di.registerLazySingleton<LayoutService>(() => LayoutService());
 
   // Undo/Redo service for project clips
@@ -48,5 +46,5 @@ Future<void> setupServiceLocator() async {
   di.registerLazySingleton<EditorViewModel>(() => EditorViewModel());
 
   // Update TimelineViewModel to use ProjectDatabaseService
-  di.registerSingleton<TimelineViewModel>(TimelineViewModel(di<ProjectDatabaseService>(), di<UndoRedoService>(), di<VideoPlayerManager>()));
+  di.registerLazySingleton<TimelineViewModel>(() => TimelineViewModel());
 }

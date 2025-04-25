@@ -1,6 +1,5 @@
 import 'dart:async';
-import 'dart:io'; // Added for File access
-import 'package:drift/drift.dart' as drift; // Added Value import
+import 'package:drift/drift.dart' as drift;
 
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
@@ -9,24 +8,21 @@ import 'package:flipedit/persistence/database/project_database.dart'
     as project_db;
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:video_player/video_player.dart';
-import 'package:flipedit/utils/logger.dart' as logger; // Import logger
+import 'package:flipedit/utils/logger.dart' as logger;
+
 import 'package:flipedit/viewmodels/timeline_utils.dart';
+import 'package:watch_it/watch_it.dart';
 import 'commands/timeline_command.dart';
-import 'commands/add_clip_command.dart';
-import 'commands/add_clip_direct_command.dart'; // Added
-import 'commands/move_clip_command.dart'; // Added
-import 'commands/remove_clip_command.dart'; // Added
-import 'commands/resize_clip_command.dart'; // Added
-import 'commands/roll_edit_command.dart'; // Added
+import 'commands/remove_clip_command.dart';
 import 'package:flipedit/services/undo_redo_service.dart';
 
 class TimelineViewModel {
   // Add a tag for logging within this class
   String get _logTag => runtimeType.toString();
 
-  final ProjectDatabaseService _projectDatabaseService;
-  final UndoRedoService _undoRedoService;
+  final ProjectDatabaseService _projectDatabaseService =
+      di<ProjectDatabaseService>();
+  final UndoRedoService _undoRedoService = di<UndoRedoService>();
 
   final ValueNotifier<List<ClipModel>> clipsNotifier =
       ValueNotifier<List<ClipModel>>([]);
@@ -48,24 +44,12 @@ class TimelineViewModel {
     final clampedValue = value.clamp(0, totalFrames);
     if (currentFrameNotifier.value == clampedValue) return;
     currentFrameNotifier.value = clampedValue;
-
-    if (_playbackTimer?.isActive ?? false) {
-      _stopPlaybackTimer();
-      isPlayingNotifier.value = false;
-    }
-
-    _seekControllerToFrame(clampedValue);
   }
 
   final ValueNotifier<int> totalFramesNotifier = ValueNotifier<int>(0);
 
   final ValueNotifier<bool> isPlayingNotifier = ValueNotifier<bool>(false);
   bool get isPlaying => isPlayingNotifier.value;
-
-  VideoPlayerController? _videoPlayerController;
-  VideoPlayerController? get videoPlayerController => _videoPlayerController;
-  final ValueNotifier<VideoPlayerController?> videoPlayerControllerNotifier =
-      ValueNotifier<VideoPlayerController?>(null);
 
   final ScrollController trackContentHorizontalScrollController =
       ScrollController();
@@ -76,6 +60,8 @@ class TimelineViewModel {
   final ValueNotifier<EditMode> currentEditMode = ValueNotifier(
     EditMode.select,
   );
+
+  Timer? _frameUpdateTimer;
 
   // Helper to set edit mode and notify
   void setEditMode(EditMode mode) {
@@ -114,48 +100,42 @@ class TimelineViewModel {
   // Expose project database for commands
   ProjectDatabaseService get projectDatabaseService => _projectDatabaseService;
 
-  /// Initializes frame info and debounce
-  TimelineViewModel(this._projectDatabaseService, this._undoRedoService) {
-    recalculateAndUpdateTotalFrames(); // Updated call
+  /// Starts playback from the current frame position
+  Future<void> startPlayback() async {
+    if (isPlayingNotifier.value) return; // Already playing
 
-    _debouncedFrameUpdate = debounce(() {
-      if (!isPlayingNotifier.value) return;
+    isPlayingNotifier.value = true;
+    logger.logInfo('▶️ Starting playback from frame $currentFrame', _logTag);
 
-      final currentMs = ClipModel.framesToMs(currentFrame);
-      final nextFrameMs = currentMs + (1000 / kDefaultFrameRate);
-      final nextFrame = ClipModel.msToFrames(nextFrameMs.round());
+    // Start timer for playback
+    _startPlaybackTimer();
+  }
 
-      final totalFrames = _calculateTotalFrames();
-      if (nextFrame <= totalFrames) {
-        currentFrameNotifier.value = nextFrame;
-        if (nextFrame < totalFrames) {
-          _startPlaybackTimer();
-        } else {
-          _stopPlaybackTimer();
-          isPlayingNotifier.value = false;
-        }
-      } else {
-        _stopPlaybackTimer();
-        isPlayingNotifier.value = false;
-      }
-    }, Duration(milliseconds: (1000 / kDefaultFrameRate).round()));
+  // Removed method to update current frame based on engine position during playback
+  // as playhead is now fixed
+
+  /// Stops playback
+  void stopPlayback() {
+    if (!isPlayingNotifier.value) return; // Not playing
+
+    isPlayingNotifier.value = false;
+    logger.logInfo('⏹️ Stopping playback at frame $currentFrame', _logTag);
+
+    _stopPlaybackTimer();
   }
 
   Future<void> loadClipsForProject(int projectId) async {
     logger.logInfo('🔄 Loading clips for project $projectId', _logTag);
 
-    // Load the project using the service
     final success = await _projectDatabaseService.loadProject(projectId);
     if (!success) {
       logger.logError('❌ Failed to load project $projectId', _logTag);
       clipsNotifier.value = [];
-      recalculateAndUpdateTotalFrames(); // Updated call
+      recalculateAndUpdateTotalFrames();
       return;
     }
 
-    // Use the tracks from the service
     final tracks = _projectDatabaseService.tracksNotifier.value;
-
     currentTrackIds = tracks.map((t) => t.id).toList();
     logger.logInfo(
       '📊 Loaded ${tracks.length} tracks with IDs: $currentTrackIds',
@@ -165,46 +145,11 @@ class TimelineViewModel {
     if (tracks.isEmpty) {
       logger.logInfo('⚠️ No tracks found for project $projectId', _logTag);
       clipsNotifier.value = [];
-      recalculateAndUpdateTotalFrames(); // Updated call
+      recalculateAndUpdateTotalFrames();
       return;
     }
 
     await refreshClips();
-  }
-
-  void _updateFrameFromController() {
-    if (_videoPlayerController != null &&
-        _videoPlayerController!.value.isInitialized) {
-      final position = _videoPlayerController!.value.position;
-      final frame = ClipModel.msToFrames(position.inMilliseconds);
-
-      final totalFrames = _calculateTotalFrames();
-      if (currentFrameNotifier.value != frame && frame <= totalFrames) {
-        currentFrameNotifier.value = frame;
-      }
-
-      if (isPlayingNotifier.value != _videoPlayerController!.value.isPlaying) {
-        isPlayingNotifier.value = _videoPlayerController!.value.isPlaying;
-        if (!isPlayingNotifier.value) {
-          _stopPlaybackTimer();
-        }
-      }
-    }
-  }
-
-  void _seekControllerToFrame(int frame) {
-    if (_videoPlayerController != null &&
-        _videoPlayerController!.value.isInitialized) {
-      final targetPosition = Duration(
-        milliseconds: ClipModel.framesToMs(frame),
-      );
-
-      final currentPosition = _videoPlayerController!.value.position;
-      if ((targetPosition - currentPosition).abs() >
-          const Duration(milliseconds: 50)) {
-        _videoPlayerController!.seekTo(targetPosition);
-      }
-    }
   }
 
   /// Calculates exact frame position from pixel coordinates on the timeline
@@ -279,14 +224,17 @@ class TimelineViewModel {
         // Fully covered: remove using command
         updatedClips.removeWhere((c) => c.databaseId == neighbor.databaseId);
         changed = true;
-        final removeCmd = RemoveClipCommand(vm: this, clipId: neighbor.databaseId!);
+        final removeCmd = RemoveClipCommand(
+          vm: this,
+          clipId: neighbor.databaseId!,
+        );
         // Don't await here directly, let the command run via runCommand if needed
         // For internal logic like this, maybe direct DAO call is still okay?
         // Reverting to direct DAO call for internal logic consistency for now.
         // await runCommand(removeCmd); // This would add it to undo stack, maybe not desired here.
-         await _projectDatabaseService.clipDao!.deleteClip(neighbor.databaseId!);
-         // Need to manually update notifier if not using command
-         recalculateAndUpdateTotalFrames(); // Ensure total frames are updated
+        await _projectDatabaseService.clipDao!.deleteClip(neighbor.databaseId!);
+        // Need to manually update notifier if not using command
+        recalculateAndUpdateTotalFrames(); // Ensure total frames are updated
       } else if (ns < newStart && ne > newStart && ne <= newEnd) {
         // Overlap on right: trim neighbor's end to the intersection
         final updated = neighbor.copyWith(
@@ -446,13 +394,79 @@ class TimelineViewModel {
     }
   }
 
-  // Removed addClip method - Use runCommand(AddClipDirectCommand(...)) instead
+  /// Handles dropping a clip onto an empty timeline by creating a new track and placing the clip.
+  Future<bool> handleClipDropToEmptyTimeline({
+    required ClipModel clip,
+    required int startTimeOnTrackMs,
+  }) async {
+    final databaseService = _projectDatabaseService;
+    final newTrackId = await databaseService.addTrack(
+      name: 'Track 1',
+      type: clip.type.name,
+    );
+    if (newTrackId == null) {
+      logger.logError('Failed to create new track', _logTag);
+      return false;
+    }
+    logger.logInfo('New track created with ID: $newTrackId', _logTag);
 
-  // Removed moveClip method - Use runCommand(MoveClipCommand(...)) instead
+    final success = await placeClipOnTrack(
+      trackId: newTrackId,
+      type: clip.type,
+      sourcePath: clip.sourcePath,
+      startTimeOnTrackMs: startTimeOnTrackMs,
+      startTimeInSourceMs: clip.startTimeInSourceMs,
+      endTimeInSourceMs: clip.endTimeInSourceMs,
+    );
+    if (success) {
+      logger.logInfo(
+        'Clip "${clip.name}" added to new track $newTrackId',
+        _logTag,
+      );
+    } else {
+      logger.logError('Failed to add clip to new track $newTrackId', _logTag);
+    }
+    return success;
+  }
 
-  // Removed resizeClip method - Use runCommand(ResizeClipCommand(...)) instead
+  /// Updates the name of a track.
+  Future<bool> updateTrackName(int trackId, String newName) async {
+    final success = await _projectDatabaseService.updateTrackName(
+      trackId,
+      newName,
+    );
+    if (success) {
+      logger.logInfo('Track $trackId renamed to "$newName"', _logTag);
+    } else {
+      logger.logError('Failed to rename track $trackId', _logTag);
+    }
+    return success;
+  }
 
-  // Removed removeClip method - Use runCommand(RemoveClipCommand(...)) instead
+  /// Handles dropping a clip onto a track at the specified start time.
+  Future<bool> handleClipDrop({
+    required ClipModel clip,
+    required int trackId,
+    required int startTimeOnTrackMs,
+  }) async {
+    final success = await placeClipOnTrack(
+      trackId: trackId,
+      type: clip.type,
+      sourcePath: clip.sourcePath,
+      startTimeOnTrackMs: startTimeOnTrackMs,
+      startTimeInSourceMs: clip.startTimeInSourceMs,
+      endTimeInSourceMs: clip.endTimeInSourceMs,
+    );
+    if (success) {
+      logger.logInfo(
+        'Clip "${clip.name}" added to track $trackId at $startTimeOnTrackMs ms',
+        _logTag,
+      );
+    } else {
+      logger.logError('Failed to add clip to track $trackId', _logTag);
+    }
+    return success;
+  }
 
   Future<void> refreshClips() async {
     if (_projectDatabaseService.clipDao == null) return;
@@ -472,53 +486,15 @@ class TimelineViewModel {
     recalculateAndUpdateTotalFrames(); // Updated call
   }
 
-  void play() {
-    if (isPlayingNotifier.value) return;
-
-    if (_videoPlayerController != null &&
-        _videoPlayerController!.value.isInitialized) {
-      final totalDuration = _videoPlayerController!.value.duration;
-      final currentPosition = _videoPlayerController!.value.position;
-      if (currentPosition >= totalDuration) {
-        _videoPlayerController!.seekTo(Duration.zero);
-      }
-      _videoPlayerController!.play();
-      isPlayingNotifier.value = true;
-    } else {
-      final totalFrames = _calculateTotalFrames();
-      if (currentFrame >= totalFrames) {
-        currentFrame = 0;
-      }
-      isPlayingNotifier.value = true;
-      _startPlaybackTimer();
-    }
-  }
-
-  void pause() {
-    if (!isPlayingNotifier.value) return;
-
-    if (_videoPlayerController != null &&
-        _videoPlayerController!.value.isPlaying) {
-      _videoPlayerController!.pause();
-    }
-    _stopPlaybackTimer();
-    isPlayingNotifier.value = false;
-  }
-
-  void togglePlayPause() {
-    if (isPlayingNotifier.value) {
-      pause();
-    } else {
-      play();
-    }
-  }
-
   void _startPlaybackTimer() {
     _stopPlaybackTimer();
     if (isPlayingNotifier.value) {
-      _playbackTimer = Timer(
+      _playbackTimer = Timer.periodic(
         Duration(milliseconds: (1000 / kDefaultFrameRate).round()),
-        _debouncedFrameUpdate,
+        (_) {
+          // Removed _updateFrameFromEngine() as playhead is now fixed
+          _debouncedFrameUpdate();
+        },
       );
     }
   }
@@ -526,49 +502,8 @@ class TimelineViewModel {
   void _stopPlaybackTimer() {
     _playbackTimer?.cancel();
     _playbackTimer = null;
-  }
-
-  Future<void> loadVideo(String videoPath) async {
-    await _videoPlayerController?.dispose();
-    _controllerPositionSubscription?.cancel();
-    videoPlayerControllerNotifier.value = null;
-
-    Uri videoUri;
-    if (videoPath.startsWith('http') || videoPath.startsWith('https')) {
-      videoUri = Uri.parse(videoPath);
-      _videoPlayerController = VideoPlayerController.networkUrl(videoUri);
-    } else {
-      final file = File(videoPath);
-      if (!await file.exists()) {
-        logger.logError("Error: Video file not found at $videoPath", _logTag);
-        recalculateAndUpdateTotalFrames(); // Updated call
-        return;
-      }
-      videoUri = Uri.file(videoPath);
-      _videoPlayerController = VideoPlayerController.file(file);
-    }
-
-    try {
-      await _videoPlayerController!.initialize();
-      _videoPlayerController!.setLooping(false);
-
-      recalculateAndUpdateTotalFrames(); // Updated call
-      currentFrame = 0;
-
-      _videoPlayerController!.addListener(_updateFrameFromController);
-      videoPlayerControllerNotifier.value = _videoPlayerController;
-
-      _stopPlaybackTimer();
-      isPlayingNotifier.value = false;
-
-      logger.logInfo('Video loaded for preview: $videoPath', _logTag);
-    } catch (e) {
-      logger.logError("Error initializing video player: $e", _logTag);
-      _videoPlayerController = null;
-      videoPlayerControllerNotifier.value = null;
-      recalculateAndUpdateTotalFrames(); // Updated call
-    }
-    isPlayingNotifier.value = false;
+    _frameUpdateTimer?.cancel();
+    _frameUpdateTimer = null;
   }
 
   int _calculateTotalFrames() {
@@ -612,7 +547,6 @@ class TimelineViewModel {
     currentFrameNotifier.dispose();
     totalFramesNotifier.dispose();
     isPlayingNotifier.dispose();
-    videoPlayerControllerNotifier.dispose();
     trackLabelWidthNotifier.dispose(); // Added back disposal
     currentEditMode.dispose();
 
@@ -621,15 +555,7 @@ class TimelineViewModel {
     _stopPlaybackTimer();
     _controllerPositionSubscription?.cancel();
     _clipStreamSubscription?.cancel();
-
-    _videoPlayerController?.dispose();
   }
-
-  // Removed addClipAtPosition - Callers should use runCommand(AddClipCommand(...)) directly.
-
-  // Removed createTimelineClip - Callers should use runCommand(AddClipDirectCommand(...)) directly.
-
-  // Removed rollEditClips method - Use runCommand(RollEditCommand(...)) instead
 
   /// Trims, removes, or splits clips that overlap with [startMs, endMs) on [trackId]. Optionally excludes a clip by ID.
   Future<void> trimOrRemoveOverlappingClips(
@@ -718,8 +644,7 @@ class TimelineViewModel {
               'startTimeInSourceMs':
                   clip.startTimeInSourceMs + (endMs - clipStart),
               'startTimeOnTrackMs': endMs,
-            },
-            log: false);
+            }, log: false);
       }
     }
     // await refreshClips(); // Removed immediate refresh - rely on stream
