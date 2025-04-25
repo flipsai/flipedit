@@ -1,11 +1,16 @@
 import '../timeline_viewmodel.dart';
 import '../commands/timeline_command.dart';
 import '../../models/clip.dart';
+import '../../services/timeline_logic_service.dart'; // Import the new service
+import 'package:watch_it/watch_it.dart'; // Import for di
 
 class TrimOverlapCommand implements TimelineCommand {
   final TimelineViewModel vm;
   final ClipModel newClip;
   late List<ClipModel> _beforeNeighbors;
+
+  // Add dependency on TimelineLogicService
+  final TimelineLogicService _timelineLogicService = di<TimelineLogicService>();
 
   TrimOverlapCommand(this.vm, this.newClip);
 
@@ -17,7 +22,8 @@ class TrimOverlapCommand implements TimelineCommand {
   @override
   Future<void> execute() async {
     // Save current state of overlapping neighbors for undo
-    _beforeNeighbors = vm.getOverlappingClips(
+    _beforeNeighbors = _timelineLogicService.getOverlappingClips( // Use the new service
+      vm.clips,
       newClip.trackId,
       newClip.startTimeOnTrackMs,
       newClip.startTimeOnTrackMs + newClip.durationMs,

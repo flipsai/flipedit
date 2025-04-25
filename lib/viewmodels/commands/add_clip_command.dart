@@ -6,6 +6,8 @@ import 'package:flipedit/utils/logger.dart' as logger;
 import '../timeline_viewmodel.dart';
 import '../commands/timeline_command.dart';
 import '../../models/clip.dart';
+import '../../services/timeline_logic_service.dart'; // Import the new service
+import 'package:watch_it/watch_it.dart'; // Import for di
 
 /// Command to add a clip to the timeline at a specific position.
 /// Handles both the persistence mutation (via DAOs) and state mutation (via ViewModel).
@@ -13,6 +15,8 @@ class AddClipCommand implements TimelineCommand {
   final TimelineViewModel vm;
   final ClipModel clipData;
   final int trackId;
+  // Add dependency on TimelineLogicService
+  final TimelineLogicService _timelineLogicService = di<TimelineLogicService>();
   final int startTimeOnTrackMs; // The target start time on the track
   final int startTimeInSourceMs;
   final int endTimeInSourceMs;
@@ -42,7 +46,8 @@ class AddClipCommand implements TimelineCommand {
     }
 
     // 1. Calculate placement using ViewModel's logic (no database operations)
-    final placement = vm.prepareClipPlacement(
+    final placement = _timelineLogicService.prepareClipPlacement(
+      clips: vm.clips, // Pass the current clips from ViewModel
       clipId: null,
       trackId: trackId,
       type: clipData.type,

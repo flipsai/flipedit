@@ -3,12 +3,16 @@ import 'timeline_command.dart';
 import '../../models/clip.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
 import 'package:collection/collection.dart'; // For firstWhereOrNull
+import '../../services/timeline_logic_service.dart'; // Import the new service
+import 'package:watch_it/watch_it.dart'; // Import for di
 
 /// Command to move a clip to a new track and/or start time.
 class MoveClipCommand implements TimelineCommand {
   final TimelineViewModel vm;
   final int clipId;
   final int newTrackId;
+  // Add dependency on TimelineLogicService
+  final TimelineLogicService _timelineLogicService = di<TimelineLogicService>();
   final int newStartTimeOnTrackMs;
 
   // Store original state for undo
@@ -48,7 +52,8 @@ class MoveClipCommand implements TimelineCommand {
 
     // Find neighbors potentially affected by the *new* position
     final newEndTimeMs = newStartTimeOnTrackMs + clipToMove.durationMs;
-    _originalNeighborStates = vm.getOverlappingClips(
+    _originalNeighborStates = _timelineLogicService.getOverlappingClips( // Use the new service
+      vm.clips, // Pass the current clips
       newTrackId,
       newStartTimeOnTrackMs,
       newEndTimeMs,
@@ -57,7 +62,8 @@ class MoveClipCommand implements TimelineCommand {
 
     // Also store neighbors affected by the *old* position (needed if moving back overlaps differently)
     final oldEndTimeMs = clipToMove.startTimeOnTrackMs + clipToMove.durationMs;
-    final oldNeighbors = vm.getOverlappingClips(
+    final oldNeighbors = _timelineLogicService.getOverlappingClips( // Use the new service
+      vm.clips, // Pass the current clips
       clipToMove.trackId,
       clipToMove.startTimeOnTrackMs,
       oldEndTimeMs,

@@ -1,6 +1,7 @@
 import 'package:flipedit/comfyui/comfyui_service.dart';
 import 'package:flipedit/persistence/dao/project_metadata_dao.dart';
 import 'package:flipedit/persistence/database/project_metadata_database.dart';
+import 'package:flipedit/services/timeline_logic_service.dart';
 import 'package:flipedit/services/uv_manager.dart';
 import 'package:flipedit/services/layout_service.dart';
 import 'package:flipedit/services/project_database_service.dart';
@@ -47,4 +48,7 @@ Future<void> setupServiceLocator() async {
 
   // Update TimelineViewModel to use ProjectDatabaseService
   di.registerLazySingleton<TimelineViewModel>(() => TimelineViewModel());
+
+  // Register TimelineLogicService
+  di.registerLazySingleton<TimelineLogicService>(() => TimelineLogicService());
 }
