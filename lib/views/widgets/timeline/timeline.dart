@@ -9,6 +9,7 @@ import 'dart:math' as math; // Add math import for max function
 import 'package:flipedit/utils/logger.dart'; // Import for logging functions
 import 'package:flipedit/models/clip.dart'; // Import ClipModel
 import 'dart:developer' as developer; // Import for developer logging
+import 'package:flipedit/views/widgets/timeline/components/timeline_playhead.dart';
 
 /// Main timeline widget that shows clips and tracks
 /// Similar to the timeline in video editors like Premiere Pro or Final Cut
@@ -123,23 +124,10 @@ class Timeline extends StatelessWidget with WatchItMixin {
                                       onAcceptWithDetails: (details) async {
                                         developer.log('Timeline Area onAccept: Drop accepted (tracks were empty)', name: 'Timeline');
                                         final draggedClip = details.data;
-                                        // ... (rest of accept logic for empty drop) ...
-                                         // 1. Create a new track
-                                        final newTrackId = await databaseService.addTrack(
-                                          name: 'Track 1',
-                                          type: draggedClip.type.name // Pass the clip type as the track type
-                                        );
-                                        if (newTrackId == null) {
-                                           developer.log('❌ Failed to create new track', name: 'Timeline');
-                                           return;
-                                        }
-                                        developer.log('✅ New track created with ID: $newTrackId', name: 'Timeline');
-
-                                        // 2. Calculate drop position
                                         final RenderBox? renderBox = context.findRenderObject() as RenderBox?;
                                         if (renderBox == null) {
-                                           developer.log('❌ Error: renderBox is null in Timeline Area onAccept', name: 'Timeline');
-                                           return;
+                                          developer.log('❌ Error: renderBox is null in Timeline Area onAccept', name: 'Timeline');
+                                          return;
                                         }
                                         final localPosition = renderBox.globalToLocal(details.offset - Offset(0, timeRulerHeight + trackItemSpacing));
                                         final scrollOffsetX = timelineViewModel.trackContentHorizontalScrollController.offset;
@@ -153,16 +141,11 @@ class Timeline extends StatelessWidget with WatchItMixin {
                                           name: 'Timeline'
                                         );
 
-                                        // 3. Add the clip
-                                        await timelineViewModel.placeClipOnTrack(
-                                          trackId: newTrackId,
-                                          type: draggedClip.type,
-                                          sourcePath: draggedClip.sourcePath,
+                                        await timelineViewModel.handleClipDropToEmptyTimeline(
+                                          clip: draggedClip,
                                           startTimeOnTrackMs: framePositionMs.toInt(),
-                                          startTimeInSourceMs: draggedClip.startTimeInSourceMs,
-                                          endTimeInSourceMs: draggedClip.endTimeInSourceMs,
                                         );
-                                        developer.log('✅ Clip "${draggedClip.name}" added to new track $newTrackId at frame $framePosition', name: 'Timeline');
+                                        developer.log('✅ Clip "${draggedClip.name}" added to new track at frame $framePosition', name: 'Timeline');
                                       },
                                       builder: (context, candidateData, rejectedData) {
                                         // Build the list of tracks inside the DragTarget builder
@@ -190,34 +173,12 @@ class Timeline extends StatelessWidget with WatchItMixin {
                                 ],
                               ),
 
-                              // --- Playhead (Simple Container, Positioned within this Inner Stack) ---
-                              Builder(
-                                builder: (context) {
-                                   // Define playhead visual properties
-                                  const double playheadLineWidth = 2.0;
-                                  final Color playheadColor = theme.accentColor.normal; // Or theme.accentColor.darker, etc.
-
-                                  // Calculate position relative to the start of the scrollable content area (time 0)
-                                  // playheadPosition already represents this (currentFrame * zoom * framePixelWidth)
-                                  final double playheadPosInContent = playheadPosition;
-
-                                  // The left offset is calculated from the start of the scrollable content (0)
-                                  // We need to add the trackLabelWidth because the playhead visually aligns
-                                  // with the track area, which starts *after* the labels.
-                                  // Subtract half the line width to center the line visually on the frame's start pixel.
-                                  double playheadLeftOffset = trackLabelWidth + playheadPosInContent - (playheadLineWidth / 2.0);
-
-                                  // Clamp to prevent visually going under the label area if scrolled fully left
-                                  playheadLeftOffset = playheadLeftOffset.clamp(trackLabelWidth, double.infinity);
-
-                                  return Positioned(
-                                    top: 0,
-                                    bottom: 0,
-                                    left: playheadLeftOffset,
-                                    width: playheadLineWidth, // Use the defined line width
-                                    child: Container(color: playheadColor), // Simple container as the playhead line
-                                  );
-                                }
+                              // --- Playhead (Fixed Position) ---
+                              Positioned(
+                                top: 0,
+                                bottom: 0,
+                                left: trackLabelWidth, // Fixed at the start of the track area
+                                child: const TimelinePlayhead(),
                               ),
 
                               Positioned(
