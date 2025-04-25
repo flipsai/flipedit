@@ -1,7 +1,6 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/viewmodels/editor/editor_layout_viewmodel.dart';
-import 'package:flipedit/viewmodels/editor/editor_preview_viewmodel.dart';
 import 'package:flipedit/utils/logger.dart';
 import 'package:docking/docking.dart';
 import 'package:watch_it/watch_it.dart';
@@ -24,7 +23,6 @@ class EditorViewModel {
 
   // --- Child Controllers/Managers ---
   final EditorLayoutViewModel layoutManager = EditorLayoutViewModel();
-  final EditorPreviewViewModel previewController = EditorPreviewViewModel();
 
   // --- State Notifiers (Kept in EditorViewModel) ---
   final ValueNotifier<String> selectedExtensionNotifier = ValueNotifier<String>('media');
@@ -52,7 +50,6 @@ class EditorViewModel {
   bool get isTimelineVisible => layoutManager.isTimelineVisible;
   bool get isInspectorVisible => layoutManager.isInspectorVisible;
   bool get isPreviewVisible => layoutManager.isPreviewVisible;
-  String? get currentPreviewVideoUrl => previewController.currentPreviewVideoUrl;
 
   // --- Setters ---
   set selectedExtension(String value) {
@@ -101,7 +98,6 @@ class EditorViewModel {
 
     // Dispose child controllers/managers
     layoutManager.dispose();
-    previewController.onDispose();
     logInfo(_logTag, "EditorViewModel disposed.");
   }
 

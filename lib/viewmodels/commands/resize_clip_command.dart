@@ -3,12 +3,16 @@ import 'timeline_command.dart';
 import '../../models/clip.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
 import 'package:collection/collection.dart'; // For firstWhereOrNull
+import '../../services/timeline_logic_service.dart'; // Import the new service
+import 'package:watch_it/watch_it.dart'; // Import for di
 
 /// Command to resize a clip by adjusting its start or end time.
 class ResizeClipCommand implements TimelineCommand {
   final TimelineViewModel vm;
   final int clipId;
   final String direction; // 'left' or 'right'
+  // Add dependency on TimelineLogicService
+  final TimelineLogicService _timelineLogicService = di<TimelineLogicService>();
   final int newBoundaryFrame; // The frame where the new edge will be
 
   // Store original state for undo
@@ -63,7 +67,8 @@ class ResizeClipCommand implements TimelineCommand {
     }
 
 
-    _originalNeighborStates = vm.getOverlappingClips(
+    _originalNeighborStates = _timelineLogicService.getOverlappingClips( // Use the new service
+      vm.clips, // Pass the current clips
       clipToResize.trackId,
       potentialNewStartMs,
       potentialNewEndMs,
@@ -72,7 +77,8 @@ class ResizeClipCommand implements TimelineCommand {
 
     // Also include neighbors affected by the *original* range if the resize shrinks the clip
      final originalEndTimeMs = clipToResize.startTimeOnTrackMs + clipToResize.durationMs;
-     final oldNeighbors = vm.getOverlappingClips(
+     final oldNeighbors = _timelineLogicService.getOverlappingClips( // Use the new service
+       vm.clips, // Pass the current clips
        clipToResize.trackId,
        clipToResize.startTimeOnTrackMs,
        originalEndTimeMs,

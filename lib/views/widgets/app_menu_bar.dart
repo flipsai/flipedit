@@ -1,69 +1,14 @@
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flipedit/persistence/database/project_metadata_database.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
-import 'package:flipedit/utils/logger.dart';
-import 'package:watch_it/watch_it.dart';
-import 'package:flipedit/services/undo_redo_service.dart';
-
-// --- Action Handlers (Now using ProjectViewModel) ---
-const _logTag = 'AppMenuBarActions'; // Define tag for top-level functions
 
 // Updated to accept BuildContext and ProjectViewModel
 Future<void> _handleNewProject(
   BuildContext context,
   ProjectViewModel projectVm,
 ) async {
-  final projectNameController = TextEditingController();
-
-  await showDialog<String>(
-    context: context,
-    builder:
-        (context) => ContentDialog(
-          title: const Text('New Project'),
-          content: SizedBox(
-            height: 50,
-            child: TextBox(
-              controller: projectNameController,
-              placeholder: 'Enter project name',
-            ),
-          ),
-          actions: [
-            Button(
-              child: const Text('Cancel'),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-            FilledButton(
-              child: const Text('Create'),
-              onPressed: () {
-                Navigator.of(context).pop(projectNameController.text);
-              },
-            ),
-          ],
-        ),
-  ).then((projectName) async {
-    if (projectName != null && projectName.trim().isNotEmpty) {
-      try {
-        // Use ViewModel command
-        final newProjectId = await projectVm.createNewProject(
-          projectName.trim(),
-        );
-        logInfo(_logTag, "Created new project with ID: $newProjectId");
-        // TODO: Optionally load the newly created project using projectVm.loadProject(newProjectId)
-        // Load the newly created project
-        await projectVm.loadProject(newProjectId);
-        logInfo(_logTag, "Loaded newly created project ID: $newProjectId");
-      } catch (e) {
-        logError(_logTag, "Error creating or loading project: $e");
-        // TODO: Show error dialog to user (e.g., using context)
-      }
-    } else if (projectName != null) {
-      // Handle empty name case if needed (e.g., show validation in dialog)
-      logWarning(_logTag, "Project name cannot be empty.");
-      // TODO: Show validation error to user
-    }
-  });
+  await projectVm.createNewProjectWithDialog(context);
 }
 
 // Updated to accept BuildContext and ProjectViewModel
@@ -71,174 +16,32 @@ Future<void> _handleOpenProject(
   BuildContext context,
   ProjectViewModel projectVm,
 ) async {
-  List<ProjectMetadata> projects = [];
-
-  try {
-    // Get the current list of projects via ViewModel
-    projects = await projectVm.getAllProjects();
-  } catch (e) {
-    logError(_logTag, "Error fetching projects: $e");
-    // TODO: Show error dialog
-    return;
-  }
-
-  if (projects.isEmpty) {
-    await showDialog(
-      context: context,
-      builder:
-          (context) => ContentDialog(
-            title: const Text('Open Project'),
-            content: const Text('No projects found. Create one first?'),
-            actions: [
-              Button(
-                child: const Text('OK'),
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-            ],
-          ),
-    );
-    return;
-  }
-
-  await showDialog<int>(
-    context: context,
-    builder: (context) {
-      return ContentDialog(
-        title: const Text('Open Project'),
-        // Constrain the height to avoid overly large dialogs
-        content: SizedBox(
-          height: 300,
-          width: 300, // Give it a reasonable width too
-          child: ListView.builder(
-            itemCount: projects.length,
-            itemBuilder: (context, index) {
-              final project = projects[index];
-              return ListTile.selectable(
-                title: Text(project.name),
-                // Ensure createdAt is not null before formatting
-                subtitle: Text('Created: ${project.createdAt.toLocal()}'
-                ),
-                selected: false, // Selection handled by tapping
-                onPressed: () {
-                  Navigator.of(context).pop(project.id);
-                },
-              );
-            },
-          ),
-        ),
-        actions: [
-          Button(
-            child: const Text('Cancel'),
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-        ],
-      );
-    },
-  ).then((selectedProjectId) {
-    if (selectedProjectId != null) {
-      logInfo(_logTag, "Attempting to load project ID: $selectedProjectId");
-      // Use ViewModel command
-      projectVm.loadProject(selectedProjectId).catchError((e) {
-        logError(_logTag, "Error loading project $selectedProjectId: $e");
-        // TODO: Show error to user
-      });
-    }
-  });
+  await projectVm.openProjectDialog(context);
 }
 
 // Updated to use ProjectViewModel command directly
 Future<void> _handleImportMedia(
   BuildContext context,
-  ProjectViewModel projectVm, // Already using ProjectViewModel
+  ProjectViewModel projectVm,
 ) async {
-  // Remove instantiation of MediaImportService
-  final loadingOverlay = _showLoadingOverlay( // Use local helper
-    context, 
-    'Selecting file...'
-  );
-  
-  try {
-    // Use the ViewModel command to import media
-    final importSuccess = await projectVm.importMedia(context);
-    
-    // Remove loading overlay
-    loadingOverlay.remove();
-    
-    // Show success/failure notification (Use local helper)
-    if (importSuccess) {
-      _showNotification( // Use local helper
-        context,
-        'Media imported successfully',
-        severity: InfoBarSeverity.success
-      );
-    } else {
-      _showNotification( // Use local helper
-        context,
-        'Failed to import media or cancelled',
-        severity: InfoBarSeverity.warning // Use warning for cancellation
-      );
-    }
-  } catch (e) {
-    // Remove loading overlay if an error occurs
-    loadingOverlay.remove();
-    
-    _showNotification( // Use local helper
-      context,
-      'Error importing media: ${e.toString()}',
-      severity: InfoBarSeverity.error
-    );
-    
-    logError(_logTag, "Unexpected error in import flow: $e");
-  }
+  await projectVm.importMediaWithUI(context);
 }
 
 Future<void> _handleUndo(TimelineViewModel timelineVm) async {
-  logInfo(_logTag, "Action: Undo");
-  try {
-    await di<UndoRedoService>().undo();
-    logInfo(_logTag, "Undo completed.");
-    // Refresh timeline clips after undo
-    await timelineVm.refreshClips();
-  } catch (e) {
-    logError(_logTag, "Error during undo: $e");
-  }
+  await timelineVm.undo();
 }
 
 Future<void> _handleRedo(TimelineViewModel timelineVm) async {
-  logInfo(_logTag, "Action: Redo");
-  try {
-    await di<UndoRedoService>().redo();
-    logInfo(_logTag, "Redo completed.");
-    // Refresh timeline clips after redo
-    await timelineVm.refreshClips();
-  } catch (e) {
-    logError(_logTag, "Error during redo: $e");
-  }
+  await timelineVm.redo();
 }
 
 // --- New Action Handlers for Tracks (using ProjectViewModel) ---
 void _handleAddVideoTrack(ProjectViewModel projectVm) {
-  projectVm
-      .addTrackCommand(type: 'video')
-      .then((_) {
-        logInfo(_logTag, "Action: Add Video Track initiated.");
-      })
-      .catchError((e) {
-        logError(_logTag, "Error adding video track: $e");
-        // TODO: Show error to user
-      });
+  projectVm.addTrackCommand(type: 'video');
 }
 
 void _handleAddAudioTrack(ProjectViewModel projectVm) {
-  projectVm
-      .addTrackCommand(type: 'audio')
-      .then((_) {
-        logInfo(_logTag, "Action: Add Audio Track initiated.");
-      })
-      .catchError((e) {
-        logError(_logTag, "Error adding audio track: $e");
-        // TODO: Show error to user
-      });
+  projectVm.addTrackCommand(type: 'audio');
 }
 
 // --- Widget for macOS / Windows ---
@@ -447,54 +250,12 @@ class _FluentAppMenuBarState extends State<FluentAppMenuBar> {
                     },
                   );
                 },
-              ); // End of ValueListenableBuilder for Timeline
+              );
             },
-          ), // End of ValueListenableBuilder for Inspector
+          ),
         ],
       ),
     );
   }
 }
 
-// Add helper methods here (or move to a common UI utils file)
-// Shows a loading indicator overlay
-OverlayEntry _showLoadingOverlay(BuildContext context, String message) {
-  final overlay = Overlay.of(context);
-  final entry = OverlayEntry(
-    builder: (context) => Center(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: FluentTheme.of(context).resources.subtleFillColorSecondary,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const ProgressRing(),
-            const SizedBox(height: 16),
-            Text(message),
-          ],
-        ),
-      ),
-    ),
-  );
-  
-  overlay.insert(entry);
-  return entry;
-}
-
-// Shows a notification message
-void _showNotification(
-  BuildContext context, 
-  String message, 
-  {InfoBarSeverity severity = InfoBarSeverity.info}
-) {
-  displayInfoBar(context, builder: (context, close) {
-    return InfoBar(
-      title: Text(message),
-      severity: severity,
-      onClose: close,
-    );
-  });
-}
