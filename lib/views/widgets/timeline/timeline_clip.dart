@@ -1,19 +1,15 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/gestures.dart';
-import 'dart:ui' show PointerDeviceKind;
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/viewmodels/commands/resize_clip_command.dart';
-import 'package:watch_it/watch_it.dart';
-import 'painters/video_frames_painter.dart';
-import 'painters/image_grid_painter.dart';
-import 'painters/text_lines_painter.dart';
 import 'package:flipedit/viewmodels/commands/move_clip_command.dart';
 import 'package:flipedit/viewmodels/commands/remove_clip_command.dart';
-import 'painters/effect_pattern_painter.dart';
-import 'painters/audio_waveform_painter.dart';
+import 'package:watch_it/watch_it.dart';
+import 'painters/video_frames_painter.dart';
+import 'package:flipedit/services/timeline_clip_resize_service.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
 import 'package:flutter/foundation.dart'; // For kTouchSlop
 
@@ -47,6 +43,9 @@ class _TimelineClipState extends State<TimelineClip> {
   double _resizeAccumulatedDrag = 0.0; // Raw pixel delta during resize drag
   int? _previewStartFrame; // Store original start frame during resize
   int? _previewEndFrame; // Store original end frame during resize
+
+  // Service for resize logic
+  final TimelineClipResizeService _resizeService = TimelineClipResizeService();
 
   // Controller for the context menu flyout
   final FlyoutController _contextMenuController = FlyoutController();
@@ -386,69 +385,44 @@ class _TimelineClipState extends State<TimelineClip> {
 
   // --- Resize Handle Callbacks (Inside State) ---
   void _handleResizeStart(String direction) {
-    if (_isMoving) return; // Prevent resize if moving
+    if (_isMoving) return;
+    final result = _resizeService.handleResizeStart(
+      isMoving: _isMoving,
+      direction: direction,
+      startFrame: widget.clip.startFrame,
+      endFrame: widget.clip.endFrame,
+    );
     setState(() {
-      _resizingDirection = direction;
-      _resizeAccumulatedDrag = 0.0;
-      _previewStartFrame = widget.clip.startFrame;
-      _previewEndFrame = widget.clip.endFrame;
+      _resizingDirection = result['resizingDirection'];
+      _resizeAccumulatedDrag = result['resizeAccumulatedDrag'];
+      _previewStartFrame = result['previewStartFrame'];
+      _previewEndFrame = result['previewEndFrame'];
     });
   }
 
   void _handleResizeUpdate(double accumulatedPixelDelta) {
     if (_resizingDirection == null) return;
+    final newDrag = _resizeService.handleResizeUpdate(
+      resizingDirection: _resizingDirection,
+      accumulatedPixelDelta: accumulatedPixelDelta,
+    );
     setState(() {
-      _resizeAccumulatedDrag = accumulatedPixelDelta;
-      // Visual update happens in build() based on _resizeAccumulatedDrag
+      _resizeAccumulatedDrag = newDrag;
     });
   }
 
-  void _handleResizeEnd(String direction, double finalPixelDelta) {
-    if (_resizingDirection == null || _previewStartFrame == null || _previewEndFrame == null) return;
-
-    final double zoom = di<TimelineViewModel>().zoomNotifier.value;
-    final double pxPerFrame = (zoom > 0 ? 5.0 * zoom : 5.0);
-
-    // Ensure pxPerFrame is valid before calculating frameDelta
-    if (pxPerFrame <= 0) {
-        logger.logWarning('pxPerFrame is zero or negative, cannot commit resize.', '_TimelineClipState');
-        // Reset state without executing command
-        setState(() {
-            _resizingDirection = null; _resizeAccumulatedDrag = 0.0;
-            _previewStartFrame = null; _previewEndFrame = null;
-        });
-        return;
-    }
-
-    int frameDelta = (finalPixelDelta / pxPerFrame).round();
-    int originalBoundaryFrame = direction == 'left' ? _previewStartFrame! : _previewEndFrame!;
-    int newBoundaryFrame;
-    int minFrameDuration = 1;
-
-    if (direction == 'left') {
-      newBoundaryFrame = (originalBoundaryFrame + frameDelta).clamp(0, _previewEndFrame! - minFrameDuration);
-    } else { // Right edge
-      newBoundaryFrame = (originalBoundaryFrame + frameDelta).clamp(_previewStartFrame! + minFrameDuration, _previewStartFrame! + 1000000); // Use large upper bound
-    }
-
-    // Only execute command if the boundary actually changed
-    bool boundaryChanged = newBoundaryFrame != originalBoundaryFrame;
-    if (boundaryChanged) {
-      final timelineVm = di<TimelineViewModel>();
-      final command = ResizeClipCommand(
-        vm: timelineVm,
-        clipId: widget.clip.databaseId!,
-        direction: direction,
-        newBoundaryFrame: newBoundaryFrame,
-      );
-      try {
-         timelineVm.runCommand(command);
-      } catch (e) {
-         logger.logError('Error executing ResizeClipCommand: $e', '_TimelineClipState');
-      }
-    }
-
-    // Reset resize state after attempting command execution
+  void _handleResizeEnd(String direction, double finalPixelDelta) async {
+    await _resizeService.handleResizeEnd(
+      resizingDirection: _resizingDirection,
+      previewStartFrame: _previewStartFrame,
+      previewEndFrame: _previewEndFrame,
+      direction: direction,
+      finalPixelDelta: finalPixelDelta,
+      timelineVm: di<TimelineViewModel>(),
+      clip: widget.clip,
+      zoom: di<TimelineViewModel>().zoomNotifier.value,
+      runCommand: (cmd) => di<TimelineViewModel>().runCommand(cmd),
+    );
     setState(() {
       _resizingDirection = null;
       _resizeAccumulatedDrag = 0.0;
