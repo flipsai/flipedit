@@ -94,23 +94,55 @@ class TimelineViewModel {
   // Expose project database for commands
   ProjectDatabaseService get projectDatabaseService => _projectDatabaseService;
 
+  // Timer for continuous frame advancement during playback
+  Timer? _playbackTimer;
+  
+  // FPS for playback - TODO: Get this from project settings
+  final int _fps = 30;
+  
   /// Starts playback from the current frame position
   Future<void> startPlayback() async {
     if (isPlayingNotifier.value) return; // Already playing
 
     isPlayingNotifier.value = true;
     logger.logInfo('▶️ Starting playback from frame $currentFrame', _logTag);
+    
+    // Start a timer that advances the frame at the specified FPS
+    _playbackTimer?.cancel();
+    _playbackTimer = Timer.periodic(Duration(milliseconds: (1000 / _fps).round()), (timer) {
+      // Advance to next frame
+      final nextFrame = currentFrame + 1;
+      final totalFrames = totalFramesNotifier.value;
+      
+      if (nextFrame > totalFrames) {
+        // Stop at the end of the timeline
+        stopPlayback();
+      } else {
+        // Update current frame
+        currentFrame = nextFrame;
+      }
+    });
   }
-
-  // Removed method to update current frame based on engine position during playback
-  // as playhead is now fixed
 
   /// Stops playback
   void stopPlayback() {
     if (!isPlayingNotifier.value) return; // Not playing
 
+    // Cancel the playback timer
+    _playbackTimer?.cancel();
+    _playbackTimer = null;
+    
     isPlayingNotifier.value = false;
     logger.logInfo('⏹️ Stopping playback at frame $currentFrame', _logTag);
+  }
+
+  /// Toggles the playback state
+  void togglePlayPause() {
+    if (isPlayingNotifier.value) {
+      stopPlayback();
+    } else {
+      startPlayback();
+    }
   }
 
   Future<void> loadClipsForProject(int projectId) async {
@@ -394,6 +426,10 @@ class TimelineViewModel {
 
   void onDispose() {
     logger.logInfo('Disposing TimelineViewModel', _logTag);
+    // Cancel playback timer if running
+    _playbackTimer?.cancel();
+    _playbackTimer = null;
+    
     clipsNotifier.dispose();
     zoomNotifier.dispose();
     currentFrameNotifier.dispose();

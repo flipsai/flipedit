@@ -160,7 +160,7 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
                 size: 16,
                 color: controlsContentColor, // Ensure color consistency
               ),
-              onPressed: () => {}
+              onPressed: timelineViewModel.togglePlayPause, // Call the correct ViewModel method
             ),
           ),
           Tooltip(

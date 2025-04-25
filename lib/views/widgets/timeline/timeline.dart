@@ -173,14 +173,16 @@ class Timeline extends StatelessWidget with WatchItMixin {
                                 ],
                               ),
 
-                              // --- Playhead (Fixed Position) ---
+                              // --- Playhead (Dynamically Positioned) ---
                               Positioned(
                                 top: 0,
                                 bottom: 0,
-                                left: trackLabelWidth, // Fixed at the start of the track area
+                                // Position based on currentFrame, zoom, and trackLabelWidth
+                                left: trackLabelWidth + playheadPosition,
                                 child: const TimelinePlayhead(),
                               ),
-
+                              
+                              // --- Resizer Handle ---
                               Positioned(
                                 top: 0,
                                 bottom: 0,
