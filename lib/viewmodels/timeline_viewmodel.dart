@@ -153,7 +153,9 @@ class TimelineViewModel {
     required int trackId,
     required ClipType type,
     required String sourcePath,
+    required int sourceDurationMs,
     required int startTimeOnTrackMs,
+    required int endTimeOnTrackMs,
     required int startTimeInSourceMs,
     required int endTimeInSourceMs,
   }) async {
@@ -167,12 +169,14 @@ class TimelineViewModel {
       final clipData = ClipModel(
         databaseId: null,
         trackId: trackId,
-        name: '',
+        name: '', // Consider deriving name from sourcePath
         type: type,
         sourcePath: sourcePath,
+        sourceDurationMs: sourceDurationMs,
         startTimeInSourceMs: startTimeInSourceMs,
-        endTimeInSourceMs: endTimeInSourceMs,
+        endTimeInSourceMs: endTimeInSourceMs, // This will be clamped by constructor/service
         startTimeOnTrackMs: startTimeOnTrackMs,
+        endTimeOnTrackMs: endTimeOnTrackMs, 
         effects: [],
         metadata: {},
       );
@@ -180,28 +184,28 @@ class TimelineViewModel {
       // Create an instance of the AddClipCommand class (imported at the top of the file)
       final command = AddClipCommand(
         vm: this,
-        clipData: clipData,
+        clipData: clipData, // Contains all necessary source info
         trackId: trackId,
-        // Pass the required startTimeOnTrackMs from the method's arguments
-        startTimeOnTrackMs: startTimeOnTrackMs,
-        startTimeInSourceMs: startTimeInSourceMs,
-        endTimeInSourceMs: endTimeInSourceMs,
+        startTimeOnTrackMs: startTimeOnTrackMs, // Only track start time is needed here
+        // Removed startTimeInSourceMs, endTimeInSourceMs
       );
       
       await runCommand(command);
       return true;
     } else {
       // For existing clips, use the old direct approach for now
-      // This could be refactored to use a MoveClipCommand or similar
+      // This handles updates (moves/resizes) using the logic service
       final placement = _timelineLogicService.prepareClipPlacement(
-        clips: clips, // Pass the current clips
+        clips: clips, // Pass the current clips from the notifier
         clipId: clipId,
         trackId: trackId,
         type: type,
         sourcePath: sourcePath,
+        sourceDurationMs: sourceDurationMs, // Added
         startTimeOnTrackMs: startTimeOnTrackMs,
+        endTimeOnTrackMs: endTimeOnTrackMs, // Added
         startTimeInSourceMs: startTimeInSourceMs,
-        endTimeInSourceMs: endTimeInSourceMs,
+        endTimeInSourceMs: endTimeInSourceMs, // Logic service will clamp this
       );
       
       if (!placement['success']) return false;
@@ -226,10 +230,12 @@ class TimelineViewModel {
         {
           'trackId': trackId,
           'startTimeOnTrackMs': placement['newClipData']['startTimeOnTrackMs'],
+          'endTimeOnTrackMs': placement['newClipData']['endTimeOnTrackMs'], // Added
           'startTimeInSourceMs': placement['newClipData']['startTimeInSourceMs'],
-          'endTimeInSourceMs': placement['newClipData']['endTimeInSourceMs'],
+          'endTimeInSourceMs': placement['newClipData']['endTimeInSourceMs'], // This should be the clamped value from placement
+          // sourceDurationMs likely doesn't change on move/resize, but could be updated if needed
         },
-        log: true,
+        log: true, // Enable logging for undo/redo
       );
       
       // Update UI
@@ -262,7 +268,10 @@ class TimelineViewModel {
       trackId: newTrackId,
       type: clip.type,
       sourcePath: clip.sourcePath,
+      sourceDurationMs: clip.sourceDurationMs, // Pass source duration
       startTimeOnTrackMs: startTimeOnTrackMs,
+      // Calculate initial end time on track based on source duration for a new clip
+      endTimeOnTrackMs: startTimeOnTrackMs + clip.durationInSourceMs,
       startTimeInSourceMs: clip.startTimeInSourceMs,
       endTimeInSourceMs: clip.endTimeInSourceMs,
     );
@@ -301,7 +310,10 @@ class TimelineViewModel {
       trackId: trackId,
       type: clip.type,
       sourcePath: clip.sourcePath,
+      sourceDurationMs: clip.sourceDurationMs, // Pass source duration
       startTimeOnTrackMs: startTimeOnTrackMs,
+      // Calculate initial end time on track based on source duration for a new clip
+      endTimeOnTrackMs: startTimeOnTrackMs + clip.durationInSourceMs,
       startTimeInSourceMs: clip.startTimeInSourceMs,
       endTimeInSourceMs: clip.endTimeInSourceMs,
     );
@@ -325,7 +337,19 @@ class TimelineViewModel {
       final dbClips = await _projectDatabaseService.clipDao!.getClipsForTrack(
         track.id,
       );
-      allClips.addAll(dbClips.map(clipFromProjectDb));
+      // Map dbClip data to ClipModel, ensuring required fields are provided
+      allClips.addAll(dbClips.map((dbClip) {
+         // Estimate source duration if missing from DB data
+         final sourceDuration = dbClip.sourceDurationMs ?? (dbClip.endTimeInSourceMs - dbClip.startTimeInSourceMs).clamp(0, 1<<30);
+         // The factory handles estimating endTimeOnTrackMs internally if needed
+
+         // Use the factory constructor. Pass the dbData and the potentially estimated sourceDuration.
+         return ClipModel.fromDbData(
+            dbClip,
+            sourceDurationMs: sourceDuration, // Pass optional estimated source duration
+            // DO NOT pass endTimeOnTrackMs here - the factory handles it.
+         );
+      }));
     }
     allClips.sort(
       (a, b) => a.startTimeOnTrackMs.compareTo(b.startTimeOnTrackMs),
@@ -340,7 +364,7 @@ class TimelineViewModel {
     }
     int maxEndTimeMs = 0;
     for (final clip in clipsNotifier.value) {
-      final clipEndTimeMs = clip.startTimeOnTrackMs + clip.durationMs;
+      final clipEndTimeMs = clip.endTimeOnTrackMs; // Use the explicit end time
       if (clipEndTimeMs > maxEndTimeMs) {
         maxEndTimeMs = clipEndTimeMs;
       }

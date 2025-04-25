@@ -4,6 +4,7 @@ import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/views/widgets/timeline/timeline_track.dart';
 import 'package:mockito/mockito.dart';
 import 'package:mockito/annotations.dart';
+import 'timeline_track_test.mocks.dart'; // Import generated mocks
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/persistence/database/project_database.dart' as project_db;
@@ -11,7 +12,7 @@ import 'package:watch_it/watch_it.dart';
 
 // Mocks
 @GenerateMocks([TimelineViewModel])
-class MockTimelineViewModel extends Mock implements TimelineViewModel {}
+// Removed manual definition: class MockTimelineViewModel extends Mock implements TimelineViewModel {}
 class MockProjectDatabaseService extends Mock implements ProjectDatabaseService {}
 class MockValueNotifier<T> extends Mock implements ValueNotifier<T> {} // Keep if mocking notifiers, remove if using real ones
 
