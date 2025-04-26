@@ -192,11 +192,13 @@ class Timeline extends StatelessWidget with WatchItMixin {
                                       final double scrollOffsetX = timelineVm.trackContentHorizontalScrollController.offset;
                                       final double pxPerFrame = framePixelWidth * zoom;
                                       double pointerRelX = (localX + scrollOffsetX - trackLabelWidth).clamp(0.0, double.infinity);
-                                      final int newFrame = (pointerRelX / pxPerFrame).round().clamp(0, timelineVm.totalFramesNotifier.value);
+                                      // Calculate max allowed frame with a safety margin to prevent the playhead
+                                      // from going too far to the right where it becomes hard to see or interact with
+                                      final int maxAllowedFrame = totalFrames > 0 ? totalFrames - 1 : 0;
+                                      final int newFrame = (pointerRelX / pxPerFrame).round().clamp(0, maxAllowedFrame);
                                       timelineVm.currentFrame = newFrame;
                                       // Auto-scroll when playhead near edges
                                       const double margin = 20.0;
-                                      final double playheadX = trackLabelWidth + newFrame * pxPerFrame;
                                       final ScrollController scrollController = timelineVm.trackContentHorizontalScrollController;
                                       double newScrollOffset = scrollOffsetX;
                                       if (localX < margin) {

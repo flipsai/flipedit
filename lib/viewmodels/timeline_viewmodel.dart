@@ -7,7 +7,6 @@ import 'package:flipedit/services/project_database_service.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
 
-import 'package:flipedit/viewmodels/timeline_utils.dart';
 import 'package:watch_it/watch_it.dart';
 import 'commands/timeline_command.dart';
 import 'commands/add_clip_command.dart';
@@ -40,7 +39,10 @@ class TimelineViewModel {
   int get currentFrame => currentFrameNotifier.value;
   set currentFrame(int value) {
     final totalFrames = _calculateTotalFrames();
-    final clampedValue = value.clamp(0, totalFrames);
+    // Add a safety margin to prevent the playhead from being positioned
+    // at the extreme edge of the timeline where it might be hard to see or interact with
+    final int maxAllowedFrame = totalFrames > 0 ? totalFrames - 1 : 0;
+    final clampedValue = value.clamp(0, maxAllowedFrame);
     if (currentFrameNotifier.value == clampedValue) return;
     currentFrameNotifier.value = clampedValue;
   }
@@ -113,9 +115,11 @@ class TimelineViewModel {
       // Advance to next frame
       final nextFrame = currentFrame + 1;
       final totalFrames = totalFramesNotifier.value;
+      // Calculate max allowed frame with safety margin
+      final int maxAllowedFrame = totalFrames > 0 ? totalFrames - 1 : 0;
       
-      if (nextFrame > totalFrames) {
-        // Stop at the end of the timeline
+      if (nextFrame > maxAllowedFrame) {
+        // Stop at the safe end of the timeline
         stopPlayback();
       } else {
         // Update current frame
@@ -409,8 +413,10 @@ class TimelineViewModel {
     final newTotalFrames = _calculateTotalFrames();
     if (totalFramesNotifier.value != newTotalFrames) {
       totalFramesNotifier.value = newTotalFrames;
-      if (currentFrame > newTotalFrames) {
-        currentFrame = newTotalFrames;
+      // Apply the same safety margin when adjusting currentFrame after totalFrames changes
+      final int maxAllowedFrame = newTotalFrames > 0 ? newTotalFrames - 1 : 0;
+      if (currentFrame > maxAllowedFrame) {
+        currentFrame = maxAllowedFrame;
       }
     }
   }
