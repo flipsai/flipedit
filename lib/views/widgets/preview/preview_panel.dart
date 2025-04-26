@@ -4,6 +4,7 @@ import 'package:video_player/video_player.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/enums/clip_type.dart'; // Import corrected
+import 'package:flutter_box_transform/flutter_box_transform.dart';
 import 'package:fvp/fvp.dart' as fvp; // Assuming fvp is needed
 import 'package:watch_it/watch_it.dart';
 
@@ -11,23 +12,19 @@ import 'package:watch_it/watch_it.dart';
 ///
 /// This panel updates its visible content *every* time the timeline playhead moves,
 /// regardless of how the user is navigating (playback or scrubbing).
+/// It now uses TransformableBoxController to allow resizing and moving videos.
 ///
 /// **Intent:**
-/// - Ensures the preview always exactly matches the timeline's current frame,
-///   seamlessly reflecting entry into frames with and without video content.
-/// - Prevents edge cases where the preview lags, fails to update, or sticks on stale frames,
-///   especially at content boundaries and during rapid timeline navigation.
+/// - Ensures the preview always exactly matches the timeline's current frame.
+/// - Allows interactive resizing/moving of video elements using flutter_box_transform.
 ///
 /// **Performance:**
-/// - Internal update and controller management methods (`_updateVisibleClips`, `_initializeAndSyncControllers`)
-///   contain checks to avoid unnecessary work and UI rebuilds:
-///   - No new setState or controller work unless the visible clip list or aspect ratio actually changes
-///   - Video player seeks only when the position is significantly different (100ms tolerance)
-///   - Every change is guarded by `mounted` checks and idempotent logic
+/// - Internal update and controller management methods are optimized to avoid unnecessary work.
+/// - Video player seeks only when necessary.
+/// - Box controllers are managed alongside video controllers.
 ///
 /// **Usage:**
-/// - This widget should be included wherever a real-time timeline preview is needed.
-/// - No manual update triggering is needed: reacts automatically to timeline frame and playback changes.
+/// - Include wherever a real-time, interactive timeline preview is needed.
 class PreviewPanel extends StatefulWidget {
   const PreviewPanel({super.key});
 
@@ -38,10 +35,24 @@ class PreviewPanel extends StatefulWidget {
 class _PreviewPanelState extends State<PreviewPanel> {
   // State variables remain inside the class
   final TimelineViewModel _timelineViewModel = di<TimelineViewModel>();
+  // Video Player controllers map (clipId -> controller)
   final Map<int, VideoPlayerController> _controllers = {};
+  // Aspect ratio for the overall container (might need adjustment if multiple videos differ)
   double _aspectRatio = 16 / 9;
+  // Currently visible clips based on playhead position
   List<ClipModel> _currentVisibleClips = [];
+  // Futures for ongoing video player initializations
   final Map<int, Future<void>> _initializationFutures = {};
+
+  // State for resizable boxes using controllers
+  // Map to store original video size for constraints
+  final Map<int, Size> _clipBaseSizes = {};
+  // Map to store Rect state for each visible video clip (clipId -> Rect)
+  final Map<int, Rect> _clipRects = {};
+  // Map to store Flip state for each visible video clip (clipId -> Flip)
+  final Map<int, Flip> _clipFlips = {};
+  // State for aspect ratio lock
+  bool _aspectRatioLocked = true;
 
   @override
   void initState() {
@@ -59,23 +70,13 @@ class _PreviewPanelState extends State<PreviewPanel> {
     super.dispose();
   }
 
-  // --- Handler Methods ---
+  // --- Handler Methods (Reacting to ViewModel changes) ---
 
   void _handleClipListChange() {
     _updateVisibleClips();
     _initializeAndSyncControllers();
   }
 
-  /// Called on every timeline frame change (playback or scrubbing).
-  ///
-  /// Forces both "visible clip" recalculation and controller sync so the preview
-  /// exactly matches the timeline's instantaneous state, without requiring playback
-  /// to be active.
-  ///
-  /// Internal updates are optimized: regardless of this always running, downstream
-  /// methods only apply UI or controller work if there's an actual difference.
-  ///
-  /// *Never* skips updates when entering regions without video (shows/hides preview as needed).
   void _handleFrameChange() {
     _updateVisibleClips();
     _initializeAndSyncControllers();
@@ -83,143 +84,122 @@ class _PreviewPanelState extends State<PreviewPanel> {
 
   void _handlePlaybackStateChange(bool isPlaying) {
     final currentTimeMs = _timelineViewModel.currentFrameTimeMs;
-    List<Future<void>> tasks = []; // Collect async tasks
+    List<Future<void>> tasks = [];
 
     for (final entry in _controllers.entries) {
       final clipId = entry.key;
       final controller = entry.value;
-      final clip = _findClipById(clipId); // Use helper
+      final clip = _findClipById(clipId);
 
       if (clip == null || !controller.value.isInitialized) continue;
 
       if (isPlaying) {
-        final seekPositionMs = (currentTimeMs - clip.startTimeOnTrackMs + clip.startTimeInSourceMs).toInt().clamp(0, clip.sourceDurationMs);
-        // Only seek if significantly different or if starting exactly at clip beginning
-         bool needsSeek = (controller.value.position.inMilliseconds - seekPositionMs).abs() > 100; // 100ms tolerance
-         if (needsSeek) {
-             // Don't wait for seek before playing, start play immediately after initiating seek
-             tasks.add(controller.seekTo(Duration(milliseconds: seekPositionMs)));
-         }
-         // Ensure play() is called even if seek isn't needed or happens concurrently
-         if (!controller.value.isPlaying) {
-              tasks.add(controller.play());
-         }
-
+        final seekPositionMs = (currentTimeMs -
+                clip.startTimeOnTrackMs +
+                clip.startTimeInSourceMs)
+            .toInt()
+            .clamp(0, clip.sourceDurationMs);
+        bool needsSeek =
+            (controller.value.position.inMilliseconds - seekPositionMs).abs() >
+            100;
+        if (needsSeek) {
+          tasks.add(controller.seekTo(Duration(milliseconds: seekPositionMs)));
+        }
+        if (!controller.value.isPlaying) {
+          tasks.add(controller.play());
+        }
       } else {
         if (controller.value.isPlaying) {
-           tasks.add(controller.pause());
-           // Optional: Sync exact frame on pause if needed
-           // final seekPositionMs = (currentTimeMs - clip.startTimeOnTrackMs + clip.startTimeInSourceMs).toInt().clamp(0, clip.sourceDurationMs);
-           // tasks.add(controller.seekTo(Duration(milliseconds: seekPositionMs)));
+          tasks.add(controller.pause());
         }
       }
     }
 
-    // Wait for all play/pause/seek operations for this state change to complete
-    Future.wait(tasks).then((_) {
-        // Only trigger rebuild after operations are done, if widget is still mounted
-        if (mounted) {
-            setState(() {}); // Update button icon etc.
-        }
-    }).catchError((error){
-        debugPrint("Error during playback state change sync: $error");
-        if (mounted) setState(() {}); // Still update UI even if error occurred
-    });
+    Future.wait(tasks)
+        .then((_) {
+          if (mounted) setState(() {}); // Update button icon etc.
+        })
+        .catchError((error) {
+          debugPrint("Error during playback state change sync: $error");
+          if (mounted) setState(() {});
+        });
   }
-
 
   // --- Controller Management ---
 
   /// Recomputes which clips are currently visible at the timeline's frame head.
-  ///
-  /// **Optimization:** Only triggers UI/state changes if the visible clip list actually
-  /// changes (using a list equality check), and aspect ratio is only updated if needed.
-  ///
-  /// Called on every frame change—*safe* to call often.
   void _updateVisibleClips() {
-     if (!mounted) return; // Avoid updates if disposed
+    if (!mounted) return;
 
     final clips = _timelineViewModel.clips;
     final currentTimeMs = _timelineViewModel.currentFrameTimeMs;
-    final newVisibleClips = clips.where((clip) =>
-      clip.startTimeOnTrackMs <= currentTimeMs && currentTimeMs < clip.endTimeOnTrackMs).toList();
+    final newVisibleClips =
+        clips
+            .where(
+              (clip) =>
+                  clip.startTimeOnTrackMs <= currentTimeMs &&
+                  currentTimeMs < clip.endTimeOnTrackMs,
+            )
+            .toList();
 
-    // Log visible clips for debugging (databaseId, trackId, type)
-    debugPrint("[PreviewPanel][_updateVisibleClips] Visible clips after update (playhead ${currentTimeMs}ms):");
-    for (final c in newVisibleClips) {
-      debugPrint("  - clipId=${c.databaseId}, trackId=${c.trackId}, type=${c.type}");
-    }
-    // Also log all current clips (to spot orphans)
-    debugPrint("[PreviewPanel][_updateVisibleClips] All clips in model:");
-    for (final c in clips) {
-      debugPrint("  - clipId=${c.databaseId}, trackId=${c.trackId}, type=${c.type}");
-    }
+    debugPrint(
+      "[PreviewPanel][_updateVisibleClips] Visible clips after update (playhead ${currentTimeMs}ms): ${newVisibleClips.map((c) => c.databaseId).toList()}",
+    );
 
-    // Check if the list actually changed before potentially triggering rebuilds
     if (listEquals(_currentVisibleClips, newVisibleClips)) {
-        // If list is same, still check aspect ratio
-        _updateAspectRatioIfNeeded();
-        return;
+      _updateAspectRatioIfNeeded();
+      return;
     }
 
     setState(() {
-       _currentVisibleClips = newVisibleClips;
-       _updateAspectRatioIfNeeded(); // Update aspect ratio based on new list
+      _currentVisibleClips = newVisibleClips;
+      _updateAspectRatioIfNeeded();
     });
   }
 
+  /// Updates the container's aspect ratio based on the first visible, initialized video.
   void _updateAspectRatioIfNeeded() {
-     if (!mounted) return;
-     VideoPlayerController? firstInitializedController;
-     // Find the first initialized video controller among currently visible clips
-     for (final clip in _currentVisibleClips) {
-       if (clip.type == ClipType.video && _controllers.containsKey(clip.databaseId)) {
-          final controller = _controllers[clip.databaseId]!;
-          if (controller.value.isInitialized) {
-             firstInitializedController = controller;
-             break;
-          }
-       }
-     }
+    if (!mounted) return;
+    VideoPlayerController? firstInitializedController;
+    for (final clip in _currentVisibleClips) {
+      if (clip.type == ClipType.video &&
+          _controllers.containsKey(clip.databaseId)) {
+        final controller = _controllers[clip.databaseId]!;
+        if (controller.value.isInitialized) {
+          firstInitializedController = controller;
+          break;
+        }
+      }
+    }
 
-     double targetAspectRatio = 16/9; // Default
-     if (firstInitializedController != null) {
-         targetAspectRatio = firstInitializedController.value.aspectRatio;
-     }
+    double targetAspectRatio = 16 / 9; // Default
+    if (firstInitializedController != null) {
+      targetAspectRatio = firstInitializedController.value.aspectRatio;
+    }
 
-     if (_aspectRatio != targetAspectRatio) {
-        // Use setState only if the aspect ratio actually changes
-        setState(() {
-            _aspectRatio = targetAspectRatio;
-        });
-     }
+    if (_aspectRatio != targetAspectRatio) {
+      setState(() {
+        _aspectRatio = targetAspectRatio;
+      });
+    }
   }
 
-
+  /// Finds a clip by its ID from the ViewModel's current list.
   ClipModel? _findClipById(int? id) {
     if (id == null) return null;
     try {
-      // Use the current clips list from the view model for lookup
       return _timelineViewModel.clips.firstWhere((c) => c.databaseId == id);
     } catch (e) {
       return null; // Not found
     }
   }
 
-  /// Initializes video controllers and keeps them in sync with the timeline frame.
-  ///
-  /// - On every frame, ensures only clips on screen have active controllers.
-  /// - Performs seeks and play/pause ops *only if* needed (e.g., seeks only if more than 100ms off from target).
-  /// - Cleans up and disposes controllers for clips that have gone off-screen.
-  ///
-  /// **Performance:** This is called on every frame change but is fully guarded against unnecessary work.
-  /// Only creates, seeks, or disposes controllers if the relevant clip visibility or state actually changes.
-  ///
-  /// Safe to call as often as needed; especially important for keeping preview correct during scrubbing and at clip boundaries.
+  /// Initializes/syncs video players and TransformableBox controllers.
   Future<void> _initializeAndSyncControllers() async {
-    if (!mounted) return; // Check if mounted at the beginning
+    if (!mounted) return;
 
-    final visibleClipIds = _currentVisibleClips.map((c) => c.databaseId!).toSet();
+    final visibleClipIds =
+        _currentVisibleClips.map((c) => c.databaseId!).toSet();
     final existingClipIds = _controllers.keys.toSet();
 
     // Dispose controllers for clips no longer visible
@@ -233,242 +213,366 @@ class _PreviewPanelState extends State<PreviewPanel> {
     List<Future<void>> initSyncFutures = [];
 
     for (final clip in _currentVisibleClips) {
-      if (clip.type != ClipType.video) continue; // Only handle video clips
+      if (clip.type != ClipType.video) continue;
 
       final clipId = clip.databaseId!;
-      final seekPositionMs = (currentTimeMs - clip.startTimeOnTrackMs + clip.startTimeInSourceMs).toInt().clamp(0, clip.sourceDurationMs);
+      final seekPositionMs = (currentTimeMs -
+              clip.startTimeOnTrackMs +
+              clip.startTimeInSourceMs)
+          .toInt()
+          .clamp(0, clip.sourceDurationMs);
 
       if (_controllers.containsKey(clipId)) {
-        // --- Sync Existing Controller ---
+        // --- Sync Existing Video Controller ---
         final controller = _controllers[clipId]!;
-        // Only seek if paused and position is significantly different
         if (controller.value.isInitialized && !isPlaying) {
-            if ((controller.value.position.inMilliseconds - seekPositionMs).abs() > 100) { // 100ms tolerance
-                 initSyncFutures.add(controller.seekTo(Duration(milliseconds: seekPositionMs)));
-            }
-        }
-        // Ensure playback state matches if initialized (this might be redundant with _handlePlaybackStateChange but acts as a safeguard)
-         if(controller.value.isInitialized) {
-             if (isPlaying && !controller.value.isPlaying) {
-                 initSyncFutures.add(controller.play());
-             } else if (!isPlaying && controller.value.isPlaying) {
-                 initSyncFutures.add(controller.pause());
-             }
-         }
-
-      } else if (!_initializationFutures.containsKey(clipId)) {
-        // --- Initialize New Controller (if not already initializing) ---
-        final controller = VideoPlayerController.networkUrl(Uri.parse(clip.sourcePath));
-         _controllers[clipId] = controller;
-         controller.setLooping(false);
-
-        final initFuture = controller.initialize().then((_) {
-          if (!mounted || !_controllers.containsKey(clipId)) return null;
-          // Set initial position after initialization
-          return controller.seekTo(Duration(milliseconds: seekPositionMs));
-        }).then((_) {
-          if (!mounted || !_controllers.containsKey(clipId)) return null;
-          _updateAspectRatioIfNeeded(); // Check aspect ratio after initialization
-          // Start playing if needed *after* seek is complete
-          if (isPlaying && mounted) { // Check mounted again
-            controller.play();
+          if ((controller.value.position.inMilliseconds - seekPositionMs)
+                  .abs() >
+              100) {
+            initSyncFutures.add(
+              controller.seekTo(Duration(milliseconds: seekPositionMs)),
+            );
           }
-          if (mounted) setState(() {}); // Rebuild to show player/update aspect ratio
-        }).catchError((error) {
-           debugPrint("Error initializing controller for clip $clipId: $error");
-           if (mounted) {
-               _disposeController(clipId); // Clean up failed controller
-               setState(() {}); // Update UI to reflect removal
-           }
-        }).whenComplete(() {
-            // Always remove the future when done, regardless of success/error
-            _initializationFutures.remove(clipId);
-        });
+        }
+        if (controller.value.isInitialized) {
+          if (isPlaying && !controller.value.isPlaying) {
+            initSyncFutures.add(controller.play());
+          } else if (!isPlaying && controller.value.isPlaying) {
+            initSyncFutures.add(controller.pause());
+          }
+        }
+        // Note: We don't typically need to sync the BoxController state here unless
+        // the timeline state dictates resetting position/size (e.g., loading a project).
+        // User interactions are handled via the controller's listener.
+      } else if (!_initializationFutures.containsKey(clipId)) {
+        // --- Initialize New Video Controller (if not already initializing) ---
+        final controller = VideoPlayerController.networkUrl(
+          Uri.parse(clip.sourcePath),
+        );
+        _controllers[clipId] = controller;
+        controller.setLooping(false);
+
+        final initFuture = controller
+            .initialize()
+            .then((_) {
+              if (!mounted || !_controllers.containsKey(clipId)) return null;
+              return controller.seekTo(Duration(milliseconds: seekPositionMs));
+            })
+            .then((_) {
+              if (!mounted || !_controllers.containsKey(clipId)) return null;
+              // Store base size and initialize the TransformableBoxController *after* video init
+              final videoSize = controller.value.size;
+              _clipBaseSizes[clipId] = videoSize;
+              // Initialize the Rect state for the new clip
+              if (!_clipRects.containsKey(clipId)) {
+                // Default to centered Rect based on video size (may need parent bounds later)
+                _clipRects[clipId] = Rect.fromCenter(
+                  center: Offset.zero, // Centered in its Stack slot initially
+                  width:
+                      videoSize.width > 0
+                          ? videoSize.width
+                          : 320, // Fallback width
+                  height:
+                      videoSize.height > 0
+                          ? videoSize.height
+                          : 180, // Fallback height
+                );
+                _clipFlips[clipId] = Flip.none; // Default flip
+              }
+              _updateAspectRatioIfNeeded();
+              if (isPlaying && mounted) {
+                controller.play();
+              }
+              if (mounted) setState(() {}); // Rebuild to show player
+            })
+            .catchError((error) {
+              debugPrint(
+                "Error initializing controller for clip $clipId: $error",
+              );
+              if (mounted) {
+                _disposeController(clipId);
+                setState(() {});
+              }
+            })
+            .whenComplete(() {
+              _initializationFutures.remove(clipId);
+            });
 
         _initializationFutures[clipId] = initFuture;
         initSyncFutures.add(initFuture);
       }
     }
 
-    // Wait for all current initialization/sync tasks triggered by this call
     try {
-        await Future.wait(initSyncFutures);
+      await Future.wait(initSyncFutures);
     } catch (e) {
-        debugPrint("Error during batch init/sync: $e");
+      debugPrint("Error during batch init/sync: $e");
     }
 
-    // Final check and UI refresh if still mounted after async operations
     if (mounted) {
-       _updateVisibleClips(); // Ensure visible clips are still accurate
-       _updateAspectRatioIfNeeded(); // Ensure aspect ratio is correct
-       setState(() {});
+      _updateVisibleClips();
+      _updateAspectRatioIfNeeded();
+      setState(() {});
     }
   }
 
+  /// Disposes controllers (video and box) for a specific clip ID.
   void _disposeController(int clipId) {
     final controller = _controllers.remove(clipId);
     _initializationFutures.remove(clipId);
-    // Use microtask for safety, especially during widget disposal
+    _clipBaseSizes.remove(clipId);
+    // Remove transform state
+    _clipRects.remove(clipId);
+    _clipFlips.remove(clipId);
+    // Dispose video controller
     Future.microtask(() => controller?.dispose());
-     if (mounted && _currentVisibleClips.any((c) => c.databaseId == clipId)) {
-        // If the removed controller was for a clip that *should* be visible,
-        // force an update of visible clips and aspect ratio.
-        Future.microtask(() { // Schedule after current frame
-           if (mounted) {
-               _updateVisibleClips();
-               _initializeAndSyncControllers(); // Attempt re-init if needed
-           }
-        });
-     } else if (mounted) {
-         // If the removed controller was for a clip no longer visible,
-         // just update aspect ratio based on remaining controllers.
-         _updateAspectRatioIfNeeded();
-     }
+
+    if (mounted && _currentVisibleClips.any((c) => c.databaseId == clipId)) {
+      Future.microtask(() {
+        // Schedule after current frame
+        if (mounted) {
+          _updateVisibleClips();
+          _initializeAndSyncControllers(); // Attempt re-init if needed
+        }
+      });
+    } else if (mounted) {
+      _updateAspectRatioIfNeeded();
+    }
   }
 
+  /// Disposes all managed controllers.
   void _disposeAllControllers() {
-    _initializationFutures.clear(); // Clear pending futures
-    final controllersToDispose = List<VideoPlayerController>.from(_controllers.values);
+    _initializationFutures.clear();
+    final controllersToDispose = List<VideoPlayerController>.from(
+      _controllers.values,
+    );
+    _clipBaseSizes.clear();
     _controllers.clear();
+    _clipRects.clear();
+    _clipFlips.clear();
     for (final controller in controllersToDispose) {
       Future.microtask(() => controller.dispose());
     }
+  }
+
+  /// Callback handler for when a TransformableBox's Rect is changed by user interaction.
+  void _handleRectChanged(int clipId, Rect rect) {
+    if (!mounted) return;
+    // Update the stored Rect state for the specific clip
+    setState(() {
+      _clipRects[clipId] = rect;
+      // Note: Flip state cannot be updated via onChanged callback in this setup.
+    });
+    debugPrint("[PreviewPanel] Rect changed for clip $clipId: Rect=$rect");
+    // TODO: Consider debouncing or other strategies if updates trigger expensive operations
+    // TODO: Persist this change via ViewModel/Service if needed
+  }
+
+  // --- Aspect Ratio Lock/Unlock Logic ---
+
+  /// Toggles the aspect ratio lock state.
+  void _toggleAspectRatioLock() {
+    setState(() {
+      _aspectRatioLocked = !_aspectRatioLocked;
+      // Rebuild triggers TransformableBox to re-evaluate resizeModeResolver
+    });
   }
 
   // --- Build Method ---
 
   @override
   Widget build(BuildContext context) {
-    // Use a PreviewPanelContent stateless widget with WatchItMixin for reactivity
+    // Pass necessary state down to the stateless content widget
     return PreviewPanelContent(
       controllers: _controllers,
       aspectRatio: _aspectRatio,
       currentVisibleClips: _currentVisibleClips,
+      clipRects: _clipRects, // Pass manual Rect state
+      clipFlips: _clipFlips, // Pass manual Flip state
+      onRectChanged: _handleRectChanged, // Pass update callback (int, Rect)
       onClipListChange: _handleClipListChange,
       onFrameChange: _handleFrameChange,
       onPlaybackStateChange: _handlePlaybackStateChange,
+      aspectRatioLocked: _aspectRatioLocked,
+      onToggleAspectRatioLock: _toggleAspectRatioLock,
     );
   }
 }
 
-// Create a stateless widget with WatchItMixin to handle watch_it reactivity
+// Stateless widget to display content and handle watch_it reactivity
 class PreviewPanelContent extends StatelessWidget with WatchItMixin {
   final Map<int, VideoPlayerController> controllers;
   final double aspectRatio;
   final List<ClipModel> currentVisibleClips;
+  final Map<int, Rect> clipRects; // Receive manual Rect state
+  final Map<int, Flip> clipFlips; // Receive manual Flip state
+  // Revert to non-nullable function type
+  final Function(int, Rect) onRectChanged;
   final VoidCallback onClipListChange;
   final VoidCallback onFrameChange;
   final Function(bool) onPlaybackStateChange;
+  final bool aspectRatioLocked;
+  final VoidCallback onToggleAspectRatioLock;
 
   const PreviewPanelContent({
     Key? key,
     required this.controllers,
     required this.aspectRatio,
     required this.currentVisibleClips,
+    required this.clipRects, // Receive map
+    required this.clipFlips, // Receive map
+    required this.onRectChanged, // Receive non-nullable callback
     required this.onClipListChange,
     required this.onFrameChange,
     required this.onPlaybackStateChange,
+    required this.aspectRatioLocked,
+    required this.onToggleAspectRatioLock,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    // Register handlers using context-aware lookup provided by WatchItMixin
-    // Get the ViewModel instance using the global service locator `di`
-    // as the mixin's get() method seems unresolved in this context.
+    // Register handlers to react to ViewModel changes
     final timelineViewModel = di<TimelineViewModel>();
-
-    // registerHandler needs <TargetType (ViewModel), SelectedValueType (inner value)>
     registerHandler<TimelineViewModel, List<ClipModel>>(
       select: (vm) => vm.clipsNotifier,
-      // Handler receives the value (List<ClipModel>)
       handler: (context, value, __) => onClipListChange(),
     );
-    
-    // Assuming currentFrameNotifier is ValueNotifier<int>
     registerHandler<TimelineViewModel, int>(
       select: (vm) => vm.currentFrameNotifier,
-      // Handler receives the value (int)
       handler: (context, value, __) => onFrameChange(),
     );
-    
-    // Assuming isPlayingNotifier is ValueNotifier<bool>
     registerHandler<TimelineViewModel, bool>(
       select: (vm) => vm.isPlayingNotifier,
-      // Handler receives the value (bool)
-      handler: (context, bool isPlaying, __) => onPlaybackStateChange(isPlaying),
+      handler:
+          (context, bool isPlaying, __) => onPlaybackStateChange(isPlaying),
     );
-    
-    // Directly access the value from the ViewModel instance to avoid potential type inference issues with watchPropertyValue
+
     final bool isPlaying = timelineViewModel.isPlayingNotifier.value;
 
-    // Build list of initialized players *for currently visible clips*
-    final List<Widget> playerWidgets = [];
+    // Build list of transformable video players
+    final List<Widget> transformablePlayers = [];
     for (final clip in currentVisibleClips) {
-        if (clip.type == ClipType.video && controllers.containsKey(clip.databaseId)) {
-            final controller = controllers[clip.databaseId]!;
-            if (controller.value.isInitialized) {
-                playerWidgets.add(
-                    // Use the controller's aspect ratio for the individual player
-                    AspectRatio(
-                        aspectRatio: controller.value.aspectRatio,
-                        child: VideoPlayer(controller),
-                    )
-                );
-            }
+      if (clip.type == ClipType.video &&
+          controllers.containsKey(clip.databaseId)) {
+        final videoController = controllers[clip.databaseId]!;
+        // Get manual state, providing defaults if not found (should normally exist if video is initialized)
+        final currentRect =
+            clipRects[clip.databaseId] ?? Rect.fromLTWH(0, 0, 100, 100);
+        final currentFlip = clipFlips[clip.databaseId] ?? Flip.none;
+
+        // Only add if video controller is ready (Rect state should exist if video is ready)
+        if (videoController.value.isInitialized) {
+          transformablePlayers.add(
+            // The core interactive widget, now using manual state management
+            TransformableBox(
+              key: Key(clip.databaseId!.toString()), // Assign Key correctly
+              // Controller removed, using manual state below
+              rect: currentRect, // Use 'rect' parameter
+              flip: currentFlip, // Use 'flip' parameter
+              resizeModeResolver:
+                  () =>
+                      aspectRatioLocked
+                          ? ResizeMode.symmetricScale
+                          : ResizeMode.freeform,
+              // Explicitly cast the callback function to the required type
+              // Corrected onChanged callback signature and implementation
+              onChanged: (result, details) {
+                onRectChanged(clip.databaseId!, result.rect);
+              },
+              // Define constraints directly here if needed, mirroring previous controller setup
+              constraints: const BoxConstraints(
+                minWidth: 48,
+                minHeight: 36,
+                maxWidth: 1920, // Placeholder for parent container size
+                maxHeight: 1080, // Placeholder for parent container size
+              ),
+              contentBuilder: (context, rect, flip) {
+                // The content is the VideoPlayer widget.
+                return VideoPlayer(videoController);
+              },
+            ),
+          );
         }
+      }
     }
 
-
+    // Determine the main content based on whether any players are ready
     Widget content;
-    if (playerWidgets.isEmpty) {
+    if (transformablePlayers.isEmpty) {
       content = Center(
         child: Text(
           'No video at current playback position',
-          style: FluentTheme.of(context).typography.bodyLarge?.copyWith(color: Colors.white),
+          style: FluentTheme.of(
+            context,
+          ).typography.bodyLarge?.copyWith(color: Colors.white),
           textAlign: TextAlign.center,
         ),
       );
     } else {
+      // Stack the transformable players. They will be positioned based on their controller's Rect.
       content = Stack(
-        alignment: Alignment.center,
-        children: playerWidgets, // Stack the initialized players
+        // alignment: Alignment.center, // Alignment might interfere with controller positioning
+        children: transformablePlayers,
       );
     }
 
+    // Build the overall panel structure
     return Container(
-      color: Colors.grey[160], // Use Fluent UI color
+      color: Colors.grey[160], // Use Fluent UI color for background
       child: Column(
         children: [
           Expanded(
             child: Center(
-              // The outer AspectRatio uses the dynamically calculated _aspectRatio
+              // The outer AspectRatio constraints the container where the Stack lives
               child: AspectRatio(
-                aspectRatio: aspectRatio,
-                child: content,
+                aspectRatio:
+                    aspectRatio, // Use the dynamically calculated aspect ratio
+                // This container provides the bounds for the Stack and TransformableBox positioning
+                child: Container(
+                  color: Colors.black.withOpacity(
+                    0.1,
+                  ), // Slight tint for visibility
+                  child:
+                      content, // The Stack containing TransformableBox widgets
+                ),
               ),
             ),
           ),
-          // --- Controls ---
+          // --- Playback Controls ---
           Container(
-             padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
-             color: Colors.black.withOpacity(0.6),
-             child: Row(
-                 mainAxisAlignment: MainAxisAlignment.center,
-                 children: [
-                    IconButton(
-                      // Explicitly check boolean value
-                      icon: Icon(isPlaying == true ? FluentIcons.pause : FluentIcons.play_solid),
-                      // Use call() to get the ViewModel instance and call its method
-                      // Use the obtained ViewModel instance
-                      // Use the obtained ViewModel instance
-                      onPressed: timelineViewModel.togglePlayPause,
-                      style: ButtonStyle(
-                          foregroundColor: ButtonState.all(Colors.white),
-                          iconSize: ButtonState.all(24.0) // Slightly larger icon
-                      ),
+            padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
+            color: Colors.black.withOpacity(0.6),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                IconButton(
+                  icon: Icon(
+                    isPlaying ? FluentIcons.pause : FluentIcons.play_solid,
+                  ),
+                  onPressed: timelineViewModel.togglePlayPause,
+                  style: ButtonStyle(
+                    foregroundColor: ButtonState.all(Colors.white),
+                    iconSize: ButtonState.all(24.0),
+                  ),
+                ),
+                const SizedBox(width: 8.0),
+                IconButton(
+                  icon: Icon(
+                    aspectRatioLocked ? FluentIcons.lock : FluentIcons.unlock,
+                  ),
+                  onPressed: onToggleAspectRatioLock,
+                  style: ButtonStyle(
+                    foregroundColor: ButtonState.all(Colors.white),
+                    iconSize: ButtonState.all(24.0),
+                    backgroundColor: ButtonState.all(
+                      aspectRatioLocked
+                          ? Colors.blue.withOpacity(0.5)
+                          : Colors.transparent,
                     ),
-                    // TODO: Add frame step buttons, time display etc.
-                 ],
+                  ),
+                ),
+                // TODO: Add frame step buttons, time display etc.
+              ],
             ),
           ),
         ],
@@ -477,10 +581,10 @@ class PreviewPanelContent extends StatelessWidget with WatchItMixin {
   }
 }
 
-// Helper extension (already added previously)
+// Helper extension for timeline frame time calculation
 extension TimelineViewModelFrameTime on TimelineViewModel {
-   // TODO: Get FPS from project settings instead of hardcoding 30
-   int get currentFrameTimeMs => (currentFrame / 30 * 1000).toInt();
+  // TODO: Get FPS from project settings instead of hardcoding 30
+  int get currentFrameTimeMs => (currentFrame / 30 * 1000).toInt();
 }
 
 // Helper for comparing lists (avoids importing collection package for just this)
