@@ -5,6 +5,15 @@ import 'package:drift/drift.dart' show Value;
 // Import the generated part of project_database which contains the Clip class
 import 'package:flipedit/persistence/database/project_database.dart' show Clip, ClipsCompanion;
 
+class ClipValidationException implements Exception {
+  final List<String> errors;
+
+  ClipValidationException(this.errors);
+
+  @override
+  String toString() => 'Invalid clip configuration:\n${errors.join('\n')}';
+}
+
 class ClipModel {
   final int? databaseId;
   final int trackId;
@@ -45,10 +54,84 @@ class ClipModel {
     required this.endTimeOnTrackMs, // Added
     this.effects = const [],
     this.metadata = const {},
-  }) : assert(endTimeInSourceMs >= startTimeInSourceMs, 'End time must be >= start time in source'),
-       assert(endTimeOnTrackMs >= startTimeOnTrackMs, 'End time must be >= start time on track'),
-       assert(endTimeInSourceMs <= sourceDurationMs, 'End time in source cannot exceed source duration'),
-       assert(startTimeInSourceMs >= 0, 'Start time in source must be non-negative');
+  })  {
+    _validateClipTimes(
+      startTimeInSourceMs: startTimeInSourceMs,
+      endTimeInSourceMs: endTimeInSourceMs,
+      startTimeOnTrackMs: startTimeOnTrackMs,
+      endTimeOnTrackMs: endTimeOnTrackMs,
+      sourceDurationMs: sourceDurationMs,
+    );
+  }
+
+  static void _validateClipTimes({
+    required int startTimeInSourceMs,
+    required int endTimeInSourceMs,
+    required int startTimeOnTrackMs,
+    required int endTimeOnTrackMs,
+    required int sourceDurationMs,
+  }) {
+    // Auto-correct inverted time ranges
+    var correctedStartTimeOnTrack = startTimeOnTrackMs;
+    var correctedEndTimeOnTrack = endTimeOnTrackMs;
+    if (correctedEndTimeOnTrack < correctedStartTimeOnTrack) {
+      final temp = correctedStartTimeOnTrack;
+      correctedStartTimeOnTrack = correctedEndTimeOnTrack;
+      correctedEndTimeOnTrack = temp;
+    }
+
+    var correctedStartTimeInSource = startTimeInSourceMs;
+    var correctedEndTimeInSource = endTimeInSourceMs;
+    if (correctedEndTimeInSource < correctedStartTimeInSource) {
+      final temp = correctedStartTimeInSource;
+      correctedStartTimeInSource = correctedEndTimeInSource;
+      correctedEndTimeInSource = temp;
+    }
+
+    final errors = <String>[];
+    
+    if (correctedEndTimeInSource < correctedStartTimeInSource) {
+      errors.add('Source end time ($correctedEndTimeInSource) < start time ($correctedStartTimeInSource)');
+    }
+    
+    if (correctedEndTimeOnTrack < correctedStartTimeOnTrack) {
+      errors.add('Track end time ($correctedEndTimeOnTrack) < start time ($correctedStartTimeOnTrack)');
+    }
+    
+    if (endTimeInSourceMs > sourceDurationMs) {
+      errors.add('Source end time ($endTimeInSourceMs) exceeds duration ($sourceDurationMs)');
+    }
+    
+    if (startTimeInSourceMs < 0) {
+      errors.add('Negative source start time: $startTimeInSourceMs');
+    }
+    
+    if (errors.isNotEmpty) {
+      throw ClipValidationException(errors);
+    }
+  }
+
+  static bool isValidClip({
+    required int startTimeInSourceMs,
+    required int endTimeInSourceMs,
+    required int startTimeOnTrackMs,
+    required int endTimeOnTrackMs,
+    required int sourceDurationMs,
+  }) {
+    try {
+      _validateClipTimes(
+        startTimeInSourceMs: startTimeInSourceMs,
+        endTimeInSourceMs: endTimeInSourceMs,
+        startTimeOnTrackMs: startTimeOnTrackMs,
+        endTimeOnTrackMs: endTimeOnTrackMs,
+        sourceDurationMs: sourceDurationMs,
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
 
   ClipModel copyWith({
     Value<int?>? databaseId,

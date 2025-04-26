@@ -124,6 +124,7 @@ class TimelineViewModel extends ChangeNotifier {
   TimelineViewModel() {
     logger.logInfo('Initializing TimelineViewModel and listeners', _logTag);
     _setupInternalListeners();
+    _setupDatabaseListeners(); // Add call to new database listener setup
   }
 
   void _setupInternalListeners() {
@@ -135,6 +136,17 @@ class TimelineViewModel extends ChangeNotifier {
 
     // Keep track to remove them later
     _internalListeners.addAll([listener, listener, listener]); // Add references for removal
+  }
+
+  // Setup listeners for database changes that affect the timeline state
+  void _setupDatabaseListeners() {
+    // Listen to changes in the tracks list from the database service
+    final tracksListener = () {
+      logger.logInfo('👂 Tracks list changed in ProjectDatabaseService. Refreshing clips...', _logTag);
+      refreshClips(); // Refresh clips when tracks change
+    };
+    _projectDatabaseService.tracksNotifier.addListener(tracksListener);
+    _internalListeners.add(tracksListener); // Keep track for disposal
   }
 
   /// Checks conditions and emits scroll command if necessary.
@@ -420,14 +432,35 @@ class TimelineViewModel extends ChangeNotifier {
   }
 
   Future<void> refreshClips() async {
-    if (_projectDatabaseService.clipDao == null) return;
-    // Aggregate all clips from all tracks
+    // Preserve existing clips if database unavailable
+    if (_projectDatabaseService.clipDao == null) {
+      logger.logWarning('Clip DAO not available, cannot refresh clips.', _logTag);
+      return;
+    }
+    if (_projectDatabaseService.currentDatabase == null) {
+        logger.logWarning('Database connection not available, cannot refresh clips.', _logTag);
+        return;
+    }
+
+    logger.logInfo('Refreshing clips from database...', _logTag);
+
+    // Fetch all current tracks from the database service's notifier.
+    // The tracksNotifier is updated when tracks are added/deleted via ProjectDatabaseService.
     final tracks = _projectDatabaseService.tracksNotifier.value;
-    List<ClipModel> allClips = [];
-    for (final track in tracks) {
-      final dbClips = await _projectDatabaseService.clipDao!.getClipsForTrack(
-        track.id,
-      );
+
+    // Fetch *all* clips from the database. This is more reliable than fetching
+    // per-track, especially after track deletions.
+    // Assuming the clip DAO has a method to get all clips. If not, we might need to add one,
+    // or iterate through tracks as before but clearing the list first.
+    // Let's check ProjectDatabaseClipDao again quickly to be sure.
+    // Based on previous read, it has getClipsForTrack but no getAllClips.
+    // So, iterate through tracks and clear the list first.
+
+    List<ClipModel> allClips = []; // Initialize as empty list to rebuild from scratch
+
+    // Fetch clips for each *existing* track and add to the list
+    for (final track in tracks.where((t) => t.id != null)) {
+      final dbClips = await _projectDatabaseService.clipDao!.getClipsForTrack(track.id!);
       // Map dbClip data to ClipModel, ensuring required fields are provided
       allClips.addAll(dbClips.map((dbClip) {
          // Estimate source duration if missing from DB data
@@ -442,11 +475,22 @@ class TimelineViewModel extends ChangeNotifier {
          );
       }));
     }
+
+    // Sort clips by their start time on the track
     allClips.sort(
       (a, b) => a.startTimeOnTrackMs.compareTo(b.startTimeOnTrackMs),
     );
-    clipsNotifier.value = allClips;
-    recalculateAndUpdateTotalFrames(); // Updated call
+
+    // Update the notifier if the list of clips has changed OR if it is now empty.
+    // The second condition is needed to ensure the UI reacts when the timeline becomes empty,
+    // even if the previous state was also an empty list (e.g., after project load).
+    if (!listEquals(clipsNotifier.value, allClips) || allClips.isEmpty) {
+      clipsNotifier.value = allClips;
+      logger.logInfo('Clips list updated in ViewModel (${allClips.length} clips).', _logTag);
+      recalculateAndUpdateTotalFrames(); // Updated call
+    } else {
+       logger.logInfo('Clips list in ViewModel is already up-to-date and not empty. Notifier not updated.', _logTag);
+    }
   }
 
   int _calculateTotalFrames() {
@@ -517,6 +561,17 @@ class TimelineViewModel extends ChangeNotifier {
 
     _controllerPositionSubscription?.cancel();
     _clipStreamSubscription?.cancel();
+  }
+  
+  // Helper for comparing lists (avoids importing collection package for just this)
+  bool listEquals<T>(List<T>? a, List<T>? b) {
+    if (a == null) return b == null;
+    if (b == null || a.length != b.length) return false;
+    if (identical(a, b)) return true;
+    for (int index = 0; index < a.length; index += 1) {
+      if (a[index] != b[index]) return false;
+    }
+    return true;
   }
 /// Calculates the target scroll offset to center a given frame in the timeline.
   /// [frame]: The frame to center.
