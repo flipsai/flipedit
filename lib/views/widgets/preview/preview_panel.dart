@@ -9,6 +9,7 @@ import 'package:flutter_box_transform/flutter_box_transform.dart';
 import 'package:fvp/fvp.dart' as fvp; // Assuming fvp is needed
 import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/services/project_database_service.dart'; // Import ProjectDatabaseService
+import 'package:flipedit/viewmodels/editor_viewmodel.dart'; // Import EditorViewModel
 
 /// PreviewPanel displays the current timeline frame's video(s) with frame-accurate updates.
 ///
@@ -37,6 +38,7 @@ class PreviewPanel extends StatefulWidget {
 class _PreviewPanelState extends State<PreviewPanel> {
   // State variables remain inside the class
   final TimelineViewModel _timelineViewModel = di<TimelineViewModel>();
+  final EditorViewModel _editorViewModel = di<EditorViewModel>(); // Inject EditorViewModel
   final ProjectDatabaseService _projectDatabaseService = di<ProjectDatabaseService>(); // Inject ProjectDatabaseService
   // Video Player controllers map (clipId -> controller)
   final Map<int, VideoPlayerController> _controllers = {};
@@ -54,13 +56,14 @@ class _PreviewPanelState extends State<PreviewPanel> {
   final Map<int, Rect> _clipRects = {};
   // Map to store Flip state for each visible video clip (clipId -> Flip)
   final Map<int, Flip> _clipFlips = {};
-  // State for aspect ratio lock
-  bool _aspectRatioLocked = true;
   // Flag to track if a transform operation (drag/resize) is in progress
   bool _isTransforming = false;
 
-  // State for snapping guidelines
-  bool _snappingEnabled = true; // ADDED: Toggle for magnets
+  // State for snapping guidelines (now derived from EditorViewModel)
+  bool get _snappingEnabled => _editorViewModel.snappingEnabledNotifier.value;
+  // State for aspect ratio lock (now derived from EditorViewModel)
+  bool get _aspectRatioLocked => _editorViewModel.aspectRatioLockedNotifier.value;
+
   Size? _containerSize; // Size of the Stack area where videos are placed
   double? _activeHorizontalSnapY; // Y-coordinate of the active horizontal snap line
   double? _activeVerticalSnapX; // X-coordinate of the active vertical snap line
@@ -637,26 +640,13 @@ class _PreviewPanelState extends State<PreviewPanel> {
 
   // --- Aspect Ratio Lock/Unlock Logic ---
 
-  /// Toggles the aspect ratio lock state.
-  void _toggleAspectRatioLock() {
-    setState(() {
-      _aspectRatioLocked = !_aspectRatioLocked;
-      // Rebuild triggers TransformableBox to re-evaluate resizeModeResolver
-    });
-  }
+  // --- Aspect Ratio Lock/Unlock Logic (Now in EditorViewModel) ---
+  // The state and toggling are now handled by EditorViewModel.
+  // This widget listens to EditorViewModel for state changes.
 
-  // ADDED: Method to toggle snapping
-  void _toggleSnapping() {
-    if (mounted) {
-      setState(() {
-        _snappingEnabled = !_snappingEnabled;
-        // If disabling snapping during a transform, clear the lines immediately
-        if (!_snappingEnabled) {
-           _updateSnapLines(hSnap: null, vSnap: null);
-        }
-      });
-    }
-  }
+  // --- Snapping Logic (Now in EditorViewModel) ---
+  // The state and toggling are now handled by EditorViewModel.
+  // This widget listens to EditorViewModel for state changes.
 
   // --- Build Method ---
 
@@ -675,16 +665,15 @@ class _PreviewPanelState extends State<PreviewPanel> {
       onClipListChange: _handleClipListChange,
       onFrameChange: _handleFrameChange,
       onPlaybackStateChange: _handlePlaybackStateChange,
-      aspectRatioLocked: _aspectRatioLocked,
-      onToggleAspectRatioLock: _toggleAspectRatioLock,
+      // Aspect ratio lock state derived from ViewModel, not passed down
+      // Snapping state derived from ViewModel, not passed down
+
       // Pass snap line state and container size update callback
       containerSize: _containerSize,
       activeHorizontalSnapY: _activeHorizontalSnapY,
       activeVerticalSnapX: _activeVerticalSnapX,
       onContainerSizeChanged: _updateContainerSize,
-      // ADDED: Pass snapping state and toggle callback
-      snappingEnabled: _snappingEnabled,
-      onToggleSnapping: _toggleSnapping,
+
       // ADDED: Pass selection state and handler
       selectedClipId: _selectedClipId,
       onClipSelected: _handleClipSelection,
@@ -704,8 +693,9 @@ class PreviewPanelContent extends StatelessWidget with WatchItMixin {
   final VoidCallback onClipListChange;
   final VoidCallback onFrameChange;
   final Function(bool) onPlaybackStateChange;
-  final bool aspectRatioLocked;
-  final VoidCallback onToggleAspectRatioLock;
+  // Parameters for snapping and aspect ratio lock removed - now watched directly from ViewModel
+  // final bool aspectRatioLocked;
+  // final VoidCallback onToggleAspectRatioLock;
   // Add the new callback parameters
   final Function(int) onTransformStart;
   final Function(int) onTransformEnd;
@@ -715,9 +705,9 @@ class PreviewPanelContent extends StatelessWidget with WatchItMixin {
   final double? activeHorizontalSnapY;
   final double? activeVerticalSnapX;
   final Function(Size) onContainerSizeChanged;
-  // ADDED: Snapping parameters
-  final bool snappingEnabled;
-  final VoidCallback onToggleSnapping;
+  // ADDED: Snapping parameters removed - now watched directly from ViewModel
+  // final bool snappingEnabled;
+  // final VoidCallback onToggleSnapping;
 
   // ADDED: Selection parameters
   final int? selectedClipId;
@@ -734,17 +724,18 @@ class PreviewPanelContent extends StatelessWidget with WatchItMixin {
     required this.onClipListChange,
     required this.onFrameChange,
     required this.onPlaybackStateChange,
-    required this.aspectRatioLocked,
-    required this.onToggleAspectRatioLock,
-    required this.onTransformStart, 
+    // Parameters for snapping and aspect ratio lock removed
+    // required this.aspectRatioLocked,
+    // required this.onToggleAspectRatioLock,
+    required this.onTransformStart,
     required this.onTransformEnd,
     required this.containerSize,
     required this.activeHorizontalSnapY,
     required this.activeVerticalSnapX,
     required this.onContainerSizeChanged,
-    // ADDED: Snapping parameters
-    required this.snappingEnabled,
-    required this.onToggleSnapping,
+    // ADDED: Snapping parameters removed
+    // required this.snappingEnabled,
+    // required this.onToggleSnapping,
     // ADDED: Selection parameters
     required this.selectedClipId,
     required this.onClipSelected,
@@ -795,7 +786,7 @@ class PreviewPanelContent extends StatelessWidget with WatchItMixin {
               flip: currentFlip, // Use 'flip' parameter
               resizeModeResolver:
                   () =>
-                      aspectRatioLocked
+                      di<EditorViewModel>().aspectRatioLockedNotifier.value // Use ViewModel state
                           ? ResizeMode.symmetricScale
                           : ResizeMode.freeform,
               // Explicitly cast the callback function to the required type
@@ -912,62 +903,8 @@ class PreviewPanelContent extends StatelessWidget with WatchItMixin {
               ),
             ),
           ),
-          // --- Playback Controls ---
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
-            color: Colors.black.withOpacity(0.6),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                IconButton(
-                  icon: Icon(
-                    isPlaying ? FluentIcons.pause : FluentIcons.play_solid,
-                  ),
-                  onPressed: timelineViewModel.togglePlayPause,
-                  style: ButtonStyle(
-                    foregroundColor: ButtonState.all(Colors.white),
-                    iconSize: ButtonState.all(24.0),
-                  ),
-                ),
-                const SizedBox(width: 8.0),
-                IconButton(
-                  icon: Icon(
-                    aspectRatioLocked ? FluentIcons.lock : FluentIcons.unlock,
-                  ),
-                  onPressed: onToggleAspectRatioLock,
-                  style: ButtonStyle(
-                    foregroundColor: ButtonState.all(Colors.white),
-                    iconSize: ButtonState.all(24.0),
-                    backgroundColor: ButtonState.resolveWith((states) {
-                       return aspectRatioLocked
-                         ? Colors.blue.withOpacity(0.5)
-                         : Colors.transparent;
-                    }),
-                  ),
-                ),
-                // ADDED: Snapping Toggle Button
-                const SizedBox(width: 8.0),
-                 IconButton(
-                  icon: Icon(
-                    FluentIcons.gripper_tool, // Using gripper_tool as alternative
-                    color: snappingEnabled ? Colors.white : Colors.grey[80],
-                  ),
-                  onPressed: onToggleSnapping,
-                  style: ButtonStyle(
-                    // Optional: Add visual feedback like background color change
-                    // backgroundColor: ButtonState.resolveWith((states) {
-                    //   return snappingEnabled
-                    //     ? Colors.blue.withOpacity(0.5)
-                    //     : Colors.transparent;
-                    // }),
-                    iconSize: ButtonState.all(24.0),
-                    foregroundColor: ButtonState.all(snappingEnabled ? Colors.white : Colors.grey[80]),
-                  ),
-                ),
-                // TODO: Add frame step buttons, time display etc.
-              ],
-            ),
-          ),
+          // --- Playback Controls Removed ---
+          // Buttons have been moved to timeline_controls.dart
         ],
       ),
     );

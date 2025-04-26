@@ -27,6 +27,9 @@ void main() {
   late ValueNotifier<double> testTrackLabelWidthNotifier;
   late ScrollController testScrollController;
   late ValueNotifier<List<project_db.Track>> testTracksNotifier;
+  
+  // Define a static empty callback for test purposes
+  void _emptyCallback() {}
 
 
   setUp(() {
@@ -71,7 +74,7 @@ void main() {
     testWidgets('should render Timeline widget correctly', (WidgetTester tester) async {
       await tester.pumpWidget(
         FluentApp(
-          home: const Timeline(),
+          home: const Timeline(), // Remove parameters
         ),
       );
 
@@ -83,7 +86,7 @@ void main() {
       // For now, a placeholder test to ensure rendering
       await tester.pumpWidget(
         FluentApp(
-          home: const Timeline(),
+          home: const Timeline(), // Remove parameters
         ),
       );
 
