@@ -73,23 +73,27 @@ class _TimeRulerPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     const double framePixelWidth = 5.0;
-    const int framesPerMajorTick = 30;
-    const int framesPerMinorTick = 5;
+    const int fps = 30; // Assumed frames per second; adjust as needed or pass as parameter
     const double majorTickHeight = 10.0;
     const double minorTickHeight = 5.0;
     const double textPadding = 6.0; // Padding to prevent text collision
+    const double secondsPerMajorTick = 1.0; // Show label at each integer second
+    const double secondsPerMinorTick = 0.2; // A minor tick every 0.2 sec = every 6 frames (for FPS=30)
 
-    final double effectiveFrameWidth = framePixelWidth * zoom;
-    if (effectiveFrameWidth <= 0) return;
+    final double pixelsPerFrame = framePixelWidth * zoom;
+    if (pixelsPerFrame <= 0) return;
 
-    final double majorTickSpacing = framesPerMajorTick * effectiveFrameWidth;
-    final int numMinorTicks =
-        (size.width / (effectiveFrameWidth * framesPerMinorTick)).ceil();
+    final double pixelsPerSecond = pixelsPerFrame * fps;
+    final double majorTickSpacing = secondsPerMajorTick * pixelsPerSecond;
+    final double minorTickSpacing = secondsPerMinorTick * pixelsPerSecond;
+    final int numMinorTicks = (size.width / minorTickSpacing).ceil();
 
     for (int i = 0; i <= numMinorTicks; i++) {
-      final int frameNumber = i * framesPerMinorTick;
-      final double x = frameNumber * effectiveFrameWidth;
-      final bool isMajorTick = frameNumber % framesPerMajorTick == 0;
+      // Calculate the 'second' value and corresponding x-position
+      final double second = i * secondsPerMinorTick;
+      final double x = second * pixelsPerSecond;
+
+      final bool isMajorTick = (second % secondsPerMajorTick).abs() < 1e-6;
 
       final double tickHeight = isMajorTick ? majorTickHeight : minorTickHeight;
       final Paint paintToUse = isMajorTick ? majorTickPaint : minorTickPaint;
@@ -101,22 +105,24 @@ class _TimeRulerPainter extends CustomPainter {
       );
 
       if (isMajorTick && textStyle != null) {
+        // Show to 1 decimal only if ticks are <1px apart, else integer
+        String label = (secondsPerMinorTick < 1)
+            ? second.toStringAsFixed(second.truncateToDouble() == second ? 0 : 1)
+            : second.toStringAsFixed(0);
+
         textPainter.text = TextSpan(
-          text: frameNumber.toString(),
+          text: label,
           style: textStyle?.copyWith(color: textColor),
         );
         textPainter.layout();
 
-        // Only draw text if there's enough space between major ticks
         if (majorTickSpacing > textPainter.width + textPadding) {
-          // Center the text horizontally above the tick line
           final textX = x - textPainter.width / 2;
-          // Ensure text doesn't draw off the left edge
           final clampedTextX = math.max(0.0, textX);
           textPainter.paint(
             canvas,
             Offset(clampedTextX, 2),
-          ); // Position slightly below top edge
+          );
         }
       }
     }
