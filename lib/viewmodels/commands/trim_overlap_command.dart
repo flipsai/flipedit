@@ -26,15 +26,18 @@ class TrimOverlapCommand implements TimelineCommand {
       vm.clips,
       newClip.trackId,
       newClip.startTimeOnTrackMs,
-      newClip.startTimeOnTrackMs + newClip.durationMs,
+      newClip.endTimeOnTrackMs, // Use explicit end time on track
     ).map((c) => c.copyWith()).toList();
     // Apply trim logic (reuse placeClipOnTrack logic)
+    // This call will now use the correct parameters to resolve overlaps
     await vm.placeClipOnTrack(
       clipId: newClip.databaseId,
       trackId: newClip.trackId,
       type: newClip.type,
       sourcePath: newClip.sourcePath,
+      sourceDurationMs: newClip.sourceDurationMs, // Pass source duration
       startTimeOnTrackMs: newClip.startTimeOnTrackMs,
+      endTimeOnTrackMs: newClip.endTimeOnTrackMs, // Pass end time on track
       startTimeInSourceMs: newClip.startTimeInSourceMs,
       endTimeInSourceMs: newClip.endTimeInSourceMs,
     );

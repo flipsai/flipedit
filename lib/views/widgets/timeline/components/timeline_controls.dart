@@ -19,6 +19,7 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
     final isPlaying = watchValue((TimelineViewModel vm) => vm.isPlayingNotifier);
     final totalFrames = watchValue((TimelineViewModel vm) => vm.totalFramesNotifier);
     final zoom = watchValue((TimelineViewModel vm) => vm.zoomNotifier);
+    final isPlayheadLocked = watchValue((TimelineViewModel vm) => vm.isPlayheadLockedNotifier); // Watch lock state
 
     // Edit mode toolbar
     final currentMode = watchValue((TimelineViewModel vm) => vm.currentEditMode);
@@ -160,7 +161,7 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
                 size: 16,
                 color: controlsContentColor, // Ensure color consistency
               ),
-              onPressed: () => {}
+              onPressed: timelineViewModel.togglePlayPause, // Call the correct ViewModel method
             ),
           ),
           Tooltip(
@@ -170,13 +171,35 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
               // Use watched totalFrames
               onPressed: () => timelineViewModel.currentFrame = totalFrames,
             ),
+          ), // End Tooltip for Go to End
+
+          Tooltip( // Add Tooltip for Lock Playhead
+            message: isPlayheadLocked ? 'Unlock Playhead Scroll' : 'Lock Playhead Scroll',
+            child: Container(
+              decoration: BoxDecoration(
+                color: isPlayheadLocked ? theme.accentColor.lightest : Colors.transparent,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: IconButton(
+                icon: Icon(
+                  isPlayheadLocked ? FluentIcons.lock : FluentIcons.unlock, // Use FluentIcons
+                  size: 16,
+                  color: controlsContentColor,
+                ),
+                onPressed: timelineViewModel.togglePlayheadLock,
+                style: ButtonStyle(
+                  padding: WidgetStateProperty.all(const EdgeInsets.all(4)),
+                  foregroundColor: WidgetStateProperty.all(controlsContentColor),
+                ),
+              ),
+            ),
           ),
 
-          const SizedBox(width: 16),
+         const SizedBox(width: 16), // Spacing after playback controls
 
-          ...modeButtons,
+         ...modeButtons, // Keep the mode buttons
 
-          const SizedBox(width: 16),
+         const SizedBox(width: 16), // Spacing after mode buttons (if any)
         ],
       ),
     );

@@ -64,7 +64,7 @@ class InspectorPanel extends StatelessWidget with WatchItMixin {
         const SizedBox(height: 8),
         InfoLabel(label: 'Name:', child: Text(clip.name)),
         InfoLabel(label: 'Source Path:', child: Text(clip.sourcePath, overflow: TextOverflow.ellipsis)),
-        InfoLabel(label: 'Duration (ms):', child: Text('${clip.durationMs} ms')),
+        InfoLabel(label: 'Duration (Track ms):', child: Text('${clip.durationOnTrackMs} ms')), // Use durationOnTrackMs
         InfoLabel(label: 'Duration (Frames):', child: Text('${clip.durationFrames} frames')),
         InfoLabel(label: 'Start Time (Track):', child: Text('${clip.startTimeOnTrackMs} ms')),
         InfoLabel(label: 'Trim Start (Source):', child: Text('${clip.startTimeInSourceMs} ms')),

@@ -72,8 +72,12 @@ class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase> with _$Pr
         endTimeInSourceMs: clip.endTimeInSourceMs.value!,
         startTimeOnTrackMs: clip.startTimeOnTrackMs.value!,
         metadataJson: clip.metadataJson.present ? clip.metadataJson.value : null,
-        createdAt: clip.createdAt.value!,
-        updatedAt: clip.updatedAt.value!,
+        createdAt: clip.createdAt.present && clip.createdAt.value != null
+            ? clip.createdAt.value!
+            : DateTime.now(),
+        updatedAt: clip.updatedAt.present && clip.updatedAt.value != null
+            ? clip.updatedAt.value!
+            : DateTime.now(),
       );
       await logChange(
         tableName: 'clips',
@@ -111,7 +115,7 @@ class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase> with _$Pr
         endTimeInSourceMs: Value(oldRow.endTimeInSourceMs),
         startTimeOnTrackMs: Value(oldRow.startTimeOnTrackMs),
         metadataJson: oldRow.metadataJson == null ? const Value.absent() : Value(oldRow.metadataJson!),
-        createdAt: Value(oldRow.createdAt),
+        createdAt: oldRow.createdAt != null ? Value(oldRow.createdAt) : Value(DateTime.now()),
         updatedAt: Value(DateTime.now()), // Always update the updatedAt timestamp
       );
       
@@ -129,8 +133,12 @@ class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase> with _$Pr
           endTimeInSourceMs: updatedCompanion.endTimeInSourceMs.value!,
           startTimeOnTrackMs: updatedCompanion.startTimeOnTrackMs.value!,
           metadataJson: updatedCompanion.metadataJson.present ? updatedCompanion.metadataJson.value : null,
-          createdAt: updatedCompanion.createdAt.value!,
-          updatedAt: updatedCompanion.updatedAt.value!,
+          createdAt: updatedCompanion.createdAt.present && updatedCompanion.createdAt.value != null
+              ? updatedCompanion.createdAt.value!
+              : DateTime.now(),
+          updatedAt: updatedCompanion.updatedAt.present && updatedCompanion.updatedAt.value != null
+              ? updatedCompanion.updatedAt.value!
+              : DateTime.now(),
         );
         await logChange(
           tableName: 'clips',

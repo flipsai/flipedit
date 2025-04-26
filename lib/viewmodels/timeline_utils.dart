@@ -17,17 +17,14 @@ void Function() debounce(VoidCallback func, Duration delay) {
 
 /// Helper method to convert project database clip to ClipModel
 ClipModel clipFromProjectDb(project_db.Clip dbData) {
-  return ClipModel(
-    databaseId: dbData.id,
-    trackId: dbData.trackId,
-    name: dbData.name,
-    type: ClipType.values.firstWhere(
-      (e) => e.toString().split('.').last == dbData.type,
-      orElse: () => ClipType.video,
-    ),
-    sourcePath: dbData.sourcePath,
-    startTimeInSourceMs: dbData.startTimeInSourceMs,
-    endTimeInSourceMs: dbData.endTimeInSourceMs,
-    startTimeOnTrackMs: dbData.startTimeOnTrackMs,
-  );
+  // TODO: Need a way to get the actual source duration here.
+  // Maybe fetch ProjectAsset metadata based on sourcePath?
+  // Or pass it from the caller if available.
+  // For now, estimating it based on existing times or using a default.
+  // This estimation is crude and should be improved.
+  int estimatedSourceDuration = dbData.sourceDurationMs ?? (dbData.endTimeInSourceMs - dbData.startTimeInSourceMs);
+  if (estimatedSourceDuration < 0) estimatedSourceDuration = 0; // Ensure non-negative
+
+  // Use the ClipModel factory constructor that handles DB data and potential missing fields
+  return ClipModel.fromDbData(dbData, sourceDurationMs: estimatedSourceDuration);
 }
