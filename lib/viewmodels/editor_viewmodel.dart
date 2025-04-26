@@ -34,6 +34,10 @@ class EditorViewModel {
   // Notifier for the video URL currently under the playhead
   final ValueNotifier<String?> currentPreviewVideoUrlNotifier = ValueNotifier<String?>(null);
 
+  // State for snapping and aspect ratio lock (moved from PreviewPanel)
+  final ValueNotifier<bool> snappingEnabledNotifier = ValueNotifier<bool>(true);
+  final ValueNotifier<bool> aspectRatioLockedNotifier = ValueNotifier<bool>(true);
+
   // Listener for layout changes
   VoidCallback? _layoutListener;
   
@@ -79,6 +83,8 @@ class EditorViewModel {
     isInspectorVisibleNotifier.dispose();
     isPreviewVisibleNotifier.dispose();
     currentPreviewVideoUrlNotifier.dispose(); // Dispose new notifier
+    snappingEnabledNotifier.dispose(); // Dispose snapping notifier
+    aspectRatioLockedNotifier.dispose(); // Dispose aspect ratio notifier
     
     // Remove timeline listeners
     if (_timelineFrameListener != null) {
@@ -100,8 +106,21 @@ class EditorViewModel {
     layoutManager.dispose();
     logInfo(_logTag, "EditorViewModel disposed.");
   }
-
+  
   // --- Actions ---
+  
+  /// Toggles the snapping feature state.
+  void toggleSnapping() {
+    snappingEnabledNotifier.value = !snappingEnabledNotifier.value;
+    logInfo(_logTag, "Snapping Toggled: ${snappingEnabledNotifier.value}");
+  }
+  
+  /// Toggles the aspect ratio lock feature state.
+  void toggleAspectRatioLock() {
+    aspectRatioLockedNotifier.value = !aspectRatioLockedNotifier.value;
+    logInfo(_logTag, "Aspect Ratio Lock Toggled: ${aspectRatioLockedNotifier.value}");
+  }
+  
   // Toggle timeline visibility using generic method
   void toggleTimeline() => layoutManager.toggleTimeline();
   

@@ -264,7 +264,7 @@ class EditorLayoutViewModel { // Remove LoggerExtension
     return DockingItem(
       id: 'timeline',
       name: 'Timeline',
-      widget: const Timeline(), // Assumes Timeline takes no args
+      widget: const Timeline(), // Timeline no longer takes these parameters
     );
   }
 
