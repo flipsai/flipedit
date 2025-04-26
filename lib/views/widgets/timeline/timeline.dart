@@ -13,17 +13,66 @@ import 'package:flipedit/views/widgets/timeline/components/timeline_playhead.dar
 
 /// Main timeline widget that shows clips and tracks
 /// Similar to the timeline in video editors like Premiere Pro or Final Cut
-class Timeline extends StatelessWidget with WatchItMixin {
-    const Timeline({super.key});
+class Timeline extends StatefulWidget with WatchItStatefulWidgetMixin { // Mixin moved here
+  const Timeline({super.key});
+
+  @override
+  State<Timeline> createState() => _TimelineState();
+}
+
+class _TimelineState extends State<Timeline> { // Mixin removed here
+  // Store the viewport width for use in the listener
+  double _viewportWidth = 0;
+  // Create and manage the scroll controller locally
+  final ScrollController _scrollController = ScrollController();
+  // Reference to the view model
+  late TimelineViewModel _timelineViewModel;
+
+  @override
+  void initState() {
+    super.initState();
+    _timelineViewModel = di<TimelineViewModel>();
+    // Register scroll to frame handler with ViewModel
+    _timelineViewModel.registerScrollToFrameHandler((int frame) {
+      if (!mounted || _viewportWidth <= 0 || !_scrollController.hasClients) {
+        logWarning('Timeline', 'Scroll requested for frame $frame but widget/controller not ready.');
+        return;
+      }
+      final trackLabelWidth = _timelineViewModel.trackLabelWidthNotifier.value;
+      const double framePixelWidth = 5.0; // Matches build method
+      final double scrollableViewportWidth = _viewportWidth - trackLabelWidth;
+      if (scrollableViewportWidth <= 0) return; // Cannot calculate if viewport is too small
+      final double unclampedTargetOffset = _timelineViewModel.calculateScrollOffsetForFrame(
+        frame,
+        _viewportWidth,
+        trackLabelWidth,
+        framePixelWidth: framePixelWidth,
+      );
+      final double maxOffset = _scrollController.position.maxScrollExtent;
+      final double targetOffset = unclampedTargetOffset.clamp(0.0, maxOffset);
+      logInfo('Timeline', 'Executing scroll to frame $frame (target: $targetOffset)');
+      _scrollController.animateTo(
+        targetOffset,
+        duration: const Duration(milliseconds: 150), // Consistent smooth duration
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    // Dispose the locally managed scroll controller
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
-    // Use watch_it to get ViewModels and Services
-    final timelineViewModel = di<TimelineViewModel>();
-    final databaseService = di<ProjectDatabaseService>(); // Get ProjectDatabaseService
+    // Get services/viewmodels directly in build or use stored references
+    final databaseService = di<ProjectDatabaseService>(); // Example if needed
 
-    // Watch properties from TimelineViewModel
+    // Watch properties using watchItMixin helpers for StatefulWidgets
     final clips = watchValue((TimelineViewModel vm) => vm.clipsNotifier);
     final currentFrame = watchValue(
       (TimelineViewModel vm) => vm.currentFrameNotifier,
@@ -52,9 +101,8 @@ class Timeline extends StatelessWidget with WatchItMixin {
     // Removed the addPostFrameCallback that forced refresh, as it caused loops.
     // Relying on database streams and initial load logic in ViewModel now.
 
-    // Only horizontal scroll controller needed from ViewModel now
-    final trackContentHorizontalScrollController =
-        timelineViewModel.trackContentHorizontalScrollController;
+    // Use the stored scroll controller
+    // final trackContentHorizontalScrollController = _scrollController; // Already have _scrollController
 
     const double timeRulerHeight = 25.0;
     const double trackItemSpacing = 4.0;
@@ -71,11 +119,12 @@ class Timeline extends StatelessWidget with WatchItMixin {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 const double framePixelWidth = 5.0;
-                final double viewportWidth = constraints.maxWidth;
+                // Store the viewport width when LayoutBuilder provides it
+                _viewportWidth = constraints.maxWidth;
                 final double contentWidth =
                     totalFrames * zoom * framePixelWidth;
                 final double totalScrollableWidth = math.max(
-                  constraints.maxWidth,
+                  _viewportWidth, // Use stored/updated viewport width
                   contentWidth + trackLabelWidth,
                 );
                 final double playheadPosition =
@@ -88,7 +137,7 @@ class Timeline extends StatelessWidget with WatchItMixin {
                       // Horizontally Scrollable Container for Ruler and All Tracks
                       SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
-                        controller: trackContentHorizontalScrollController,
+                        controller: _scrollController, // Use stored controller
                         child: SizedBox(
                           width: totalScrollableWidth, // Define scrollable width
                           // Inner Stack: Allows positioning Playhead over the Column
@@ -131,7 +180,7 @@ class Timeline extends StatelessWidget with WatchItMixin {
                                           return;
                                         }
                                         final localPosition = renderBox.globalToLocal(details.offset - Offset(0, timeRulerHeight + trackItemSpacing));
-                                        final scrollOffsetX = timelineViewModel.trackContentHorizontalScrollController.offset;
+                                        final scrollOffsetX = _scrollController.offset; // Use local controller
                                         final posX = localPosition.dx - trackLabelWidth;
                                         final calculatedFramePosition = ((posX + scrollOffsetX) / (5.0 * zoom)).floor();
                                         final framePosition = math.max(0, calculatedFramePosition);
@@ -142,7 +191,8 @@ class Timeline extends StatelessWidget with WatchItMixin {
                                           name: 'Timeline'
                                         );
 
-                                        await timelineViewModel.handleClipDropToEmptyTimeline(
+                                        // Use stored view model reference
+                                        await _timelineViewModel.handleClipDropToEmptyTimeline(
                                           clip: draggedClip,
                                           startTimeOnTrackMs: framePositionMs.toInt(),
                                         );
@@ -160,11 +210,18 @@ class Timeline extends StatelessWidget with WatchItMixin {
                                               // TimelineTrack itself handles internal label/content split
                                               return Padding(
                                                 padding: const EdgeInsets.only(bottom: trackItemSpacing),
-                                                child: TimelineTrack(
-                                                  track: track,
-                                                  onDelete: () => databaseService.deleteTrack(track.id),
-                                                  trackLabelWidth: trackLabelWidth, // Pass width
-                                                ),
+                                                // Use AnimatedBuilder to pass down the current scroll offset reactively
+                                                child: AnimatedBuilder(
+                                                  animation: _scrollController,
+                                                  builder: (context, child) {
+                                                     return TimelineTrack(
+                                                       track: track,
+                                                       onDelete: () => databaseService.deleteTrack(track.id),
+                                                       trackLabelWidth: trackLabelWidth, // Pass width
+                                                       scrollOffset: _scrollController.hasClients ? _scrollController.offset : 0.0, // Pass offset
+                                                     );
+                                                  },
+                                                )
                                               );
                                             },
                                           );
@@ -188,28 +245,28 @@ class Timeline extends StatelessWidget with WatchItMixin {
                                       final RenderBox renderBox = context.findRenderObject() as RenderBox;
                                       final Offset origin = renderBox.localToGlobal(Offset.zero);
                                       final double localX = details.globalPosition.dx - origin.dx;
-                                      final timelineVm = di<TimelineViewModel>();
-                                      final double scrollOffsetX = timelineVm.trackContentHorizontalScrollController.offset;
+                                      // Use local controller reference
+                                      final double scrollOffsetX = _scrollController.offset;
                                       final double pxPerFrame = framePixelWidth * zoom;
                                       double pointerRelX = (localX + scrollOffsetX - trackLabelWidth).clamp(0.0, double.infinity);
                                       // Calculate max allowed frame with a safety margin to prevent the playhead
                                       // from going too far to the right where it becomes hard to see or interact with
                                       final int maxAllowedFrame = totalFrames > 0 ? totalFrames - 1 : 0;
                                       final int newFrame = (pointerRelX / pxPerFrame).round().clamp(0, maxAllowedFrame);
-                                      timelineVm.currentFrame = newFrame;
+                                      _timelineViewModel.currentFrame = newFrame;
                                       // Auto-scroll when playhead near edges
                                       const double margin = 20.0;
-                                      final ScrollController scrollController = timelineVm.trackContentHorizontalScrollController;
+                                      // final ScrollController scrollController = _scrollController; // Already have _scrollController
                                       double newScrollOffset = scrollOffsetX;
                                       if (localX < margin) {
                                         newScrollOffset = (scrollOffsetX - (margin - localX))
-                                          .clamp(0.0, scrollController.position.maxScrollExtent);
-                                      } else if (localX > viewportWidth - margin) {
-                                        newScrollOffset = (scrollOffsetX + (localX - (viewportWidth - margin)))
-                                          .clamp(0.0, scrollController.position.maxScrollExtent);
+                                          .clamp(0.0, _scrollController.position.maxScrollExtent);
+                                      } else if (localX > _viewportWidth - margin) { // Use stored viewport width
+                                        newScrollOffset = (scrollOffsetX + (localX - (_viewportWidth - margin)))
+                                          .clamp(0.0, _scrollController.position.maxScrollExtent);
                                       }
                                       if (newScrollOffset != scrollOffsetX) {
-                                        scrollController.jumpTo(newScrollOffset);
+                                        _scrollController.jumpTo(newScrollOffset);
                                       }
                                     },
                                     child: const TimelinePlayhead(),
@@ -225,8 +282,8 @@ class Timeline extends StatelessWidget with WatchItMixin {
                                 width: 6,
                                 child: GestureDetector(
                                   onHorizontalDragUpdate: (DragUpdateDetails details) {
-                                    // Update width via ViewModel
-                                    timelineViewModel.updateTrackLabelWidth(
+                                    // Update width via stored ViewModel reference
+                                    _timelineViewModel.updateTrackLabelWidth(
                                       trackLabelWidth + details.delta.dx,
                                     );
                                   },

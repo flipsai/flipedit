@@ -15,12 +15,14 @@ class TimelineTrack extends StatefulWidget with WatchItStatefulWidgetMixin {
   final Track track;
   final VoidCallback onDelete;
   final double trackLabelWidth;
+  final double scrollOffset; // Added scroll offset parameter
 
   const TimelineTrack({
     super.key,
     required this.track,
     required this.onDelete,
     required this.trackLabelWidth,
+    required this.scrollOffset, // Added scroll offset parameter
   });
 
   @override
@@ -110,11 +112,11 @@ class _TimelineTrackState extends State<TimelineTrack> {
     }
   }
 
+  // Updated to use the passed scrollOffset
   double getHorizontalScrollOffset() {
-    if (_timelineViewModel.trackContentHorizontalScrollController.hasClients) {
-      return _timelineViewModel.trackContentHorizontalScrollController.offset;
-    }
-    return 0.0;
+    // The parent (Timeline) now passes the scroll offset directly
+    // No need to access ViewModel or check controller clients here
+    return widget.scrollOffset;
   }
 
   int _calculateFramePositionForPreview(double previewRawX, double zoom) {
