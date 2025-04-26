@@ -71,6 +71,7 @@ class Timeline extends StatelessWidget with WatchItMixin {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 const double framePixelWidth = 5.0;
+                final double viewportWidth = constraints.maxWidth;
                 final double contentWidth =
                     totalFrames * zoom * framePixelWidth;
                 final double totalScrollableWidth = math.max(
@@ -179,7 +180,39 @@ class Timeline extends StatelessWidget with WatchItMixin {
                                 bottom: 0,
                                 // Position based on currentFrame, zoom, and trackLabelWidth
                                 left: trackLabelWidth + playheadPosition,
-                                child: const TimelinePlayhead(),
+                                child: MouseRegion(
+                                  cursor: SystemMouseCursors.allScroll,
+                                  child: GestureDetector(
+                                    behavior: HitTestBehavior.translucent,
+                                    onHorizontalDragUpdate: (DragUpdateDetails details) {
+                                      final RenderBox renderBox = context.findRenderObject() as RenderBox;
+                                      final Offset origin = renderBox.localToGlobal(Offset.zero);
+                                      final double localX = details.globalPosition.dx - origin.dx;
+                                      final timelineVm = di<TimelineViewModel>();
+                                      final double scrollOffsetX = timelineVm.trackContentHorizontalScrollController.offset;
+                                      final double pxPerFrame = framePixelWidth * zoom;
+                                      double pointerRelX = (localX + scrollOffsetX - trackLabelWidth).clamp(0.0, double.infinity);
+                                      final int newFrame = (pointerRelX / pxPerFrame).round().clamp(0, timelineVm.totalFramesNotifier.value);
+                                      timelineVm.currentFrame = newFrame;
+                                      // Auto-scroll when playhead near edges
+                                      const double margin = 20.0;
+                                      final double playheadX = trackLabelWidth + newFrame * pxPerFrame;
+                                      final ScrollController scrollController = timelineVm.trackContentHorizontalScrollController;
+                                      double newScrollOffset = scrollOffsetX;
+                                      if (localX < margin) {
+                                        newScrollOffset = (scrollOffsetX - (margin - localX))
+                                          .clamp(0.0, scrollController.position.maxScrollExtent);
+                                      } else if (localX > viewportWidth - margin) {
+                                        newScrollOffset = (scrollOffsetX + (localX - (viewportWidth - margin)))
+                                          .clamp(0.0, scrollController.position.maxScrollExtent);
+                                      }
+                                      if (newScrollOffset != scrollOffsetX) {
+                                        scrollController.jumpTo(newScrollOffset);
+                                      }
+                                    },
+                                    child: const TimelinePlayhead(),
+                                  ),
+                                ),
                               ),
                               
                               // --- Resizer Handle ---
