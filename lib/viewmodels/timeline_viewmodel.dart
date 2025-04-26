@@ -13,8 +13,11 @@ import 'commands/add_clip_command.dart';
 import 'package:flipedit/services/undo_redo_service.dart';
 import 'package:flipedit/services/timeline_logic_service.dart';
 
-class TimelineViewModel {
+class TimelineViewModel extends ChangeNotifier {
   // Add a tag for logging within this class
+  void notifyClipsChanged() { // Explicit notification method for clarity
+    notifyListeners();
+  }
   String get _logTag => runtimeType.toString();
 
   final ProjectDatabaseService _projectDatabaseService =
@@ -37,12 +40,12 @@ class TimelineViewModel {
   }
 
   final ValueNotifier<int> currentFrameNotifier = ValueNotifier<int>(0);
+  static const DEFAULT_EMPTY_DURATION = 600000; // 10 minutes in milliseconds
   int get currentFrame => currentFrameNotifier.value;
   set currentFrame(int value) {
     final totalFrames = _calculateTotalFrames();
-    // Add a safety margin to prevent the playhead from being positioned
-    // at the extreme edge of the timeline where it might be hard to see or interact with
-    final int maxAllowedFrame = totalFrames > 0 ? totalFrames - 1 : 0;
+    // Allow infinite navigation when empty, clamp to content when present
+    final int maxAllowedFrame = totalFrames > 0 ? totalFrames - 1 : ClipModel.msToFrames(DEFAULT_EMPTY_DURATION);
     final clampedValue = value.clamp(0, maxAllowedFrame);
     if (currentFrameNotifier.value == clampedValue) return;
     currentFrameNotifier.value = clampedValue;
@@ -161,8 +164,8 @@ class TimelineViewModel {
       // Advance to next frame
       final nextFrame = currentFrame + 1;
       final totalFrames = totalFramesNotifier.value;
-      // Calculate max allowed frame with safety margin
-      final int maxAllowedFrame = totalFrames > 0 ? totalFrames - 1 : 0;
+      // Use full duration including empty canvas buffer
+      final int maxAllowedFrame = totalFrames > 0 ? totalFrames - 1 : ClipModel.msToFrames(DEFAULT_EMPTY_DURATION);
       
       if (nextFrame > maxAllowedFrame) {
         // Stop at the safe end of the timeline
@@ -448,16 +451,19 @@ class TimelineViewModel {
 
   int _calculateTotalFrames() {
     if (clipsNotifier.value.isEmpty) {
-      return 0;
+      return ClipModel.msToFrames(DEFAULT_EMPTY_DURATION);
     }
     int maxEndTimeMs = 0;
     for (final clip in clipsNotifier.value) {
-      final clipEndTimeMs = clip.endTimeOnTrackMs; // Use the explicit end time
+      final clipEndTimeMs = clip.endTimeOnTrackMs;
       if (clipEndTimeMs > maxEndTimeMs) {
         maxEndTimeMs = clipEndTimeMs;
       }
     }
-    return ClipModel.msToFrames(maxEndTimeMs);
+    // Return whichever is longer - content or default duration
+    return ClipModel.msToFrames(maxEndTimeMs > DEFAULT_EMPTY_DURATION
+        ? maxEndTimeMs
+        : DEFAULT_EMPTY_DURATION);
   }
 
   // Made public for commands to call when necessary
