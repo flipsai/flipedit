@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
+// import 'package:flutter/material.dart' show Colors; // Removed Material Colors import
 import 'package:video_player/video_player.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/models/clip.dart';
@@ -58,6 +59,13 @@ class _PreviewPanelState extends State<PreviewPanel> {
   // Flag to track if a transform operation (drag/resize) is in progress
   bool _isTransforming = false;
 
+  // State for snapping guidelines
+  bool _snappingEnabled = true; // ADDED: Toggle for magnets
+  Size? _containerSize; // Size of the Stack area where videos are placed
+  double? _activeHorizontalSnapY; // Y-coordinate of the active horizontal snap line
+  double? _activeVerticalSnapX; // X-coordinate of the active vertical snap line
+  static const double _snapThreshold = 8.0; // Pixels for snapping sensitivity
+
   @override
   void initState() {
     super.initState();
@@ -72,6 +80,36 @@ class _PreviewPanelState extends State<PreviewPanel> {
   void dispose() {
     _disposeAllControllers();
     super.dispose();
+  }
+
+  // --- Snapping Guideline State Updates ---
+
+  void _updateContainerSize(Size size) {
+    // Avoid unnecessary rebuilds if size hasn't changed meaningfully
+    if (_containerSize != null &&
+        (_containerSize!.width - size.width).abs() < 0.1 &&
+        (_containerSize!.height - size.height).abs() < 0.1) {
+      return;
+    }
+    if (mounted) {
+      setState(() {
+        _containerSize = size;
+        debugPrint("[PreviewPanel] Container size updated: $size");
+        // Re-initialize rects if container size changes significantly?
+        // Maybe needed if initial rects depend on container size.
+      });
+    }
+  }
+
+  void _updateSnapLines({double? hSnap, double? vSnap}) {
+    if (!mounted) return;
+    // Only update if the snap lines actually change
+    if (_activeHorizontalSnapY != hSnap || _activeVerticalSnapX != vSnap) {
+       setState(() {
+         _activeHorizontalSnapY = hSnap;
+         _activeVerticalSnapX = vSnap;
+       });
+    }
   }
 
   // --- Handler Methods (Reacting to ViewModel changes) ---
@@ -371,7 +409,7 @@ class _PreviewPanelState extends State<PreviewPanel> {
   /// Callback handler for when a TransformableBox's Rect is changed by user interaction.
   /// This now ONLY updates the local state for immediate visual feedback during drag/resize.
   void _handleRectChanged(int clipId, Rect rect) {
-    if (!mounted) return;
+    if (!mounted || _containerSize == null) return;
 
     // Find the clip model - needed to ensure we only update state for existing clips
     final clip = _findClipById(clipId);
@@ -380,14 +418,111 @@ class _PreviewPanelState extends State<PreviewPanel> {
       return;
     }
 
-    // Update the stored Rect state for the specific clip locally ONLY
+    Rect snappedRect = rect; // Start with the original rect
+    double? currentHSnap;
+    double? currentVSnap;
+
+    // --- Snapping Logic ---
+    if (_isTransforming && _snappingEnabled) { 
+        // Define potential snap targets
+        final containerCenter = _containerSize!.center(Offset.zero);
+        final List<double> hTargets = [0.0, containerCenter.dy, _containerSize!.height]; // Top, Center Y, Bottom
+        final List<double> vTargets = [0.0, containerCenter.dx, _containerSize!.width];  // Left, Center X, Right
+
+        // Add edges and centers of *other* visible clips as snap targets
+        for (final otherClipId in _clipRects.keys) {
+            if (otherClipId == clipId) continue; // Don't snap to self
+            final otherRect = _clipRects[otherClipId];
+            if (otherRect != null) {
+                hTargets.addAll([otherRect.top, otherRect.center.dy, otherRect.bottom]);
+                vTargets.addAll([otherRect.left, otherRect.center.dx, otherRect.right]);
+            }
+        }
+
+        // --- Check Horizontal Snapping (Y-axis) ---
+        final rectCenterY = rect.center.dy;
+        final rectTop = rect.top;
+        final rectBottom = rect.bottom;
+
+        // Check Center Y
+        for (final targetY in hTargets) {
+            if ((rectCenterY - targetY).abs() < _snapThreshold) {
+                snappedRect = Rect.fromCenter(center: Offset(snappedRect.center.dx, targetY), width: snappedRect.width, height: snappedRect.height);
+                currentHSnap = targetY;
+                break;
+            }
+        }
+        // Check Top Y (only if center didn't snap)
+        if (currentHSnap == null) {
+           for (final targetY in hTargets) {
+                if ((rectTop - targetY).abs() < _snapThreshold) {
+                    snappedRect = Rect.fromLTWH(snappedRect.left, targetY, snappedRect.width, snappedRect.height);
+                    currentHSnap = targetY;
+                    break;
+                }
+            }
+        }
+        // Check Bottom Y (only if top/center didn't snap)
+        if (currentHSnap == null) {
+           for (final targetY in hTargets) {
+                if ((rectBottom - targetY).abs() < _snapThreshold) {
+                    snappedRect = Rect.fromLTWH(snappedRect.left, targetY - snappedRect.height, snappedRect.width, snappedRect.height);
+                    currentHSnap = targetY;
+                    break;
+                }
+            }
+        }
+
+         // --- Check Vertical Snapping (X-axis) ---
+        final rectCenterX = snappedRect.center.dx; // Use potentially snapped Y position
+        final rectLeft = snappedRect.left;
+        final rectRight = snappedRect.right;
+
+        // Check Center X
+        for (final targetX in vTargets) {
+            if ((rectCenterX - targetX).abs() < _snapThreshold) {
+                snappedRect = Rect.fromCenter(center: Offset(targetX, snappedRect.center.dy), width: snappedRect.width, height: snappedRect.height);
+                currentVSnap = targetX;
+                break;
+            }
+        }
+        // Check Left X (only if center didn't snap)
+        if (currentVSnap == null) {
+           for (final targetX in vTargets) {
+                if ((rectLeft - targetX).abs() < _snapThreshold) {
+                    snappedRect = Rect.fromLTWH(targetX, snappedRect.top, snappedRect.width, snappedRect.height);
+                    currentVSnap = targetX;
+                    break;
+                }
+            }
+        }
+        // Check Right X (only if left/center didn't snap)
+         if (currentVSnap == null) {
+           for (final targetX in vTargets) {
+                if ((rectRight - targetX).abs() < _snapThreshold) {
+                    snappedRect = Rect.fromLTWH(targetX - snappedRect.width, snappedRect.top, snappedRect.width, snappedRect.height);
+                    currentVSnap = targetX;
+                    break;
+                }
+            }
+        }
+    }
+
+    // Update the stored Rect state for the specific clip locally
+    // Use the *snappedRect* if snapping occurred
     setState(() {
-      _clipRects[clipId] = rect;
+      _clipRects[clipId] = snappedRect;
       // Note: Flip state cannot be updated via onChanged callback in this setup.
     });
 
+    // Update the visual snap lines
+    _updateSnapLines(
+      hSnap: _snappingEnabled ? currentHSnap : null, 
+      vSnap: _snappingEnabled ? currentVSnap : null
+    );
+
     // Database update logic is removed from here.
-    // debugPrint("[PreviewPanel] Rect changed for clip $clipId: Rect=$rect");
+    // debugPrint("[PreviewPanel] Rect changed for clip $clipId: Rect=$rect, Snapped=$snappedRect, HSnap=$currentHSnap, VSnap=$currentVSnap");
   }
 
   /// Callback handler for when a TransformableBox drag or resize interaction STARTS.
@@ -403,12 +538,15 @@ class _PreviewPanelState extends State<PreviewPanel> {
   /// Callback handler for when a TransformableBox drag or resize interaction ENDS.
   /// This handles persisting the final state to the database.
   void _handleTransformEnd(int clipId) { // No longer needs finalRect argument
-    if (!mounted || !_isTransforming) return; // Only save if we were transforming
+    if (!mounted) return; // Only save if we were transforming
 
-    // Mark transform as ended *before* potential async gap
-    setState(() {
-      _isTransforming = false;
-    });
+    // If we were transforming, clear snap lines and reset the flag
+    if (_isTransforming) {
+      setState(() {
+        _isTransforming = false;
+      });
+       _updateSnapLines(hSnap: null, vSnap: null); // Clear lines on end
+    }
 
     // Find the clip model
     final clip = _findClipById(clipId);
@@ -441,6 +579,19 @@ class _PreviewPanelState extends State<PreviewPanel> {
     });
   }
 
+  // ADDED: Method to toggle snapping
+  void _toggleSnapping() {
+    if (mounted) {
+      setState(() {
+        _snappingEnabled = !_snappingEnabled;
+        // If disabling snapping during a transform, clear the lines immediately
+        if (!_snappingEnabled) {
+           _updateSnapLines(hSnap: null, vSnap: null);
+        }
+      });
+    }
+  }
+
   // --- Build Method ---
 
   @override
@@ -453,13 +604,21 @@ class _PreviewPanelState extends State<PreviewPanel> {
       clipRects: _clipRects, // Pass manual Rect state
       clipFlips: _clipFlips, // Pass manual Flip state
       onRectChanged: _handleRectChanged, // Pass update callback (int, Rect)
-      onTransformStart: _handleTransformStart, 
+      onTransformStart: _handleTransformStart,
       onTransformEnd: _handleTransformEnd,
       onClipListChange: _handleClipListChange,
       onFrameChange: _handleFrameChange,
       onPlaybackStateChange: _handlePlaybackStateChange,
       aspectRatioLocked: _aspectRatioLocked,
       onToggleAspectRatioLock: _toggleAspectRatioLock,
+      // Pass snap line state and container size update callback
+      containerSize: _containerSize,
+      activeHorizontalSnapY: _activeHorizontalSnapY,
+      activeVerticalSnapX: _activeVerticalSnapX,
+      onContainerSizeChanged: _updateContainerSize,
+      // ADDED: Pass snapping state and toggle callback
+      snappingEnabled: _snappingEnabled,
+      onToggleSnapping: _toggleSnapping,
     );
   }
 }
@@ -482,6 +641,15 @@ class PreviewPanelContent extends StatelessWidget with WatchItMixin {
   final Function(int) onTransformStart;
   final Function(int) onTransformEnd;
 
+  // New parameters for snapping guidelines
+  final Size? containerSize;
+  final double? activeHorizontalSnapY;
+  final double? activeVerticalSnapX;
+  final Function(Size) onContainerSizeChanged;
+  // ADDED: Snapping parameters
+  final bool snappingEnabled;
+  final VoidCallback onToggleSnapping;
+
   const PreviewPanelContent({
     Key? key,
     required this.controllers,
@@ -497,6 +665,13 @@ class PreviewPanelContent extends StatelessWidget with WatchItMixin {
     required this.onToggleAspectRatioLock,
     required this.onTransformStart, 
     required this.onTransformEnd,
+    required this.containerSize,
+    required this.activeHorizontalSnapY,
+    required this.activeVerticalSnapX,
+    required this.onContainerSizeChanged,
+    // ADDED: Snapping parameters
+    required this.snappingEnabled,
+    required this.onToggleSnapping,
   }) : super(key: key);
 
   @override
@@ -613,11 +788,33 @@ class PreviewPanelContent extends StatelessWidget with WatchItMixin {
                     aspectRatio, // Use the dynamically calculated aspect ratio
                 // This container provides the bounds for the Stack and TransformableBox positioning
                 child: Container(
-                  color: Colors.black.withOpacity(
-                    0.1,
-                  ), // Slight tint for visibility
-                  child:
-                      content, // The Stack containing TransformableBox widgets
+                  color: Colors.black.withOpacity(0.1), // Slight tint for visibility
+                  // Use LayoutBuilder to get the size of the container where the Stack lives
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      // Report the size back to the stateful widget
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (containerSize != constraints.biggest) {
+                              onContainerSizeChanged(constraints.biggest);
+                          }
+                      });
+
+                      // Build the Stack with videos and snap lines
+                      return Stack(
+                        children: [
+                          // The Stack containing TransformableBox widgets
+                          content,
+                          // Add the snap guide painter on top
+                          if (containerSize != null && (activeHorizontalSnapY != null || activeVerticalSnapX != null)) 
+                            SnapGuidePainter(
+                                containerSize: containerSize!,
+                                horizontalSnapY: activeHorizontalSnapY,
+                                verticalSnapX: activeVerticalSnapX,
+                            ),
+                        ],
+                      );
+                    }
+                  ),
                 ),
               ),
             ),
@@ -648,11 +845,30 @@ class PreviewPanelContent extends StatelessWidget with WatchItMixin {
                   style: ButtonStyle(
                     foregroundColor: ButtonState.all(Colors.white),
                     iconSize: ButtonState.all(24.0),
-                    backgroundColor: ButtonState.all(
-                      aspectRatioLocked
-                          ? Colors.blue.withOpacity(0.5)
-                          : Colors.transparent,
-                    ),
+                    backgroundColor: ButtonState.resolveWith((states) {
+                       return aspectRatioLocked
+                         ? Colors.blue.withOpacity(0.5)
+                         : Colors.transparent;
+                    }),
+                  ),
+                ),
+                // ADDED: Snapping Toggle Button
+                const SizedBox(width: 8.0),
+                 IconButton(
+                  icon: Icon(
+                    FluentIcons.gripper_tool, // Using gripper_tool as alternative
+                    color: snappingEnabled ? Colors.white : Colors.grey[80],
+                  ),
+                  onPressed: onToggleSnapping,
+                  style: ButtonStyle(
+                    // Optional: Add visual feedback like background color change
+                    // backgroundColor: ButtonState.resolveWith((states) {
+                    //   return snappingEnabled
+                    //     ? Colors.blue.withOpacity(0.5)
+                    //     : Colors.transparent;
+                    // }),
+                    iconSize: ButtonState.all(24.0),
+                    foregroundColor: ButtonState.all(snappingEnabled ? Colors.white : Colors.grey[80]),
                   ),
                 ),
                 // TODO: Add frame step buttons, time display etc.
@@ -680,4 +896,80 @@ bool listEquals<T>(List<T>? a, List<T>? b) {
     if (a[index] != b[index]) return false;
   }
   return true;
+}
+
+// --- Snap Guide Painter --- 
+
+class SnapGuidePainter extends StatelessWidget {
+  final Size containerSize;
+  final double? horizontalSnapY;
+  final double? verticalSnapX;
+
+  const SnapGuidePainter({
+    Key? key,
+    required this.containerSize,
+    this.horizontalSnapY,
+    this.verticalSnapX,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    // Access FluentTheme here to get the accent color
+    final accentColor = FluentTheme.of(context).accentColor;
+
+    return CustomPaint(
+      size: containerSize,
+      painter: _GuidePainter(
+        horizontalSnapY: horizontalSnapY,
+        verticalSnapX: verticalSnapX,
+        lineColor: accentColor, // Pass the color to the painter
+      ),
+    );
+  }
+}
+
+class _GuidePainter extends CustomPainter {
+  final double? horizontalSnapY;
+  final double? verticalSnapX;
+  final Color lineColor; // Receive the color
+
+  final Paint _paint;
+
+  _GuidePainter({
+    this.horizontalSnapY,
+    this.verticalSnapX,
+    required this.lineColor,
+  }) : _paint = Paint()
+          ..color = lineColor // Use the passed color
+          ..strokeWidth = 1.0
+          ..style = PaintingStyle.stroke;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Draw horizontal line
+    if (horizontalSnapY != null) {
+      canvas.drawLine(
+        Offset(0, horizontalSnapY!),          // Start point (left edge)
+        Offset(size.width, horizontalSnapY!), // End point (right edge)
+        _paint,
+      );
+    }
+
+    // Draw vertical line
+    if (verticalSnapX != null) {
+      canvas.drawLine(
+        Offset(verticalSnapX!, 0),          // Start point (top edge)
+        Offset(verticalSnapX!, size.height), // End point (bottom edge)
+        _paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_GuidePainter oldDelegate) {
+    // Repaint only if the snap line positions or color change
+    return oldDelegate.horizontalSnapY != horizontalSnapY ||
+           oldDelegate.verticalSnapX != verticalSnapX ||
+           oldDelegate.lineColor != lineColor; // Check color change too
+  }
 }
