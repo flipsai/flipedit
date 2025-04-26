@@ -375,25 +375,6 @@ class _TimelineClipState extends State<TimelineClip> {
                           bottomRight: Radius.circular(borderRadiusValue - 1),
                         ),
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text( // Duration
-                            '${formattedDuration}s',
-                            style: theme.typography.caption?.copyWith(
-                              color: contrastColor.withAlpha(220), fontSize: 9, fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          Text( // Position / Preview
-                            _resizingDirection != null
-                                ? '${ClipModel.framesToMs(currentDisplayStartFrame)}ms - ${ClipModel.framesToMs(currentDisplayEndFrame)}ms' // Show time range during resize
-                                : _getTimePosition(), // Show normal start time otherwise
-                            style: theme.typography.caption?.copyWith(
-                              color: contrastColor.withAlpha(220), fontSize: 9, fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
                     ),
                   ),
                 ],
