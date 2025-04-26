@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:ui'; // Import Rect
 import 'package:flipedit/models/effect.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:drift/drift.dart' show Value;
@@ -163,6 +165,35 @@ class ClipModel {
     );
   }
 
+  /// Get the preview rectangle from metadata, or null if not set.
+  /// The rectangle is stored as a map with 'left', 'top', 'width', 'height'.
+  Rect? get previewRect {
+    final rectMap = metadata['previewRect'] as Map<String, dynamic>?;
+    if (rectMap == null) return null;
+    return Rect.fromLTWH(
+      rectMap['left'] as double,
+      rectMap['top'] as double,
+      rectMap['width'] as double,
+      rectMap['height'] as double,
+    );
+  }
+
+  /// Creates a new ClipModel with the preview rectangle updated in metadata.
+  ClipModel copyWithPreviewRect(Rect? rect) {
+    final updatedMetadata = Map<String, dynamic>.from(metadata);
+    if (rect == null) {
+      updatedMetadata.remove('previewRect');
+    } else {
+      updatedMetadata['previewRect'] = {
+        'left': rect.left,
+        'top': rect.top,
+        'width': rect.width,
+        'height': rect.height,
+      };
+    }
+    return copyWith(metadata: updatedMetadata);
+  }
+
   factory ClipModel.fromDbData(Clip dbData, {int? sourceDurationMs}) {
     // Estimate source duration robustly if not available
     final dbSourceDuration = dbData.sourceDurationMs;
@@ -176,6 +207,11 @@ class ClipModel {
 
     // Ensure the upper limit for clamping endTimeInSourceMs is valid
     final validUpperClampLimit = (actualSourceDuration >= startTimeSource) ? actualSourceDuration : startTimeSource;
+
+    final Map<String, dynamic> loadedMetadata =
+      dbData.metadataJson != null
+        ? jsonDecode(dbData.metadataJson!) as Map<String, dynamic>
+        : const {};
 
     return ClipModel(
       databaseId: dbData.id,
@@ -193,6 +229,7 @@ class ClipModel {
       startTimeOnTrackMs: dbData.startTimeOnTrackMs,
       // Use stored endTimeOnTrackMs if available, otherwise estimate using potentially clamped source times
       endTimeOnTrackMs: dbData.endTimeOnTrackMs ?? (dbData.startTimeOnTrackMs + (dbData.endTimeInSourceMs.clamp(startTimeSource, validUpperClampLimit) - startTimeSource)),
+      metadata: loadedMetadata,
     );
   }
 
@@ -211,6 +248,7 @@ class ClipModel {
       endTimeInSourceMs: Value(clampedEndTimeInSourceMs), // Use clamped value
       startTimeOnTrackMs: Value(startTimeOnTrackMs),
       endTimeOnTrackMs: Value(endTimeOnTrackMs), // Added
+      metadataJson: Value(metadata.isNotEmpty ? jsonEncode(metadata) : null),
     );
   }
 
