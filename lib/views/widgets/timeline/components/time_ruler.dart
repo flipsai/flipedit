@@ -3,9 +3,12 @@ import 'package:watch_it/watch_it.dart';
 import 'dart:math' as math;
 import '../../../../models/clip.dart'; // Import for ClipModel
 import '../../../../viewmodels/timeline_viewmodel.dart';
+import '../../../../services/project_database_service.dart';
+import '../../../../persistence/database/project_database.dart'; // Import for Track
+import '../../../../utils/logger.dart' as logger;
 
 /// A ruler widget that displays frame numbers and tick marks for the timeline using CustomPaint
-class TimeRuler extends StatelessWidget with WatchItMixin { // Added WatchItMixin back
+class TimeRuler extends StatelessWidget {
   final double zoom;
   final double availableWidth;
 
@@ -17,117 +20,103 @@ class TimeRuler extends StatelessWidget with WatchItMixin { // Added WatchItMixi
 
   @override
   Widget build(BuildContext context) {
-    // Access ViewModel via DI
-    final vm = di<TimelineViewModel>();
-    // Register handler to watch clips changes using WatchItMixin
-    registerHandler<TimelineViewModel, List<ClipModel>>(
-      select: (vm) => vm.clipsNotifier,
-      handler: (context, value, __) {
-        // No need to do anything here, just rebuild on clips change
-      },
-    );
-    final isEmpty = vm.clips.isEmpty; // Access clips directly
     final theme = FluentTheme.of(context);
-
-    // Return the main container structure
+    
+    // Get access to the database service directly
+    final databaseService = di<ProjectDatabaseService>();
+    
+    // Simple direct check for tracks - this happens on every build
+    final hasTracks = databaseService.tracksNotifier.value.isNotEmpty;
+    final isEmpty = !hasTracks;
+    
+    // Log the current state
+    logger.logInfo('TimeRuler', 'Building TimeRuler - hasTracks: $hasTracks, isEmpty: $isEmpty');
+    
+    // Return the entire widget based on this simple check
     return Container(
       height: 25,
       width: availableWidth,
-      // Use subtleFillColorSecondary for the base background
       color: theme.resources.subtleFillColorSecondary,
-      child: Stack( // Stack allows overlaying the empty state message
-        children: [
-          // The painter draws the ruler ticks and labels
-          RepaintBoundary( // Optimize repainting
-            child: CustomPaint(
-              painter: _TimeRulerPainter(
-                zoom: zoom,
-                majorTickColor: theme.resources.controlStrokeColorDefault,
-                minorTickColor: theme.resources.textFillColorSecondary,
-                textColor: theme.resources.textFillColorSecondary,
-                textStyle: theme.typography.caption?.copyWith(fontSize: 10),
-                isEmpty: isEmpty, // Pass the empty state flag
-              ),
-              // Ensure the painter covers the available size
-              size: Size(availableWidth, 25),
-            ),
-          ),
-          // Conditionally display the empty state message overlay
-          if (isEmpty)
-            Positioned.fill(
-              child: Center(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(FluentIcons.clock, size: 14, color: theme.resources.textFillColorDisabled),
-                    SizedBox(width: 8),
-                    Text('Empty timeline - drag media to begin',
-                        style: theme.typography.caption?.copyWith(
-                          color: theme.resources.textFillColorDisabled,
-                          fontSize: 12
-                        )),
-                  ],
-                ),
-              ),
-            ),
-        ],
+      child: isEmpty 
+        ? _buildEmptyState(theme)  // Show empty state when no tracks
+        : _buildRuler(theme)       // Show ruler when tracks exist
+    );
+  }
+  
+  /// Build the empty state message
+  Widget _buildEmptyState(FluentThemeData theme) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [
+            theme.resources.controlStrokeColorDefault.withOpacity(0.1),
+            theme.resources.controlStrokeColorDefault.withOpacity(0.05),
+          ],
+        ),
       ),
+      child: Center(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(FluentIcons.clock, size: 14, color: theme.resources.textFillColorDisabled),
+            const SizedBox(width: 8),
+            Text(
+              'Empty timeline - drag media to begin',
+              style: theme.typography.caption?.copyWith(
+                color: theme.resources.textFillColorDisabled,
+                fontSize: 12
+              )
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  /// Build the ruler with time markings
+  Widget _buildRuler(FluentThemeData theme) {
+    return CustomPaint(
+      painter: TimeRulerPainter(
+        zoom: zoom,
+        majorTickColor: theme.resources.controlStrokeColorDefault,
+        minorTickColor: theme.resources.textFillColorSecondary,
+        textColor: theme.resources.textFillColorSecondary,
+        textStyle: theme.typography.caption?.copyWith(fontSize: 10),
+      ),
+      size: Size(availableWidth, 25),
     );
   }
 }
 
-/// CustomPainter for drawing the TimeRuler ticks and labels
-class _TimeRulerPainter extends CustomPainter {
+/// CustomPainter for drawing the time ruler ticks and labels
+class TimeRulerPainter extends CustomPainter {
   final double zoom;
   final Color majorTickColor;
   final Color minorTickColor;
   final Color textColor;
   final TextStyle? textStyle;
-  final bool isEmpty; // Added flag for empty state
 
-  // Paints for drawing ticks
   final Paint majorTickPaint;
   final Paint minorTickPaint;
-  // TextPainter for drawing labels
   final TextPainter textPainter;
 
-  // Constructor initializes paints and requires the isEmpty flag
-  _TimeRulerPainter({
+  TimeRulerPainter({
     required this.zoom,
     required this.majorTickColor,
     required this.minorTickColor,
     required this.textColor,
     required this.textStyle,
-    required this.isEmpty, // Require isEmpty
   }) : majorTickPaint = Paint()..color = majorTickColor..strokeWidth = 1.0,
        minorTickPaint = Paint()..color = minorTickColor..strokeWidth = 1.0,
        textPainter = TextPainter(
          textAlign: TextAlign.left,
          textDirection: TextDirection.ltr,
-       ); // Removed extra semicolon causing errors
+       );
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Draw background gradient only if the timeline is empty
-    if (isEmpty) {
-      final gradient = LinearGradient(
-        begin: Alignment.centerLeft,
-        end: Alignment.centerRight,
-        colors: [
-          majorTickColor.withOpacity(0.1), // Use theme colors for gradient
-          majorTickColor.withOpacity(0.05),
-        ],
-      );
-      // Draw the gradient rectangle covering the painter's area
-      canvas.drawRect(
-        Rect.fromLTWH(0, 0, size.width, size.height),
-        Paint()..shader = gradient.createShader(Rect.fromLTWH(0, 0, size.width, size.height)),
-      );
-      // Don't draw ticks or labels if empty
-      return;
-    }
-
-    // --- Existing tick and label drawing logic ---
     const double framePixelWidth = 5.0;
     const int fps = 30; // Assumed frames per second
     const double majorTickHeight = 10.0;
@@ -137,38 +126,31 @@ class _TimeRulerPainter extends CustomPainter {
     const double secondsPerMinorTick = 0.2;
 
     final double pixelsPerFrame = framePixelWidth * zoom;
-    if (pixelsPerFrame <= 0) return; // Avoid division by zero or negative values
+    if (pixelsPerFrame <= 0) return;
 
     final double pixelsPerSecond = pixelsPerFrame * fps;
     final double majorTickSpacing = secondsPerMajorTick * pixelsPerSecond;
     final double minorTickSpacing = secondsPerMinorTick * pixelsPerSecond;
 
-    // Avoid division by zero if spacing is too small
     if (minorTickSpacing <= 0) return;
 
     final int numMinorTicks = (size.width / minorTickSpacing).ceil();
 
-    // Loop to draw ticks and labels
     for (int i = 0; i <= numMinorTicks; i++) {
       final double second = i * secondsPerMinorTick;
       final double x = second * pixelsPerSecond;
 
-      // Determine if it's a major tick (close to an integer second)
       final bool isMajorTick = (second % secondsPerMajorTick).abs() < 1e-6;
-
       final double tickHeight = isMajorTick ? majorTickHeight : minorTickHeight;
       final Paint paintToUse = isMajorTick ? majorTickPaint : minorTickPaint;
 
-      // Draw the tick line
       canvas.drawLine(
-        Offset(x, size.height), // Start at bottom
-        Offset(x, size.height - tickHeight), // End slightly above
+        Offset(x, size.height),
+        Offset(x, size.height - tickHeight),
         paintToUse,
       );
 
-      // Draw label for major ticks if space allows
       if (isMajorTick && textStyle != null) {
-        // Format label (integer or one decimal place)
         String label = (secondsPerMinorTick < 1 && second.truncateToDouble() != second)
             ? second.toStringAsFixed(1)
             : second.toStringAsFixed(0);
@@ -179,24 +161,21 @@ class _TimeRulerPainter extends CustomPainter {
         );
         textPainter.layout();
 
-        // Only draw label if there's enough space between major ticks
         if (majorTickSpacing > textPainter.width + textPadding) {
-          final textX = x - textPainter.width / 2; // Center label
-          final clampedTextX = math.max(0.0, textX); // Keep within bounds
-          textPainter.paint(canvas, Offset(clampedTextX, 2)); // Position near top
+          final textX = x - textPainter.width / 2;
+          final clampedTextX = math.max(0.0, textX);
+          textPainter.paint(canvas, Offset(clampedTextX, 2));
         }
       }
     }
   }
 
-  // Decide if repaint is needed based on changed properties
   @override
-  bool shouldRepaint(_TimeRulerPainter oldDelegate) {
+  bool shouldRepaint(TimeRulerPainter oldDelegate) {
     return oldDelegate.zoom != zoom ||
         oldDelegate.majorTickColor != majorTickColor ||
         oldDelegate.minorTickColor != minorTickColor ||
         oldDelegate.textColor != textColor ||
-        oldDelegate.textStyle != textStyle ||
-        oldDelegate.isEmpty != isEmpty; // Check isEmpty flag too
+        oldDelegate.textStyle != textStyle;
   }
 }
