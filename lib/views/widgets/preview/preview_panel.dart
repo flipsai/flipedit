@@ -55,6 +55,8 @@ class _PreviewPanelState extends State<PreviewPanel> {
   final Map<int, Flip> _clipFlips = {};
   // State for aspect ratio lock
   bool _aspectRatioLocked = true;
+  // Flag to track if a transform operation (drag/resize) is in progress
+  bool _isTransforming = false;
 
   @override
   void initState() {
@@ -367,30 +369,66 @@ class _PreviewPanelState extends State<PreviewPanel> {
   }
 
   /// Callback handler for when a TransformableBox's Rect is changed by user interaction.
+  /// This now ONLY updates the local state for immediate visual feedback during drag/resize.
   void _handleRectChanged(int clipId, Rect rect) {
     if (!mounted) return;
 
-    // Find the clip model
+    // Find the clip model - needed to ensure we only update state for existing clips
     final clip = _findClipById(clipId);
     if (clip == null) {
       debugPrint("[PreviewPanel] Clip not found for rect change: $clipId");
       return;
     }
 
-    // Update the stored Rect state for the specific clip locally
+    // Update the stored Rect state for the specific clip locally ONLY
     setState(() {
       _clipRects[clipId] = rect;
       // Note: Flip state cannot be updated via onChanged callback in this setup.
     });
 
-    debugPrint("[PreviewPanel] Rect changed for clip $clipId: Rect=$rect");
+    // Database update logic is removed from here.
+    // debugPrint("[PreviewPanel] Rect changed for clip $clipId: Rect=$rect");
+  }
+
+  /// Callback handler for when a TransformableBox drag or resize interaction STARTS.
+  void _handleTransformStart(int clipId) {
+    if (!_isTransforming) {
+      setState(() {
+        _isTransforming = true;
+      });
+      debugPrint("[PreviewPanel] Transform STARTED for clip $clipId");
+    }
+  }
+
+  /// Callback handler for when a TransformableBox drag or resize interaction ENDS.
+  /// This handles persisting the final state to the database.
+  void _handleTransformEnd(int clipId) { // No longer needs finalRect argument
+    if (!mounted || !_isTransforming) return; // Only save if we were transforming
+
+    // Mark transform as ended *before* potential async gap
+    setState(() {
+      _isTransforming = false;
+    });
+
+    // Find the clip model
+    final clip = _findClipById(clipId);
+    if (clip == null) {
+      debugPrint("[PreviewPanel] Clip not found for transform end: $clipId");
+      return;
+    }
+
+    // Get the most recent Rect state stored locally by _handleRectChanged
+    final finalRect = _clipRects[clipId];
+    if (finalRect == null) {
+       debugPrint("[PreviewPanel] Final Rect not found in state for transform end: $clipId");
+       return; // Should not happen if onChanged updated state correctly
+    }
+
+    debugPrint("[PreviewPanel] Transform ENDED for clip $clipId: Final Rect=$finalRect");
 
     // Update the clip model's metadata and save to database
-    final updatedClip = clip.copyWithPreviewRect(rect);
-    // Use the clipDao to update the clip in the database
+    final updatedClip = clip.copyWithPreviewRect(finalRect);
     _projectDatabaseService.clipDao!.updateClip(updatedClip.toDbCompanion());
-
-    // TODO: Consider debouncing or other strategies if updates trigger expensive operations
   }
 
   // --- Aspect Ratio Lock/Unlock Logic ---
@@ -415,6 +453,8 @@ class _PreviewPanelState extends State<PreviewPanel> {
       clipRects: _clipRects, // Pass manual Rect state
       clipFlips: _clipFlips, // Pass manual Flip state
       onRectChanged: _handleRectChanged, // Pass update callback (int, Rect)
+      onTransformStart: _handleTransformStart, 
+      onTransformEnd: _handleTransformEnd,
       onClipListChange: _handleClipListChange,
       onFrameChange: _handleFrameChange,
       onPlaybackStateChange: _handlePlaybackStateChange,
@@ -438,6 +478,9 @@ class PreviewPanelContent extends StatelessWidget with WatchItMixin {
   final Function(bool) onPlaybackStateChange;
   final bool aspectRatioLocked;
   final VoidCallback onToggleAspectRatioLock;
+  // Add the new callback parameters
+  final Function(int) onTransformStart;
+  final Function(int) onTransformEnd;
 
   const PreviewPanelContent({
     Key? key,
@@ -452,6 +495,8 @@ class PreviewPanelContent extends StatelessWidget with WatchItMixin {
     required this.onPlaybackStateChange,
     required this.aspectRatioLocked,
     required this.onToggleAspectRatioLock,
+    required this.onTransformStart, 
+    required this.onTransformEnd,
   }) : super(key: key);
 
   @override
@@ -504,6 +549,20 @@ class PreviewPanelContent extends StatelessWidget with WatchItMixin {
               onChanged: (result, details) {
                 onRectChanged(clip.databaseId!, result.rect);
               },
+              // --- Add handlers for drag/resize start/end ---
+              onDragStart: (result) {
+                onTransformStart(clip.databaseId!);
+              },
+              onResizeStart: (HandlePosition handle, DragStartDetails event) {
+                 onTransformStart(clip.databaseId!);
+              },
+              onDragEnd: (result) {
+                onTransformEnd(clip.databaseId!);
+              },
+              onResizeEnd: (HandlePosition handle, DragEndDetails event) {
+                 onTransformEnd(clip.databaseId!);
+              },
+              // -------------------------------------------
               // Define constraints directly here if needed, mirroring previous controller setup
               constraints: const BoxConstraints(
                 minWidth: 48,
