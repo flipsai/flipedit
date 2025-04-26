@@ -47,7 +47,7 @@ class TimelineViewModel extends ChangeNotifier {
   int get currentFrame => currentFrameNotifier.value;
   set currentFrame(int value) {
     final totalFrames = _calculateTotalFrames();
-    // Allow infinite navigation when empty, clamp to content when present
+    // Clamp to content duration when present
     final int maxAllowedFrame = totalFrames > 0 ? totalFrames - 1 : ClipModel.msToFrames(DEFAULT_EMPTY_DURATION);
     final clampedValue = value.clamp(0, maxAllowedFrame);
     if (currentFrameNotifier.value == clampedValue) return;
@@ -56,11 +56,15 @@ class TimelineViewModel extends ChangeNotifier {
 
   final ValueNotifier<int> totalFramesNotifier = ValueNotifier<int>(0);
 
+  final ValueNotifier<int> timelineEndNotifier = ValueNotifier<int>(0);
+  int get timelineEnd => timelineEndNotifier.value;
+
   final ValueNotifier<bool> isPlayingNotifier = ValueNotifier<bool>(false);
   bool get isPlaying => isPlayingNotifier.value;
 
   // Added back Notifier for the width of the track label area
   final ValueNotifier<double> trackLabelWidthNotifier = ValueNotifier(120.0);
+  double get trackLabelWidth => trackLabelWidthNotifier.value;
 
   final ValueNotifier<EditMode> currentEditMode = ValueNotifier(
     EditMode.select,
@@ -498,103 +502,56 @@ class TimelineViewModel extends ChangeNotifier {
 
   int _calculateTotalFrames() {
     if (clipsNotifier.value.isEmpty) {
-      return ClipModel.msToFrames(DEFAULT_EMPTY_DURATION);
+      return 0;
     }
+    // Calculate the maximum end time across all clips
     int maxEndTimeMs = 0;
     for (final clip in clipsNotifier.value) {
-      final clipEndTimeMs = clip.endTimeOnTrackMs;
-      if (clipEndTimeMs > maxEndTimeMs) {
-        maxEndTimeMs = clipEndTimeMs;
+      if (clip.endTimeOnTrackMs > maxEndTimeMs) {
+        maxEndTimeMs = clip.endTimeOnTrackMs;
       }
     }
-    // Return whichever is longer - content or default duration
-    return ClipModel.msToFrames(maxEndTimeMs > DEFAULT_EMPTY_DURATION
-        ? maxEndTimeMs
-        : DEFAULT_EMPTY_DURATION);
+    timelineEndNotifier.value = maxEndTimeMs;
+    return ClipModel.msToFrames(maxEndTimeMs);
   }
 
-  // Made public for commands to call when necessary
   void recalculateAndUpdateTotalFrames() {
-    final newTotalFrames = _calculateTotalFrames();
-    if (totalFramesNotifier.value != newTotalFrames) {
-      totalFramesNotifier.value = newTotalFrames;
-      // Apply the same safety margin when adjusting currentFrame after totalFrames changes
-      final int maxAllowedFrame = newTotalFrames > 0 ? newTotalFrames - 1 : 0;
-      if (currentFrame > maxAllowedFrame) {
-        currentFrame = maxAllowedFrame;
-      }
+    final totalFrames = _calculateTotalFrames();
+    if (totalFramesNotifier.value != totalFrames) {
+      totalFramesNotifier.value = totalFrames;
+      logger.logInfo('Updated total frames to $totalFrames based on timeline end at ${timelineEndNotifier.value} ms', _logTag);
     }
   }
 
-  /// Update the width of the track label area (Added back)
-  void updateTrackLabelWidth(double newWidth) {
-    // Add constraints if needed, e.g., minimum/maximum width
-    trackLabelWidthNotifier.value = newWidth.clamp(
-      50.0,
-      300.0,
-    ); // Example constraints
-  }
-
-  void onDispose() {
-    logger.logInfo('Disposing TimelineViewModel', _logTag);
-    // Cancel playback timer if running
-    _playbackTimer?.cancel();
-    _playbackTimer = null;
-    
-    clipsNotifier.dispose();
-    zoomNotifier.dispose();
-    currentFrameNotifier.dispose();
-    totalFramesNotifier.dispose();
-    isPlayingNotifier.dispose();
-    trackLabelWidthNotifier.dispose(); // Added back disposal
-    currentEditMode.dispose();
-    isPlayheadLockedNotifier.dispose(); // Dispose the new notifier
-
-    // Remove internal listeners first
-    if (_internalListeners.length >= 3) {
-       isPlayingNotifier.removeListener(_internalListeners[0]);
-       isPlayheadLockedNotifier.removeListener(_internalListeners[1]);
-       currentFrameNotifier.removeListener(_internalListeners[2]);
-    }
-    _internalListeners.clear();
-
-
-    // Close the stream controller
-    _scrollToFrameController.close();
-
-    _controllerPositionSubscription?.cancel();
-    _clipStreamSubscription?.cancel();
-  }
-  
-  // Helper for comparing lists (avoids importing collection package for just this)
-  bool listEquals<T>(List<T>? a, List<T>? b) {
-    if (a == null) return b == null;
-    if (b == null || a.length != b.length) return false;
-    if (identical(a, b)) return true;
-    for (int index = 0; index < a.length; index += 1) {
-      if (a[index] != b[index]) return false;
+  bool listEquals<T>(List<T> a, List<T> b) {
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
     }
     return true;
   }
-/// Calculates the target scroll offset to center a given frame in the timeline.
-  /// [frame]: The frame to center.
-  /// [viewportWidth]: The visible width of the timeline widget.
-  /// [trackLabelWidth]: The width reserved for track labels.
-  /// [framePixelWidth]: The pixel width of one frame (default: 5.0).
+
+  /// Calculates the scroll offset needed to bring a specific frame into view.
   double calculateScrollOffsetForFrame(
     int frame,
     double viewportWidth,
-    double trackLabelWidth, {
-    double framePixelWidth = 5.0,
-  }) {
-    final double zoom = zoomNotifier.value;
-    final double playheadRelativeX = frame * zoom * framePixelWidth;
+    double trackLabelWidth,
+    {double framePixelWidth = 5.0}
+  ) {
     final double scrollableViewportWidth = viewportWidth - trackLabelWidth;
-    if (scrollableViewportWidth <= 0) return 0.0;
-    // Center the playhead
-    double targetOffset = playheadRelativeX - (scrollableViewportWidth / 2.0);
-    // Widget should clamp to scroll bounds
-    return targetOffset;
+    if (scrollableViewportWidth <= 0) return 0.0; // Cannot calculate if viewport is too small
+
+    final double framePosition = frame * zoom * framePixelWidth;
+    final double unclampedTargetOffset = framePosition - (scrollableViewportWidth / 2.0);
+    return unclampedTargetOffset;
+  }
+
+  /// Updates the width of the track label area.
+  void updateTrackLabelWidth(double newWidth) {
+    final clampedWidth = newWidth.clamp(80.0, 300.0);
+    if (trackLabelWidthNotifier.value != clampedWidth) {
+      trackLabelWidthNotifier.value = clampedWidth;
+      logger.logInfo('Track label width updated to $clampedWidth', _logTag);
+    }
   }
 }
-

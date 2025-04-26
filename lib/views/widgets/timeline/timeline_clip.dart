@@ -196,7 +196,7 @@ class _TimelineClipState extends State<TimelineClip> {
         // Calculate final track preview boundary using the allowed delta
         int previewBoundary = (_previewEndFrame! + allowedTrackFrameDelta)
             // Also clamp by opposite track edge
-            .clamp(_previewStartFrame! + minTrackFrameDuration, _previewStartFrame! + 10000000); // Large upper bound ok
+            .clamp(_previewStartFrame! + minTrackFrameDuration, timelineVm.totalFramesNotifier.value); // Use actual timeline end
 
         // Use the difference from the original frame for visual width
         int actualFrameDelta = previewBoundary - _previewEndFrame!;
