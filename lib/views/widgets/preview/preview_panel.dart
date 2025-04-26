@@ -66,6 +66,9 @@ class _PreviewPanelState extends State<PreviewPanel> {
   double? _activeVerticalSnapX; // X-coordinate of the active vertical snap line
   static const double _snapThreshold = 8.0; // Pixels for snapping sensitivity
 
+  // ADDED: State to track the currently selected clip for showing handles
+  int? _selectedClipId;
+
   @override
   void initState() {
     super.initState();
@@ -165,6 +168,20 @@ class _PreviewPanelState extends State<PreviewPanel> {
           debugPrint("Error during playback state change sync: $error");
           if (mounted) setState(() {});
         });
+  }
+
+  // ADDED: Method to update the selected clip ID
+  void _handleClipSelection(int? clipId) {
+    if (!mounted) return;
+    // Also deselect if transforming ends (might be redundant but safe)
+    // if (_isTransforming && clipId != null) return; // Don't change selection during transform? Or allow?
+
+    if (_selectedClipId != clipId) {
+      setState(() {
+        _selectedClipId = clipId;
+        debugPrint("[PreviewPanel] Selected clip ID set to: $_selectedClipId");
+      });
+    }
   }
 
   // --- Controller Management ---
@@ -378,6 +395,11 @@ class _PreviewPanelState extends State<PreviewPanel> {
     // Dispose video controller
     Future.microtask(() => controller?.dispose());
 
+    // ADDED: Deselect if the disposed clip was selected
+    if (_selectedClipId == clipId) {
+      _selectedClipId = null;
+    }
+
     if (mounted && _currentVisibleClips.any((c) => c.databaseId == clipId)) {
       Future.microtask(() {
         // Schedule after current frame
@@ -404,11 +426,13 @@ class _PreviewPanelState extends State<PreviewPanel> {
     for (final controller in controllersToDispose) {
       Future.microtask(() => controller.dispose());
     }
+    // ADDED: Ensure deselection when all controllers are disposed
+    _selectedClipId = null;
   }
 
   /// Callback handler for when a TransformableBox's Rect is changed by user interaction.
   /// This now ONLY updates the local state for immediate visual feedback during drag/resize.
-  void _handleRectChanged(int clipId, Rect rect) {
+  void _handleRectChanged(int clipId, UITransformResult result) {
     if (!mounted || _containerSize == null) return;
 
     // Find the clip model - needed to ensure we only update state for existing clips
@@ -418,7 +442,13 @@ class _PreviewPanelState extends State<PreviewPanel> {
       return;
     }
 
-    Rect snappedRect = rect; // Start with the original rect
+    // Get old and new rects from the result
+    final oldRect = result.oldRect;
+    final currentRect = result.rect;
+    final isResizing = oldRect.size != currentRect.size;
+
+    // Rect snappedRect = rect; // OLD
+    Rect potentialSnapRect = currentRect; // Start with the current rect for snapping calcs
     double? currentHSnap;
     double? currentVSnap;
 
@@ -440,14 +470,14 @@ class _PreviewPanelState extends State<PreviewPanel> {
         }
 
         // --- Check Horizontal Snapping (Y-axis) ---
-        final rectCenterY = rect.center.dy;
-        final rectTop = rect.top;
-        final rectBottom = rect.bottom;
+        final rectCenterY = currentRect.center.dy;
+        final rectTop = currentRect.top;
+        final rectBottom = currentRect.bottom;
 
         // Check Center Y
         for (final targetY in hTargets) {
             if ((rectCenterY - targetY).abs() < _snapThreshold) {
-                snappedRect = Rect.fromCenter(center: Offset(snappedRect.center.dx, targetY), width: snappedRect.width, height: snappedRect.height);
+                potentialSnapRect = Rect.fromCenter(center: Offset(potentialSnapRect.center.dx, targetY), width: potentialSnapRect.width, height: potentialSnapRect.height);
                 currentHSnap = targetY;
                 break;
             }
@@ -456,7 +486,7 @@ class _PreviewPanelState extends State<PreviewPanel> {
         if (currentHSnap == null) {
            for (final targetY in hTargets) {
                 if ((rectTop - targetY).abs() < _snapThreshold) {
-                    snappedRect = Rect.fromLTWH(snappedRect.left, targetY, snappedRect.width, snappedRect.height);
+                    potentialSnapRect = Rect.fromLTWH(potentialSnapRect.left, targetY, potentialSnapRect.width, potentialSnapRect.height);
                     currentHSnap = targetY;
                     break;
                 }
@@ -466,7 +496,7 @@ class _PreviewPanelState extends State<PreviewPanel> {
         if (currentHSnap == null) {
            for (final targetY in hTargets) {
                 if ((rectBottom - targetY).abs() < _snapThreshold) {
-                    snappedRect = Rect.fromLTWH(snappedRect.left, targetY - snappedRect.height, snappedRect.width, snappedRect.height);
+                    potentialSnapRect = Rect.fromLTWH(potentialSnapRect.left, targetY - potentialSnapRect.height, potentialSnapRect.width, potentialSnapRect.height);
                     currentHSnap = targetY;
                     break;
                 }
@@ -474,14 +504,14 @@ class _PreviewPanelState extends State<PreviewPanel> {
         }
 
          // --- Check Vertical Snapping (X-axis) ---
-        final rectCenterX = snappedRect.center.dx; // Use potentially snapped Y position
-        final rectLeft = snappedRect.left;
-        final rectRight = snappedRect.right;
+        final rectCenterX = potentialSnapRect.center.dx; // Use potentially snapped Y position
+        final rectLeft = potentialSnapRect.left;
+        final rectRight = potentialSnapRect.right;
 
         // Check Center X
         for (final targetX in vTargets) {
             if ((rectCenterX - targetX).abs() < _snapThreshold) {
-                snappedRect = Rect.fromCenter(center: Offset(targetX, snappedRect.center.dy), width: snappedRect.width, height: snappedRect.height);
+                potentialSnapRect = Rect.fromCenter(center: Offset(targetX, potentialSnapRect.center.dy), width: potentialSnapRect.width, height: potentialSnapRect.height);
                 currentVSnap = targetX;
                 break;
             }
@@ -490,7 +520,7 @@ class _PreviewPanelState extends State<PreviewPanel> {
         if (currentVSnap == null) {
            for (final targetX in vTargets) {
                 if ((rectLeft - targetX).abs() < _snapThreshold) {
-                    snappedRect = Rect.fromLTWH(targetX, snappedRect.top, snappedRect.width, snappedRect.height);
+                    potentialSnapRect = Rect.fromLTWH(targetX, potentialSnapRect.top, potentialSnapRect.width, potentialSnapRect.height);
                     currentVSnap = targetX;
                     break;
                 }
@@ -500,7 +530,7 @@ class _PreviewPanelState extends State<PreviewPanel> {
          if (currentVSnap == null) {
            for (final targetX in vTargets) {
                 if ((rectRight - targetX).abs() < _snapThreshold) {
-                    snappedRect = Rect.fromLTWH(targetX - snappedRect.width, snappedRect.top, snappedRect.width, snappedRect.height);
+                    potentialSnapRect = Rect.fromLTWH(targetX - potentialSnapRect.width, potentialSnapRect.top, potentialSnapRect.width, potentialSnapRect.height);
                     currentVSnap = targetX;
                     break;
                 }
@@ -508,10 +538,42 @@ class _PreviewPanelState extends State<PreviewPanel> {
         }
     }
 
+    // --- Determine the final rect based on operation type (drag vs resize) ---
+    Rect finalRect;
+    if (isResizing) {
+      // RESIZE: Preserve position from before snapping, apply snapped size.
+      // We need to figure out which corner should be fixed.
+      // Simplest approach: Assume top-left fixed. Size snaps affect width/height.
+      // More complex logic would involve checking which handle caused the resize.
+      // For now, let's use the *unsnapped* currentRect's position and the *snapped* size.
+
+      final snappedWidth = potentialSnapRect.width;
+      final snappedHeight = potentialSnapRect.height;
+
+      // TODO: Improve fixed point logic based on handle if possible.
+      // Defaulting to fixing the top-left corner relative to the *unsnapped* rect.
+      finalRect = Rect.fromLTWH(
+        currentRect.left, // Use position from *before* potential snap shift
+        currentRect.top,  // Use position from *before* potential snap shift
+        snappedWidth,     // Use width after potential snap adjustment
+        snappedHeight,    // Use height after potential snap adjustment
+      );
+
+      // Optional: Clear visual snap lines during resize as position isn't snapping.
+      // Keep them for now as the edges might still align.
+      // We might want specific logic for which lines to show based on handle.
+      // currentHSnap = null;
+      // currentVSnap = null;
+    } else {
+      // DRAG: Use the fully snapped rect (position and potentially size if logic allowed)
+      finalRect = potentialSnapRect;
+    }
+
     // Update the stored Rect state for the specific clip locally
     // Use the *snappedRect* if snapping occurred
     setState(() {
-      _clipRects[clipId] = snappedRect;
+      // _clipRects[clipId] = snappedRect; // OLD
+      _clipRects[clipId] = finalRect; // NEW: Use calculated finalRect
       // Note: Flip state cannot be updated via onChanged callback in this setup.
     });
 
@@ -530,6 +592,10 @@ class _PreviewPanelState extends State<PreviewPanel> {
     if (!_isTransforming) {
       setState(() {
         _isTransforming = true;
+        // // Optionally, ensure the transforming item is selected
+        // if (_selectedClipId != clipId) {
+        //    _selectedClipId = clipId;
+        // }
       });
       debugPrint("[PreviewPanel] Transform STARTED for clip $clipId");
     }
@@ -619,6 +685,9 @@ class _PreviewPanelState extends State<PreviewPanel> {
       // ADDED: Pass snapping state and toggle callback
       snappingEnabled: _snappingEnabled,
       onToggleSnapping: _toggleSnapping,
+      // ADDED: Pass selection state and handler
+      selectedClipId: _selectedClipId,
+      onClipSelected: _handleClipSelection,
     );
   }
 }
@@ -631,7 +700,7 @@ class PreviewPanelContent extends StatelessWidget with WatchItMixin {
   final Map<int, Rect> clipRects; // Receive manual Rect state
   final Map<int, Flip> clipFlips; // Receive manual Flip state
   // Revert to non-nullable function type
-  final Function(int, Rect) onRectChanged;
+  final Function(int, UITransformResult) onRectChanged; // NEW: Use UITransformResult
   final VoidCallback onClipListChange;
   final VoidCallback onFrameChange;
   final Function(bool) onPlaybackStateChange;
@@ -650,6 +719,10 @@ class PreviewPanelContent extends StatelessWidget with WatchItMixin {
   final bool snappingEnabled;
   final VoidCallback onToggleSnapping;
 
+  // ADDED: Selection parameters
+  final int? selectedClipId;
+  final Function(int?) onClipSelected;
+
   const PreviewPanelContent({
     Key? key,
     required this.controllers,
@@ -657,7 +730,7 @@ class PreviewPanelContent extends StatelessWidget with WatchItMixin {
     required this.currentVisibleClips,
     required this.clipRects, // Receive map
     required this.clipFlips, // Receive map
-    required this.onRectChanged, // Receive non-nullable callback
+    required this.onRectChanged, // NEW: Receive callback accepting UITransformResult
     required this.onClipListChange,
     required this.onFrameChange,
     required this.onPlaybackStateChange,
@@ -672,6 +745,9 @@ class PreviewPanelContent extends StatelessWidget with WatchItMixin {
     // ADDED: Snapping parameters
     required this.snappingEnabled,
     required this.onToggleSnapping,
+    // ADDED: Selection parameters
+    required this.selectedClipId,
+    required this.onClipSelected,
   }) : super(key: key);
 
   @override
@@ -707,6 +783,9 @@ class PreviewPanelContent extends StatelessWidget with WatchItMixin {
 
         // Only add if video controller is ready (Rect state should exist if video is ready)
         if (videoController.value.isInitialized) {
+          // ADDED: Determine if this box is the currently selected one
+          final bool isSelected = selectedClipId == clip.databaseId;
+
           transformablePlayers.add(
             // The core interactive widget, now using manual state management
             TransformableBox(
@@ -722,7 +801,7 @@ class PreviewPanelContent extends StatelessWidget with WatchItMixin {
               // Explicitly cast the callback function to the required type
               // Corrected onChanged callback signature and implementation
               onChanged: (result, details) {
-                onRectChanged(clip.databaseId!, result.rect);
+                onRectChanged(clip.databaseId!, result);
               },
               // --- Add handlers for drag/resize start/end ---
               onDragStart: (result) {
@@ -737,7 +816,14 @@ class PreviewPanelContent extends StatelessWidget with WatchItMixin {
               onResizeEnd: (HandlePosition handle, DragEndDetails event) {
                  onTransformEnd(clip.databaseId!);
               },
-              // -------------------------------------------
+              // --------------------------------------------
+              // ADDED: Tap handler to select this box
+              onTap: () {
+                 onClipSelected(clip.databaseId!);
+              },
+              // ADDED: Conditionally show handles based on selection
+              enabledHandles: isSelected ? const {...HandlePosition.values} : const {},
+              visibleHandles: isSelected ? const {...HandlePosition.values} : const {},
               // Define constraints directly here if needed, mirroring previous controller setup
               constraints: const BoxConstraints(
                 minWidth: 48,
@@ -800,18 +886,25 @@ class PreviewPanelContent extends StatelessWidget with WatchItMixin {
                       });
 
                       // Build the Stack with videos and snap lines
-                      return Stack(
-                        children: [
-                          // The Stack containing TransformableBox widgets
-                          content,
-                          // Add the snap guide painter on top
-                          if (containerSize != null && (activeHorizontalSnapY != null || activeVerticalSnapX != null)) 
-                            SnapGuidePainter(
-                                containerSize: containerSize!,
-                                horizontalSnapY: activeHorizontalSnapY,
-                                verticalSnapX: activeVerticalSnapX,
-                            ),
-                        ],
+                      return GestureDetector(
+                        behavior: HitTestBehavior.opaque, // Ensure it captures taps in empty areas
+                        onTap: () {
+                           // When tapping the background area, deselect any clip
+                           onClipSelected(null);
+                        },
+                        child: Stack(
+                          children: [
+                            // The Stack containing TransformableBox widgets
+                            content,
+                            // Add the snap guide painter on top
+                            if (containerSize != null && (activeHorizontalSnapY != null || activeVerticalSnapX != null)) 
+                              SnapGuidePainter(
+                                  containerSize: containerSize!,
+                                  horizontalSnapY: activeHorizontalSnapY,
+                                  verticalSnapX: activeVerticalSnapX,
+                              ),
+                          ],
+                        ),
                       );
                     }
                   ),
