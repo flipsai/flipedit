@@ -7,6 +7,7 @@ import 'package:flipedit/models/enums/clip_type.dart'; // Import corrected
 import 'package:flutter_box_transform/flutter_box_transform.dart';
 import 'package:fvp/fvp.dart' as fvp; // Assuming fvp is needed
 import 'package:watch_it/watch_it.dart';
+import 'package:flipedit/services/project_database_service.dart'; // Import ProjectDatabaseService
 
 /// PreviewPanel displays the current timeline frame's video(s) with frame-accurate updates.
 ///
@@ -35,6 +36,7 @@ class PreviewPanel extends StatefulWidget {
 class _PreviewPanelState extends State<PreviewPanel> {
   // State variables remain inside the class
   final TimelineViewModel _timelineViewModel = di<TimelineViewModel>();
+  final ProjectDatabaseService _projectDatabaseService = di<ProjectDatabaseService>(); // Inject ProjectDatabaseService
   // Video Player controllers map (clipId -> controller)
   final Map<int, VideoPlayerController> _controllers = {};
   // Aspect ratio for the overall container (might need adjustment if multiple videos differ)
@@ -265,19 +267,28 @@ class _PreviewPanelState extends State<PreviewPanel> {
               _clipBaseSizes[clipId] = videoSize;
               // Initialize the Rect state for the new clip
               if (!_clipRects.containsKey(clipId)) {
-                // Default to centered Rect based on video size (may need parent bounds later)
-                _clipRects[clipId] = Rect.fromCenter(
-                  center: Offset.zero, // Centered in its Stack slot initially
-                  width:
-                      videoSize.width > 0
-                          ? videoSize.width
-                          : 320, // Fallback width
-                  height:
-                      videoSize.height > 0
-                          ? videoSize.height
-                          : 180, // Fallback height
-                );
-                _clipFlips[clipId] = Flip.none; // Default flip
+                // Check if a preview rect is stored in the clip's metadata
+                final savedRect = clip.previewRect;
+                if (savedRect != null) {
+                  _clipRects[clipId] = savedRect;
+                  // If a saved rect exists, assume default flip for now.
+                  // If flip is also stored, load it here.
+                  _clipFlips[clipId] = Flip.none;
+                } else {
+                  // Default to centered Rect based on video size if no saved rect
+                  _clipRects[clipId] = Rect.fromCenter(
+                    center: Offset.zero, // Centered in its Stack slot initially
+                    width:
+                        videoSize.width > 0
+                            ? videoSize.width
+                            : 320, // Fallback width
+                    height:
+                        videoSize.height > 0
+                            ? videoSize.height
+                            : 180, // Fallback height
+                  );
+                  _clipFlips[clipId] = Flip.none; // Default flip
+                }
               }
               _updateAspectRatioIfNeeded();
               if (isPlaying && mounted) {
@@ -358,14 +369,28 @@ class _PreviewPanelState extends State<PreviewPanel> {
   /// Callback handler for when a TransformableBox's Rect is changed by user interaction.
   void _handleRectChanged(int clipId, Rect rect) {
     if (!mounted) return;
-    // Update the stored Rect state for the specific clip
+
+    // Find the clip model
+    final clip = _findClipById(clipId);
+    if (clip == null) {
+      debugPrint("[PreviewPanel] Clip not found for rect change: $clipId");
+      return;
+    }
+
+    // Update the stored Rect state for the specific clip locally
     setState(() {
       _clipRects[clipId] = rect;
       // Note: Flip state cannot be updated via onChanged callback in this setup.
     });
+
     debugPrint("[PreviewPanel] Rect changed for clip $clipId: Rect=$rect");
+
+    // Update the clip model's metadata and save to database
+    final updatedClip = clip.copyWithPreviewRect(rect);
+    // Use the clipDao to update the clip in the database
+    _projectDatabaseService.clipDao!.updateClip(updatedClip.toDbCompanion());
+
     // TODO: Consider debouncing or other strategies if updates trigger expensive operations
-    // TODO: Persist this change via ViewModel/Service if needed
   }
 
   // --- Aspect Ratio Lock/Unlock Logic ---
