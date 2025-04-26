@@ -22,6 +22,7 @@ class TimelineViewModel {
   final UndoRedoService _undoRedoService = di<UndoRedoService>();
   final TimelineLogicService _timelineLogicService = di<TimelineLogicService>();
 
+  // --- State Notifiers ---
   final ValueNotifier<List<ClipModel>> clipsNotifier =
       ValueNotifier<List<ClipModel>>([]);
   List<ClipModel> get clips => List.unmodifiable(clipsNotifier.value);
@@ -52,15 +53,16 @@ class TimelineViewModel {
   final ValueNotifier<bool> isPlayingNotifier = ValueNotifier<bool>(false);
   bool get isPlaying => isPlayingNotifier.value;
 
-  final ScrollController trackContentHorizontalScrollController =
-      ScrollController();
-
   // Added back Notifier for the width of the track label area
   final ValueNotifier<double> trackLabelWidthNotifier = ValueNotifier(120.0);
 
   final ValueNotifier<EditMode> currentEditMode = ValueNotifier(
     EditMode.select,
   );
+  
+  // Notifier for the playhead lock state
+  final ValueNotifier<bool> isPlayheadLockedNotifier = ValueNotifier<bool>(false);
+  bool get isPlayheadLocked => isPlayheadLockedNotifier.value;
 
   // Helper to set edit mode and notify
   void setEditMode(EditMode mode) {
@@ -69,9 +71,22 @@ class TimelineViewModel {
     }
   }
 
-  StreamSubscription? _controllerPositionSubscription;
+  // --- Scroll Command Stream ---
+  // Notifies the View to scroll to a specific frame.
+  final StreamController<int> _scrollToFrameController = StreamController<int>.broadcast();
+  Stream<int> get scrollToFrameStream => _scrollToFrameController.stream;
+// Scroll to frame handler callback (registered by the view)
+  void Function(int frame)? _scrollToFrameHandler;
 
+  /// Allows the view to register a handler for scroll-to-frame actions.
+  void registerScrollToFrameHandler(void Function(int frame) handler) {
+    _scrollToFrameHandler = handler;
+  }
+
+  // Internal listeners
+  StreamSubscription? _controllerPositionSubscription;
   StreamSubscription? _clipStreamSubscription;
+  List<VoidCallback> _internalListeners = [];
 
   /// Executes a timeline command and refreshes undo stack
   Future<void> runCommand(TimelineCommand cmd) async {
@@ -98,9 +113,40 @@ class TimelineViewModel {
 
   // Timer for continuous frame advancement during playback
   Timer? _playbackTimer;
-  
+
   // FPS for playback - TODO: Get this from project settings
   final int _fps = 30;
+
+  /// Constructor - Sets up internal listeners
+  TimelineViewModel() {
+    logger.logInfo('Initializing TimelineViewModel and listeners', _logTag);
+    _setupInternalListeners();
+  }
+
+  void _setupInternalListeners() {
+    // Combine listeners for scroll logic
+    VoidCallback listener = _checkAndTriggerScroll;
+    isPlayingNotifier.addListener(listener);
+    isPlayheadLockedNotifier.addListener(listener);
+    currentFrameNotifier.addListener(listener);
+
+    // Keep track to remove them later
+    _internalListeners.addAll([listener, listener, listener]); // Add references for removal
+  }
+
+  /// Checks conditions and emits scroll command if necessary.
+  void _checkAndTriggerScroll() {
+    final bool isPlaying = isPlayingNotifier.value;
+    final bool isLocked = isPlayheadLockedNotifier.value;
+    final int frame = currentFrameNotifier.value;
+
+    // Only trigger scroll if playing, locked, and on a 20-frame interval
+    if (isPlaying && isLocked && frame % 20 == 0) {
+      logger.logDebug('ViewModel emitting scroll to frame: $frame', _logTag);
+      // Call the registered handler instead of emitting to a stream
+      _scrollToFrameHandler?.call(frame);
+    }
+  }
   
   /// Starts playback from the current frame position
   Future<void> startPlayback() async {
@@ -147,6 +193,12 @@ class TimelineViewModel {
     } else {
       startPlayback();
     }
+  }
+
+  /// Toggles the playhead lock state
+  void togglePlayheadLock() {
+    isPlayheadLockedNotifier.value = !isPlayheadLockedNotifier.value;
+     logger.logInfo('🔒 Playhead Lock toggled: ${isPlayheadLockedNotifier.value}', _logTag);
   }
 
   Future<void> loadClipsForProject(int projectId) async {
@@ -443,11 +495,42 @@ class TimelineViewModel {
     isPlayingNotifier.dispose();
     trackLabelWidthNotifier.dispose(); // Added back disposal
     currentEditMode.dispose();
+    isPlayheadLockedNotifier.dispose(); // Dispose the new notifier
 
-    trackContentHorizontalScrollController.dispose();
+    // Remove internal listeners first
+    if (_internalListeners.length >= 3) {
+       isPlayingNotifier.removeListener(_internalListeners[0]);
+       isPlayheadLockedNotifier.removeListener(_internalListeners[1]);
+       currentFrameNotifier.removeListener(_internalListeners[2]);
+    }
+    _internalListeners.clear();
+
+
+    // Close the stream controller
+    _scrollToFrameController.close();
 
     _controllerPositionSubscription?.cancel();
     _clipStreamSubscription?.cancel();
+  }
+/// Calculates the target scroll offset to center a given frame in the timeline.
+  /// [frame]: The frame to center.
+  /// [viewportWidth]: The visible width of the timeline widget.
+  /// [trackLabelWidth]: The width reserved for track labels.
+  /// [framePixelWidth]: The pixel width of one frame (default: 5.0).
+  double calculateScrollOffsetForFrame(
+    int frame,
+    double viewportWidth,
+    double trackLabelWidth, {
+    double framePixelWidth = 5.0,
+  }) {
+    final double zoom = zoomNotifier.value;
+    final double playheadRelativeX = frame * zoom * framePixelWidth;
+    final double scrollableViewportWidth = viewportWidth - trackLabelWidth;
+    if (scrollableViewportWidth <= 0) return 0.0;
+    // Center the playhead
+    double targetOffset = playheadRelativeX - (scrollableViewportWidth / 2.0);
+    // Widget should clamp to scroll bounds
+    return targetOffset;
   }
 }
 

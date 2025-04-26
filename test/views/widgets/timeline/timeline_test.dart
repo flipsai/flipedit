@@ -54,7 +54,6 @@ void main() {
     when(mockTimelineViewModel.zoomNotifier).thenReturn(testZoomNotifier);
     when(mockTimelineViewModel.totalFramesNotifier).thenReturn(testTotalFramesNotifier);
     when(mockTimelineViewModel.trackLabelWidthNotifier).thenReturn(testTrackLabelWidthNotifier);
-    when(mockTimelineViewModel.trackContentHorizontalScrollController).thenReturn(testScrollController);
     when(mockProjectDatabaseService.tracksNotifier).thenReturn(testTracksNotifier); // Keep as is for service mock
  
    // 5. Register mocks AFTER all stubbing is complete

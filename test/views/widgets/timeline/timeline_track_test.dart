@@ -71,6 +71,7 @@ void main() {
             track: testTrack,
             onDelete: () {},
             trackLabelWidth: 120.0,
+            scrollOffset: 0.0, // Added required parameter
           ),
         ),
       );
@@ -89,6 +90,7 @@ void main() {
               deleteCalled = true;
             },
             trackLabelWidth: 120.0,
+            scrollOffset: 0.0, // Added required parameter
           ),
         ),
       );
