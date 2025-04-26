@@ -144,6 +144,17 @@ class _PreviewPanelState extends State<PreviewPanel> {
     final newVisibleClips = clips.where((clip) =>
       clip.startTimeOnTrackMs <= currentTimeMs && currentTimeMs < clip.endTimeOnTrackMs).toList();
 
+    // Log visible clips for debugging (databaseId, trackId, type)
+    debugPrint("[PreviewPanel][_updateVisibleClips] Visible clips after update (playhead ${currentTimeMs}ms):");
+    for (final c in newVisibleClips) {
+      debugPrint("  - clipId=${c.databaseId}, trackId=${c.trackId}, type=${c.type}");
+    }
+    // Also log all current clips (to spot orphans)
+    debugPrint("[PreviewPanel][_updateVisibleClips] All clips in model:");
+    for (final c in clips) {
+      debugPrint("  - clipId=${c.databaseId}, trackId=${c.trackId}, type=${c.type}");
+    }
+
     // Check if the list actually changed before potentially triggering rebuilds
     if (listEquals(_currentVisibleClips, newVisibleClips)) {
         // If list is same, still check aspect ratio

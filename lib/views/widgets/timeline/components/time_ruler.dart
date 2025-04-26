@@ -1,8 +1,8 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:watch_it/watch_it.dart';
 import 'dart:math' as math;
+import '../../../../models/clip.dart'; // Import for ClipModel
 import '../../../../viewmodels/timeline_viewmodel.dart';
-import '../../../../di/service_locator.dart'; // Ensure DI is imported
 
 /// A ruler widget that displays frame numbers and tick marks for the timeline using CustomPaint
 class TimeRuler extends StatelessWidget with WatchItMixin { // Added WatchItMixin back
@@ -17,9 +17,16 @@ class TimeRuler extends StatelessWidget with WatchItMixin { // Added WatchItMixi
 
   @override
   Widget build(BuildContext context) {
-    // Access ViewModel via DI and watch the entire ViewModel using WatchItMixin
-    final vm = watch(di<TimelineViewModel>()); // Explicitly watch the instance from DI
-    final isEmpty = vm.clips.isEmpty; // Access clips directly on the watched instance
+    // Access ViewModel via DI
+    final vm = di<TimelineViewModel>();
+    // Register handler to watch clips changes using WatchItMixin
+    registerHandler<TimelineViewModel, List<ClipModel>>(
+      select: (vm) => vm.clipsNotifier,
+      handler: (context, value, __) {
+        // No need to do anything here, just rebuild on clips change
+      },
+    );
+    final isEmpty = vm.clips.isEmpty; // Access clips directly
     final theme = FluentTheme.of(context);
 
     // Return the main container structure
