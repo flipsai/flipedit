@@ -138,6 +138,8 @@ class _TimelineState extends State<Timeline> { // Mixin removed here
                       SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
                         controller: _scrollController, // Use stored controller
+                        // Disable scrolling if clips list is empty
+                        physics: clips.isEmpty ? NeverScrollableScrollPhysics() : ClampingScrollPhysics(),
                         child: SizedBox(
                           width: totalScrollableWidth, // Define scrollable width
                           // Inner Stack: Allows positioning Playhead over the Column
@@ -153,13 +155,10 @@ class _TimelineState extends State<Timeline> { // Mixin removed here
                                     padding: EdgeInsets.only(left: trackLabelWidth),
                                     child: SizedBox(
                                       height: timeRulerHeight,
-                                      width: totalScrollableWidth - trackLabelWidth,
+                                      width: totalScrollableWidth - trackLabelWidth, // Set to scrollable width
                                       child: TimeRuler(
                                         zoom: zoom,
-                                        availableWidth: math.max(
-                                          0,
-                                          constraints.maxWidth - trackLabelWidth,
-                                        ),
+                                        availableWidth: totalScrollableWidth - trackLabelWidth, // Pass scrollable width
                                       ),
                                     ),
                                   ),
