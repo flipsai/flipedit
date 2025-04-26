@@ -248,27 +248,64 @@ class ProjectDatabaseService {
     }
   }
 
-  /// Delete a track by ID
+  /// Delete a track by ID and its associated clips
   Future<bool> deleteTrack(int trackId) async {
-    if (_trackDao == null) {
-      logError(_logTag, "Cannot delete track: No project loaded");
+    if (_trackDao == null || _clipDao == null || currentDatabase == null) {
+      logError(_logTag, "Cannot delete track: No project loaded or DAOs not initialized");
       return false;
     }
 
     try {
-      final deletedCount = await _trackDao!.deleteTrack(trackId);
-      if (deletedCount > 0) {
-        logInfo(_logTag, "Deleted track with ID: $trackId");
-        return true;
+      // Perform deletion within a transaction for data integrity
+      await currentDatabase!.transaction(() async {
+        // Delete all clips associated with this track
+        final clipsDeletedCount = await _clipDao!.deleteClipsForTrack(trackId); // Corrected method name
+        logInfo(_logTag, "Deleted $clipsDeletedCount clips for track ID: $trackId");
+
+        // Delete the track itself
+        final trackDeletedCount = await _trackDao!.deleteTrack(trackId);
+        if (trackDeletedCount > 0) {
+          logInfo(_logTag, "Deleted track with ID: $trackId");
+        } else {
+           logWarning(
+            _logTag,
+            "Track with ID $trackId not found or already deleted during transaction",
+          );
+        }
+      });
+
+      // After successful transaction, explicitly refresh the tracks and assets notifiers
+      // This is important because the TimelineViewModel relies on these to update its state.
+      final updatedTracks = await _trackDao!.getAllTracks();
+      tracksNotifier.value = updatedTracks;
+      logInfo(_logTag, "Refreshed tracksNotifier after deleting track $trackId.");
+
+      // Although assets are not directly deleted with a track, refreshing them here
+      // might be part of a broader update sequence or just safe practice.
+      // However, the core fix is tracks and clips. Assets should not change on track delete.
+      // Let's omit assets refresh for now, focus on tracks and clips.
+      // final updatedAssets = await _assetDao!.getAllAssets();
+      // assetsNotifier.value = updatedAssets;
+
+      // Check if the track is actually gone from the in-memory list after deletion
+      if (!tracksNotifier.value.any((t) => t.id == trackId)) {
+           logInfo(_logTag, "Track $trackId successfully removed from tracksNotifier.");
       } else {
-        logWarning(
-          _logTag,
-          "Track with ID $trackId not found or already deleted",
-        );
-        return false;
+           logWarning(_logTag, "Track $trackId is still present in tracksNotifier after deletion attempt.");
       }
+
+
+      // The tracksNotifier stream will eventually cause the TimelineViewModel to reload/re-evaluate clips.
+      // Explicitly checking if any clips for the deleted track are *still* in the clip DAO after the transaction
+      // could be another diagnostic step, but the transaction *should* handle it.
+
+      // Assuming successful transaction means deletion happened.
+      // The boolean return value is a bit ambiguous with transaction.
+      // Let's return true if the track is no longer in the notifier after refresh.
+       return !tracksNotifier.value.any((t) => t.id == trackId);
+
     } catch (e) {
-      logError(_logTag, "Error deleting track: $e");
+      logError(_logTag, "Error deleting track $trackId and associated clips: $e");
       return false;
     }
   }

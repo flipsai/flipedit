@@ -45,4 +45,13 @@ class ProjectDatabaseTrackDao extends DatabaseAccessor<ProjectDatabase> with _$P
   Future<int> deleteTrack(int id) {
     return (delete(tracks)..where((t) => t.id.equals(id))).go();
   }
-} 
+
+  // Get all tracks as a Future, ordered by their order value
+  Future<List<Track>> getAllTracks() {
+    return (select(tracks)
+          ..orderBy([
+            (t) => OrderingTerm(expression: t.order, mode: OrderingMode.asc),
+          ]))
+        .get();
+  }
+}

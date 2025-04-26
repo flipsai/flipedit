@@ -14,10 +14,12 @@ class Clips extends Table {
   TextColumn get sourcePath => text()();
   
   // Timing information
+  IntColumn get sourceDurationMs => integer().nullable()(); // Store the original source duration
   IntColumn get startTimeInSourceMs => integer()();
   IntColumn get endTimeInSourceMs => integer()();
   IntColumn get startTimeOnTrackMs => integer().withDefault(const Constant(0))();
-  
+  IntColumn get endTimeOnTrackMs => integer().nullable()(); // Store explicit end time on track
+
   // Optional metadata as JSON string (can be null)
   TextColumn get metadataJson => text().nullable()();
   

@@ -115,15 +115,20 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
 
     // Create a ClipModel *only* for dragging, representing the intent to add
     // This ClipModel won't have a trackId or startTimeOnTrackMs yet.
+    // Create a ClipModel *only* for dragging, representing the intent to add.
+    // This ClipModel needs all required fields, even if track times are temporary.
+    final sourceDuration = asset.durationMs;
     final draggableClipData = ClipModel(
       databaseId: null, // No clip instance ID yet
       trackId: -1, // Indicate no track assigned
       name: asset.name,
       type: asset.type,
       sourcePath: asset.sourcePath,
+      sourceDurationMs: sourceDuration, // Required: use asset's duration
       startTimeInSourceMs: 0, // Start from beginning by default
-      endTimeInSourceMs: asset.durationMs, // Use full asset duration
-      startTimeOnTrackMs: 0, // Will be set by drop target
+      endTimeInSourceMs: sourceDuration, // Use full asset duration
+      startTimeOnTrackMs: 0, // Temporary value for drag data
+      endTimeOnTrackMs: sourceDuration, // Required: Temporary value matching source duration
     );
 
     return Draggable<ClipModel>(

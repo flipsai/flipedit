@@ -1,9 +1,10 @@
+import 'package:fvp/mdk.dart' as mdk;
+
 import 'dart:io';
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/utils/logger.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
-
 /// Simple class to represent dimensions
 class MediaDimensions {
   final int width;
@@ -18,21 +19,44 @@ class MediaUtils {
   
   /// Get the duration of a media file (video or audio)
   /// Returns null if duration cannot be determined
-  static Future<Duration?> getMediaDuration(String filePath) async {
+  static Duration? getMediaDuration(String filePath) {
     try {
-      // This is a placeholder implementation
-      // TODO: Implement proper media duration extraction using platform-specific methods
-      logWarning(_logTag, "Media duration extraction not fully implemented, using placeholder");
+      final player = mdk.Player();
       
+      // Use setMedia to open the file
       if (_isVideoFile(filePath)) {
-        return const Duration(seconds: 30);
+        player.setMedia(filePath, mdk.MediaType.video);
       } else if (_isAudioFile(filePath)) {
-        return const Duration(seconds: 10);
+        player.setMedia(filePath, mdk.MediaType.audio);
+      } else {
+        // Unsupported file type
+        player.dispose();
+        return null;
       }
       
-      return null;
+      // Prepare the player to get media info
+      player.prepare();
+      
+      // Wait for the player to be initialized so mediaInfo is available
+      // Timeout after 5 seconds in case of issues
+      final initialized = player.waitFor(mdk.PlaybackState.paused, timeout: 5000);
+      
+      if (!initialized) {
+        logWarning(_logTag, "Failed to initialize player for duration extraction: $filePath");
+        player.dispose();
+        return null;
+      }
+      
+      // Get the duration in milliseconds
+      final durationMs = player.mediaInfo.duration;
+      
+      // Dispose the player
+      player.dispose();
+      
+      // Return the duration as a Duration object
+      return Duration(milliseconds: durationMs);
     } catch (e) {
-      logError(_logTag, "Error getting media duration: $e");
+      logError(_logTag, "Error getting media duration for $filePath: $e");
       return null;
     }
   }

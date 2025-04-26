@@ -38,9 +38,9 @@ dependencies:
   fluent_ui: ^4.11.2
   flutter:
     sdk: flutter
-  # fvp: ^0.31.0 # Remove or comment out the pub.dev version
-  fvp:
-    path: ./fvp # Add the local path dependency
+  fvp: ^0.31.0 # Remove or comment out the pub.dev version
+  # fvp:
+  #   path: ./fvp # Add the local path dependency
   http: ^1.3.0
   path_provider: ^2.1.5
   shared_preferences: ^2.5.3
@@ -54,6 +54,7 @@ dependencies:
   hugeicons: ^0.0.10
   path_provider_platform_interface: ^2.1.2
   plugin_platform_interface: ^2.1.8
+  flutter_box_transform: ^0.4.7
 
 dev_dependencies:
   flutter_lints: ^5.0.0

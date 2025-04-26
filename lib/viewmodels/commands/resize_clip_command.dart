@@ -35,6 +35,12 @@ class ResizeClipCommand implements TimelineCommand {
       '[ResizeClipCommand] Executing: clipId=$clipId, direction=$direction, newBoundaryFrame=$newBoundaryFrame',
       _logTag,
     );
+    
+    // Store original state first
+    final existingClip = vm.clips.firstWhereOrNull((c) => c.databaseId == clipId);
+    if (existingClip != null) {
+      _originalClipState = existingClip.copyWith();
+    }
 
     final clipToResize = vm.clips.firstWhereOrNull((c) => c.databaseId == clipId);
 
@@ -46,106 +52,142 @@ class ResizeClipCommand implements TimelineCommand {
     // --- Store state for Undo ---
     _originalClipState = clipToResize.copyWith();
 
-    // Calculate the *potential* new time range to find affected neighbors
+    // Calculate the *potential* new TRACK time range to find affected neighbors
     int potentialNewStartMs = clipToResize.startTimeOnTrackMs;
-    int potentialNewEndMs = clipToResize.startTimeOnTrackMs + clipToResize.durationMs;
-    final newBoundaryMs = ClipModel.framesToMs(newBoundaryFrame);
+    // Use existing endTimeOnTrackMs for potential end
+    int potentialNewEndMs = clipToResize.endTimeOnTrackMs;
+    // final newBoundaryMs = ClipModel.framesToMs(newBoundaryFrame); // Removed redundant definition
 
     if (direction == 'left') {
-      potentialNewStartMs = newBoundaryMs;
+      potentialNewStartMs = ClipModel.framesToMs(newBoundaryFrame); // Calculate here directly
+      // potentialNewEndMs remains the same
     } else { // direction == 'right'
-      potentialNewEndMs = newBoundaryMs;
+      // potentialNewStartMs remains the same
+      potentialNewEndMs = ClipModel.framesToMs(newBoundaryFrame); // Calculate here directly
     }
-    // Ensure start is before end if resizing causes inversion (though placeClipOnTrack might handle this)
+
+    // Ensure track start is before track end
     if (potentialNewStartMs >= potentialNewEndMs) {
-         logger.logWarning('[ResizeClipCommand] Resize would result in zero or negative duration. Clamping.', _logTag);
-         if (direction == 'left') {
-            potentialNewStartMs = potentialNewEndMs - ClipModel.framesToMs(1); // Minimum 1 frame duration
-         } else {
-            potentialNewEndMs = potentialNewStartMs + ClipModel.framesToMs(1);
-         }
+      logger.logWarning('[ResizeClipCommand] Resize would result in zero or negative track duration. Clamping.', _logTag);
+      final minDurationMs = ClipModel.framesToMs(1);
+      if (direction == 'left') {
+        potentialNewStartMs = potentialNewEndMs - minDurationMs;
+      } else {
+        potentialNewEndMs = potentialNewStartMs + minDurationMs;
+      }
     }
 
 
-    _originalNeighborStates = _timelineLogicService.getOverlappingClips( // Use the new service
-      vm.clips, // Pass the current clips
+    _originalNeighborStates = _timelineLogicService.getOverlappingClips(
+      vm.clips,
       clipToResize.trackId,
       potentialNewStartMs,
       potentialNewEndMs,
-      clipId, // Exclude the clip being resized itself
-    ).map((c) => c.copyWith()).toList(); // Deep copy for undo
+      clipId,
+    ).map((c) => c.copyWith()).toList();
 
     // Also include neighbors affected by the *original* range if the resize shrinks the clip
-     final originalEndTimeMs = clipToResize.startTimeOnTrackMs + clipToResize.durationMs;
-     final oldNeighbors = _timelineLogicService.getOverlappingClips( // Use the new service
-       vm.clips, // Pass the current clips
-       clipToResize.trackId,
-       clipToResize.startTimeOnTrackMs,
-       originalEndTimeMs,
-       clipId,
-     ).map((c) => c.copyWith()).toList();
-     for (final oldNeighbor in oldNeighbors) {
-       if (!_originalNeighborStates!.any((n) => n.databaseId == oldNeighbor.databaseId)) {
-         _originalNeighborStates!.add(oldNeighbor);
-       }
-     }
+    final originalEndTimeMs = clipToResize.endTimeOnTrackMs; // Use original track end time
+    final oldNeighbors = _timelineLogicService.getOverlappingClips(
+      vm.clips,
+      clipToResize.trackId,
+      clipToResize.startTimeOnTrackMs,
+      originalEndTimeMs,
+      clipId,
+    ).map((c) => c.copyWith()).toList();
+    for (final oldNeighbor in oldNeighbors) {
+      if (!_originalNeighborStates!.any((n) => n.databaseId == oldNeighbor.databaseId)) {
+        _originalNeighborStates!.add(oldNeighbor);
+      }
+    }
     // --- End Store state ---
 
 
-    // Calculate the actual parameters for placeClipOnTrack
-    int newStartTimeOnTrackMs = clipToResize.startTimeOnTrackMs;
-    int newEndTimeOnTrackMs = clipToResize.startTimeOnTrackMs + clipToResize.durationMs;
-    int newStartTimeInSourceMs = clipToResize.startTimeInSourceMs;
-    int newEndTimeInSourceMs = clipToResize.endTimeInSourceMs;
-    final originalStartMs = clipToResize.startTimeOnTrackMs;
+    // Calculate the final parameters for placeClipOnTrack
+    // Store original times for delta calculation
+    final originalStartTimeOnTrackMs = clipToResize.startTimeOnTrackMs;
+    final originalEndTimeOnTrackMs = clipToResize.endTimeOnTrackMs;
+    final originalStartTimeInSourceMs = clipToResize.startTimeInSourceMs;
+    final originalEndTimeInSourceMs = clipToResize.endTimeInSourceMs;
+    final sourceDurationMs = clipToResize.sourceDurationMs;
 
+    // --- Calculate Target Times based on Drag ---
+    int targetStartTimeOnTrackMs = originalStartTimeOnTrackMs;
+    int targetEndTimeOnTrackMs = originalEndTimeOnTrackMs;
+    int targetStartTimeInSourceMs = originalStartTimeInSourceMs;
+    int targetEndTimeInSourceMs = originalEndTimeInSourceMs;
+    final newBoundaryMs = ClipModel.framesToMs(newBoundaryFrame);
 
     if (direction == 'left') {
-      newStartTimeOnTrackMs = newBoundaryMs;
-      // Adjust source start time based on how much the track start time changed
-      final deltaMs = newStartTimeOnTrackMs - originalStartMs;
-      newStartTimeInSourceMs = clipToResize.startTimeInSourceMs + deltaMs;
-      // End time on track doesn't change directly, but duration does
-      newEndTimeOnTrackMs = originalStartMs + clipToResize.durationMs;
+      targetStartTimeOnTrackMs = newBoundaryMs;
+      final trackDeltaMs = targetStartTimeOnTrackMs - originalStartTimeOnTrackMs;
+      targetStartTimeInSourceMs = originalStartTimeInSourceMs + trackDeltaMs;
+      // targetEndTimeOnTrackMs & targetEndTimeInSourceMs remain original
     } else { // direction == 'right'
-      newEndTimeOnTrackMs = newBoundaryMs;
-      // Adjust source end time based on how much the track end time changed
-      final deltaMs = newEndTimeOnTrackMs - (originalStartMs + clipToResize.durationMs);
-      newEndTimeInSourceMs = clipToResize.endTimeInSourceMs + deltaMs;
-       // Start time on track doesn't change
-       newStartTimeOnTrackMs = originalStartMs;
+      targetEndTimeOnTrackMs = newBoundaryMs;
+      final trackDeltaMs = targetEndTimeOnTrackMs - originalEndTimeOnTrackMs;
+      targetEndTimeInSourceMs = originalEndTimeInSourceMs + trackDeltaMs;
+      // targetStartTimeOnTrackMs & targetStartTimeInSourceMs remain original
     }
 
-     // Basic validation: Ensure duration is positive
-     if (newEndTimeOnTrackMs <= newStartTimeOnTrackMs || newEndTimeInSourceMs <= newStartTimeInSourceMs) {
-       logger.logError('[ResizeClipCommand] Invalid resize parameters resulted in zero/negative duration.', _logTag);
-       // Decide how to handle: throw error, or revert to original? Reverting might be safer.
-       // For now, let placeClipOnTrack handle it or potentially fail.
-       // A more robust solution would clamp values here.
-       // Example clamp:
-       if (newEndTimeOnTrackMs <= newStartTimeOnTrackMs) {
-           newEndTimeOnTrackMs = newStartTimeOnTrackMs + ClipModel.framesToMs(1);
-           // Recalculate corresponding source end time if needed
-       }
-        if (newEndTimeInSourceMs <= newStartTimeInSourceMs) {
-           newEndTimeInSourceMs = newStartTimeInSourceMs + ClipModel.framesToMs(1);
-           // Recalculate corresponding track end time if needed
-       }
-       logger.logWarning('[ResizeClipCommand] Clamped duration to minimum 1 frame.', _logTag);
+    // --- Clamp Source Times ---
+    // Ensure start is within [0, sourceDuration]
+    int finalStartTimeInSourceMs = targetStartTimeInSourceMs.clamp(0, sourceDurationMs);
+    // Ensure end is within [start, sourceDuration]
+    int finalEndTimeInSourceMs = targetEndTimeInSourceMs.clamp(finalStartTimeInSourceMs, sourceDurationMs);
+    // Recalculate start based on clamped end if needed (e.g., duration becomes 0)
+    finalStartTimeInSourceMs = finalStartTimeInSourceMs.clamp(0, finalEndTimeInSourceMs);
 
+    // --- Recalculate Track Times based on Clamped Source Times ---
+    int finalStartTimeOnTrackMs;
+    int finalEndTimeOnTrackMs;
+
+    if (direction == 'left') {
+       // End track time is fixed, calculate start track time based on clamped source start
+       final sourceDeltaMs = finalStartTimeInSourceMs - originalStartTimeInSourceMs;
+       finalStartTimeOnTrackMs = originalStartTimeOnTrackMs + sourceDeltaMs;
+       finalEndTimeOnTrackMs = originalEndTimeOnTrackMs; // End remains anchored
+    } else { // direction == 'right'
+       // Start track time is fixed, calculate end track time based on clamped source end
+       final sourceDeltaMs = finalEndTimeInSourceMs - originalEndTimeInSourceMs;
+       finalStartTimeOnTrackMs = originalStartTimeOnTrackMs; // Start remains anchored
+       finalEndTimeOnTrackMs = originalEndTimeOnTrackMs + sourceDeltaMs;
+    }
+
+    // --- Final Duration Checks ---
+    // Ensure minimum track duration (1 frame)
+    final minTrackDurationMs = ClipModel.framesToMs(1);
+    if (finalEndTimeOnTrackMs - finalStartTimeOnTrackMs < minTrackDurationMs) {
+        logger.logWarning('[ResizeClipCommand] Final track duration adjusted to minimum.', _logTag);
+        if (direction == 'left') {
+            finalStartTimeOnTrackMs = finalEndTimeOnTrackMs - minTrackDurationMs;
+        } else {
+            finalEndTimeOnTrackMs = finalStartTimeOnTrackMs + minTrackDurationMs;
+        }
+    }
+    // Ensure minimum source duration (adjust end time if possible, preserving start)
+    final minSourceDurationMs = 1; // Use 1ms minimum source duration
+    if (finalEndTimeInSourceMs - finalStartTimeInSourceMs < minSourceDurationMs && sourceDurationMs > 0) {
+        logger.logWarning('[ResizeClipCommand] Final source duration adjusted to minimum.', _logTag);
+        finalEndTimeInSourceMs = (finalStartTimeInSourceMs + minSourceDurationMs).clamp(finalStartTimeInSourceMs, sourceDurationMs);
+    } else if (sourceDurationMs == 0) {
+         finalStartTimeInSourceMs = 0;
+         finalEndTimeInSourceMs = 0;
      }
 
-
+    // --- Call placeClipOnTrack with Final Consistent Values ---
+    logger.logInfo('[ResizeClipCommand] Final values: Track[$finalStartTimeOnTrackMs-$finalEndTimeOnTrackMs], Source[$finalStartTimeInSourceMs-$finalEndTimeInSourceMs]', _logTag);
     try {
-      // Use placeClipOnTrack to handle the resize and neighbor trimming
       final success = await vm.placeClipOnTrack(
         clipId: clipId,
-        trackId: clipToResize.trackId, // Track ID doesn't change
+        trackId: clipToResize.trackId,
         type: clipToResize.type,
         sourcePath: clipToResize.sourcePath,
-        startTimeOnTrackMs: newStartTimeOnTrackMs,
-        startTimeInSourceMs: newStartTimeInSourceMs,
-        endTimeInSourceMs: newEndTimeInSourceMs, // placeClipOnTrack uses this to calculate duration
+        sourceDurationMs: sourceDurationMs,
+        startTimeOnTrackMs: finalStartTimeOnTrackMs, // Use final calculated track time
+        endTimeOnTrackMs: finalEndTimeOnTrackMs,     // Use final calculated track time
+        startTimeInSourceMs: finalStartTimeInSourceMs, // Use final clamped source time
+        endTimeInSourceMs: finalEndTimeInSourceMs,     // Use final clamped source time
       );
 
       if (success) {
@@ -191,13 +233,15 @@ class ResizeClipCommand implements TimelineCommand {
 
 
       // 2. Resize the clip back to its original state using placeClipOnTrack
-      logger.logInfo('[ResizeClipCommand] Resizing clip $clipId back to original state', _logTag);
+      logger.logInfo('[ResizeClipCommand] Restoring clip $clipId back to original state', _logTag);
       final success = await vm.placeClipOnTrack(
         clipId: clipId,
         trackId: _originalClipState!.trackId,
         type: _originalClipState!.type,
         sourcePath: _originalClipState!.sourcePath,
+        sourceDurationMs: _originalClipState!.sourceDurationMs, // Restore source duration
         startTimeOnTrackMs: _originalClipState!.startTimeOnTrackMs,
+        endTimeOnTrackMs: _originalClipState!.endTimeOnTrackMs,     // Restore end time on track
         startTimeInSourceMs: _originalClipState!.startTimeInSourceMs,
         endTimeInSourceMs: _originalClipState!.endTimeInSourceMs,
       );
