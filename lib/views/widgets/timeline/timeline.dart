@@ -134,12 +134,23 @@ class _TimelineState extends State<Timeline> { // Mixin removed here
                   // Clip horizontal overflow
                   child: Stack(
                     children: [
+                      // Show TimeRuler at the top when no tracks exist
+                      if (tracks.isEmpty)
+                        SizedBox(
+                          height: timeRulerHeight,
+                          width: _viewportWidth,
+                          child: TimeRuler(
+                            zoom: zoom,
+                            availableWidth: _viewportWidth,
+                          ),
+                        ),
+                      
                       // Horizontally Scrollable Container for Ruler and All Tracks
                       SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
                         controller: _scrollController, // Use stored controller
-                        // Disable scrolling if clips list is empty
-                        physics: clips.isEmpty ? NeverScrollableScrollPhysics() : ClampingScrollPhysics(),
+                        // Use the canScroll helper from ViewModel
+                        physics: _timelineViewModel.canScroll ? ClampingScrollPhysics() : NeverScrollableScrollPhysics(),
                         child: SizedBox(
                           width: totalScrollableWidth, // Define scrollable width
                           // Inner Stack: Allows positioning Playhead over the Column
@@ -151,6 +162,8 @@ class _TimelineState extends State<Timeline> { // Mixin removed here
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   // TimeRuler spanning the scrollable width (minus label offset)
+                                  // Only show TimeRuler inside the scrollable view when tracks exist
+                                  if (tracks.isNotEmpty)
                                   Padding(
                                     padding: EdgeInsets.only(left: trackLabelWidth),
                                     child: SizedBox(
@@ -231,6 +244,8 @@ class _TimelineState extends State<Timeline> { // Mixin removed here
                               ),
 
                               // --- Playhead (Dynamically Positioned) ---
+                              // Only show the playhead when tracks exist
+                              if (tracks.isNotEmpty)
                               Positioned(
                                 top: 0,
                                 bottom: 0,
@@ -274,6 +289,8 @@ class _TimelineState extends State<Timeline> { // Mixin removed here
                               ),
                               
                               // --- Resizer Handle ---
+                              // Only show the resizer handle when tracks exist
+                              if (tracks.isNotEmpty)
                               Positioned(
                                 top: 0,
                                 bottom: 0,

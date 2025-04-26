@@ -29,6 +29,9 @@ class TimelineViewModel extends ChangeNotifier {
   final ValueNotifier<List<ClipModel>> clipsNotifier =
       ValueNotifier<List<ClipModel>>([]);
   List<ClipModel> get clips => List.unmodifiable(clipsNotifier.value);
+  
+  // Helper to check if timeline can be scrolled (has clips)
+  bool get canScroll => clipsNotifier.value.isNotEmpty;
 
   List<int> currentTrackIds = [];
 
