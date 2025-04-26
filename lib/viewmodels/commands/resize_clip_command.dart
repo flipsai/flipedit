@@ -35,6 +35,12 @@ class ResizeClipCommand implements TimelineCommand {
       '[ResizeClipCommand] Executing: clipId=$clipId, direction=$direction, newBoundaryFrame=$newBoundaryFrame',
       _logTag,
     );
+    
+    // Store original state first
+    final existingClip = vm.clips.firstWhereOrNull((c) => c.databaseId == clipId);
+    if (existingClip != null) {
+      _originalClipState = existingClip.copyWith();
+    }
 
     final clipToResize = vm.clips.firstWhereOrNull((c) => c.databaseId == clipId);
 
