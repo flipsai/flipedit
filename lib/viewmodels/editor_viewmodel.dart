@@ -1,5 +1,6 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
+import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart'; // Added import
 import 'package:flipedit/viewmodels/editor/editor_layout_viewmodel.dart';
 import 'package:flipedit/utils/logger.dart';
 import 'package:docking/docking.dart';
@@ -18,8 +19,9 @@ class EditorViewModel {
   // Temporarily commented out LayoutService injection
   // final LayoutService _layoutService = di<LayoutService>();
   
-  // Inject TimelineViewModel
   final TimelineViewModel _timelineViewModel = di<TimelineViewModel>();
+  // Inject TimelineNavigationViewModel
+  final TimelineNavigationViewModel _timelineNavigationViewModel = di<TimelineNavigationViewModel>();
 
   // --- Child Controllers/Managers ---
   final EditorLayoutViewModel layoutManager = EditorLayoutViewModel();
@@ -128,15 +130,15 @@ class EditorViewModel {
     selectedClipIdNotifier.removeListener(_syncTimelineClipSelection);
     _timelineViewModel.selectedClipIdNotifier.removeListener(_syncFromTimelineClipSelection);
     
-    // Remove timeline listeners
+    // Remove timeline listeners (update to use TimelineNavigationViewModel where appropriate)
     if (_timelineFrameListener != null) {
-      _timelineViewModel.currentFrameNotifier.removeListener(_timelineFrameListener!);
+      _timelineNavigationViewModel.currentFrameNotifier.removeListener(_timelineFrameListener!); // Use navigation VM
     }
     if (_timelineClipsListener != null) {
-       _timelineViewModel.clipsNotifier.removeListener(_timelineClipsListener!); // Assuming clipsNotifier is Listenable
+       _timelineViewModel.clipsNotifier.removeListener(_timelineClipsListener!); // Clips are still on TimelineViewModel
     }
-    if (_timelinePlayStateListener != null) { // Remove play state listener
-       _timelineViewModel.isPlayingNotifier.removeListener(_timelinePlayStateListener!);
+    if (_timelinePlayStateListener != null) {
+       _timelineNavigationViewModel.isPlayingNotifier.removeListener(_timelinePlayStateListener!); // Use navigation VM
     }
     
     // Remove layout listener

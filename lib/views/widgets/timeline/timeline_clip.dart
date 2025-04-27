@@ -4,6 +4,7 @@ import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
+import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart'; // Added import
 import 'package:flipedit/viewmodels/commands/resize_clip_command.dart';
 import 'package:flipedit/viewmodels/commands/move_clip_command.dart';
 import 'package:flipedit/viewmodels/commands/remove_clip_command.dart';
@@ -125,9 +126,10 @@ class _TimelineClipState extends State<TimelineClip> {
     final theme = FluentTheme.of(context);
     final editorVm = di<EditorViewModel>();
     final timelineVm = di<TimelineViewModel>();
+    final timelineNavVm = di<TimelineNavigationViewModel>(); // Inject Navigation VM
 
-    final selectedClipId = watchValue((TimelineViewModel vm) => vm.selectedClipIdNotifier);
-    final zoom = watchValue((TimelineViewModel vm) => vm.zoomNotifier);
+    final selectedClipId = watchValue((TimelineViewModel vm) => vm.selectedClipIdNotifier); // Selection still from TimelineVM
+    final zoom = watchValue((TimelineNavigationViewModel vm) => vm.zoomNotifier); // Zoom from Navigation VM
     final isSelected = selectedClipId == widget.clip.databaseId;
 
     // --- Calculate Visuals based on state (Move or Resize Preview) ---
@@ -195,8 +197,8 @@ class _TimelineClipState extends State<TimelineClip> {
 
         // Calculate final track preview boundary using the allowed delta
         int previewBoundary = (_previewEndFrame! + allowedTrackFrameDelta)
-            // Also clamp by opposite track edge
-            .clamp(_previewStartFrame! + minTrackFrameDuration, timelineVm.totalFramesNotifier.value); // Use actual timeline end
+            // Also clamp by opposite track edge, using Navigation VM for total frames
+            .clamp(_previewStartFrame! + minTrackFrameDuration, timelineNavVm.totalFramesNotifier.value); // Use Navigation VM
 
         // Use the difference from the original frame for visual width
         int actualFrameDelta = previewBoundary - _previewEndFrame!;
@@ -501,9 +503,9 @@ class _TimelineClipState extends State<TimelineClip> {
       previewEndFrame: _previewEndFrame,
       direction: direction,
       finalPixelDelta: finalPixelDelta,
-      timelineVm: di<TimelineViewModel>(),
+      timelineVm: di<TimelineViewModel>(), // Still need TimelineVM for runCommand
       clip: widget.clip,
-      zoom: di<TimelineViewModel>().zoomNotifier.value,
+      zoom: di<TimelineNavigationViewModel>().zoomNotifier.value, // Get zoom from Navigation VM
       runCommand: (cmd) => di<TimelineViewModel>().runCommand(cmd),
     );
     // Reset local state after command is dispatched.

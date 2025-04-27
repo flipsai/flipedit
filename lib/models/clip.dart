@@ -6,6 +6,7 @@ import 'package:drift/drift.dart' show Value;
 
 // Import the generated part of project_database which contains the Clip class
 import 'package:flipedit/persistence/database/project_database.dart' show Clip, ClipsCompanion;
+import 'package:flutter_box_transform/flutter_box_transform.dart' show Flip; // Import Flip
 
 class ClipValidationException implements Exception {
   final List<String> errors;
@@ -193,6 +194,40 @@ class ClipModel {
     }
     return copyWith(metadata: updatedMetadata);
   }
+
+  /// Get the preview flip state from metadata, or Flip.none if not set.
+  /// Stored as an integer: 0=none, 1=horizontal, 2=vertical, 3=both.
+  Flip get previewFlip {
+    final flipInt = metadata['previewFlip'] as int?;
+    switch (flipInt) {
+      case 1: return Flip.horizontal;
+      case 2: return Flip.vertical;
+      // case 3: return Flip.both; // Removed .both
+      default: return Flip.none;
+    }
+  }
+
+  /// Creates a new ClipModel with the preview flip state updated in metadata.
+  ClipModel copyWithPreviewFlip(Flip? flip) {
+    final updatedMetadata = Map<String, dynamic>.from(metadata);
+    if (flip == null || flip == Flip.none) {
+      updatedMetadata.remove('previewFlip');
+    } else {
+      int? flipInt; // Use nullable int
+      if (flip == Flip.horizontal) flipInt = 1;
+      if (flip == Flip.vertical) flipInt = 2;
+      // if (flip == Flip.both) flipInt = 3; // Removed .both
+
+      if (flipInt != null) {
+          updatedMetadata['previewFlip'] = flipInt;
+      } else {
+          // Ensure removal if it becomes Flip.none again
+           updatedMetadata.remove('previewFlip');
+      }
+    }
+    return copyWith(metadata: updatedMetadata);
+  }
+
 
   factory ClipModel.fromDbData(Clip dbData, {int? sourceDurationMs}) {
     // Estimate source duration robustly if not available

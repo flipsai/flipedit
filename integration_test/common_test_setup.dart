@@ -12,7 +12,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:watch_it/watch_it.dart';
+import 'package:watch_it/watch_it.dart' as watch_it; // Add prefix
 
 // --- Mock PathProviderPlatform START ---
 class FakePathProviderPlatform extends Fake
