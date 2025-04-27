@@ -43,6 +43,69 @@ class TimelineViewModel extends ChangeNotifier {
   final ValueNotifier<double> trackLabelWidthNotifier = ValueNotifier(120.0);
   double get trackLabelWidth => trackLabelWidthNotifier.value;
 
+  // Notifier for the currently selected track ID
+  final ValueNotifier<int?> selectedTrackIdNotifier = ValueNotifier<int?>(null);
+  int? get selectedTrackId => selectedTrackIdNotifier.value;
+  set selectedTrackId(int? value) {
+    if (selectedTrackIdNotifier.value != value) {
+      logger.logInfo('Track selection changed: ${selectedTrackIdNotifier.value} -> $value', _logTag);
+      selectedTrackIdNotifier.value = value;
+      
+      // If a track is selected and there's a currently selected clip,
+      // check if the clip belongs to this track. If not, deselect the clip.
+      if (value != null && selectedClipId != null) {
+        // Find the clip by ID, using try-catch to handle when clip is not found
+        ClipModel? selectedClip;
+        try {
+          selectedClip = clipsNotifier.value.firstWhere(
+            (clip) => clip.databaseId == selectedClipId
+          );
+        } catch (e) {
+          // Clip not found, ignore
+          selectedClip = null;
+        }
+        
+        // If the selected clip exists and doesn't belong to the newly selected track,
+        // clear the clip selection
+        if (selectedClip != null && selectedClip.trackId != value) {
+          logger.logInfo('Deselecting clip ${selectedClipId} as it doesn\'t belong to newly selected track ${value}', _logTag);
+          selectedClipId = null;
+        }
+      }
+    }
+  }
+
+  // Notifier for the currently selected clip ID
+  final ValueNotifier<int?> selectedClipIdNotifier = ValueNotifier<int?>(null);
+  int? get selectedClipId => selectedClipIdNotifier.value;
+  set selectedClipId(int? value) {
+    if (selectedClipIdNotifier.value != value) {
+      logger.logInfo('Clip selection changed: ${selectedClipIdNotifier.value} -> $value', _logTag);
+      selectedClipIdNotifier.value = value;
+      
+      // If a clip is selected, also select its track
+      if (value != null) {
+        try {
+          // Find the clip with this ID
+          final clip = clipsNotifier.value.firstWhere(
+            (c) => c.databaseId == value
+          );
+          
+          // Only update the track selection if it's different
+          // This prevents an infinite loop when selecting a track clears a clip selection
+          if (selectedTrackIdNotifier.value != clip.trackId) {
+            logger.logInfo('Setting track ${clip.trackId} based on clip selection', _logTag);
+            // Note: Using the notifier directly to avoid our own check in the setter
+            selectedTrackIdNotifier.value = clip.trackId;
+          }
+        } catch (e) {
+          logger.logWarning('Could not find clip with ID $value in clips list', _logTag);
+          // Don't throw an error, just log the issue
+        }
+      }
+    }
+  }
+
   // Notifier for the current editing mode (UI specific)
   final ValueNotifier<EditMode> currentEditMode = ValueNotifier(
     EditMode.select,
@@ -485,6 +548,8 @@ class TimelineViewModel extends ChangeNotifier {
     trackLabelWidthNotifier.dispose();
     currentEditMode.dispose();
     tracksListNotifier.dispose(); // Dispose the new notifier
+    selectedTrackIdNotifier.dispose(); // Dispose the selected track ID notifier
+    selectedClipIdNotifier.dispose(); // Dispose the selected clip ID notifier
 
     super.dispose();
   }

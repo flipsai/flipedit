@@ -42,6 +42,8 @@ class _PreviewPanelState extends State<PreviewPanel> {
   final ProjectDatabaseService _projectDatabaseService = di<ProjectDatabaseService>(); // Inject ProjectDatabaseService
   // Video Player controllers map (clipId -> controller)
   final Map<int, VideoPlayerController> _controllers = {};
+  // Scroll controller for handling scroll requests
+  final ScrollController _scrollController = ScrollController();
   // Aspect ratio for the overall container (might need adjustment if multiple videos differ)
   double _aspectRatio = 16 / 9;
   // Currently visible clips based on playhead position
@@ -72,6 +74,9 @@ class _PreviewPanelState extends State<PreviewPanel> {
   // ADDED: State to track the currently selected clip for showing handles
   int? _selectedClipId;
 
+  // ADDED: State for scroll request listener
+  VoidCallback? _scrollRequestListener;
+
   @override
   void initState() {
     super.initState();
@@ -80,10 +85,47 @@ class _PreviewPanelState extends State<PreviewPanel> {
     // Initial calculation and controller setup
     _updateVisibleClips();
     _initializeAndSyncControllers();
+
+    // Define the listener callback function
+    _scrollRequestListener = () {
+      final frame = _timelineViewModel.navigationService.scrollToFrameRequestNotifier.value;
+      if (frame == null) return; // No request or already handled
+
+      _handleScrollRequest(frame);
+    };
+
+    _timelineViewModel.navigationService.scrollToFrameRequestNotifier.addListener(_scrollRequestListener!);
+    
+    // Add listener for track selection changes
+    _timelineViewModel.selectedTrackIdNotifier.addListener(() {
+      _handleTrackSelectionChanged(_timelineViewModel.selectedTrackId);
+    });
+    
+    // Add listener for clip selection changes
+    _timelineViewModel.selectedClipIdNotifier.addListener(() {
+      _handleClipSelectionChanged(_timelineViewModel.selectedClipId);
+    });
   }
 
   @override
   void dispose() {
+    // Remove the listener from the notifier
+    if (_scrollRequestListener != null) {
+      _timelineViewModel.navigationService.scrollToFrameRequestNotifier.removeListener(_scrollRequestListener!);
+    }
+    
+    // Remove track selection listener
+    _timelineViewModel.selectedTrackIdNotifier.removeListener(() {
+      _handleTrackSelectionChanged(_timelineViewModel.selectedTrackId);
+    });
+    
+    // Remove clip selection listener
+    _timelineViewModel.selectedClipIdNotifier.removeListener(() {
+      _handleClipSelectionChanged(_timelineViewModel.selectedClipId);
+    });
+    
+    // Dispose the locally managed scroll controller
+    _scrollController.dispose();
     _disposeAllControllers();
     super.dispose();
   }
@@ -183,7 +225,60 @@ class _PreviewPanelState extends State<PreviewPanel> {
       setState(() {
         _selectedClipId = clipId;
         debugPrint("[PreviewPanel] Selected clip ID set to: $_selectedClipId");
+        
+        // If we selected a clip, update the selection in timeline viewmodel
+        if (clipId != null) {
+          _timelineViewModel.selectedClipId = clipId;
+        }
       });
+    }
+  }
+
+  // Add method to sync with clip selection from timeline
+  void _handleClipSelectionChanged(int? clipId) {
+    if (!mounted) return;
+    
+    // If the timeline has cleared clip selection, clear our selection too
+    if (clipId == null && _selectedClipId != null) {
+      setState(() {
+        _selectedClipId = null;
+        debugPrint("[PreviewPanel] Cleared clip selection from timeline");
+      });
+      return;
+    }
+    
+    // If we received a new clip selection, update our state
+    if (_selectedClipId != clipId) {
+      setState(() {
+        _selectedClipId = clipId;
+        debugPrint("[PreviewPanel] Synced with timeline clip selection: $_selectedClipId");
+      });
+    }
+  }
+
+  // Add method to sync with track selection from timeline
+  void _handleTrackSelectionChanged(int? trackId) {
+    if (!mounted || trackId == null) {
+      // If track was deselected or component not mounted, no need to do anything
+      // We don't deselect clips when tracks are deselected since the clip selection drives track selection
+      return;
+    }
+    
+    // Only if no clip is currently selected, find a clip from the selected track to select
+    if (_selectedClipId == null) {
+      // Find visible clips for this track
+      final trackClips = _currentVisibleClips.where((clip) => clip.trackId == trackId).toList();
+      
+      // If we have clips from the selected track, select the first one
+      if (trackClips.isNotEmpty) {
+        setState(() {
+          _selectedClipId = trackClips.first.databaseId;
+          debugPrint("[PreviewPanel] Auto-selected clip ${_selectedClipId} from track ${trackId}");
+          
+          // Also update the timeline viewmodel's selected clip
+          _timelineViewModel.selectedClipId = _selectedClipId;
+        });
+      }
     }
   }
 
@@ -636,6 +731,14 @@ class _PreviewPanelState extends State<PreviewPanel> {
     // Update the clip model's metadata and save to database
     final updatedClip = clip.copyWithPreviewRect(finalRect);
     _projectDatabaseService.clipDao!.updateClip(updatedClip.toDbCompanion());
+  }
+
+  /// Handle scroll request to a specific frame
+  void _handleScrollRequest(int frame) {
+    if (!mounted) return;
+    debugPrint("[PreviewPanel] Handling scroll request to frame $frame");
+    // This method is a stub since preview panel doesn't need to scroll,
+    // but we need to handle the notifications from the NavigationService
   }
 
   // --- Aspect Ratio Lock/Unlock Logic ---

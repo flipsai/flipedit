@@ -154,6 +154,13 @@ class _TimelineTrackState extends State<TimelineTrack> {
 
   // Removed _handleClipDrop - logic moved to ViewModel's initiateClipDrop
 
+  // Add method to select this track
+  void _handleTrackSelection() {
+    // This will automatically handle deselecting clips on other tracks
+    // through the logic we added in the TimelineViewModel
+    _timelineViewModel.selectedTrackId = widget.track.id;
+  }
+
   @override
   Widget build(BuildContext context) {
     final double zoom = watchValue((TimelineViewModel vm) => vm.zoomNotifier);
@@ -164,6 +171,10 @@ class _TimelineTrackState extends State<TimelineTrack> {
     final clips = watchValue((TimelineViewModel vm) => vm.clipsNotifier)
         .where((clip) => clip.trackId == widget.track.id)
         .toList();
+        
+    // Watch the selected track ID
+    final selectedTrackId = watchValue((TimelineViewModel vm) => vm.selectedTrackIdNotifier);
+    final isSelected = selectedTrackId == widget.track.id;
 
     // Log clips for debugging
     if (clips.isNotEmpty) {
@@ -182,175 +193,186 @@ class _TimelineTrackState extends State<TimelineTrack> {
       );
     }
 
-    return SizedBox(
-      height: trackHeight,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            width: widget.trackLabelWidth,
-            padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-            decoration: BoxDecoration(
-              color: theme.resources.subtleFillColorTertiary,
-              border: Border(
-                right: BorderSide(
-                  color: theme.resources.controlStrokeColorDefault,
+    return GestureDetector(
+      onTap: _handleTrackSelection,
+      child: SizedBox(
+        height: trackHeight,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              width: widget.trackLabelWidth,
+              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+              decoration: BoxDecoration(
+                color: isSelected 
+                  ? theme.accentColor.withOpacity(0.2)
+                  : theme.resources.subtleFillColorTertiary,
+                border: Border(
+                  right: BorderSide(
+                    color: theme.resources.controlStrokeColorDefault,
+                  ),
+                  // Add a left border highlight when selected
+                  left: isSelected 
+                    ? BorderSide(color: theme.accentColor, width: 3.0)
+                    : BorderSide.none,
                 ),
               ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: GestureDetector(
-                    onDoubleTap: _enterEditingMode,
-                    child: _isEditing
-                        ? TextBox(
-                            controller: _textController,
-                            focusNode: _focusNode,
-                            placeholder: 'Track Name',
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6.0,
-                              vertical: 4.0,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onDoubleTap: _enterEditingMode,
+                      child: _isEditing
+                          ? TextBox(
+                              controller: _textController,
+                              focusNode: _focusNode,
+                              placeholder: 'Track Name',
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6.0,
+                                vertical: 4.0,
+                              ),
+                              style: theme.typography.body,
+                              decoration: WidgetStateProperty.all(BoxDecoration(
+                                color: theme.resources.controlFillColorDefault,
+                                borderRadius: BorderRadius.circular(4.0),
+                              )),
+                              onSubmitted: (_) => _submitRename(),
+                            )
+                          : Text(
+                              widget.track.name,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.typography.body,
                             ),
-                            style: theme.typography.body,
-                            decoration: WidgetStateProperty.all(BoxDecoration(
-                              color: theme.resources.controlFillColorDefault,
-                              borderRadius: BorderRadius.circular(4.0),
-                            )),
-                            onSubmitted: (_) => _submitRename(),
-                          )
-                        : Text(
-                            widget.track.name,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.typography.body,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(FluentIcons.delete, size: 14),
+                    onPressed: widget.onDelete,
+                    style: ButtonStyle(
+                      padding: WidgetStateProperty.all(EdgeInsets.zero),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: DragTarget<ClipModel>(
+                key: _trackContentKey,
+                onAcceptWithDetails: (details) async {
+                  final draggedClip = details.data;
+                  developer.log('✅ Clip drop detected: ${draggedClip.name}', name: 'TimelineTrack');
+                  final RenderBox? renderBox =
+                      _trackContentKey.currentContext?.findRenderObject() as RenderBox?;
+                  if (renderBox == null) {
+                    developer.log('❌ Error: renderBox is null in onAcceptWithDetails', name: 'TimelineTrack');
+                    return;
+                  }
+                  final localPosition = renderBox.globalToLocal(details.offset);
+                  final scrollOffsetX = getHorizontalScrollOffset();
+                  
+                  // Calculate the target frame and time using ViewModel methods
+                  final targetFrame = _timelineViewModel.calculateFramePositionForOffset(
+                      localPosition.dx, scrollOffsetX, zoom);
+                  final targetStartTimeOnTrackMs = _timelineViewModel.frameToMs(targetFrame);
+              
+                  // Use the refactored ViewModel method to handle the drop
+                  await _timelineViewModel.handleClipDrop(
+                    clip: draggedClip,
+                    trackId: widget.track.id,
+                    startTimeOnTrackMs: targetStartTimeOnTrackMs,
+                  );
+
+                  _updateHoverPosition(null); // Clear hover state after drop
+                },
+                onWillAcceptWithDetails: (details) {
+                  final RenderBox? renderBox =
+                      _trackContentKey.currentContext?.findRenderObject() as RenderBox?;
+                  if (renderBox != null) {
+                    final localPosition = renderBox.globalToLocal(details.offset);
+                    _updateHoverPosition(localPosition);
+                  }
+                  return true;
+                },
+                onMove: (details) {
+                  final RenderBox? renderBox =
+                      _trackContentKey.currentContext?.findRenderObject() as RenderBox?;
+                  if (renderBox != null) {
+                    final localPosition = renderBox.globalToLocal(details.offset);
+                    _updateHoverPosition(localPosition);
+                  }
+                },
+                onLeave: (_) {
+                  _updateHoverPosition(null);
+                },
+                builder: (context, candidateData, rejectedData) {
+                  int frameForPreview = -1;
+                  final currentHoverPos = _hoverPositionNotifier.value;
+                  int timeForPreviewMs = -1; // Calculate milliseconds for preview
+
+                  if (currentHoverPos != null && candidateData.isNotEmpty) {
+                    frameForPreview = _calculateFramePositionForPreview(currentHoverPos.dx, zoom);
+                    // Calculate milliseconds using ViewModel
+                    timeForPreviewMs = _timelineViewModel.frameToMs(frameForPreview);
+                  }
+
+                  return Container(
+                    height: trackHeight,
+                    margin: EdgeInsets.zero,
+                    decoration: BoxDecoration(
+                      color: isSelected
+                        ? theme.accentColor.withOpacity(0.1)
+                        : candidateData.isNotEmpty
+                          ? theme.accentColor.lightest.withValues(alpha: 0.3)
+                          : theme.resources.subtleFillColorSecondary,
+                    ),
+                    child: Stack(
+                      clipBehavior: fw.Clip.hardEdge,
+                      children: [
+                        // Background grid with frame markings
+                        Positioned.fill(child: TrackBackground(zoom: zoom)), // Use new component
+
+                        // Display existing clips on this track, or preview if dragging
+                        if (candidateData.isNotEmpty && frameForPreview >= 0)
+                          // Get preview clips from ViewModel
+                          ..._getPreviewClipsFromViewModel(candidateData.first!, frameForPreview, zoom, trackHeight)
+                        else
+                          // Display actual clips from ViewModel for this track
+                          ...clips.whereType<ClipModel>().map((clip) {
+                            final leftPosition = clip.startFrame * zoom * 5.0;
+                            final clipWidth = clip.durationFrames * zoom * 5.0;
+                            return Positioned(
+                              left: leftPosition,
+                              top: 0,
+                              height: trackHeight,
+                              width: clipWidth.clamp(4.0, double.infinity),
+                              child: TimelineClip(
+                                key: ValueKey(clip.databaseId ?? clip.sourcePath),
+                                clip: clip,
+                                trackId: widget.track.id,
+                              ),
+                            );
+                          }),
+
+                        // Show preview overlay when dragging
+                        if (frameForPreview >= 0 && timeForPreviewMs >= 0)
+                          DragPreview( // Use new component
+                            candidateData: candidateData,
+                            zoom: zoom,
+                            frameAtDropPosition: frameForPreview,
+                            timeAtDropPositionMs: timeForPreviewMs, // Pass milliseconds
                           ),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(FluentIcons.delete, size: 14),
-                  onPressed: widget.onDelete,
-                  style: ButtonStyle(
-                    padding: WidgetStateProperty.all(EdgeInsets.zero),
-                  ),
-                ),
-              ],
+                        // --- Roll Edit Handles (only when not dragging onto track) ---
+                        if (candidateData.isEmpty)
+                          ..._buildRollEditHandles(clips, zoom, _timelineViewModel, trackHeight),
+                      ],
+                    ),
+                  );
+                },
+              ),
             ),
-          ),
-          Expanded(
-            child: DragTarget<ClipModel>(
-              key: _trackContentKey,
-              onAcceptWithDetails: (details) async {
-                final draggedClip = details.data;
-                developer.log('✅ Clip drop detected: ${draggedClip.name}', name: 'TimelineTrack');
-                final RenderBox? renderBox =
-                    _trackContentKey.currentContext?.findRenderObject() as RenderBox?;
-                if (renderBox == null) {
-                  developer.log('❌ Error: renderBox is null in onAcceptWithDetails', name: 'TimelineTrack');
-                  return;
-                }
-                final localPosition = renderBox.globalToLocal(details.offset);
-                final scrollOffsetX = getHorizontalScrollOffset();
-                
-                // Calculate the target frame and time using ViewModel methods
-                final targetFrame = _timelineViewModel.calculateFramePositionForOffset(
-                    localPosition.dx, scrollOffsetX, zoom);
-                final targetStartTimeOnTrackMs = _timelineViewModel.frameToMs(targetFrame);
-            
-                // Use the refactored ViewModel method to handle the drop
-                await _timelineViewModel.handleClipDrop(
-                  clip: draggedClip,
-                  trackId: widget.track.id,
-                  startTimeOnTrackMs: targetStartTimeOnTrackMs,
-                );
-
-                _updateHoverPosition(null); // Clear hover state after drop
-              },
-              onWillAcceptWithDetails: (details) {
-                final RenderBox? renderBox =
-                    _trackContentKey.currentContext?.findRenderObject() as RenderBox?;
-                if (renderBox != null) {
-                  final localPosition = renderBox.globalToLocal(details.offset);
-                  _updateHoverPosition(localPosition);
-                }
-                return true;
-              },
-              onMove: (details) {
-                final RenderBox? renderBox =
-                    _trackContentKey.currentContext?.findRenderObject() as RenderBox?;
-                if (renderBox != null) {
-                  final localPosition = renderBox.globalToLocal(details.offset);
-                  _updateHoverPosition(localPosition);
-                }
-              },
-              onLeave: (_) {
-                _updateHoverPosition(null);
-              },
-              builder: (context, candidateData, rejectedData) {
-                int frameForPreview = -1;
-                final currentHoverPos = _hoverPositionNotifier.value;
-                int timeForPreviewMs = -1; // Calculate milliseconds for preview
-
-                if (currentHoverPos != null && candidateData.isNotEmpty) {
-                  frameForPreview = _calculateFramePositionForPreview(currentHoverPos.dx, zoom);
-                  // Calculate milliseconds using ViewModel
-                  timeForPreviewMs = _timelineViewModel.frameToMs(frameForPreview);
-                }
-
-                return Container(
-                  height: trackHeight,
-                  margin: EdgeInsets.zero,
-                  decoration: BoxDecoration(
-                    color: candidateData.isNotEmpty
-                        ? theme.accentColor.lightest.withValues(alpha: 0.3)
-                        : theme.resources.subtleFillColorSecondary,
-                  ),
-                  child: Stack(
-                    clipBehavior: fw.Clip.hardEdge,
-                    children: [
-                      // Background grid with frame markings
-                      Positioned.fill(child: TrackBackground(zoom: zoom)), // Use new component
-
-                      // Display existing clips on this track, or preview if dragging
-                      if (candidateData.isNotEmpty && frameForPreview >= 0)
-                        // Get preview clips from ViewModel
-                        ..._getPreviewClipsFromViewModel(candidateData.first!, frameForPreview, zoom, trackHeight)
-                      else
-                        // Display actual clips from ViewModel for this track
-                        ...clips.whereType<ClipModel>().map((clip) {
-                          final leftPosition = clip.startFrame * zoom * 5.0;
-                          final clipWidth = clip.durationFrames * zoom * 5.0;
-                          return Positioned(
-                            left: leftPosition,
-                            top: 0,
-                            height: trackHeight,
-                            width: clipWidth.clamp(4.0, double.infinity),
-                            child: TimelineClip(
-                              key: ValueKey(clip.databaseId ?? clip.sourcePath),
-                              clip: clip,
-                              trackId: widget.track.id,
-                            ),
-                          );
-                        }),
-
-                      // Show preview overlay when dragging
-                      if (frameForPreview >= 0 && timeForPreviewMs >= 0)
-                        DragPreview( // Use new component
-                          candidateData: candidateData,
-                          zoom: zoom,
-                          frameAtDropPosition: frameForPreview,
-                          timeAtDropPositionMs: timeForPreviewMs, // Pass milliseconds
-                        ),
-                      // --- Roll Edit Handles (only when not dragging onto track) ---
-                      if (candidateData.isEmpty)
-                        ..._buildRollEditHandles(clips, zoom, _timelineViewModel, trackHeight),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
