@@ -7,6 +7,7 @@ import 'package:flipedit/utils/logger.dart' as logger;
 import '../../services/timeline_logic_service.dart';
 import '../../services/project_database_service.dart'; // Import the service
 import 'package:watch_it/watch_it.dart';
+import '../../services/undo_redo_service.dart'; // ADDED Import for UndoRedoService
 
 /// Command to add a clip to the timeline at a specific position.
 class AddClipCommand implements TimelineCommand {
@@ -72,12 +73,24 @@ class AddClipCommand implements TimelineCommand {
     }
 
     // Store state for undo BEFORE making changes
+    final currentClips = vm.clips; // Get a stable list reference
     _originalNeighborStates = (placement['clipUpdates'] as List<Map<String, dynamic>>)
-        .map<ClipModel?>((updateMap) => vm.clips.firstWhere((c) => c.databaseId == updateMap['id']))
-        .where((c) => c != null) // Filter out nulls if clip wasn't found (shouldn't happen ideally)
-        .map((c) => c!.copyWith()) // Create deep copies
+        .map<ClipModel?>((updateMap) {
+          try {
+            return currentClips.firstWhere((c) => c.databaseId == updateMap['id']);
+          } catch (_) {
+            return null; // Return null if not found
+          }
+        })
+        .where((c) => c != null) // Filter out nulls
+        .map((c) => c!.copyWith()) // Create deep copies for non-null clips
         .toList();
-     _removedNeighborIds = List<int>.from(placement['clipsToRemove'] as List<int>); // Store IDs of removed clips
+    _removedNeighborIds = List<int>.from(placement['clipsToRemove'] as List<int>); // Store IDs of removed clips
+
+    // --- LOGGING: Show planned DB changes ---
+    logger.logInfo('[AddClipCommand] Planned Neighbor Updates: ${placement['clipUpdates']}', _logTag);
+    logger.logInfo('[AddClipCommand] Planned Neighbor Removals: ${placement['clipsToRemove']}', _logTag);
+    // --------------------------------------
 
 
     // 2. Handle persistence operations
@@ -100,7 +113,7 @@ class AddClipCommand implements TimelineCommand {
     }
 
     // 2.3 Insert the new clip using the final calculated placement data
-    final newClipDataMap = placement['newClipData'] as Map<String, dynamic>;
+    final newClipDataMap = placement['newClipData'] as Map<String, dynamic>; // Defined here
     logger.logInfo('[AddClipCommand] Inserting new clip: ${newClipDataMap}', _logTag);
 
     _insertedClipId = await _databaseService.clipDao!.insertClip(
@@ -122,11 +135,31 @@ class AddClipCommand implements TimelineCommand {
     logger.logInfo('[AddClipCommand] Inserted new clip with ID: $_insertedClipId', _logTag);
 
 
-    // 3. Update ViewModel state (usually handled by stream subscription, but explicit refresh might be needed)
-    // The ViewModel should listen to DB changes and update its clips list automatically.
-    // If not, uncomment the refresh call.
-     await vm.refreshClips(); // Explicit refresh for immediate UI update
-     logger.logInfo('[AddClipCommand] Refreshed clips in ViewModel', _logTag);
+    // 3. Update ViewModel state DIRECTLY with the calculated list
+    // await vm.refreshClips(); // REPLACED
+    List<ClipModel> finalUpdatedClips = List<ClipModel>.from(placement['updatedClips']); // Make mutable copy
+    // final newClipDataMap = placement['newClipData'] as Map<String, dynamic>; // REMOVED Redundant definition
+
+    // Find the newly added clip (which has databaseId: null) in the optimistic list
+    final newClipIndex = finalUpdatedClips.indexWhere((clip) => clip.databaseId == null && clip.sourcePath == clipData.sourcePath && clip.startTimeOnTrackMs == newClipDataMap['startTimeOnTrackMs']);
+
+    if (newClipIndex != -1 && _insertedClipId != null) {
+       // Update the clip in the list with its actual databaseId
+       // Use drift.Value() wrapper for nullable ID in copyWith if required by the model
+       final newClipWithId = finalUpdatedClips[newClipIndex].copyWith(databaseId: drift.Value(_insertedClipId));
+       finalUpdatedClips[newClipIndex] = newClipWithId;
+       logger.logInfo('[AddClipCommand] Updated new clip ID in optimistic list: $_insertedClipId', _logTag);
+    } else {
+        logger.logWarning('[AddClipCommand] Could not find newly inserted clip in optimistic list to update its ID.', _logTag);
+    }
+
+    vm.updateClipsAfterPlacement(finalUpdatedClips); // Use the dedicated method in ViewModel
+    logger.logInfo('[AddClipCommand] Updated ViewModel clips directly.', _logTag);
+
+    // 4. Update undo/redo state (after UI update)
+    // Get UndoRedoService via DI
+    final UndoRedoService undoRedoService = di<UndoRedoService>();
+    await undoRedoService.init(); // Use own instance
 
   } // End execute
 
