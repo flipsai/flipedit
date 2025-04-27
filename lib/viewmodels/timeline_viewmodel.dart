@@ -132,7 +132,17 @@ class TimelineViewModel extends ChangeNotifier {
     );
 
     _setupDatabaseListeners();
-    _setupClipListeners(); // Listen to clip changes to update navigation service
+    _setupClipListeners();
+    syncTracksFromService();
+  }
+
+  void syncTracksFromService() {
+    final serviceTracks = _projectDatabaseService.tracksNotifier.value;
+    if (serviceTracks.isNotEmpty && !listEquals(tracksListNotifier.value, serviceTracks)) {
+      logger.logInfo('Syncing ${serviceTracks.length} tracks from service to ViewModel', _logTag);
+      tracksListNotifier.value = serviceTracks;
+      currentTrackIds = serviceTracks.map((t) => t.id).toList();
+    }
   }
 
   // Helper functions to provide dependencies to services
@@ -207,31 +217,29 @@ class TimelineViewModel extends ChangeNotifier {
   Future<void> loadClipsForProject(int projectId) async {
     logger.logInfo('🔄 Loading clips for project $projectId', _logTag);
 
-    // Incorrectly placed deleteTrack method was here. Removed it.
     final success = await _projectDatabaseService.loadProject(projectId);
+    
     // Check if the database connection is available after attempting load
-    if (!success || _projectDatabaseService.currentDatabase == null) {
-      logger.logError('❌ Failed to load project $projectId', _logTag);
+    if (!success || _projectDatabaseService.currentDatabase == null || _projectDatabaseService.trackDao == null) {
+      logger.logError('❌ Failed to load project $projectId or DAOs not initialized', _logTag);
+      tracksListNotifier.value = []; // Ensure tracks are cleared
       clipsNotifier.value = [];
       _navigationService.recalculateAndUpdateTotalFrames(); // Notify nav service directly
       return;
     }
 
-    final tracks = _projectDatabaseService.tracksNotifier.value;
-    currentTrackIds.clear(); // Clear before repopulating
-    currentTrackIds = tracks.map((t) => t.id).toList();
-    logger.logInfo(
-      '📊 Loaded ${tracks.length} tracks with IDs: $currentTrackIds',
-      _logTag,
-    );
-
-    if (tracks.isEmpty) {
+    // Use the dedicated sync method to update tracks from service
+    syncTracksFromService();
+    
+    // Check if tracks are empty after sync
+    if (tracksListNotifier.value.isEmpty) {
       logger.logInfo('⚠️ No tracks found for project $projectId', _logTag);
       clipsNotifier.value = [];
-      _navigationService.recalculateAndUpdateTotalFrames(); // Notify nav service directly
-      return;
+      _navigationService.recalculateAndUpdateTotalFrames();
+      return; // No need to refresh clips if there are no tracks
     }
 
+    // Now that tracks are loaded, refresh the clips associated with them
     await refreshClips();
   }
 

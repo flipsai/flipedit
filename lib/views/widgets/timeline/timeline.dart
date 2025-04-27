@@ -1,5 +1,6 @@
 import 'package:fluent_ui/fluent_ui.dart';
 // Removed import 'package:flipedit/services/project_database_service.dart';
+import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/views/widgets/timeline/components/time_ruler.dart';
 import 'package:flipedit/views/widgets/timeline/components/timeline_controls.dart';
@@ -47,10 +48,7 @@ class _TimelineState extends State<Timeline> { // Mixin removed here
       _handleScrollRequest(frame);
     };
 
-    // Add the listener to the notifier in the navigation service
     _timelineViewModel.navigationService.scrollToFrameRequestNotifier.addListener(_scrollRequestListener!);
-
-    // Removed old registration: _timelineViewModel.registerScrollToFrameHandler(...)
   }
 
   void _handleScrollRequest(int frame) {
@@ -94,7 +92,6 @@ class _TimelineState extends State<Timeline> { // Mixin removed here
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
-    // Removed unused databaseService reference
 
     // Watch properties using watchItMixin helpers for StatefulWidgets
     final clips = watchValue((TimelineViewModel vm) => vm.clipsNotifier);
