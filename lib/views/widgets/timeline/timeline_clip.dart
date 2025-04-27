@@ -126,9 +126,9 @@ class _TimelineClipState extends State<TimelineClip> {
     final editorVm = di<EditorViewModel>();
     final timelineVm = di<TimelineViewModel>();
 
-    final selectedClipId = watchValue((EditorViewModel vm) => vm.selectedClipIdNotifier);
+    final selectedClipId = watchValue((TimelineViewModel vm) => vm.selectedClipIdNotifier);
     final zoom = watchValue((TimelineViewModel vm) => vm.zoomNotifier);
-    final isSelected = selectedClipId == widget.clip.databaseId?.toString();
+    final isSelected = selectedClipId == widget.clip.databaseId;
 
     // --- Calculate Visuals based on state (Move or Resize Preview) ---
     double dragOffset = 0.0;
@@ -239,6 +239,7 @@ class _TimelineClipState extends State<TimelineClip> {
                PointerDeviceKind.stylus, PointerDeviceKind.invertedStylus,
              },
             onTap: () {
+              timelineVm.selectedClipId = widget.clip.databaseId;
               editorVm.selectedClipId = widget.clip.databaseId?.toString();
             },
             // --- Drag Handling for MOVEMENT ---
@@ -247,6 +248,8 @@ class _TimelineClipState extends State<TimelineClip> {
               _moveDragStartX = details.localPosition.dx;
               _originalMoveStartFrame = widget.clip.startFrame;
               _currentMoveFrame = _originalMoveStartFrame; // Reset visual frame
+              
+              timelineVm.selectedClipId = widget.clip.databaseId;
               editorVm.selectedClipId = widget.clip.databaseId?.toString();
               if (_isMoving) { setState(() { _isMoving = false; }); } // Reset state if needed
             },

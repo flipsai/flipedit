@@ -229,6 +229,27 @@ class _TimelineState extends State<Timeline> { // Mixin removed here
                                           clip: draggedClip,
                                           startTimeOnTrackMs: framePositionMs.toInt(),
                                         );
+                                        
+                                        // After creating the track, select it if it's the first one
+                                        final tracks = _timelineViewModel.tracksNotifierForView.value;
+                                        if (tracks.isNotEmpty) {
+                                          // Select the first track - it should be the one we just created
+                                          _timelineViewModel.selectedTrackId = tracks.first.id;
+                                          developer.log('✅ Selected newly created track ${tracks.first.id}', name: 'Timeline');
+                                          
+                                          // Also select the clip once it's created - find it using refreshClips
+                                          Future.delayed(const Duration(milliseconds: 100), () {
+                                            _timelineViewModel.refreshClips().then((_) {
+                                              // Find the clip that was just added to this track
+                                              final clips = _timelineViewModel.clips.where((c) => c.trackId == tracks.first.id).toList();
+                                              if (clips.isNotEmpty) {
+                                                _timelineViewModel.selectedClipId = clips.first.databaseId;
+                                                developer.log('✅ Selected newly created clip ${clips.first.databaseId}', name: 'Timeline');
+                                              }
+                                            });
+                                          });
+                                        }
+                                        
                                         developer.log('✅ Clip "${draggedClip.name}" added to new track at frame $framePosition', name: 'Timeline');
                                       },
                                       builder: (context, candidateData, rejectedData) {

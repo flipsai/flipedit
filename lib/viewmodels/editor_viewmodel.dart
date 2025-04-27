@@ -72,6 +72,44 @@ class EditorViewModel {
   EditorViewModel() {
     // Initialization of layout and preview is handled within their respective classes' constructors
     logInfo(_logTag, "EditorViewModel initialized. Layout and Preview controllers created.");
+    
+    // Set up two-way binding between EditorViewModel and TimelineViewModel clip selection
+    selectedClipIdNotifier.addListener(_syncTimelineClipSelection);
+    _timelineViewModel.selectedClipIdNotifier.addListener(_syncFromTimelineClipSelection);
+  }
+
+  // Synchronize TimelineViewModel's selectedClipId when EditorViewModel's selectedClipId changes
+  void _syncTimelineClipSelection() {
+    final selectedClipIdString = selectedClipIdNotifier.value;
+    if (selectedClipIdString == null) {
+      _timelineViewModel.selectedClipId = null;
+      return;
+    }
+    
+    try {
+      final clipId = int.parse(selectedClipIdString);
+      if (_timelineViewModel.selectedClipId != clipId) {
+        _timelineViewModel.selectedClipId = clipId;
+      }
+    } catch (e) {
+      logWarning(_logTag, "Could not parse clip ID: $selectedClipIdString");
+    }
+  }
+
+  // Synchronize EditorViewModel's selectedClipId when TimelineViewModel's selectedClipId changes
+  void _syncFromTimelineClipSelection() {
+    final timelineClipId = _timelineViewModel.selectedClipId;
+    if (timelineClipId == null) {
+      if (selectedClipIdNotifier.value != null) {
+        selectedClipIdNotifier.value = null;
+      }
+      return;
+    }
+    
+    final clipIdString = timelineClipId.toString();
+    if (selectedClipIdNotifier.value != clipIdString) {
+      selectedClipIdNotifier.value = clipIdString;
+    }
   }
 
   void onDispose() {
@@ -85,6 +123,10 @@ class EditorViewModel {
     currentPreviewVideoUrlNotifier.dispose(); // Dispose new notifier
     snappingEnabledNotifier.dispose(); // Dispose snapping notifier
     aspectRatioLockedNotifier.dispose(); // Dispose aspect ratio notifier
+    
+    // Remove clip selection sync listeners
+    selectedClipIdNotifier.removeListener(_syncTimelineClipSelection);
+    _timelineViewModel.selectedClipIdNotifier.removeListener(_syncFromTimelineClipSelection);
     
     // Remove timeline listeners
     if (_timelineFrameListener != null) {
