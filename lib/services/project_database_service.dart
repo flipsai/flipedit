@@ -348,6 +348,47 @@ class ProjectDatabaseService {
     }
   }
 
+  /// Update the order of tracks in the database
+  Future<bool> updateTrackOrder(List<Track> reorderedTracks) async {
+    if (_trackDao == null || currentDatabase == null) {
+      logError(_logTag, "Cannot update track order: No project loaded");
+      return false;
+    }
+
+    // Calculate the final track order, but DON'T update the notifier optimistically yet.
+    final updatedTracksWithOrder = List<Track>.generate(
+      reorderedTracks.length,
+      (index) => reorderedTracks[index].copyWith(order: index),
+    );
+    // tracksNotifier.value = updatedTracks; // REMOVED: Avoid optimistic update causing race condition
+    
+    // Now update the database in the background
+    logInfo(
+      _logTag,
+      "Starting database transaction for updating order of ${updatedTracksWithOrder.length} tracks",
+    );
+      
+    try {
+      // Attempt the update using the transaction-wrapped DAO method
+      // Pass the list with the correct order calculated
+      await _trackDao!.updateTrackOrders(updatedTracksWithOrder);
+      logInfo(
+        _logTag,
+        "Successfully updated track order in database via transaction. UI will update via stream.",
+      );
+      // The tracksNotifier will be updated automatically by the watchAllTracks stream listener
+      // once the transaction is committed.
+      return true;
+    } catch (dbError) {
+      // If the transaction fails (e.g., due to existing lock), log the error.
+      logError(
+        _logTag,
+        "Database transaction for updating track order failed: $dbError. UI state remains unchanged.",
+      );
+      return false; 
+    }
+  }
+
   /// Fetches all clips from all tracks and maps them to ClipModel.
   Future<List<ClipModel>> getAllTimelineClips() async {
     if (clipDao == null || currentDatabase == null) {

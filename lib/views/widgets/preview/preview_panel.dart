@@ -866,7 +866,27 @@ class PreviewPanelContent extends StatelessWidget with WatchItMixin {
 
     // Build list of transformable video players
     final List<Widget> transformablePlayers = [];
-    for (final clip in currentVisibleClips) {
+
+    // Get tracks to establish the correct stacking order
+    final tracks = di<TimelineViewModel>().tracksNotifierForView.value;
+
+    // First, we need to sort the visible clips by track order to get proper stacking
+    final sortedClips = List<ClipModel>.from(currentVisibleClips);
+    sortedClips.sort((a, b) {
+      // Find track indices for proper sorting
+      final trackA = tracks.indexWhere((track) => track.id == a.trackId);
+      final trackB = tracks.indexWhere((track) => track.id == b.trackId);
+      
+      // If track not found (shouldn't happen), put at the end
+      if (trackA == -1) return 1;
+      if (trackB == -1) return -1;
+      
+      // Higher track index (bottom tracks) should be rendered first (bottom of stack)
+      return trackB.compareTo(trackA);
+    });
+
+    // Now create the video players in the correct stacking order
+    for (final clip in sortedClips) {
       if (clip.type == ClipType.video &&
           controllers.containsKey(clip.databaseId)) {
         final videoController = controllers[clip.databaseId]!;

@@ -254,32 +254,83 @@ class _TimelineState extends State<Timeline> { // Mixin removed here
                                       },
                                       builder: (context, candidateData, rejectedData) {
                                         // Build the list of tracks inside the DragTarget builder
-                                        // Apply padding here for the label space
-                                        // Removed Padding wrapper around ListView
-                                        return ListView.builder(
-                                            padding: const EdgeInsets.symmetric(vertical: trackItemSpacing),
-                                            itemCount: tracks.length,
-                                            itemBuilder: (context, index) {
-                                              final track = tracks[index];
-                                              // TimelineTrack itself handles internal label/content split
-                                              return Padding(
-                                                padding: const EdgeInsets.only(bottom: trackItemSpacing),
-                                                // Use AnimatedBuilder to pass down the current scroll offset reactively
-                                                child: AnimatedBuilder(
-                                                  animation: _scrollController,
-                                                  builder: (context, child) {
-                                                     return TimelineTrack(
-                                                       track: track,
-                                                       // Call ViewModel method instead of direct service call
-                                                       onDelete: () => _timelineViewModel.deleteTrack(track.id),
-                                                       trackLabelWidth: trackLabelWidth, // Pass width
-                                                       scrollOffset: _scrollController.hasClients ? _scrollController.offset : 0.0, // Pass offset
-                                                     );
-                                                  },
-                                                )
-                                              );
-                                            },
+                                        
+                                        // If no tracks and not dragging, show a message
+                                        if (tracks.isEmpty && candidateData.isEmpty) {
+                                          return Center(
+                                            child: Column(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              children: [
+                                                const Icon(FluentIcons.error, size: 24),
+                                                const SizedBox(height: 8),
+                                                Text(
+                                                  'No tracks in project',
+                                                  style: theme.typography.bodyLarge,
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  'Drag media here to create a track',
+                                                  style: theme.typography.body?.copyWith(
+                                                    color: theme.resources.textFillColorSecondary,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
                                           );
+                                        }
+                                        
+                                        // If tracks exist or we're showing drop preview, use ReorderableListView
+                                        return ReorderableListView.builder(
+                                          padding: const EdgeInsets.symmetric(vertical: trackItemSpacing),
+                                          onReorder: (oldIndex, newIndex) async {
+                                            // Avoid processing if indices are out of range
+                                            if (oldIndex < 0 || oldIndex >= tracks.length || 
+                                                newIndex < 0 || newIndex > tracks.length) {
+                                              developer.log('Invalid track indices: $oldIndex -> $newIndex', name: 'Timeline');
+                                              return;
+                                            }
+                                            
+                                            // ReorderableListView will give us an index that accounts for
+                                            // the item being removed and inserted, so we need to adjust.
+                                            if (oldIndex < newIndex) {
+                                              newIndex -= 1;
+                                            }
+                                            
+                                            developer.log('Track reordering: $oldIndex -> $newIndex', name: 'Timeline');
+                                            
+                                            if (oldIndex != newIndex) {
+                                              try {
+                                                await _timelineViewModel.reorderTracks(oldIndex, newIndex);
+                                              } catch (e) {
+                                                developer.log('Error reordering tracks: $e', name: 'Timeline');
+                                              }
+                                            }
+                                          },
+                                          buildDefaultDragHandles: false, // Disable default drag handles
+                                          itemCount: tracks.length,
+                                          itemBuilder: (context, index) {
+                                            final track = tracks[index];
+                                            // TimelineTrack itself handles internal label/content split
+                                            return Padding(
+                                              key: ValueKey('track_${track.id}'), // Key for ReorderableListView
+                                              padding: const EdgeInsets.only(bottom: trackItemSpacing),
+                                              // Use AnimatedBuilder to pass down the current scroll offset reactively
+                                              child: AnimatedBuilder(
+                                                animation: _scrollController,
+                                                builder: (context, child) {
+                                                   return TimelineTrack(
+                                                     key: ValueKey('timeline_track_${track.id}'), // Add unique key for the TimelineTrack itself
+                                                     track: track,
+                                                     // Call ViewModel method instead of direct service call
+                                                     onDelete: () => _timelineViewModel.deleteTrack(track.id),
+                                                     trackLabelWidth: trackLabelWidth, // Pass width
+                                                     scrollOffset: _scrollController.hasClients ? _scrollController.offset : 0.0, // Pass offset
+                                                   );
+                                                },
+                                              )
+                                            );
+                                          },
+                                        );
                                       },
                                     ),
                                   ),

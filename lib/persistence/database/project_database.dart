@@ -50,6 +50,11 @@ class ProjectDatabase extends _$ProjectDatabase {
     logInfo(_logTag, "Closing project database connection");
     await close();
   }
+
+  // Static log helper
+  static void _logInfo(String tag, String message) {
+    logInfo(message, tag);
+  }
 }
 
 // Create a connection to the project-specific database
@@ -60,7 +65,24 @@ LazyDatabase _openConnection(String databasePath) {
     if (!await file.parent.exists()) {
       await file.parent.create(recursive: true);
     }
-    return NativeDatabase.createInBackground(file, logStatements: true);
+    // Use createInBackground for potentially better performance,
+    // and add setup to enable WAL mode.
+    return NativeDatabase.createInBackground(
+      file,
+      logStatements: true, // Keep logging enabled
+      setup: (database) {
+        // Enable WAL mode for better concurrency. This is crucial!
+        database.execute('pragma journal_mode = WAL;');
+        ProjectDatabase._logInfo(
+          'ProjectDatabase', // Pass tag explicitly as it's static context
+          'Enabled WAL journal mode for database: $databasePath'
+        );
+      },
+      // Optional: Consider isolateSetup if specific native libs need loading
+      // isolateSetup: () { ... }
+      // Optional: Consider readPool if high read concurrency is needed
+      // readPool: 4,
+    );
   });
 }
 

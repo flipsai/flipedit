@@ -527,6 +527,61 @@ class TimelineViewModel extends ChangeNotifier {
     );
   }
 
+  /// Reorders tracks by moving a track from one position to another
+  Future<bool> reorderTracks(int oldIndex, int newIndex) async {
+    // Get the current state before modification for potential rollback/logging
+    final originalTracks = List<Track>.from(tracksListNotifier.value);
+
+    // If the indices are the same or invalid, no need to reorder
+    if (oldIndex == newIndex || 
+        oldIndex < 0 || oldIndex >= originalTracks.length || 
+        newIndex < 0 || newIndex >= originalTracks.length) {
+      return false;
+    }
+
+    // Create the reordered list locally to pass to the service
+    final reorderedTracksForService = List<Track>.from(originalTracks);
+    final trackToMove = reorderedTracksForService.removeAt(oldIndex);
+    reorderedTracksForService.insert(newIndex, trackToMove);
+    
+    logger.logInfo(
+      'Attempting to persist track reorder: $oldIndex -> $newIndex',
+      _logTag,
+    );
+
+    // DO NOT update tracksListNotifier.value here - rely on DB stream
+    // tracksListNotifier.value = List<Track>.from(reorderedTracksForService); // REMOVED
+
+    try {
+      // Call the database service to persist the change
+      final success = await _projectDatabaseService.updateTrackOrder(reorderedTracksForService);
+      
+      if (success) {
+        logger.logInfo(
+          'Track order persisted successfully via DB service. UI update pending stream.',
+          _logTag,
+        );
+        return true;
+      } else {
+        // Log the persistence failure. UI hasn't changed yet.
+        logger.logWarning(
+          'Track order persistence failed in DB service. UI state remains unchanged from before reorder attempt.',
+          _logTag,
+        );
+        // Optionally, could reset tracksListNotifier to originalTracks here if necessary,
+        // but since we didn't change it, it should still be consistent.
+        return false;
+      }
+    } catch (e) {
+      logger.logError(
+        'Error calling projectDatabaseService.updateTrackOrder: $e',
+        _logTag,
+      );
+      // UI state remains unchanged from before reorder attempt.
+      return false;
+    }
+  }
+
   @override
   void dispose() {
     logger.logInfo('Disposing TimelineViewModel and internal listeners/services', _logTag);
