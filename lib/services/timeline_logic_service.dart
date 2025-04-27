@@ -35,6 +35,23 @@ class TimelineLogicService {
     );
     return frameToMs(framePosition);
   }
+/// Calculates the pixel offset corresponding to the start of a given frame.
+  double calculatePixelOffsetForFrame(int frame, double zoom) {
+    // Ensure zoom is valid to prevent division by zero or negative width
+    final safeZoom = zoom.clamp(0.01, 5.0);
+    final frameWidth = 5.0 * safeZoom;
+    return frame * frameWidth;
+  }
+
+  /// Calculates the scroll offset needed to bring a specific frame into view
+  /// (e.g., centered or at the start of the viewport).
+  /// This is a basic implementation assuming we want the frame at the start.
+  /// Viewport width might be needed for centering.
+  double calculateScrollOffsetForFrame(int frame, double zoom) {
+     // For now, simply return the pixel offset of the frame start.
+     // The view logic might need to adjust this based on viewport width.
+     return calculatePixelOffsetForFrame(frame, zoom);
+  }
 
   /// Calculates placement for a clip on a track, handling overlaps with neighbors
   /// Returns placement information without performing database operations

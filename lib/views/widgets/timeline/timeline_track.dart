@@ -1,15 +1,20 @@
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flipedit/persistence/database/project_database.dart';
+import 'package:flipedit/persistence/database/project_database.dart'; // Import for Track data class definition
+// Removed incorrect track table import
+// Removed persistence import
 import 'package:flipedit/models/clip.dart';
-import 'package:flipedit/services/timeline_logic_service.dart'; // Import the new service
+// Removed service import
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/views/widgets/timeline/timeline_clip.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flutter/widgets.dart' as fw;
 import "dart:developer" as developer;
 import 'painters/track_background_painter.dart';
-import 'package:flipedit/viewmodels/commands/roll_edit_command.dart';
-import 'package:flipedit/viewmodels/commands/add_clip_command.dart';
+// Removed unused: import 'package:flipedit/viewmodels/commands/roll_edit_command.dart';
+import 'components/track_background.dart'; // Import new component
+import 'components/drag_preview.dart'; // Import new component
+import 'components/roll_edit_handle.dart'; // Import new component
+// Removed AddClipCommand import, handled by ViewModel
 
 class TimelineTrack extends StatefulWidget with WatchItStatefulWidgetMixin {
   final Track track;
@@ -37,13 +42,13 @@ class _TimelineTrackState extends State<TimelineTrack> {
   final GlobalKey _trackContentKey = GlobalKey();
 
   late TimelineViewModel _timelineViewModel;
-  late TimelineLogicService _timelineLogicService;
+  // Removed TimelineLogicService instance
 
   @override
   void initState() {
     super.initState();
     _timelineViewModel = di<TimelineViewModel>();
-    _timelineLogicService = di<TimelineLogicService>();
+    // Removed TimelineLogicService initialization
     _textController = TextEditingController(text: widget.track.name);
     _focusNode = FocusNode();
 
@@ -119,12 +124,17 @@ class _TimelineTrackState extends State<TimelineTrack> {
     return widget.scrollOffset;
   }
 
+  /// Calculates the preview frame position using the ViewModel.
   int _calculateFramePositionForPreview(double previewRawX, double zoom) {
     final scrollOffsetX = getHorizontalScrollOffset();
-    final position = (previewRawX + scrollOffsetX) / (5.0 * zoom);
-    final framePosition = position < 0 ? 0 : position.floor();
-    
-    // Debug the calculation to ensure it matches with the actual drop
+    // Use ViewModel method for calculation
+    final framePosition = _timelineViewModel.calculateFramePositionForOffset(
+      previewRawX,
+      scrollOffsetX,
+      zoom,
+    );
+
+    // Debugging
     developer.log(
       '🔍 Preview position: raw=$previewRawX, scroll=$scrollOffsetX, frame=$framePosition',
       name: 'TimelineTrack'
@@ -142,15 +152,7 @@ class _TimelineTrackState extends State<TimelineTrack> {
     }
   }
 
-  Future<void> _handleClipDrop(ClipModel draggedClip, int startTimeOnTrackMs) async {
-    final timelineVm = di<TimelineViewModel>();
-    await timelineVm.handleClipDrop(
-      clip: draggedClip,
-      trackId: widget.track.id,
-      startTimeOnTrackMs: startTimeOnTrackMs,
-    );
-    // ViewModel handles updates, no explicit refresh needed here
-  }
+  // Removed _handleClipDrop - logic moved to ViewModel's initiateClipDrop
 
   @override
   Widget build(BuildContext context) {
@@ -249,23 +251,20 @@ class _TimelineTrackState extends State<TimelineTrack> {
                 }
                 final localPosition = renderBox.globalToLocal(details.offset);
                 final scrollOffsetX = getHorizontalScrollOffset();
-                final posX = localPosition.dx;
-                final framePosition = ((posX + scrollOffsetX) / (5.0 * zoom)).floor();
-                // Calculate position in milliseconds using the ViewModel's helper
-                final startTimeOnTrackMs = _timelineLogicService.frameToMs(framePosition);
-                developer.log(
-                  '📏 Position metrics: local=$posX, scroll=$scrollOffsetX, frame=$framePosition, ms=$startTimeOnTrackMs',
-                  name: 'TimelineTrack'
-                );
-                final addClipCmd = AddClipCommand(
-                  vm: _timelineViewModel,
-                  clipData: draggedClip, // Pass the clip data containing source info
+                
+                // Calculate the target frame and time using ViewModel methods
+                final targetFrame = _timelineViewModel.calculateFramePositionForOffset(
+                    localPosition.dx, scrollOffsetX, zoom);
+                final targetStartTimeOnTrackMs = _timelineViewModel.frameToMs(targetFrame);
+            
+                // Use the refactored ViewModel method to handle the drop
+                await _timelineViewModel.handleClipDrop(
+                  clip: draggedClip,
                   trackId: widget.track.id,
-                  startTimeOnTrackMs: startTimeOnTrackMs, // Pass calculated start time
-                  // Removed parameters: startTimeInSourceMs, endTimeInSourceMs, localPositionX, scrollOffsetX
+                  startTimeOnTrackMs: targetStartTimeOnTrackMs,
                 );
-                await _timelineViewModel.runCommand(addClipCmd);
-                _updateHoverPosition(null);
+
+                _updateHoverPosition(null); // Clear hover state after drop
               },
               onWillAcceptWithDetails: (details) {
                 final RenderBox? renderBox =
@@ -290,9 +289,12 @@ class _TimelineTrackState extends State<TimelineTrack> {
               builder: (context, candidateData, rejectedData) {
                 int frameForPreview = -1;
                 final currentHoverPos = _hoverPositionNotifier.value;
+                int timeForPreviewMs = -1; // Calculate milliseconds for preview
 
                 if (currentHoverPos != null && candidateData.isNotEmpty) {
                   frameForPreview = _calculateFramePositionForPreview(currentHoverPos.dx, zoom);
+                  // Calculate milliseconds using ViewModel
+                  timeForPreviewMs = _timelineViewModel.frameToMs(frameForPreview);
                 }
 
                 return Container(
@@ -307,12 +309,14 @@ class _TimelineTrackState extends State<TimelineTrack> {
                     clipBehavior: fw.Clip.hardEdge,
                     children: [
                       // Background grid with frame markings
-                      Positioned.fill(child: _TrackBackground(zoom: zoom)),
+                      Positioned.fill(child: TrackBackground(zoom: zoom)), // Use new component
 
                       // Display existing clips on this track, or preview if dragging
                       if (candidateData.isNotEmpty && frameForPreview >= 0)
-                        ..._getPreviewClips(candidateData.first!, frameForPreview, zoom, trackHeight)
+                        // Get preview clips from ViewModel
+                        ..._getPreviewClipsFromViewModel(candidateData.first!, frameForPreview, zoom, trackHeight)
                       else
+                        // Display actual clips from ViewModel for this track
                         ...clips.whereType<ClipModel>().map((clip) {
                           final leftPosition = clip.startFrame * zoom * 5.0;
                           final clipWidth = clip.durationFrames * zoom * 5.0;
@@ -329,14 +333,17 @@ class _TimelineTrackState extends State<TimelineTrack> {
                           );
                         }),
 
-                      // Show preview for where the clip will be placed when dragging
-                      if (frameForPreview >= 0)
-                        _DragPreview(
-                          hoverPositionNotifier: _hoverPositionNotifier,
+                      // Show preview overlay when dragging
+                      if (frameForPreview >= 0 && timeForPreviewMs >= 0)
+                        DragPreview( // Use new component
                           candidateData: candidateData,
                           zoom: zoom,
                           frameAtDropPosition: frameForPreview,
+                          timeAtDropPositionMs: timeForPreviewMs, // Pass milliseconds
                         ),
+                      // --- Roll Edit Handles (only when not dragging onto track) ---
+                      if (candidateData.isEmpty)
+                        ..._buildRollEditHandles(clips, zoom, _timelineViewModel, trackHeight),
                     ],
                   ),
                 );
@@ -348,18 +355,32 @@ class _TimelineTrackState extends State<TimelineTrack> {
     );
   }
 
-  List<Widget> _getPreviewClips(ClipModel draggedClip, int frameForPreview, double zoom, double trackHeight) {
+  /// Gets preview clip widgets using the ViewModel's preview calculation logic.
+  List<Widget> _getPreviewClipsFromViewModel(
+    ClipModel draggedClip,
+    int frameForPreview,
+    double zoom,
+    double trackHeight,
+  ) {
     if (draggedClip.databaseId == null) {
       debugPrint('Warning: draggedClip.databaseId is null. Skipping preview.');
       return [];
     }
-    final timelineVm = di<TimelineViewModel>();
-    final previewClips = _timelineLogicService.getPreviewClipsForDrag(
-      clips: timelineVm.clips,
-      clipId: draggedClip.databaseId!,
+
+    // Calculate target start time in ms using ViewModel
+    final targetStartTimeOnTrackMs = _timelineViewModel.frameToMs(frameForPreview);
+
+    // Get preview clips from ViewModel
+    final previewClips = _timelineViewModel.getDragPreviewClips(
+      draggedClipId: draggedClip.databaseId!,
       targetTrackId: widget.track.id,
-      targetStartTimeOnTrackMs: (frameForPreview * (1000 / 30)).toInt(),
-    ).where((clip) => clip.trackId == widget.track.id).whereType<ClipModel>().toList();
+      targetStartTimeOnTrackMs: targetStartTimeOnTrackMs,
+    )
+    // Filter again just to be safe, ensuring only clips for *this* track are shown in its preview
+    .where((clip) => clip.trackId == widget.track.id)
+    .whereType<ClipModel>() // Ensure correct type
+    .toList();
+
     return previewClips.map((clip) {
       final leftPosition = clip.startFrame * zoom * 5.0;
       final clipWidth = clip.durationFrames * zoom * 5.0;
@@ -376,213 +397,53 @@ class _TimelineTrackState extends State<TimelineTrack> {
       );
     }).toList();
   }
-}
+  /// Builds the RollEditHandle widgets for adjacent clips on the track.
+  List<Widget> _buildRollEditHandles(
+    List<ClipModel> trackClips,
+    double zoom,
+    TimelineViewModel viewModel,
+    double trackHeight,
+  ) {
+    final List<Widget> handles = [];
+    // Ensure clips are sorted by start time for reliable adjacency checks
+    final sortedClips = List<ClipModel>.from(trackClips)
+      ..sort((a, b) => a.startFrame.compareTo(b.startFrame));
 
-class _DragPreview extends StatelessWidget with WatchItMixin {
-  final ValueNotifier<Offset?> hoverPositionNotifier;
-  final List<ClipModel?> candidateData;
-  final double zoom;
-  final int frameAtDropPosition;
+    for (int i = 0; i < sortedClips.length - 1; i++) {
+      final leftClip = sortedClips[i];
+      final rightClip = sortedClips[i + 1];
 
-  const _DragPreview({
-    required this.hoverPositionNotifier,
-    required this.candidateData,
-    required this.zoom,
-    required this.frameAtDropPosition,
-  });
+      // Check if clips are directly adjacent and have valid IDs
+      // TODO: Add check for compatible clip types if necessary for roll edits
+      if (leftClip.endFrame == rightClip.startFrame &&
+          leftClip.databaseId != null &&
+          rightClip.databaseId != null) {
+        final boundaryFrame = leftClip.endFrame;
+        // Calculate position based on the frame number and zoom
+        // The handle should visually center on the boundary, so offset slightly
+        final handleWidth = 20.0; // Standard width for the handle
+        final leftPosition = (boundaryFrame * zoom * 5.0) - (handleWidth / 2);
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = FluentTheme.of(context);
-    // Make sure to watch the notifier for position updates
-    final hoverPosValue = watch(hoverPositionNotifier);
-    // Use the same track height constant
-    const trackHeight = 65.0;
-
-    developer.log('DragPreview build - hover: $hoverPosValue, candidates: ${candidateData.length}', name: 'DragPreview');
-
-    if (candidateData.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    final draggedClip = candidateData.first;
-    if (draggedClip == null) {
-      return const SizedBox.shrink();
-    }
-    
-    final previewLeftPosition = frameAtDropPosition * zoom * 5.0;
-    final previewWidth = draggedClip.durationFrames * zoom * 5.0;
-    
-    // Calculate time in milliseconds for display
-    final timeInMs = ClipModel.framesToMs(frameAtDropPosition);
-    final formattedTime = '${(timeInMs / 1000).toStringAsFixed(2)}s';
-
-    return Stack(
-      clipBehavior: fw.Clip.none,
-      children: [
-        // Position indicator line
-        Positioned(
-          left: previewLeftPosition,
+        handles.add(Positioned(
+          key: ValueKey('roll_handle_${leftClip.databaseId}_${rightClip.databaseId}'), // Add key for stability
+          left: leftPosition,
           top: 0,
           bottom: 0,
-          width: 1,
-          child: Container(color: theme.accentColor.lighter),
-        ),
-        // Preview rectangle
-        Positioned(
-          left: previewLeftPosition,
-          top: 4, // Add a bit of padding from the top
-          height: trackHeight - 8, // Leave some padding at bottom too
-          width: previewWidth.clamp(2.0, double.infinity),
-          child: Container(
-            decoration: BoxDecoration(
-              color: theme.accentColor.normal.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: theme.accentColor.normal, width: 2),
-            ),
-            child: Center(
-              child: Text(
-                draggedClip.name,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
+          width: handleWidth, // Define a width for the handle's touch area
+          child: RollEditHandle(
+            leftClipId: leftClip.databaseId!,
+            rightClipId: rightClip.databaseId!,
+            initialFrame: boundaryFrame,
+            zoom: zoom,
+            viewModel: viewModel,
           ),
-        ),
-        // Frame and time information
-        Positioned(
-          left: previewLeftPosition + previewWidth + 5,
-          top: 5,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.7),
-              borderRadius: BorderRadius.circular(2),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Frame: $frameAtDropPosition',
-                  style: const TextStyle(color: Colors.white, fontSize: 10),
-                ),
-                Text(
-                  'Time: $formattedTime',
-                  style: const TextStyle(color: Colors.white, fontSize: 10),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
+        ));
+      }
+    }
+    return handles;
   }
 }
 
-class _TrackBackground extends StatelessWidget {
-  final double zoom;
-
-  const _TrackBackground({required this.zoom});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = FluentTheme.of(context);
-    final lineColor = theme.resources.controlStrokeColorDefault;
-    final faintLineColor = theme.resources.subtleFillColorTertiary;
-    final textColor = theme.typography.caption?.color ?? Colors.grey;
-
-    return RepaintBoundary(
-      child: CustomPaint(
-        painter: TrackBackgroundPainter(
-          zoom: zoom,
-          lineColor: lineColor,
-          faintLineColor: faintLineColor,
-          textColor: textColor,
-        ),
-        child: Container(),
-      ),
-    );
-  }
-}
-
-class _RollEditHandle extends StatefulWidget {
-  final int leftClipId;
-  final int rightClipId;
-  final int initialFrame;
-  final double zoom;
-
-  const _RollEditHandle({
-    required this.leftClipId,
-    required this.rightClipId,
-    required this.initialFrame,
-    required this.zoom,
-  });
-
-  @override
-  State<_RollEditHandle> createState() => _RollEditHandleState();
-}
-
-class _RollEditHandleState extends State<_RollEditHandle> {
-  double _startX = 0;
-  int _startFrame = 0;
-  int _initialFrame = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _startFrame = widget.initialFrame;
-    _initialFrame = widget.initialFrame;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = FluentTheme.of(context);
-    return GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onHorizontalDragStart: (details) {
-        _startX = details.globalPosition.dx;
-        _startFrame = _initialFrame;
-      },
-      onHorizontalDragUpdate: (details) async {
-        final pixelsPerFrame = 5.0 * widget.zoom;
-        final frameDelta = ((details.globalPosition.dx - _startX) / pixelsPerFrame).round();
-        final newBoundary = _startFrame + frameDelta;
-        final timelineVm = di<TimelineViewModel>();
-        final cmd = RollEditCommand(
-          vm: timelineVm,
-          leftClipId: widget.leftClipId,
-          rightClipId: widget.rightClipId,
-          newBoundaryFrame: newBoundary,
-        );
-        // Don't await UI updates, run command asynchronously
-        timelineVm.runCommand(cmd);
-      },
-      onHorizontalDragEnd: (_) {
-        _startX = 0;
-        _startFrame = widget.initialFrame;
-      },
-      onHorizontalDragCancel: () {
-        _startX = 0;
-        _startFrame = widget.initialFrame;
-      },
-      child: MouseRegion(
-        cursor: SystemMouseCursors.resizeLeftRight,
-        child: Container(
-          decoration: BoxDecoration(
-            color: theme.accentColor.normal.withAlpha(70),
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: theme.accentColor.normal, width: 1),
-          ),
-          margin: const EdgeInsets.symmetric(vertical: 8),
-          child: Center(
-            child: Icon(FluentIcons.a_a_d_logo, size: 14, color: theme.accentColor.darker),
-          ),
-        ),
-      ),
-    );
-  }
-}
+// Removed nested classes: _DragPreview, _TrackBackground, _RollEditHandle, _RollEditHandleState
+// They are now in separate files under lib/views/widgets/timeline/components/
 

@@ -3,47 +3,6 @@ import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 
-// Updated to accept BuildContext and ProjectViewModel
-Future<void> _handleNewProject(
-  BuildContext context,
-  ProjectViewModel projectVm,
-) async {
-  await projectVm.createNewProjectWithDialog(context);
-}
-
-// Updated to accept BuildContext and ProjectViewModel
-Future<void> _handleOpenProject(
-  BuildContext context,
-  ProjectViewModel projectVm,
-) async {
-  await projectVm.openProjectDialog(context);
-}
-
-// Updated to use ProjectViewModel command directly
-Future<void> _handleImportMedia(
-  BuildContext context,
-  ProjectViewModel projectVm,
-) async {
-  await projectVm.importMediaWithUI(context);
-}
-
-Future<void> _handleUndo(TimelineViewModel timelineVm) async {
-  await timelineVm.undo();
-}
-
-Future<void> _handleRedo(TimelineViewModel timelineVm) async {
-  await timelineVm.redo();
-}
-
-// --- New Action Handlers for Tracks (using ProjectViewModel) ---
-void _handleAddVideoTrack(ProjectViewModel projectVm) {
-  projectVm.addTrackCommand(type: 'video');
-}
-
-void _handleAddAudioTrack(ProjectViewModel projectVm) {
-  projectVm.addTrackCommand(type: 'audio');
-}
-
 // --- Widget for macOS / Windows ---
 class PlatformAppMenuBar extends StatefulWidget {
   final EditorViewModel editorVm;
@@ -64,74 +23,105 @@ class PlatformAppMenuBar extends StatefulWidget {
 }
 
 class _PlatformAppMenuBarState extends State<PlatformAppMenuBar> {
+  Future<void> _handleNewProject(BuildContext context) async {
+    await widget.projectVm.createNewProjectWithDialog(context);
+  }
+
+  Future<void> _handleOpenProject(BuildContext context) async {
+    await widget.projectVm.openProjectDialog(context);
+  }
+
+  Future<void> _handleImportMedia(BuildContext context) async {
+    await widget.projectVm.importMediaWithUI(context);
+  }
+
+  Future<void> _handleUndo() async {
+    await widget.timelineVm.undo();
+  }
+
+  Future<void> _handleRedo() async {
+    await widget.timelineVm.redo();
+  }
+
+  void _handleAddVideoTrack() {
+    widget.projectVm.addTrackCommand(type: 'video');
+  }
+
+  void _handleAddAudioTrack() {
+    widget.projectVm.addTrackCommand(type: 'audio');
+  }
+
   @override
   Widget build(BuildContext context) {
-    final bool isProjectLoaded = widget.projectVm.isProjectLoadedNotifier.value;
-
-    return PlatformMenuBar(
-      menus: [
-        PlatformMenu(
-          label: 'File',
+    return ValueListenableBuilder<bool>(
+      valueListenable: widget.projectVm.isProjectLoadedNotifier,
+      builder: (context, isProjectLoaded, _) {
+        return PlatformMenuBar(
           menus: [
-            PlatformMenuItem(
-              label: 'New Project',
-              onSelected: () => _handleNewProject(context, widget.projectVm),
+            PlatformMenu(
+              label: 'File',
+              menus: [
+                PlatformMenuItem(
+                  label: 'New Project',
+                  onSelected: () => _handleNewProject(context),
+                ),
+                PlatformMenuItem(
+                  label: 'Open Project...',
+                  onSelected: () => _handleOpenProject(context),
+                ),
+                PlatformMenuItem(
+                  label: 'Import Media...',
+                  onSelected: isProjectLoaded ? () => _handleImportMedia(context) : null,
+                ),
+              ],
             ),
-            PlatformMenuItem(
-              label: 'Open Project...',
-              onSelected: () => _handleOpenProject(context, widget.projectVm),
+            PlatformMenu(
+              label: 'Edit',
+              menus: [
+                PlatformMenuItem(
+                  label: 'Undo',
+                  onSelected: () => _handleUndo(),
+                ),
+                PlatformMenuItem(
+                  label: 'Redo',
+                  onSelected: () => _handleRedo(),
+                ),
+              ],
             ),
-            PlatformMenuItem(
-              label: 'Import Media...',
-              onSelected: isProjectLoaded ? () => _handleImportMedia(context, widget.projectVm) : null,
-            )
+            PlatformMenu(
+              label: 'Track',
+              menus: [
+                PlatformMenuItem(
+                  label: 'Add Video Track',
+                  onSelected: isProjectLoaded ? () => _handleAddVideoTrack() : null,
+                ),
+                PlatformMenuItem(
+                  label: 'Add Audio Track',
+                  onSelected: isProjectLoaded ? () => _handleAddAudioTrack() : null,
+                ),
+              ],
+            ),
+            PlatformMenu(
+              label: 'View',
+              menus: [
+                PlatformMenuItem(
+                  label: 'Inspector',
+                  onSelected: () => widget.editorVm.toggleInspector(),
+                ),
+                PlatformMenuItem(
+                  label: 'Timeline',
+                  onSelected: () => widget.editorVm.toggleTimeline(),
+                ),
+                PlatformMenuItem(
+                  label: 'Preview',
+                  onSelected: () => widget.editorVm.togglePreview(),
+                ),
+              ],
+            ),
           ],
-        ),
-        PlatformMenu(
-          label: 'Edit',
-          menus: [
-            PlatformMenuItem(
-              label: 'Undo',
-              onSelected: () => _handleUndo(widget.timelineVm),
-            ),
-            PlatformMenuItem(
-              label: 'Redo',
-              onSelected: () => _handleRedo(widget.timelineVm),
-            ),
-          ],
-        ),
-        PlatformMenu(
-          label: 'Track',
-          menus: [
-            PlatformMenuItem(
-              label: 'Add Video Track',
-              onSelected: isProjectLoaded ? () => _handleAddVideoTrack(widget.projectVm) : null,
-            ),
-            PlatformMenuItem(
-              label: 'Add Audio Track',
-              onSelected: isProjectLoaded ? () => _handleAddAudioTrack(widget.projectVm) : null,
-            ),
-          ],
-        ),
-        PlatformMenu(
-          label: 'View',
-          menus: [
-            PlatformMenuItem(
-              label: 'Inspector', // Always show label without checkmark
-              onSelected: () => widget.editorVm.toggleInspector(),
-            ),
-            PlatformMenuItem(
-              label: 'Timeline', // Always show label without checkmark
-              onSelected: () => widget.editorVm.toggleTimeline(),
-            ),
-            PlatformMenuItem(
-              label: 'Preview', // Always show label without checkmark
-              onSelected: () => widget.editorVm.togglePreview(),
-            ),
-          ],
-        ),
-      ],
-      child: widget.child,
+          child: widget.child,
+        );
+      },
     );
   }
 }
@@ -154,32 +144,62 @@ class FluentAppMenuBar extends StatefulWidget {
 }
 
 class _FluentAppMenuBarState extends State<FluentAppMenuBar> {
+  Future<void> _handleNewProject(BuildContext context) async {
+    await widget.projectVm.createNewProjectWithDialog(context);
+  }
+
+  Future<void> _handleOpenProject(BuildContext context) async {
+    await widget.projectVm.openProjectDialog(context);
+  }
+
+  Future<void> _handleImportMedia(BuildContext context) async {
+    await widget.projectVm.importMediaWithUI(context);
+  }
+
+  Future<void> _handleUndo() async {
+    await widget.timelineVm.undo();
+  }
+
+  Future<void> _handleRedo() async {
+    await widget.timelineVm.redo();
+  }
+
+  void _handleAddVideoTrack() {
+    widget.projectVm.addTrackCommand(type: 'video');
+  }
+
+  void _handleAddAudioTrack() {
+    widget.projectVm.addTrackCommand(type: 'audio');
+  }
+
   @override
   Widget build(BuildContext context) {
-    // No need to read notifiers here directly, ValueListenableBuilder will handle it.
-    final bool isProjectLoaded = widget.projectVm.isProjectLoadedNotifier.value; // Keep for non-View menus
-
     return Padding(
       padding: const EdgeInsets.only(top: 8.0, right: 8.0),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          DropDownButton(
-            title: const Text('File'),
-            items: [
-              MenuFlyoutItem(
-                text: const Text('New Project'),
-                onPressed: () => _handleNewProject(context, widget.projectVm),
-              ),
-              MenuFlyoutItem(
-                text: const Text('Open Project...'),
-                onPressed: () => _handleOpenProject(context, widget.projectVm),
-              ),
-              MenuFlyoutItem(
-                text: const Text('Import Media...'),
-                onPressed: isProjectLoaded ? () => _handleImportMedia(context, widget.projectVm) : null,
-              )
-            ],
+          ValueListenableBuilder<bool>(
+            valueListenable: widget.projectVm.isProjectLoadedNotifier,
+            builder: (context, isProjectLoaded, _) {
+              return DropDownButton(
+                title: const Text('File'),
+                items: [
+                  MenuFlyoutItem(
+                    text: const Text('New Project'),
+                    onPressed: () => _handleNewProject(context),
+                  ),
+                  MenuFlyoutItem(
+                    text: const Text('Open Project...'),
+                    onPressed: () => _handleOpenProject(context),
+                  ),
+                  MenuFlyoutItem(
+                    text: const Text('Import Media...'),
+                    onPressed: isProjectLoaded ? () => _handleImportMedia(context) : null,
+                  )
+                ],
+              );
+            },
           ),
           const SizedBox(width: 8),
           DropDownButton(
@@ -187,30 +207,34 @@ class _FluentAppMenuBarState extends State<FluentAppMenuBar> {
             items: [
               MenuFlyoutItem(
                 text: const Text('Undo'),
-                onPressed: () => _handleUndo(widget.timelineVm),
+                onPressed: () => _handleUndo(),
               ),
               MenuFlyoutItem(
                 text: const Text('Redo'),
-                onPressed: () => _handleRedo(widget.timelineVm),
+                onPressed: () => _handleRedo(),
               ),
             ],
           ),
           const SizedBox(width: 8),
-          DropDownButton(
-            title: const Text('Track'),
-            items: [
-              MenuFlyoutItem(
-                text: const Text('Add Video Track'),
-                onPressed: isProjectLoaded ? () => _handleAddVideoTrack(widget.projectVm) : null,
-              ),
-              MenuFlyoutItem(
-                text: const Text('Add Audio Track'),
-                onPressed: isProjectLoaded ? () => _handleAddAudioTrack(widget.projectVm) : null,
-              ),
-            ],
+          ValueListenableBuilder<bool>(
+            valueListenable: widget.projectVm.isProjectLoadedNotifier,
+            builder: (context, isProjectLoaded, _) {
+              return DropDownButton(
+                title: const Text('Track'),
+                items: [
+                  MenuFlyoutItem(
+                    text: const Text('Add Video Track'),
+                    onPressed: isProjectLoaded ? () => _handleAddVideoTrack() : null,
+                  ),
+                  MenuFlyoutItem(
+                    text: const Text('Add Audio Track'),
+                    onPressed: isProjectLoaded ? () => _handleAddAudioTrack() : null,
+                  ),
+                ],
+              );
+            },
           ),
           const SizedBox(width: 8),
-          // Wrap the entire DropDownButton with ValueListenableBuilders
           ValueListenableBuilder<bool>(
             valueListenable: widget.editorVm.isInspectorVisibleNotifier,
             builder: (context, isInspectorVisible, _) {
@@ -220,7 +244,6 @@ class _FluentAppMenuBarState extends State<FluentAppMenuBar> {
                   return ValueListenableBuilder<bool>(
                     valueListenable: widget.editorVm.isPreviewVisibleNotifier,
                     builder: (context, isPreviewVisible, _) {
-                      // Build the DropDownButton inside the innermost builder
                       return DropDownButton(
                         title: const Text('View'),
                         items: [

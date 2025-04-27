@@ -1,16 +1,21 @@
-import '../timeline_viewmodel.dart';
+import 'package:flutter/foundation.dart'; // For ValueNotifier
+import '../timeline_viewmodel.dart'; // Keep for ClipModel access maybe
 import 'timeline_command.dart';
 import '../../models/clip.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
 import 'package:collection/collection.dart'; // For firstWhereOrNull
 import 'dart:math'; // For max/min
+import '../../services/project_database_service.dart'; // Added
+import 'package:watch_it/watch_it.dart'; // For di
 
 /// Command to perform a roll edit between two adjacent clips.
 class RollEditCommand implements TimelineCommand {
-  final TimelineViewModel vm;
+  // final TimelineViewModel vm; // Removed
   final int leftClipId;
   final int rightClipId;
   final int newBoundaryFrame;
+  final ProjectDatabaseService _projectDatabaseService = di<ProjectDatabaseService>(); // Inject service
+  final ValueNotifier<List<ClipModel>> clipsNotifier; // Pass notifier
 
   // Store original state for undo
   ClipModel? _originalLeftClipState;
@@ -19,10 +24,11 @@ class RollEditCommand implements TimelineCommand {
   static const _logTag = "RollEditCommand";
 
   RollEditCommand({
-    required this.vm,
+    // required this.vm, // Removed
     required this.leftClipId,
     required this.rightClipId,
     required this.newBoundaryFrame,
+    required this.clipsNotifier, // Added
   });
 
   @override
@@ -32,12 +38,18 @@ class RollEditCommand implements TimelineCommand {
       _logTag,
     );
 
-    final left = vm.clips.firstWhereOrNull((c) => c.databaseId == leftClipId);
-    final right = vm.clips.firstWhereOrNull((c) => c.databaseId == rightClipId);
+    final currentClips = clipsNotifier.value;
+    final left = currentClips.firstWhereOrNull((c) => c.databaseId == leftClipId);
+    final right = currentClips.firstWhereOrNull((c) => c.databaseId == rightClipId);
 
     if (left == null || right == null) {
       logger.logError('[RollEditCommand] Left ($leftClipId) or Right ($rightClipId) clip not found', _logTag);
       throw Exception('Clips for roll edit not found');
+    }
+
+    if (_projectDatabaseService.clipDao == null) {
+      logger.logError('[RollEditCommand] Clip DAO not initialized', _logTag);
+      throw Exception('Clip DAO not initialized');
     }
 
     // --- Store state for Undo ---
@@ -91,21 +103,39 @@ class RollEditCommand implements TimelineCommand {
 
 
     try {
-      // Update left clip's end time in source
-      await vm.projectDatabaseService.clipDao!.updateClipFields(left.databaseId!, {
+      // Update left clip's end time on track and in source
+      await _projectDatabaseService.clipDao!.updateClipFields(left.databaseId!, {
+        'endTimeOnTrackMs': newLeftEndMsOnTrack, // Update track time too
         'endTimeInSourceMs': newLeftEndInSourceMs,
-        // Note: startTimeOnTrackMs for left clip does NOT change in a roll edit
-      });
+      }, log: false); // Don't log individual updates
 
       // Update right clip's start time on track AND in source
-      await vm.projectDatabaseService.clipDao!.updateClipFields(right.databaseId!, {
+      await _projectDatabaseService.clipDao!.updateClipFields(right.databaseId!, {
         'startTimeOnTrackMs': newRightStartMsOnTrack,
         'startTimeInSourceMs': newRightStartInSourceMs,
-        // Note: endTimeInSourceMs for right clip does NOT change in a roll edit
-      });
+      }, log: true); // Log the second update as the primary action
+
+      // --- Update ViewModel State ---
+      logger.logDebug('[RollEditCommand] Updating ViewModel state...', _logTag);
+      final updatedClips = List<ClipModel>.from(currentClips);
+      final leftIndex = updatedClips.indexWhere((c) => c.databaseId == leftClipId);
+      final rightIndex = updatedClips.indexWhere((c) => c.databaseId == rightClipId);
+
+      if (leftIndex != -1) {
+          updatedClips[leftIndex] = updatedClips[leftIndex].copyWith(
+            endTimeOnTrackMs: newLeftEndMsOnTrack,
+            endTimeInSourceMs: newLeftEndInSourceMs,
+          );
+      }
+      if (rightIndex != -1) {
+          updatedClips[rightIndex] = updatedClips[rightIndex].copyWith(
+            startTimeOnTrackMs: newRightStartMsOnTrack,
+            startTimeInSourceMs: newRightStartInSourceMs,
+          );
+      }
+      clipsNotifier.value = updatedClips; // Update the notifier
 
       logger.logInfo('[RollEditCommand] Successfully performed roll edit.', _logTag);
-      // await vm.refreshClips(); // Rely on stream/notifier updates
 
     } catch (e) {
       logger.logError('[RollEditCommand] Error performing roll edit: $e', _logTag);
@@ -121,23 +151,32 @@ class RollEditCommand implements TimelineCommand {
       logger.logError('[RollEditCommand] Cannot undo: Original state not saved', _logTag);
       return;
     }
+     if (_projectDatabaseService.clipDao == null) {
+      logger.logError('[RollEditCommand] Clip DAO not initialized for undo', _logTag);
+      throw Exception('Clip DAO not initialized for undo');
+    }
 
     try {
-      // Restore left clip's original end time in source
-      await vm.projectDatabaseService.clipDao!.updateClipFields(_originalLeftClipState!.databaseId!, {
+      // Restore left clip
+      await _projectDatabaseService.clipDao!.updateClipFields(_originalLeftClipState!.databaseId!, {
+        'endTimeOnTrackMs': _originalLeftClipState!.endTimeOnTrackMs, // Restore track time too
         'endTimeInSourceMs': _originalLeftClipState!.endTimeInSourceMs,
-      });
+      }, log: false); // Don't log individual
 
-      // Restore right clip's original start time on track and in source
-      await vm.projectDatabaseService.clipDao!.updateClipFields(_originalRightClipState!.databaseId!, {
+      // Restore right clip
+      await _projectDatabaseService.clipDao!.updateClipFields(_originalRightClipState!.databaseId!, {
         'startTimeOnTrackMs': _originalRightClipState!.startTimeOnTrackMs,
         'startTimeInSourceMs': _originalRightClipState!.startTimeInSourceMs,
-      });
+      }, log: true); // Log the second update
+
+      // --- Refresh ViewModel State ---
+      // A full refresh is the safest way to ensure consistency after complex undo
+      logger.logDebug('[RollEditCommand][Undo] ViewModel state should refresh via listeners.', _logTag);
+      // Rely on ViewModel listening to DB changes, triggered by the updateClipFields with log:true
 
       logger.logInfo('[RollEditCommand] Successfully undone roll edit.', _logTag);
-      // await vm.refreshClips(); // Rely on stream/notifier updates
 
-      // Clear state
+      // Clear undo state
       _originalLeftClipState = null;
       _originalRightClipState = null;
 
