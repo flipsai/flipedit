@@ -6,6 +6,9 @@ import 'package:flipedit/models/enums/edit_mode.dart';
 import 'package:hugeicons/hugeicons.dart';
 
 /// Controls widget for the timeline including playback controls and zoom
+import 'package:flipedit/viewmodels/editor_viewmodel.dart'; // Import EditorViewModel
+
+/// Controls widget for the timeline including playback controls and zoom
 class TimelineControls extends StatelessWidget with WatchItMixin {
   const TimelineControls({super.key});
 
@@ -14,12 +17,17 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
     final theme = FluentTheme.of(context);
     final controlsContentColor = theme.resources.textFillColorPrimary;
     final timelineViewModel = di<TimelineViewModel>();
+    final editorViewModel = di<EditorViewModel>(); // Inject EditorViewModel
 
     // Watch basic values
     final isPlaying = watchValue((TimelineViewModel vm) => vm.isPlayingNotifier);
     final totalFrames = watchValue((TimelineViewModel vm) => vm.totalFramesNotifier);
     final zoom = watchValue((TimelineViewModel vm) => vm.zoomNotifier);
     final isPlayheadLocked = watchValue((TimelineViewModel vm) => vm.isPlayheadLockedNotifier); // Watch lock state
+
+    // Watch snapping and aspect ratio lock states from EditorViewModel
+    final snappingEnabled = watchValue((EditorViewModel vm) => vm.snappingEnabledNotifier);
+    final aspectRatioLocked = watchValue((EditorViewModel vm) => vm.aspectRatioLockedNotifier);
 
     // Edit mode toolbar
     final currentMode = watchValue((TimelineViewModel vm) => vm.currentEditMode);
@@ -34,74 +42,6 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
           child: IconButton(
             icon: const Icon(HugeIcons.strokeRoundedCursor01, size: 16),
             onPressed: () => timelineViewModel.setEditMode(EditMode.select),
-            style: ButtonStyle(
-              padding: WidgetStateProperty.all(const EdgeInsets.all(4)),
-              foregroundColor: WidgetStateProperty.all(controlsContentColor),
-            ),
-          ),
-        ),
-      ),
-      Tooltip(
-        message: 'Ripple Trim',
-        child: Container(
-          decoration: BoxDecoration(
-            color: currentMode == EditMode.rippleTrim ? theme.accentColor.lightest : Colors.transparent,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: IconButton(
-            icon: const Icon(HugeIcons.strokeRoundedCrop, size: 16),
-            onPressed: () => timelineViewModel.setEditMode(EditMode.rippleTrim),
-            style: ButtonStyle(
-              padding: WidgetStateProperty.all(const EdgeInsets.all(4)),
-              foregroundColor: WidgetStateProperty.all(controlsContentColor),
-            ),
-          ),
-        ),
-      ),
-      Tooltip(
-        message: 'Roll',
-        child: Container(
-          decoration: BoxDecoration(
-            color: currentMode == EditMode.rollEdit ? theme.accentColor.lightest : Colors.transparent,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: IconButton(
-            icon: const Icon(HugeIcons.strokeRoundedArrowHorizontal, size: 16),
-            onPressed: () => timelineViewModel.setEditMode(EditMode.rollEdit),
-            style: ButtonStyle(
-              padding: WidgetStateProperty.all(const EdgeInsets.all(4)),
-              foregroundColor: WidgetStateProperty.all(controlsContentColor),
-            ),
-          ),
-        ),
-      ),
-      Tooltip(
-        message: 'Slip',
-        child: Container(
-          decoration: BoxDecoration(
-            color: currentMode == EditMode.slip ? theme.accentColor.lightest : Colors.transparent,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: IconButton(
-            icon: const Icon(HugeIcons.strokeRoundedCursorMove01, size: 16),
-            onPressed: () => timelineViewModel.setEditMode(EditMode.slip),
-            style: ButtonStyle(
-              padding: WidgetStateProperty.all(const EdgeInsets.all(4)),
-              foregroundColor: WidgetStateProperty.all(controlsContentColor),
-            ),
-          ),
-        ),
-      ),
-      Tooltip(
-        message: 'Slide',
-        child: Container(
-          decoration: BoxDecoration(
-            color: currentMode == EditMode.slide ? theme.accentColor.lightest : Colors.transparent,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: IconButton(
-            icon: const Icon(HugeIcons.strokeRoundedArrowHorizontal, size: 16),
-            onPressed: () => timelineViewModel.setEditMode(EditMode.slide),
             style: ButtonStyle(
               padding: WidgetStateProperty.all(const EdgeInsets.all(4)),
               foregroundColor: WidgetStateProperty.all(controlsContentColor),
@@ -195,11 +135,57 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
             ),
           ),
 
-         const SizedBox(width: 16), // Spacing after playback controls
+          const SizedBox(width: 16), // Spacing after playback controls
 
-         ...modeButtons, // Keep the mode buttons
+          ...modeButtons, // Keep the mode buttons
 
-         const SizedBox(width: 16), // Spacing after mode buttons (if any)
+          const SizedBox(width: 16), // Spacing after mode buttons
+
+          Tooltip(
+            message: 'Enable Snapping',
+            child: Container(
+              decoration: BoxDecoration(
+                color: snappingEnabled ? theme.accentColor.lightest : Colors.transparent, // Use watched state
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: IconButton(
+                icon: Icon(
+                  HugeIcons.strokeRoundedMagnet,
+                  size: 16,
+                  color: controlsContentColor,
+                ),
+                onPressed: editorViewModel.toggleSnapping, // Call ViewModel method
+                style: ButtonStyle(
+                  padding: WidgetStateProperty.all(const EdgeInsets.all(4)),
+                  foregroundColor: WidgetStateProperty.all(controlsContentColor),
+                ),
+              ),
+            ),
+          ),
+
+          Tooltip(
+            message: aspectRatioLocked ? 'Unlock Aspect Ratio (Aspect Ratio Locked)' : 'Lock Aspect Ratio', // Use watched state for message
+            child: Container(
+              decoration: BoxDecoration(
+                color: aspectRatioLocked ? theme.accentColor.lightest : Colors.transparent, // Use watched state
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: IconButton(
+                icon: Icon(
+                  aspectRatioLocked ? HugeIcons.strokeRoundedTouchLocked01 : HugeIcons.strokeRoundedTouch01, // Use suggested touch icons
+                  size: 16,
+                  color: controlsContentColor,
+                ),
+                onPressed: editorViewModel.toggleAspectRatioLock, // Call ViewModel method
+                style: ButtonStyle(
+                  padding: WidgetStateProperty.all(const EdgeInsets.all(4)),
+                  foregroundColor: WidgetStateProperty.all(controlsContentColor),
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(width: 16), // Spacing after new buttons
         ],
       ),
     );

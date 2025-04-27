@@ -52,19 +52,13 @@ class TimelineLogicService {
   }) {
     // Ensure track duration is positive
     if (endTimeOnTrackMs <= startTimeOnTrackMs) {
-      // Maybe return an error or adjust? For now, let's log and proceed cautiously
-      // or potentially adjust endTimeOnTrackMs = startTimeOnTrackMs + 1;
-       print("Warning: prepareClipPlacement received non-positive track duration.");
-       // Let's enforce minimum 1ms duration for safety
-       final adjustedEndTimeOnTrackMs = startTimeOnTrackMs + 1;
-       final newStart = startTimeOnTrackMs;
-       final newEnd = adjustedEndTimeOnTrackMs;
-    } else {
-      final newStart = startTimeOnTrackMs;
-      final newEnd = endTimeOnTrackMs;
+       print("Warning: prepareClipPlacement received non-positive track duration. Adjusting.");
+       startTimeOnTrackMs = startTimeOnTrackMs; // Keep original start
+       endTimeOnTrackMs = startTimeOnTrackMs + 1; // Set end 1ms after start
     }
+    // Clamp end time to be at least 1ms after start
     final newStart = startTimeOnTrackMs;
-    final newEnd = endTimeOnTrackMs.clamp(startTimeOnTrackMs + 1, endTimeOnTrackMs); // Ensure end is after start
+    final newEnd = endTimeOnTrackMs.clamp(startTimeOnTrackMs + 1, endTimeOnTrackMs);
 
 
     // Clamp the provided source times
@@ -94,85 +88,114 @@ class TimelineLogicService {
       final ns = neighbor.startTimeOnTrackMs;
       final ne = neighbor.endTimeOnTrackMs; // Use explicit track end time
 
-      if (ne <= newStart || ns >= newEnd) continue; // No overlap
+      // Check for any overlap: (StartA < EndB) and (EndA > StartB)
+      final bool overlaps = ns < newEnd && ne > newStart;
 
-      // --- Overlap Logic ---
-      if (ns >= newStart && ne <= newEnd) { // Neighbor is fully covered by the new clip
-        updatedClips.removeWhere((c) => c.databaseId == neighbor.databaseId);
-        if (neighbor.databaseId != null) clipsToRemove.add(neighbor.databaseId!);
-      } else if (ns < newStart && ne > newStart && ne <= newEnd) {
-        // Neighbor overlaps new clip's start (trim neighbor's end)
-        final newNeighborTrackEnd = newStart;
-        final trackTrimAmount = ne - newNeighborTrackEnd;
-        // Ensure source end doesn't go before source start
-        final newNeighborSourceEnd = (neighbor.endTimeInSourceMs - trackTrimAmount)
-            .clamp(neighbor.startTimeInSourceMs, neighbor.sourceDurationMs);
+      if (overlaps) {
+          // --- Original Trim Logic ---
+          if (ns >= newStart && ne <= newEnd) { // Neighbor is fully covered
+            updatedClips.removeWhere((c) => c.databaseId == neighbor.databaseId);
+             if (neighbor.databaseId != null && !clipsToRemove.contains(neighbor.databaseId!)) {
+               clipsToRemove.add(neighbor.databaseId!);
+            }
+          } else if (ns < newStart && ne > newStart && ne <= newEnd) {
+            // Neighbor overlaps new clip's start (trim neighbor's end)
+            final newNeighborTrackEnd = newStart;
+            final trackTrimAmount = ne - newNeighborTrackEnd;
+            final newNeighborSourceEnd = (neighbor.endTimeInSourceMs - trackTrimAmount)
+                .clamp(neighbor.startTimeInSourceMs, neighbor.sourceDurationMs);
 
-        final updated = neighbor.copyWith(
-          endTimeOnTrackMs: newNeighborTrackEnd, // Use direct param
-          endTimeInSourceMs: newNeighborSourceEnd, // Use direct param
-        );
-        final updateIndex = updatedClips.indexWhere((c) => c.databaseId == neighbor.databaseId);
-        if(updateIndex != -1) updatedClips[updateIndex] = updated;
+            final updated = neighbor.copyWith(
+              endTimeOnTrackMs: newNeighborTrackEnd,
+              endTimeInSourceMs: newNeighborSourceEnd,
+            );
+            final updateIndex = updatedClips.indexWhere((c) => c.databaseId == neighbor.databaseId);
+            if(updateIndex != -1) updatedClips[updateIndex] = updated;
 
-        if (neighbor.databaseId != null) {
-          clipUpdates.add({
-            'id': neighbor.databaseId!,
-            'fields': {
-              'endTimeOnTrackMs': newNeighborTrackEnd,
-              'endTimeInSourceMs': newNeighborSourceEnd,
-              },
-          });
-        }
-      } else if (ns >= newStart && ns < newEnd && ne > newEnd) {
-         // Neighbor overlaps new clip's end (trim neighbor's start)
-        final newNeighborTrackStart = newEnd;
-        final trackTrimAmount = newNeighborTrackStart - ns;
-         // Ensure source start doesn't go past source end
-        final newNeighborSourceStart = (neighbor.startTimeInSourceMs + trackTrimAmount)
-            .clamp(0, neighbor.endTimeInSourceMs);
+            if (neighbor.databaseId != null) {
+              // Add or update existing update instruction
+              final existingUpdateIndex = clipUpdates.indexWhere((u) => u['id'] == neighbor.databaseId!);
+              if (existingUpdateIndex == -1) {
+                clipUpdates.add({
+                  'id': neighbor.databaseId!,
+                  'fields': {
+                    'endTimeOnTrackMs': newNeighborTrackEnd,
+                    'endTimeInSourceMs': newNeighborSourceEnd,
+                  },
+                });
+              } else {
+                 // If already marked for start trim, merge the updates
+                 clipUpdates[existingUpdateIndex]['fields']['endTimeOnTrackMs'] = newNeighborTrackEnd;
+                 clipUpdates[existingUpdateIndex]['fields']['endTimeInSourceMs'] = newNeighborSourceEnd;
+              }
+            }
+          } else if (ns >= newStart && ns < newEnd && ne > newEnd) {
+            // Neighbor overlaps new clip's end (trim neighbor's start)
+            final newNeighborTrackStart = newEnd;
+            final trackTrimAmount = newNeighborTrackStart - ns;
+            final newNeighborSourceStart = (neighbor.startTimeInSourceMs + trackTrimAmount)
+                .clamp(0, neighbor.endTimeInSourceMs);
 
-        final updated = neighbor.copyWith(
-          startTimeOnTrackMs: newNeighborTrackStart, // Use direct param
-          startTimeInSourceMs: newNeighborSourceStart, // Use direct param
-        );
-         final updateIndex = updatedClips.indexWhere((c) => c.databaseId == neighbor.databaseId);
-        if(updateIndex != -1) updatedClips[updateIndex] = updated;
+            final updated = neighbor.copyWith(
+              startTimeOnTrackMs: newNeighborTrackStart,
+              startTimeInSourceMs: newNeighborSourceStart,
+            );
+            final updateIndex = updatedClips.indexWhere((c) => c.databaseId == neighbor.databaseId);
+            if(updateIndex != -1) updatedClips[updateIndex] = updated;
 
-        if (neighbor.databaseId != null) {
-          clipUpdates.add({
-            'id': neighbor.databaseId!,
-            'fields': {
-              'startTimeOnTrackMs': newNeighborTrackStart,
-              'startTimeInSourceMs': newNeighborSourceStart,
-            },
-          });
-        }
-      } else if (ns < newStart && ne > newEnd) {
-        // New clip is fully inside neighbor: Trim neighbor's end (simpler than splitting)
-         final newNeighborTrackEnd = newStart;
-        final trackTrimAmount = ne - newNeighborTrackEnd;
-        final newNeighborSourceEnd = (neighbor.endTimeInSourceMs - trackTrimAmount)
-            .clamp(neighbor.startTimeInSourceMs, neighbor.sourceDurationMs);
+            if (neighbor.databaseId != null) {
+               // Add or update existing update instruction
+               final existingUpdateIndex = clipUpdates.indexWhere((u) => u['id'] == neighbor.databaseId!);
+              if (existingUpdateIndex == -1) {
+                  clipUpdates.add({
+                    'id': neighbor.databaseId!,
+                    'fields': {
+                      'startTimeOnTrackMs': newNeighborTrackStart,
+                      'startTimeInSourceMs': newNeighborSourceStart,
+                    },
+                  });
+               } else {
+                 // If already marked for end trim, merge the updates
+                 clipUpdates[existingUpdateIndex]['fields']['startTimeOnTrackMs'] = newNeighborTrackStart;
+                 clipUpdates[existingUpdateIndex]['fields']['startTimeInSourceMs'] = newNeighborSourceStart;
+               }
+            }
+          } else if (ns < newStart && ne > newEnd) {
+            // New clip is fully inside neighbor: Trim neighbor's end (like first overlap case).
+            // TODO: Implement splitting the neighbor into two clips for better accuracy.
+            final newNeighborTrackEnd = newStart;
+            final trackTrimAmount = ne - newNeighborTrackEnd;
+            final newNeighborSourceEnd = (neighbor.endTimeInSourceMs - trackTrimAmount)
+                .clamp(neighbor.startTimeInSourceMs, neighbor.sourceDurationMs);
 
-        final updated = neighbor.copyWith(
-          endTimeOnTrackMs: newNeighborTrackEnd, // Use direct param
-          endTimeInSourceMs: newNeighborSourceEnd, // Use direct param
-        );
-         final updateIndex = updatedClips.indexWhere((c) => c.databaseId == neighbor.databaseId);
-        if(updateIndex != -1) updatedClips[updateIndex] = updated;
+            final updated = neighbor.copyWith(
+              endTimeOnTrackMs: newNeighborTrackEnd,
+              endTimeInSourceMs: newNeighborSourceEnd,
+            );
+            final updateIndex = updatedClips.indexWhere((c) => c.databaseId == neighbor.databaseId);
+            if(updateIndex != -1) updatedClips[updateIndex] = updated;
 
-        if (neighbor.databaseId != null) {
-          clipUpdates.add({
-            'id': neighbor.databaseId!,
-            'fields': {
-              'endTimeOnTrackMs': newNeighborTrackEnd,
-              'endTimeInSourceMs': newNeighborSourceEnd,
-            },
-          });
-        }
-      }
+            if (neighbor.databaseId != null) {
+               // Add or update existing update instruction
+               final existingUpdateIndex = clipUpdates.indexWhere((u) => u['id'] == neighbor.databaseId!);
+               if (existingUpdateIndex == -1) {
+                  clipUpdates.add({
+                    'id': neighbor.databaseId!,
+                    'fields': {
+                      'endTimeOnTrackMs': newNeighborTrackEnd,
+                      'endTimeInSourceMs': newNeighborSourceEnd,
+                    },
+                  });
+                } else {
+                  // If already marked for start trim, merge the updates
+                  clipUpdates[existingUpdateIndex]['fields']['endTimeOnTrackMs'] = newNeighborTrackEnd;
+                  clipUpdates[existingUpdateIndex]['fields']['endTimeInSourceMs'] = newNeighborSourceEnd;
+               }
+            }
+          }
+      } // End of if (overlaps)
     } // End neighbor loop
+
 
     // 3. Prepare final clip data for the placed/updated clip
     Map<String, dynamic> newClipData = {
@@ -188,10 +211,11 @@ class TimelineLogicService {
 
     // 4. Update the clip in the optimistic list (updatedClips)
     if (clipId != null) {
-      final idx = updatedClips.indexWhere((c) => c.databaseId == clipId);
-      if (idx != -1) {
-        // Update existing clip in the list
-        updatedClips[idx] = updatedClips[idx].copyWith(
+      // Find the clip being moved/updated
+       final updateIndex = updatedClips.indexWhere((c) => c.databaseId == clipId);
+      if (updateIndex != -1) {
+        // Apply updates to the existing clip model
+        updatedClips[updateIndex] = updatedClips[updateIndex].copyWith(
           trackId: trackId,
           startTimeOnTrackMs: newStart,
           endTimeOnTrackMs: newEnd,
@@ -200,40 +224,60 @@ class TimelineLogicService {
           // sourceDurationMs is assumed not to change during placement
         );
       } else {
-        // This case should ideally not happen if clipId is provided, but handle defensively
-        print("Warning: Clip ID $clipId provided for update but not found in list.");
-         // Add it as a new clip if it wasn't found? Or throw error?
-         // For now, let's add it as if it were new.
-          ClipModel newClipModel = ClipModel(
-              databaseId: clipId, // Use provided ID
-              trackId: trackId, name: '', type: type, sourcePath: sourcePath,
-              sourceDurationMs: sourceDurationMs,
-              startTimeInSourceMs: clampedStartTimeInSourceMs, endTimeInSourceMs: clampedEndTimeInSourceMs,
-              startTimeOnTrackMs: newStart, endTimeOnTrackMs: newEnd,
-              effects: [], metadata: {},
-          );
-          updatedClips.add(newClipModel);
+        // This case should ideally not happen if clipId is provided for an update,
+        // but handle defensively: add it as if it were new.
+        print("Warning: Clip ID $clipId provided for update but not found in list. Adding as new.");
+        ClipModel newClipModel = ClipModel(
+          databaseId: clipId, // Use provided ID, but DB insert handles actual ID assignment
+          trackId: trackId,
+          name: '', // Placeholder name
+          type: type,
+          sourcePath: sourcePath,
+          sourceDurationMs: sourceDurationMs,
+          startTimeInSourceMs: clampedStartTimeInSourceMs,
+          endTimeInSourceMs: clampedEndTimeInSourceMs,
+          startTimeOnTrackMs: newStart,
+          endTimeOnTrackMs: newEnd,
+          effects: [],
+          metadata: {},
+        );
+        updatedClips.add(newClipModel);
       }
     } else {
-      // Add new clip to the list
+      // Add the new clip model to the list (databaseId will be assigned on insert)
       ClipModel newClipModel = ClipModel(
-        databaseId: null, // Will be assigned upon DB insert
-        trackId: trackId, name: '', type: type, sourcePath: sourcePath,
+        databaseId: null,
+        trackId: trackId,
+        name: '', // Placeholder name
+        type: type,
+        sourcePath: sourcePath,
         sourceDurationMs: sourceDurationMs,
-        startTimeInSourceMs: clampedStartTimeInSourceMs, endTimeInSourceMs: clampedEndTimeInSourceMs,
-        startTimeOnTrackMs: newStart, endTimeOnTrackMs: newEnd,
-        effects: [], metadata: {},
+        startTimeInSourceMs: clampedStartTimeInSourceMs,
+        endTimeInSourceMs: clampedEndTimeInSourceMs,
+        startTimeOnTrackMs: newStart,
+        endTimeOnTrackMs: newEnd,
+        effects: [],
+        metadata: {},
       );
+      // Ensure the new clip is actually added to the list for the optimistic update
       updatedClips.add(newClipModel);
     }
+
+
+    // Ensure the 'updatedClips' list reflects removals correctly
+    final finalClipIdsToRemove = clipsToRemove.toSet(); // Use Set for efficient lookup
+    updatedClips.removeWhere((clip) => clip.databaseId != null && finalClipIdsToRemove.contains(clip.databaseId));
+
 
     // 5. Return results
     return {
       'success': true,
       'newClipData': newClipData, // Contains final track & (clamped) source times for the placed clip
       'clipId': clipId, // Pass back original ID if provided
-      'updatedClips': updatedClips, // Optimistic UI update list (includes placed clip + trimmed neighbors)
-      'clipUpdates': clipUpdates, // DB updates needed for neighbors
+      // Ensure the returned list reflects removals and the addition/update
+      'updatedClips': updatedClips,
+      // Return only updates for clips *not* marked for removal
+      'clipUpdates': clipUpdates.where((update) => !finalClipIdsToRemove.contains(update['id'])).toList(),
       'clipsToRemove': clipsToRemove, // DB deletions needed for neighbors
     };
   } // End of prepareClipPlacement
@@ -265,82 +309,53 @@ class TimelineLogicService {
     required int targetTrackId,
     required int targetStartTimeOnTrackMs,
   }) {
-    final original = clips;
-    final dragged = original.firstWhere((c) => c.databaseId == clipId, orElse: () => throw Exception("Dragged clip not found"));
-
-    // Use the dragged clip's track duration for the preview
-    final draggedDurationOnTrack = dragged.durationOnTrackMs;
-    int newStart = targetStartTimeOnTrackMs;
-    int newEnd = targetStartTimeOnTrackMs + draggedDurationOnTrack;
-
-    // Ensure preview duration is positive
-    if (newEnd <= newStart) newEnd = newStart +1;
+    // Find the original clip being dragged
+    ClipModel? draggedClip;
+    try {
+       draggedClip = clips.firstWhere((c) => c.databaseId == clipId);
+    } catch (e) {
+      print("Error: Dragged clip $clipId not found in getPreviewClipsForDrag.");
+      return clips; // Return original list if dragged clip isn't found
+    }
 
 
-    // Remove the dragged clip from the list to check overlaps with others on the target track
-    final others = original.where((c) => c.databaseId != clipId).toList();
-    List<ClipModel> preview = []; // Start with empty list
+    // Calculate the preview end time based on the dragged clip's duration on track
+    final draggedDurationOnTrack = draggedClip.durationOnTrackMs;
+    final targetEndTimeOnTrackMs = targetStartTimeOnTrackMs + draggedDurationOnTrack;
 
-    for (final neighbor in others) {
-       // Only consider neighbors on the target track for overlap checks
-      if (neighbor.trackId != targetTrackId) {
-        preview.add(neighbor); // Keep clips on other tracks as they are
-        continue;
-      }
 
-      final ns = neighbor.startTimeOnTrackMs;
-      final ne = neighbor.endTimeOnTrackMs; // Use explicit end time
-
-      // --- Apply the same trimming logic as prepareClipPlacement for preview ---
-      if (ne <= newStart || ns >= newEnd) { // No overlap
-        preview.add(neighbor);
-      } else if (ns >= newStart && ne <= newEnd) { // Fully covered: remove neighbor from preview
-        continue;
-      } else if (ns < newStart && ne > newStart && ne <= newEnd) { // Overlap on right: trim neighbor's end
-         final newNeighborTrackEnd = newStart;
-        final trackTrimAmount = ne - newNeighborTrackEnd;
-        final newNeighborSourceEnd = (neighbor.endTimeInSourceMs - trackTrimAmount)
-            .clamp(neighbor.startTimeInSourceMs, neighbor.sourceDurationMs);
-        preview.add(neighbor.copyWith(
-             endTimeOnTrackMs: newNeighborTrackEnd,
-             endTimeInSourceMs: newNeighborSourceEnd,
-        ));
-      } else if (ns >= newStart && ns < newEnd && ne > newEnd) { // Overlap on left: trim neighbor's start
-        final newNeighborTrackStart = newEnd;
-        final trackTrimAmount = newNeighborTrackStart - ns;
-        final newNeighborSourceStart = (neighbor.startTimeInSourceMs + trackTrimAmount)
-            .clamp(0, neighbor.endTimeInSourceMs);
-         preview.add(neighbor.copyWith(
-             startTimeOnTrackMs: newNeighborTrackStart,
-             startTimeInSourceMs: newNeighborSourceStart,
-         ));
-      } else if (ns < newStart && ne > newEnd) { // Dragged clip is fully inside neighbor: trim neighbor's end
-        final newNeighborTrackEnd = newStart;
-        final trackTrimAmount = ne - newNeighborTrackEnd;
-        final newNeighborSourceEnd = (neighbor.endTimeInSourceMs - trackTrimAmount)
-            .clamp(neighbor.startTimeInSourceMs, neighbor.sourceDurationMs);
-        preview.add(neighbor.copyWith(
-             endTimeOnTrackMs: newNeighborTrackEnd,
-             endTimeInSourceMs: newNeighborSourceEnd,
-        ));
-      }
-    } // End neighbor loop
-
-    // Add the dragged clip at the preview position
-    preview.add(
-      dragged.copyWith(
+     // Use prepareClipPlacement in a read-only way to calculate the preview state
+    final placementResult = prepareClipPlacement(
+        clips: clips, // Pass the original full list
+        clipId: clipId, // Identify the clip being moved
         trackId: targetTrackId,
-        startTimeOnTrackMs: newStart,
-        endTimeOnTrackMs: newEnd, // Show the preview end time
-        // Source times remain unchanged for a move preview
-      ),
+        type: draggedClip.type, // Use type from dragged clip
+        sourcePath: draggedClip.sourcePath, // Use source path from dragged clip
+        sourceDurationMs: draggedClip.sourceDurationMs, // Use duration from dragged clip
+        startTimeOnTrackMs: targetStartTimeOnTrackMs, // Target start time
+        endTimeOnTrackMs: targetEndTimeOnTrackMs, // Target end time
+        startTimeInSourceMs: draggedClip.startTimeInSourceMs, // Keep original source start
+        endTimeInSourceMs: draggedClip.endTimeInSourceMs, // Keep original source end
     );
 
-    // Sort the final preview list by start time
-    preview.sort(
-      (a, b) => a.startTimeOnTrackMs.compareTo(b.startTimeOnTrackMs),
-    );
-    return preview;
+
+     if (placementResult['success'] == true) {
+        // Return the calculated optimistic list which includes the moved clip and adjusted neighbors
+        return List<ClipModel>.from(placementResult['updatedClips']);
+    } else {
+        // If placement fails for preview, return the original list (or handle error)
+         print("Warning: prepareClipPlacement failed during preview generation.");
+        // Fallback: Manually move the clip without overlap handling for basic preview
+         final others = clips.where((c) => c.databaseId != clipId).toList();
+         final movedPreview = draggedClip.copyWith(
+             trackId: targetTrackId,
+             startTimeOnTrackMs: targetStartTimeOnTrackMs,
+             endTimeOnTrackMs: targetEndTimeOnTrackMs,
+         );
+         others.add(movedPreview);
+         // Sort by start time for consistent display order
+         others.sort((a, b) => a.startTimeOnTrackMs.compareTo(b.startTimeOnTrackMs));
+         return others;
+     }
   } // End of getPreviewClipsForDrag
-
-} // End of TimelineLogicService class
+}

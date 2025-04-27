@@ -14,7 +14,11 @@ import 'package:flipedit/views/widgets/timeline/components/timeline_playhead.dar
 /// Main timeline widget that shows clips and tracks
 /// Similar to the timeline in video editors like Premiere Pro or Final Cut
 class Timeline extends StatefulWidget with WatchItStatefulWidgetMixin { // Mixin moved here
-  const Timeline({super.key});
+  // Parameters for snapping and aspect ratio lock removed - now handled by EditorViewModel
+
+  const Timeline({
+    super.key,
+  });
 
   @override
   State<Timeline> createState() => _TimelineState();
@@ -111,8 +115,8 @@ class _TimelineState extends State<Timeline> { // Mixin removed here
       color: theme.resources.cardBackgroundFillColorDefault,
       child: Column(
         children: [
-          // Now uses WatchingWidget, no params needed
-          const TimelineControls(),
+          // TimelineControls no longer requires snapping/aspect ratio parameters
+          TimelineControls(),
 
           // Unified Timeline Content Area
           Expanded(
