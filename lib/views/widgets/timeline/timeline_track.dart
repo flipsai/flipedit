@@ -220,6 +220,21 @@ class _TimelineTrackState extends State<TimelineTrack> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  // Add drag handle at the left
+                  ReorderableDragStartListener(
+                    index: 0, // Use default index, the actual indices are handled in Timeline component
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.grab,
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 8.0),
+                        child: Icon(
+                          FluentIcons.more_vertical,
+                          size: 12,
+                          color: theme.resources.textFillColorSecondary,
+                        ),
+                      ),
+                    ),
+                  ),
                   Expanded(
                     child: GestureDetector(
                       onDoubleTap: _enterEditingMode,
@@ -251,6 +266,9 @@ class _TimelineTrackState extends State<TimelineTrack> {
                     onPressed: widget.onDelete,
                     style: ButtonStyle(
                       padding: WidgetStateProperty.all(EdgeInsets.zero),
+                      textStyle: WidgetStateProperty.all(
+                        const TextStyle(inherit: false)
+                      ),
                     ),
                   ),
                 ],

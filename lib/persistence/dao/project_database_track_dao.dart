@@ -54,4 +54,44 @@ class ProjectDatabaseTrackDao extends DatabaseAccessor<ProjectDatabase> with _$P
           ]))
         .get();
   }
+
+  // Update the order of multiple tracks using a batch operation for efficiency
+  Future<void> updateTrackOrders(List<Track> reorderedTracks) async {
+    await db.batch((batch) {
+      // Construct the update operations within the batch
+      for (int i = 0; i < reorderedTracks.length; i++) {
+        final track = reorderedTracks[i];
+        
+        // Log the planned update for debugging
+        print('Planning update in batch: Track ${track.id} to order $i');
+        
+        // Use batch.update to stage the update operation
+        batch.update(
+          tracks, // Specify the table
+          TracksCompanion(
+            // Only specify the fields to update
+            order: Value(i),
+            updatedAt: Value(DateTime.now()),
+          ),
+          // Specify the WHERE clause for this specific update
+          where: (t) => t.id.equals(track.id),
+        );
+      }
+      
+      print('All track updates planned in batch. Executing batch...');
+      // The batch is automatically executed when the callback completes.
+    });
+    
+    // Optional: Verification after batch execution
+    try {
+      final updatedTracks = await getAllTracks(); // Use existing getter
+      print('Verification after batch:');
+      for (final track in updatedTracks) {
+        print('  Track ${track.id}, order: ${track.order}');
+      }
+    } catch (e) {
+      print('Error verifying tracks after batch update: $e');
+      // Decide if this error should be rethrown or just logged
+    }
+  }
 }
