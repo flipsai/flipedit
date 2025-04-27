@@ -1,5 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flipedit/services/project_database_service.dart'; // Replace ProjectService import
+// Removed import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/views/widgets/timeline/components/time_ruler.dart';
 import 'package:flipedit/views/widgets/timeline/components/timeline_controls.dart';
@@ -31,14 +31,30 @@ class _TimelineState extends State<Timeline> { // Mixin removed here
   final ScrollController _scrollController = ScrollController();
   // Reference to the view model
   late TimelineViewModel _timelineViewModel;
+  // Store the listener function to remove it in dispose
+  VoidCallback? _scrollRequestListener;
 
   @override
   void initState() {
     super.initState();
     _timelineViewModel = di<TimelineViewModel>();
-    // Register scroll to frame handler with ViewModel
-    _timelineViewModel.registerScrollToFrameHandler((int frame) {
-      if (!mounted || _viewportWidth <= 0 || !_scrollController.hasClients) {
+
+    // Define the listener callback function
+    _scrollRequestListener = () {
+      final frame = _timelineViewModel.navigationService.scrollToFrameRequestNotifier.value;
+      if (frame == null) return; // No request or already handled
+
+      _handleScrollRequest(frame);
+    };
+
+    // Add the listener to the notifier in the navigation service
+    _timelineViewModel.navigationService.scrollToFrameRequestNotifier.addListener(_scrollRequestListener!);
+
+    // Removed old registration: _timelineViewModel.registerScrollToFrameHandler(...)
+  }
+
+  void _handleScrollRequest(int frame) {
+     if (!mounted || _viewportWidth <= 0 || !_scrollController.hasClients) {
         logWarning('Timeline', 'Scroll requested for frame $frame but widget/controller not ready.');
         return;
       }
@@ -46,25 +62,30 @@ class _TimelineState extends State<Timeline> { // Mixin removed here
       const double framePixelWidth = 5.0; // Matches build method
       final double scrollableViewportWidth = _viewportWidth - trackLabelWidth;
       if (scrollableViewportWidth <= 0) return; // Cannot calculate if viewport is too small
+
+      // Calculate the target offset to scroll to
       final double unclampedTargetOffset = _timelineViewModel.calculateScrollOffsetForFrame(
         frame,
-        _viewportWidth,
-        trackLabelWidth,
-        framePixelWidth: framePixelWidth,
+        _timelineViewModel.zoom, // Get zoom from ViewModel
       );
       final double maxOffset = _scrollController.position.maxScrollExtent;
       final double targetOffset = unclampedTargetOffset.clamp(0.0, maxOffset);
+
       logInfo('Timeline', 'Executing scroll to frame $frame (target: $targetOffset)');
       _scrollController.animateTo(
         targetOffset,
         duration: const Duration(milliseconds: 150), // Consistent smooth duration
         curve: Curves.easeOut,
       );
-    });
   }
+
 
   @override
   void dispose() {
+    // Remove the listener from the notifier
+    if (_scrollRequestListener != null) {
+      _timelineViewModel.navigationService.scrollToFrameRequestNotifier.removeListener(_scrollRequestListener!);
+    }
     // Dispose the locally managed scroll controller
     _scrollController.dispose();
     super.dispose();
@@ -73,8 +94,7 @@ class _TimelineState extends State<Timeline> { // Mixin removed here
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
-    // Get services/viewmodels directly in build or use stored references
-    final databaseService = di<ProjectDatabaseService>(); // Example if needed
+    // Removed unused databaseService reference
 
     // Watch properties using watchItMixin helpers for StatefulWidgets
     final clips = watchValue((TimelineViewModel vm) => vm.clipsNotifier);
@@ -89,11 +109,11 @@ class _TimelineState extends State<Timeline> { // Mixin removed here
       (TimelineViewModel vm) => vm.trackLabelWidthNotifier,
     );
 
-    // Watch tracks list from the DatabaseService
+    // Watch tracks list from the TimelineViewModel
     final tracks = watchValue(
-      (ProjectDatabaseService ps) => ps.tracksNotifier,
+      (TimelineViewModel vm) => vm.tracksNotifierForView,
     );
-    
+
     // Log clips for debugging
     if (clips.isNotEmpty) {
       logDebug(
@@ -232,7 +252,8 @@ class _TimelineState extends State<Timeline> { // Mixin removed here
                                                   builder: (context, child) {
                                                      return TimelineTrack(
                                                        track: track,
-                                                       onDelete: () => databaseService.deleteTrack(track.id),
+                                                       // Call ViewModel method instead of direct service call
+                                                       onDelete: () => _timelineViewModel.deleteTrack(track.id),
                                                        trackLabelWidth: trackLabelWidth, // Pass width
                                                        scrollOffset: _scrollController.hasClients ? _scrollController.offset : 0.0, // Pass offset
                                                      );
@@ -302,10 +323,10 @@ class _TimelineState extends State<Timeline> { // Mixin removed here
                                 width: 6,
                                 child: GestureDetector(
                                   onHorizontalDragUpdate: (DragUpdateDetails details) {
-                                    // Update width via stored ViewModel reference
-                                    _timelineViewModel.updateTrackLabelWidth(
-                                      trackLabelWidth + details.delta.dx,
-                                    );
+                                    // Update notifier value directly and clamp
+                                    final currentWidth = _timelineViewModel.trackLabelWidthNotifier.value;
+                                    final newWidth = (currentWidth + details.delta.dx).clamp(50.0, 400.0); // Clamp width
+                                    _timelineViewModel.trackLabelWidthNotifier.value = newWidth;
                                   },
                                   child: MouseRegion(
                                     cursor: SystemMouseCursors.resizeLeftRight,

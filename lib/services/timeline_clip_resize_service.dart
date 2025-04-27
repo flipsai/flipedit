@@ -62,10 +62,11 @@ class TimelineClipResizeService {
     bool boundaryChanged = newBoundaryFrame != originalBoundaryFrame;
     if (boundaryChanged) {
       final command = ResizeClipCommand(
-        vm: timelineVm,
+        // vm: timelineVm, // Removed vm parameter
         clipId: clip.databaseId!,
         direction: direction,
         newBoundaryFrame: newBoundaryFrame,
+        clipsNotifier: timelineVm.clipsNotifier, // Pass the notifier
       );
       try {
         // Await the command execution to ensure the view model state is updated

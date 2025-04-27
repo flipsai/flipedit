@@ -275,12 +275,13 @@ class _TimelineClipState extends State<TimelineClip> {
                 if (widget.clip.databaseId != null) {
                   final newStartTimeMs = ClipModel.framesToMs(_currentMoveFrame);
                   final cmd = MoveClipCommand(
-                    vm: timelineVm,
+                    // vm: timelineVm, // Removed vm parameter
                     clipId: widget.clip.databaseId!,
                     newTrackId: widget.clip.trackId,
                     newStartTimeOnTrackMs: newStartTimeMs,
+                    clipsNotifier: timelineVm.clipsNotifier, // Pass the notifier
                   );
-                  timelineVm.runCommand(cmd); // Use runCommand
+                  timelineVm.runCommand(cmd);
                   // Set flag to wait for VM update
                   _awaitingMoveConfirmation = true;
                 }

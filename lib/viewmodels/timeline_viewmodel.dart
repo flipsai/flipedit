@@ -1,16 +1,22 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart' show listEquals; // Import foundation's listEquals
 
+import 'package:collection/collection.dart'; // Keep this for other collection utilities if needed
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/models/enums/edit_mode.dart';
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
+import 'package:flipedit/persistence/database/project_database.dart' show Track; // Import Track
 
 import 'package:watch_it/watch_it.dart';
 import 'commands/timeline_command.dart';
 import 'commands/add_clip_command.dart';
 import 'package:flipedit/services/undo_redo_service.dart';
+import 'package:flipedit/services/playback_service.dart'; // Added
+import 'package:flipedit/services/timeline_navigation_service.dart'; // Added
+import 'commands/roll_edit_command.dart';
 import 'package:flipedit/services/timeline_logic_service.dart';
 
 class TimelineViewModel extends ChangeNotifier {
@@ -24,55 +30,57 @@ class TimelineViewModel extends ChangeNotifier {
       di<ProjectDatabaseService>();
   final UndoRedoService _undoRedoService = di<UndoRedoService>();
   final TimelineLogicService _timelineLogicService = di<TimelineLogicService>();
+  // Services for delegation
+  late final PlaybackService _playbackService;
+  late final TimelineNavigationService _navigationService;
 
-  // --- State Notifiers ---
+  // --- State Notifiers (Managed by this ViewModel) ---
   final ValueNotifier<List<ClipModel>> clipsNotifier =
       ValueNotifier<List<ClipModel>>([]);
   List<ClipModel> get clips => List.unmodifiable(clipsNotifier.value);
-  
-  // Helper to check if timeline can be scrolled (has clips)
-  bool get canScroll => clipsNotifier.value.isNotEmpty;
 
-  List<int> currentTrackIds = [];
-
-  final ValueNotifier<double> zoomNotifier = ValueNotifier<double>(1.0);
-  double get zoom => zoomNotifier.value;
-  set zoom(double value) {
-    if (zoomNotifier.value == value || value < 0.1 || value > 5.0) return;
-    zoomNotifier.value = value;
-  }
-
-  final ValueNotifier<int> currentFrameNotifier = ValueNotifier<int>(0);
-  static const DEFAULT_EMPTY_DURATION = 600000; // 10 minutes in milliseconds
-  int get currentFrame => currentFrameNotifier.value;
-  set currentFrame(int value) {
-    final totalFrames = _calculateTotalFrames();
-    // Clamp to content duration when present
-    final int maxAllowedFrame = totalFrames > 0 ? totalFrames - 1 : ClipModel.msToFrames(DEFAULT_EMPTY_DURATION);
-    final clampedValue = value.clamp(0, maxAllowedFrame);
-    if (currentFrameNotifier.value == clampedValue) return;
-    currentFrameNotifier.value = clampedValue;
-  }
-
-  final ValueNotifier<int> totalFramesNotifier = ValueNotifier<int>(0);
-
-  final ValueNotifier<int> timelineEndNotifier = ValueNotifier<int>(0);
-  int get timelineEnd => timelineEndNotifier.value;
-
-  final ValueNotifier<bool> isPlayingNotifier = ValueNotifier<bool>(false);
-  bool get isPlaying => isPlayingNotifier.value;
-
-  // Added back Notifier for the width of the track label area
+  // Notifier for the width of the track label area (UI specific)
   final ValueNotifier<double> trackLabelWidthNotifier = ValueNotifier(120.0);
   double get trackLabelWidth => trackLabelWidthNotifier.value;
 
+  // Notifier for the current editing mode (UI specific)
   final ValueNotifier<EditMode> currentEditMode = ValueNotifier(
     EditMode.select,
   );
-  
-  // Notifier for the playhead lock state
-  final ValueNotifier<bool> isPlayheadLockedNotifier = ValueNotifier<bool>(false);
-  bool get isPlayheadLocked => isPlayheadLockedNotifier.value;
+
+  // List of current track IDs (Managed here as it relates to DB state)
+  List<int> currentTrackIds = [];
+
+  // Notifier for the tracks list itself (Managed here, sourced from DB Service)
+  final ValueNotifier<List<Track>> tracksListNotifier = ValueNotifier<List<Track>>([]);
+  ValueNotifier<List<Track>> get tracksNotifierForView => tracksListNotifier; // Expose for the View
+
+  // --- Delegated State Notifiers (from Services) ---
+  ValueNotifier<double> get zoomNotifier => _navigationService.zoomNotifier;
+  ValueNotifier<int> get currentFrameNotifier => _navigationService.currentFrameNotifier;
+  ValueNotifier<int> get totalFramesNotifier => _navigationService.totalFramesNotifier;
+  ValueNotifier<int> get timelineEndNotifier => _navigationService.timelineEndNotifier;
+  ValueNotifier<bool> get isPlayingNotifier => _playbackService.isPlayingNotifier;
+  ValueNotifier<bool> get isPlayheadLockedNotifier => _navigationService.isPlayheadLockedNotifier;
+
+  // Expose navigation service for commands/views that need direct access
+  TimelineNavigationService get navigationService {
+    return _navigationService;
+  }
+  // --- Delegated Getters/Setters ---
+  double get zoom => _navigationService.zoom;
+  set zoom(double value) => _navigationService.zoom = value;
+
+  int get currentFrame => _navigationService.currentFrame;
+  set currentFrame(int value) => _navigationService.currentFrame = value;
+
+  int get totalFrames => _navigationService.totalFrames;
+  int get timelineEnd => _navigationService.timelineEnd;
+  bool get isPlaying => _playbackService.isPlaying;
+  bool get isPlayheadLocked => _navigationService.isPlayheadLocked;
+
+  // Helper to check if timeline can be scrolled (has clips)
+  bool get canScroll => clipsNotifier.value.isNotEmpty;
 
   // Helper to set edit mode and notify
   void setEditMode(EditMode mode) {
@@ -81,24 +89,9 @@ class TimelineViewModel extends ChangeNotifier {
     }
   }
 
-  // --- Scroll Command Stream ---
-  // Notifies the View to scroll to a specific frame.
-  final StreamController<int> _scrollToFrameController = StreamController<int>.broadcast();
-  Stream<int> get scrollToFrameStream => _scrollToFrameController.stream;
-// Scroll to frame handler callback (registered by the view)
-  void Function(int frame)? _scrollToFrameHandler;
+  // Removed: void registerScrollToFrameHandler(...) - Replaced by listening to scrollToFrameRequestNotifier
 
-  /// Allows the view to register a handler for scroll-to-frame actions.
-  void registerScrollToFrameHandler(void Function(int frame) handler) {
-    _scrollToFrameHandler = handler;
-  }
-
-  // Internal listeners
-  StreamSubscription? _controllerPositionSubscription;
-  StreamSubscription? _clipStreamSubscription;
   List<VoidCallback> _internalListeners = [];
-
-  /// Executes a timeline command and refreshes undo stack
   Future<void> runCommand(TimelineCommand cmd) async {
     await cmd.execute();
     await _undoRedoService.init();
@@ -121,120 +114,111 @@ class TimelineViewModel extends ChangeNotifier {
   // Expose project database for commands
   ProjectDatabaseService get projectDatabaseService => _projectDatabaseService;
 
-  // Timer for continuous frame advancement during playback
-  Timer? _playbackTimer;
-
-  // FPS for playback - TODO: Get this from project settings
-  final int _fps = 30;
-
   /// Constructor - Sets up internal listeners
   TimelineViewModel() {
     logger.logInfo('Initializing TimelineViewModel and listeners', _logTag);
-    _setupInternalListeners();
-    _setupDatabaseListeners(); // Add call to new database listener setup
+
+    // Instantiate services and wire dependencies
+    _navigationService = TimelineNavigationService(
+      getClips: _getClipsForNavService, // Provide function to get clips
+      getIsPlaying: _getIsPlayingForNavService, // Provide function to get playback state
+    );
+
+    _playbackService = PlaybackService(
+      getCurrentFrame: _navigationService.getCurrentFrameValue,
+      setCurrentFrame: _navigationService.setCurrentFrameValue,
+      getTotalFrames: _navigationService.getTotalFramesValue,
+      getDefaultEmptyDurationFrames: _navigationService.getDefaultEmptyDurationFramesValue,
+    );
+
+    _setupDatabaseListeners();
+    _setupClipListeners(); // Listen to clip changes to update navigation service
   }
 
-  void _setupInternalListeners() {
-    // Combine listeners for scroll logic
-    VoidCallback listener = _checkAndTriggerScroll;
-    isPlayingNotifier.addListener(listener);
-    isPlayheadLockedNotifier.addListener(listener);
-    currentFrameNotifier.addListener(listener);
-
-    // Keep track to remove them later
-    _internalListeners.addAll([listener, listener, listener]); // Add references for removal
-  }
+  // Helper functions to provide dependencies to services
+  List<ClipModel> _getClipsForNavService() => clipsNotifier.value;
+  bool _getIsPlayingForNavService() => _playbackService.isPlaying;
 
   // Setup listeners for database changes that affect the timeline state
   void _setupDatabaseListeners() {
     // Listen to changes in the tracks list from the database service
     final tracksListener = () {
       logger.logInfo('👂 Tracks list changed in ProjectDatabaseService. Refreshing clips...', _logTag);
-      refreshClips(); // Refresh clips when tracks change
+      tracksListNotifier.value = _projectDatabaseService.tracksNotifier.value; // Update exposed notifier
+      refreshClips(); // Refresh clips, which will also update navigation service
     };
     _projectDatabaseService.tracksNotifier.addListener(tracksListener);
     _internalListeners.add(tracksListener); // Keep track for disposal
   }
 
-  /// Checks conditions and emits scroll command if necessary.
-  void _checkAndTriggerScroll() {
-    final bool isPlaying = isPlayingNotifier.value;
-    final bool isLocked = isPlayheadLockedNotifier.value;
-    final int frame = currentFrameNotifier.value;
-
-    // Only trigger scroll if playing, locked, and on a 20-frame interval
-    if (isPlaying && isLocked && frame % 20 == 0) {
-      logger.logDebug('ViewModel emitting scroll to frame: $frame', _logTag);
-      // Call the registered handler instead of emitting to a stream
-      _scrollToFrameHandler?.call(frame);
-    }
+  /// Setup listener for clip changes to trigger total frame recalculation.
+  void _setupClipListeners() {
+    final clipListener = () {
+      logger.logDebug('👂 Clips list changed in ViewModel. Notifying NavigationService.', _logTag);
+      _navigationService.recalculateAndUpdateTotalFrames();
+    };
+    clipsNotifier.addListener(clipListener);
+    _internalListeners.add(clipListener); // Keep track for disposal
   }
-  
+
   /// Starts playback from the current frame position
   Future<void> startPlayback() async {
     if (isPlayingNotifier.value) return; // Already playing
 
-    isPlayingNotifier.value = true;
-    logger.logInfo('▶️ Starting playback from frame $currentFrame', _logTag);
-    
-    // Start a timer that advances the frame at the specified FPS
-    _playbackTimer?.cancel();
-    _playbackTimer = Timer.periodic(Duration(milliseconds: (1000 / _fps).round()), (timer) {
-      // Advance to next frame
-      final nextFrame = currentFrame + 1;
-      final totalFrames = totalFramesNotifier.value;
-      // Use full duration including empty canvas buffer
-      final int maxAllowedFrame = totalFrames > 0 ? totalFrames - 1 : ClipModel.msToFrames(DEFAULT_EMPTY_DURATION);
-      
-      if (nextFrame > maxAllowedFrame) {
-        // Stop at the safe end of the timeline
-        stopPlayback();
-      } else {
-        // Update current frame
-        currentFrame = nextFrame;
-      }
-    });
+    await _playbackService.startPlayback();
+    // Playback service notifies its own listeners
+    _navigationService.recalculateAndUpdateTotalFrames(); // Ensure nav state is aware
   }
 
   /// Stops playback
   void stopPlayback() {
     if (!isPlayingNotifier.value) return; // Not playing
 
-    // Cancel the playback timer
-    _playbackTimer?.cancel();
-    _playbackTimer = null;
-    
-    isPlayingNotifier.value = false;
-    logger.logInfo('⏹️ Stopping playback at frame $currentFrame', _logTag);
+    _playbackService.stopPlayback();
+    // Playback service notifies its own listeners
+     _navigationService.recalculateAndUpdateTotalFrames(); // Ensure nav state is aware
   }
 
   /// Toggles the playback state
   void togglePlayPause() {
-    if (isPlayingNotifier.value) {
-      stopPlayback();
-    } else {
-      startPlayback();
-    }
+    _playbackService.togglePlayPause();
+    // Playback service notifies its own listeners
+    // Incorrectly placed deleteTrack method was here. Removed it.
+    _navigationService.recalculateAndUpdateTotalFrames(); // Ensure nav state is aware
   }
 
   /// Toggles the playhead lock state
   void togglePlayheadLock() {
-    isPlayheadLockedNotifier.value = !isPlayheadLockedNotifier.value;
-     logger.logInfo('🔒 Playhead Lock toggled: ${isPlayheadLockedNotifier.value}', _logTag);
+    _navigationService.togglePlayheadLock();
+    // Navigation service notifies its own listeners
+  }
+/// Deletes a track by its ID.
+  Future<void> deleteTrack(int trackId) async {
+    try {
+      await _projectDatabaseService.deleteTrack(trackId);
+      logger.logInfo('Deleted track $trackId via ViewModel', _logTag);
+      // Refreshing clips/tracks is handled by listeners on ProjectDatabaseService
+    } catch (e) {
+      logger.logError('Error deleting track $trackId: $e', _logTag);
+      // Optionally, show an error message to the user
+    }
   }
 
   Future<void> loadClipsForProject(int projectId) async {
     logger.logInfo('🔄 Loading clips for project $projectId', _logTag);
 
+    // Incorrectly placed deleteTrack method was here. Removed it.
     final success = await _projectDatabaseService.loadProject(projectId);
-    if (!success) {
+    // Check if the database connection is available after attempting load
+    if (!success || _projectDatabaseService.currentDatabase == null) {
       logger.logError('❌ Failed to load project $projectId', _logTag);
       clipsNotifier.value = [];
-      recalculateAndUpdateTotalFrames();
+      _navigationService.recalculateAndUpdateTotalFrames(); // Notify nav service directly
       return;
     }
 
     final tracks = _projectDatabaseService.tracksNotifier.value;
+    currentTrackIds.clear(); // Clear before repopulating
     currentTrackIds = tracks.map((t) => t.id).toList();
     logger.logInfo(
       '📊 Loaded ${tracks.length} tracks with IDs: $currentTrackIds',
@@ -244,19 +228,19 @@ class TimelineViewModel extends ChangeNotifier {
     if (tracks.isEmpty) {
       logger.logInfo('⚠️ No tracks found for project $projectId', _logTag);
       clipsNotifier.value = [];
-      recalculateAndUpdateTotalFrames();
+      _navigationService.recalculateAndUpdateTotalFrames(); // Notify nav service directly
       return;
     }
 
     await refreshClips();
   }
-  
+
   /// Updates the UI state after clip placement (called by commands after persistence)
   void updateClipsAfterPlacement(List<ClipModel> updatedClips) {
     clipsNotifier.value = updatedClips;
-    recalculateAndUpdateTotalFrames();
+    // Listener on clipsNotifier will trigger recalculation in navigation service
   }
-  
+
   /// Legacy method for backward compatibility - delegates to command pattern
   Future<bool> placeClipOnTrack({
     int? clipId, // If updating an existing clip
@@ -273,7 +257,7 @@ class TimelineViewModel extends ChangeNotifier {
       logger.logError('Clip DAO not initialized', _logTag);
       return false;
     }
-    
+
     // For new clips, use the command pattern
     if (clipId == null) {
       final clipData = ClipModel(
@@ -286,11 +270,11 @@ class TimelineViewModel extends ChangeNotifier {
         startTimeInSourceMs: startTimeInSourceMs,
         endTimeInSourceMs: endTimeInSourceMs, // This will be clamped by constructor/service
         startTimeOnTrackMs: startTimeOnTrackMs,
-        endTimeOnTrackMs: endTimeOnTrackMs, 
+        endTimeOnTrackMs: endTimeOnTrackMs,
         effects: [],
         metadata: {},
       );
-      
+
       // Create an instance of the AddClipCommand class (imported at the top of the file)
       final command = AddClipCommand(
         vm: this,
@@ -299,63 +283,18 @@ class TimelineViewModel extends ChangeNotifier {
         startTimeOnTrackMs: startTimeOnTrackMs, // Only track start time is needed here
         // Removed startTimeInSourceMs, endTimeInSourceMs
       );
-      
+
       await runCommand(command);
       return true;
-    } else {
-      // For existing clips, use the old direct approach for now
-      // This handles updates (moves/resizes) using the logic service
-      final placement = _timelineLogicService.prepareClipPlacement(
-        clips: clips, // Pass the current clips from the notifier
-        clipId: clipId,
-        trackId: trackId,
-        type: type,
-        sourcePath: sourcePath,
-        sourceDurationMs: sourceDurationMs, // Added
-        startTimeOnTrackMs: startTimeOnTrackMs,
-        endTimeOnTrackMs: endTimeOnTrackMs, // Added
-        startTimeInSourceMs: startTimeInSourceMs,
-        endTimeInSourceMs: endTimeInSourceMs, // Logic service will clamp this
-      );
-      
-      if (!placement['success']) return false;
-      
-      // Apply updates to database
-      for (final update in placement['clipUpdates']) {
-        await _projectDatabaseService.clipDao!.updateClipFields(
-          update['id'],
-          update['fields'],
-          log: false,
-        );
-      }
-      
-      // Remove clips
-      for (final id in placement['clipsToRemove']) {
-        await _projectDatabaseService.clipDao!.deleteClip(id);
-      }
-      
-      // Update existing clip
-      await _projectDatabaseService.clipDao!.updateClipFields(
-        clipId,
-        {
-          'trackId': trackId,
-          'startTimeOnTrackMs': placement['newClipData']['startTimeOnTrackMs'],
-          'endTimeOnTrackMs': placement['newClipData']['endTimeOnTrackMs'], // Added
-          'startTimeInSourceMs': placement['newClipData']['startTimeInSourceMs'],
-          'endTimeInSourceMs': placement['newClipData']['endTimeInSourceMs'], // This should be the clamped value from placement
-          // sourceDurationMs likely doesn't change on move/resize, but could be updated if needed
-        },
-        log: true, // Enable logging for undo/redo
-      );
-      
-      // Update UI
-      clipsNotifier.value = placement['updatedClips'];
-      recalculateAndUpdateTotalFrames();
-      
-      await _undoRedoService.init();
-      logger.logInfo('Moved/resized clip $clipId (optimistic update)', _logTag);
-      return true;
     }
+    // Removed the 'else' block that handled direct updates/moves/resizes.
+    // This logic is now encapsulated within MoveClipCommand and ResizeClipCommand.
+    // This method should only be called for adding NEW clips (clipId == null).
+    // If called with a clipId, it should now throw an error or log a warning.
+    logger.logError('placeClipOnTrack called with existing clipId ($clipId). This should be handled by Move/Resize commands.', _logTag);
+    // Optionally, throw an exception:
+    // throw ArgumentError('placeClipOnTrack should only be used for adding new clips.');
+    return false; // Indicate failure if called incorrectly
   }
 
   /// Handles dropping a clip onto an empty timeline by creating a new track and placing the clip.
@@ -437,51 +376,32 @@ class TimelineViewModel extends ChangeNotifier {
     }
     return success;
   }
+/// Executes a Roll Edit command based on input from the RollEditHandle widget.
+  Future<void> performRollEdit({
+    required int leftClipId,
+    required int rightClipId,
+    required int newBoundaryFrame,
+  }) async {
+    final command = RollEditCommand(
+      leftClipId: leftClipId,
+      rightClipId: rightClipId,
+      newBoundaryFrame: newBoundaryFrame,
+      clipsNotifier: clipsNotifier, // Pass the notifier
+    );
+    await runCommand(command);
+  }
 
   Future<void> refreshClips() async {
-    // Preserve existing clips if database unavailable
-    if (_projectDatabaseService.clipDao == null) {
-      logger.logWarning('Clip DAO not available, cannot refresh clips.', _logTag);
-      return;
-    }
+    // Check if the database service is available
     if (_projectDatabaseService.currentDatabase == null) {
         logger.logWarning('Database connection not available, cannot refresh clips.', _logTag);
         return;
     }
 
-    logger.logInfo('Refreshing clips from database...', _logTag);
+    logger.logInfo('Refreshing clips using ProjectDatabaseService.getAllTimelineClips()...', _logTag);
 
-    // Fetch all current tracks from the database service's notifier.
-    // The tracksNotifier is updated when tracks are added/deleted via ProjectDatabaseService.
-    final tracks = _projectDatabaseService.tracksNotifier.value;
-
-    // Fetch *all* clips from the database. This is more reliable than fetching
-    // per-track, especially after track deletions.
-    // Assuming the clip DAO has a method to get all clips. If not, we might need to add one,
-    // or iterate through tracks as before but clearing the list first.
-    // Let's check ProjectDatabaseClipDao again quickly to be sure.
-    // Based on previous read, it has getClipsForTrack but no getAllClips.
-    // So, iterate through tracks and clear the list first.
-
-    List<ClipModel> allClips = []; // Initialize as empty list to rebuild from scratch
-
-    // Fetch clips for each *existing* track and add to the list
-    for (final track in tracks.where((t) => t.id != null)) {
-      final dbClips = await _projectDatabaseService.clipDao!.getClipsForTrack(track.id!);
-      // Map dbClip data to ClipModel, ensuring required fields are provided
-      allClips.addAll(dbClips.map((dbClip) {
-         // Estimate source duration if missing from DB data
-         final sourceDuration = dbClip.sourceDurationMs ?? (dbClip.endTimeInSourceMs - dbClip.startTimeInSourceMs).clamp(0, 1<<30);
-         // The factory handles estimating endTimeOnTrackMs internally if needed
-
-         // Use the factory constructor. Pass the dbData and the potentially estimated sourceDuration.
-         return ClipModel.fromDbData(
-            dbClip,
-            sourceDurationMs: sourceDuration, // Pass optional estimated source duration
-            // DO NOT pass endTimeOnTrackMs here - the factory handles it.
-         );
-      }));
-    }
+    // Delegate fetching and mapping to the service
+    List<ClipModel> allClips = await _projectDatabaseService.getAllTimelineClips();
 
     // Sort clips by their start time on the track
     allClips.sort(
@@ -489,69 +409,75 @@ class TimelineViewModel extends ChangeNotifier {
     );
 
     // Update the notifier if the list of clips has changed OR if it is now empty.
-    // The second condition is needed to ensure the UI reacts when the timeline becomes empty,
-    // even if the previous state was also an empty list (e.g., after project load).
+    // Use standard !listEquals syntax - maybe rewriting the whole file fixed the analyzer?
+    // Incorrectly placed performRollEdit method was here. Removed it.
     if (!listEquals(clipsNotifier.value, allClips) || allClips.isEmpty) {
       clipsNotifier.value = allClips;
-      logger.logInfo('Clips list updated in ViewModel (${allClips.length} clips).', _logTag);
-      recalculateAndUpdateTotalFrames(); // Updated call
+      logger.logDebug('Clips list updated in ViewModel (${allClips.length} clips). Notifier triggered.', _logTag);
+      // Note: The recalculation will happen via the listener set up in _setupClipListeners
     } else {
-       logger.logInfo('Clips list in ViewModel is already up-to-date and not empty. Notifier not updated.', _logTag);
+       logger.logDebug('Clips list in ViewModel is already up-to-date and not empty. Notifier not updated.', _logTag);
     }
   }
 
-  int _calculateTotalFrames() {
-    if (clipsNotifier.value.isEmpty) {
-      return 0;
-    }
-    // Calculate the maximum end time across all clips
-    int maxEndTimeMs = 0;
-    for (final clip in clipsNotifier.value) {
-      if (clip.endTimeOnTrackMs > maxEndTimeMs) {
-        maxEndTimeMs = clip.endTimeOnTrackMs;
-      }
-    }
-    timelineEndNotifier.value = maxEndTimeMs;
-    return ClipModel.msToFrames(maxEndTimeMs);
+  // --- Logic Service Delegations ---
+
+  /// Calculates the frame position based on pixel offset, scroll, and zoom.
+  /// Delegates to TimelineLogicService.
+  int calculateFramePositionForOffset(double pixelPosition, double scrollOffset, double zoom) {
+    return _timelineLogicService.calculateFramePosition(pixelPosition, scrollOffset, zoom);
   }
 
-  void recalculateAndUpdateTotalFrames() {
-    final totalFrames = _calculateTotalFrames();
-    if (totalFramesNotifier.value != totalFrames) {
-      totalFramesNotifier.value = totalFrames;
-      logger.logInfo('Updated total frames to $totalFrames based on timeline end at ${timelineEndNotifier.value} ms', _logTag);
-    }
-  }
-
-  bool listEquals<T>(List<T> a, List<T> b) {
-    if (a.length != b.length) return false;
-    for (int i = 0; i < a.length; i++) {
-      if (a[i] != b[i]) return false;
-    }
-    return true;
+  /// Converts a frame number to milliseconds.
+  /// Delegates to TimelineLogicService.
+  int frameToMs(int frame) {
+    return _timelineLogicService.frameToMs(frame); // Keep delegation for consistency
   }
 
   /// Calculates the scroll offset needed to bring a specific frame into view.
-  double calculateScrollOffsetForFrame(
-    int frame,
-    double viewportWidth,
-    double trackLabelWidth,
-    {double framePixelWidth = 5.0}
-  ) {
-    final double scrollableViewportWidth = viewportWidth - trackLabelWidth;
-    if (scrollableViewportWidth <= 0) return 0.0; // Cannot calculate if viewport is too small
-
-    final double framePosition = frame * zoom * framePixelWidth;
-    final double unclampedTargetOffset = framePosition - (scrollableViewportWidth / 2.0);
-    return unclampedTargetOffset;
+  /// Delegates to TimelineLogicService.
+  double calculateScrollOffsetForFrame(int frame, double zoom) {
+    return _timelineLogicService.calculateScrollOffsetForFrame(frame, zoom);
   }
 
-  /// Updates the width of the track label area.
-  void updateTrackLabelWidth(double newWidth) {
-    final clampedWidth = newWidth.clamp(80.0, 300.0);
-    if (trackLabelWidthNotifier.value != clampedWidth) {
-      trackLabelWidthNotifier.value = clampedWidth;
-      logger.logInfo('Track label width updated to $clampedWidth', _logTag);
+  /// Generates a preview list of clips for a drag operation.
+  /// Delegates to TimelineLogicService.
+  List<ClipModel> getDragPreviewClips({
+    required int draggedClipId,
+    required int targetTrackId,
+    required int targetStartTimeOnTrackMs,
+  }) {
+    // Corrected method name
+    return _timelineLogicService.getPreviewClipsForDrag(
+      clips: clips,
+      clipId: draggedClipId, // Correct parameter name is clipId
+      targetTrackId: targetTrackId,
+      targetStartTimeOnTrackMs: targetStartTimeOnTrackMs,
+    );
+  }
+
+  @override
+  void dispose() {
+    logger.logInfo('Disposing TimelineViewModel and internal listeners/services', _logTag);
+    // Remove internal listeners
+    for (final listener in _internalListeners) {
+      // Attempt removal from known notifiers
+      _projectDatabaseService.tracksNotifier.removeListener(listener);
+      clipsNotifier.removeListener(listener);
+      // Add removeListener calls for other notifiers if listener was attached elsewhere
     }
+    _internalListeners.clear();
+
+    // Dispose owned services
+    _playbackService.dispose();
+    _navigationService.dispose();
+
+    // Dispose owned ValueNotifiers
+    clipsNotifier.dispose();
+    trackLabelWidthNotifier.dispose();
+    currentEditMode.dispose();
+    tracksListNotifier.dispose(); // Dispose the new notifier
+
+    super.dispose();
   }
 }

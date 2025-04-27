@@ -48,7 +48,7 @@ class RemoveClipCommand implements TimelineCommand {
       if (indexToRemove != -1) {
         currentClips.removeAt(indexToRemove);
         vm.clipsNotifier.value = currentClips; // Notify listeners
-        vm.recalculateAndUpdateTotalFrames(); // Call public method
+        vm.navigationService.recalculateAndUpdateTotalFrames(); // Call via navigationService
         logger.logInfo('[RemoveClipCommand] Removed clip $clipId and updated notifier', _logTag);
       } else {
         logger.logWarning(
@@ -106,7 +106,7 @@ class RemoveClipCommand implements TimelineCommand {
       currentClips.add(clipToRestore);
       currentClips.sort((a, b) => a.startTimeOnTrackMs.compareTo(b.startTimeOnTrackMs));
       vm.clipsNotifier.value = currentClips;
-      vm.recalculateAndUpdateTotalFrames(); // Call public method
+      vm.navigationService.recalculateAndUpdateTotalFrames(); // Call via navigationService
 
       logger.logInfo('[RemoveClipCommand] Successfully restored clip $clipId', _logTag);
       _removedClipData = null; // Clear data after successful undo
