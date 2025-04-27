@@ -3,8 +3,8 @@ import 'package:flipedit/persistence/database/project_database.dart'; // Import 
 // Removed incorrect track table import
 // Removed persistence import
 import 'package:flipedit/models/clip.dart';
-// Removed service import
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
+import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart'; // Added import
 import 'package:flipedit/views/widgets/timeline/timeline_clip.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flutter/widgets.dart' as fw;
@@ -42,12 +42,14 @@ class _TimelineTrackState extends State<TimelineTrack> {
   final GlobalKey _trackContentKey = GlobalKey();
 
   late TimelineViewModel _timelineViewModel;
+  late TimelineNavigationViewModel _timelineNavigationViewModel; // Added
   // Removed TimelineLogicService instance
 
   @override
   void initState() {
     super.initState();
     _timelineViewModel = di<TimelineViewModel>();
+    _timelineNavigationViewModel = di<TimelineNavigationViewModel>(); // Initialize
     // Removed TimelineLogicService initialization
     _textController = TextEditingController(text: widget.track.name);
     _focusNode = FocusNode();
@@ -163,7 +165,8 @@ class _TimelineTrackState extends State<TimelineTrack> {
 
   @override
   Widget build(BuildContext context) {
-    final double zoom = watchValue((TimelineViewModel vm) => vm.zoomNotifier);
+    // Watch zoom from TimelineNavigationViewModel
+    final double zoom = watchValue((TimelineNavigationViewModel vm) => vm.zoomNotifier);
     final theme = FluentTheme.of(context);
     const trackHeight = 65.0;
 

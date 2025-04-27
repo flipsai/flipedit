@@ -2,6 +2,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 // Removed import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
+import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
 import 'package:flipedit/views/widgets/timeline/components/time_ruler.dart';
 import 'package:flipedit/views/widgets/timeline/components/timeline_controls.dart';
 import 'package:flipedit/views/widgets/timeline/timeline_track.dart';
@@ -30,25 +31,31 @@ class _TimelineState extends State<Timeline> { // Mixin removed here
   double _viewportWidth = 0;
   // Create and manage the scroll controller locally
   final ScrollController _scrollController = ScrollController();
-  // Reference to the view model
+  // References to the view models
   late TimelineViewModel _timelineViewModel;
+  late TimelineNavigationViewModel _timelineNavigationViewModel;
   // Store the listener function to remove it in dispose
   VoidCallback? _scrollRequestListener;
+  // Local state for track label width
+  double _trackLabelWidth = 120.0; // Initial width, managed locally
 
   @override
   void initState() {
     super.initState();
     _timelineViewModel = di<TimelineViewModel>();
+    _timelineNavigationViewModel = di<TimelineNavigationViewModel>();
 
-    // Define the listener callback function
+    // Define the listener callback function using the navigation view model
     _scrollRequestListener = () {
-      final frame = _timelineViewModel.navigationService.scrollToFrameRequestNotifier.value;
+      // Access navigationService via the injected viewModel
+      final frame = _timelineNavigationViewModel.navigationService.scrollToFrameRequestNotifier.value;
       if (frame == null) return; // No request or already handled
 
       _handleScrollRequest(frame);
     };
 
-    _timelineViewModel.navigationService.scrollToFrameRequestNotifier.addListener(_scrollRequestListener!);
+    // Access navigationService via the injected viewModel
+    _timelineNavigationViewModel.navigationService.scrollToFrameRequestNotifier.addListener(_scrollRequestListener!);
   }
 
   void _handleScrollRequest(int frame) {
@@ -56,15 +63,15 @@ class _TimelineState extends State<Timeline> { // Mixin removed here
         logWarning('Timeline', 'Scroll requested for frame $frame but widget/controller not ready.');
         return;
       }
-      final trackLabelWidth = _timelineViewModel.trackLabelWidthNotifier.value;
-      const double framePixelWidth = 5.0; // Matches build method
-      final double scrollableViewportWidth = _viewportWidth - trackLabelWidth;
+      // Use local state _trackLabelWidth
+      const double framePixelWidth = 5.0;
+      final double scrollableViewportWidth = _viewportWidth - _trackLabelWidth;
       if (scrollableViewportWidth <= 0) return; // Cannot calculate if viewport is too small
 
-      // Calculate the target offset to scroll to
+      // Calculate the target offset using _timelineViewModel for logic and _timelineNavigationViewModel for zoom
       final double unclampedTargetOffset = _timelineViewModel.calculateScrollOffsetForFrame(
         frame,
-        _timelineViewModel.zoom, // Get zoom from ViewModel
+        _timelineNavigationViewModel.zoom, // Zoom from Navigation VM
       );
       final double maxOffset = _scrollController.position.maxScrollExtent;
       final double targetOffset = unclampedTargetOffset.clamp(0.0, maxOffset);
@@ -80,9 +87,10 @@ class _TimelineState extends State<Timeline> { // Mixin removed here
 
   @override
   void dispose() {
-    // Remove the listener from the notifier
+    // Remove the listener from the navigation view model's notifier
     if (_scrollRequestListener != null) {
-      _timelineViewModel.navigationService.scrollToFrameRequestNotifier.removeListener(_scrollRequestListener!);
+      // Access navigationService via the injected viewModel
+      _timelineNavigationViewModel.navigationService.scrollToFrameRequestNotifier.removeListener(_scrollRequestListener!);
     }
     // Dispose the locally managed scroll controller
     _scrollController.dispose();
@@ -93,27 +101,19 @@ class _TimelineState extends State<Timeline> { // Mixin removed here
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
 
-    // Watch properties using watchItMixin helpers for StatefulWidgets
+    // Watch properties - Use TimelineNavigationViewModel for nav/playback state
     final clips = watchValue((TimelineViewModel vm) => vm.clipsNotifier);
-    final currentFrame = watchValue(
-      (TimelineViewModel vm) => vm.currentFrameNotifier,
-    );
-    final zoom = watchValue((TimelineViewModel vm) => vm.zoomNotifier);
-    final totalFrames = watchValue(
-      (TimelineViewModel vm) => vm.totalFramesNotifier,
-    );
-    final trackLabelWidth = watchValue(
-      (TimelineViewModel vm) => vm.trackLabelWidthNotifier,
-    );
+    final tracks = watchValue((TimelineViewModel vm) => vm.tracksNotifierForView); // Tracks still from TimelineVM
 
-    // Watch tracks list from the TimelineViewModel
-    final tracks = watchValue(
-      (TimelineViewModel vm) => vm.tracksNotifierForView,
-    );
+    // Watch navigation state from TimelineNavigationViewModel
+    final currentFrame = watchValue((TimelineNavigationViewModel vm) => vm.currentFrameNotifier);
+    final zoom = watchValue((TimelineNavigationViewModel vm) => vm.zoomNotifier);
+    final totalFrames = watchValue((TimelineNavigationViewModel vm) => vm.totalFramesNotifier);
+    // trackLabelWidth is now local state (_trackLabelWidth)
 
     // Log clips for debugging
     if (clips.isNotEmpty) {
-      logDebug(
+      logDebug( // Use logDebug function
         'Timeline',
         '🧩 Timeline build with ${clips.length} clips, ${tracks.length} tracks, totalFrames: $totalFrames'
       );
@@ -142,14 +142,13 @@ class _TimelineState extends State<Timeline> { // Mixin removed here
                 const double framePixelWidth = 5.0;
                 // Store the viewport width when LayoutBuilder provides it
                 _viewportWidth = constraints.maxWidth;
-                final double contentWidth =
-                    totalFrames * zoom * framePixelWidth;
+                final double contentWidth = totalFrames * zoom * framePixelWidth;
+                // Use local _trackLabelWidth for calculations
                 final double totalScrollableWidth = math.max(
-                  _viewportWidth, // Use stored/updated viewport width
-                  contentWidth + trackLabelWidth,
+                  _viewportWidth,
+                  contentWidth + _trackLabelWidth,
                 );
-                final double playheadPosition =
-                    currentFrame * zoom * framePixelWidth;
+                final double playheadPosition = currentFrame * zoom * framePixelWidth;
 
                 return ClipRect(
                   // Clip horizontal overflow
@@ -161,43 +160,49 @@ class _TimelineState extends State<Timeline> { // Mixin removed here
                           height: timeRulerHeight,
                           width: _viewportWidth,
                           child: TimeRuler(
-                            zoom: zoom,
+                            zoom: zoom, // Use watched zoom
                             availableWidth: _viewportWidth,
                           ),
                         ),
-                      
+
                       // Horizontally Scrollable Container for Ruler and All Tracks
                       SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
-                        controller: _scrollController, // Use stored controller
-                        // Use the canScroll helper from ViewModel
-                        physics: _timelineViewModel.canScroll ? ClampingScrollPhysics() : NeverScrollableScrollPhysics(),
+                        controller: _scrollController,
+                        // Use hasContent helper from ViewModel
+                        physics: _timelineViewModel.hasContent ? const ClampingScrollPhysics() : const NeverScrollableScrollPhysics(),
                         child: SizedBox(
                           width: totalScrollableWidth, // Define scrollable width
-                          // Inner Stack: Allows positioning Playhead over the Column
-                          child: Stack(
-                            clipBehavior: Clip.none, // Allow playhead marker to draw outside bounds
-                            children: [
-                              // Column containing TimeRuler and Tracks List
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                          // Use AnimatedBuilder to pass scroll offset down reactively
+                          child: AnimatedBuilder(
+                            animation: _scrollController,
+                            builder: (context, _) {
+                              final currentScrollOffset = _scrollController.hasClients ? _scrollController.offset : 0.0;
+                              // Inner Stack: Allows positioning Playhead over the Column
+                              return Stack(
+                                clipBehavior: Clip.none, // Allow playhead marker to draw outside bounds
                                 children: [
-                                  // TimeRuler spanning the scrollable width (minus label offset)
-                                  // Only show TimeRuler inside the scrollable view when tracks exist
-                                  if (tracks.isNotEmpty)
-                                  Padding(
-                                    padding: EdgeInsets.only(left: trackLabelWidth),
-                                    child: SizedBox(
-                                      height: timeRulerHeight,
-                                      width: totalScrollableWidth - trackLabelWidth, // Set to scrollable width
-                                      child: TimeRuler(
-                                        zoom: zoom,
-                                        availableWidth: totalScrollableWidth - trackLabelWidth, // Pass scrollable width
+                                  // Column containing TimeRuler and Tracks List
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      // TimeRuler spanning the scrollable width (minus label offset)
+                                      if (tracks.isNotEmpty)
+                                      Padding(
+                                        padding: EdgeInsets.only(left: _trackLabelWidth), // Use local width
+                                        child: SizedBox(
+                                          height: timeRulerHeight,
+                                          width: totalScrollableWidth - _trackLabelWidth, // Use local width
+                                          // Pass required parameters to TimeRuler
+                                          child: TimeRuler(
+                                            zoom: zoom,
+                                            availableWidth: totalScrollableWidth - _trackLabelWidth,
+                                            // Removed scrollOffset as it's not a parameter
+                                          ),
+                                        ),
                                       ),
-                                    ),
-                                  ),
-                                  // Vertically arranged Tracks (within DragTarget for empty drop)
-                                  Expanded(
+                                      // Vertically arranged Tracks (within DragTarget for empty drop)
+                                      Expanded(
                                     child: DragTarget<ClipModel>(
                                       onWillAcceptWithDetails: (details) {
                                         final accept = tracks.isEmpty;
@@ -213,9 +218,9 @@ class _TimelineState extends State<Timeline> { // Mixin removed here
                                           return;
                                         }
                                         final localPosition = renderBox.globalToLocal(details.offset - Offset(0, timeRulerHeight + trackItemSpacing));
-                                        final scrollOffsetX = _scrollController.offset; // Use local controller
-                                        final posX = localPosition.dx - trackLabelWidth;
-                                        final calculatedFramePosition = ((posX + scrollOffsetX) / (5.0 * zoom)).floor();
+                                        final scrollOffsetX = _scrollController.offset;
+                                        final posX = localPosition.dx - _trackLabelWidth; // Use local width
+                                        final calculatedFramePosition = ((posX + scrollOffsetX) / (5.0 * zoom)).floor(); // Use watched zoom
                                         final framePosition = math.max(0, calculatedFramePosition);
                                         final framePositionMs = framePosition * (1000 / 30);
 
@@ -314,19 +319,13 @@ class _TimelineState extends State<Timeline> { // Mixin removed here
                                             return Padding(
                                               key: ValueKey('track_${track.id}'), // Key for ReorderableListView
                                               padding: const EdgeInsets.only(bottom: trackItemSpacing),
-                                              // Use AnimatedBuilder to pass down the current scroll offset reactively
-                                              child: AnimatedBuilder(
-                                                animation: _scrollController,
-                                                builder: (context, child) {
-                                                   return TimelineTrack(
-                                                     key: ValueKey('timeline_track_${track.id}'), // Add unique key for the TimelineTrack itself
-                                                     track: track,
-                                                     // Call ViewModel method instead of direct service call
-                                                     onDelete: () => _timelineViewModel.deleteTrack(track.id),
-                                                     trackLabelWidth: trackLabelWidth, // Pass width
-                                                     scrollOffset: _scrollController.hasClients ? _scrollController.offset : 0.0, // Pass offset
-                                                   );
-                                                },
+                                              // Pass local state/watched values down
+                                              child: TimelineTrack(
+                                                key: ValueKey('timeline_track_${track.id}'),
+                                                track: track,
+                                                onDelete: () => _timelineViewModel.deleteTrack(track.id),
+                                                trackLabelWidth: _trackLabelWidth, // Pass local state
+                                                scrollOffset: currentScrollOffset, // Pass offset from builder
                                               )
                                             );
                                           },
@@ -337,85 +336,87 @@ class _TimelineState extends State<Timeline> { // Mixin removed here
                                 ],
                               ),
 
-                              // --- Playhead (Dynamically Positioned) ---
-                              // Only show the playhead when tracks exist
+                              // --- Playhead (Dynamically Positioned based on Navigation VM) ---
                               if (tracks.isNotEmpty)
-                              Positioned(
-                                top: 0,
-                                bottom: 0,
-                                // Position based on currentFrame, zoom, and trackLabelWidth
-                                left: trackLabelWidth + playheadPosition,
-                                child: MouseRegion(
-                                  cursor: SystemMouseCursors.allScroll,
-                                  child: GestureDetector(
-                                    behavior: HitTestBehavior.translucent,
-                                    onHorizontalDragUpdate: (DragUpdateDetails details) {
-                                      final RenderBox renderBox = context.findRenderObject() as RenderBox;
-                                      final Offset origin = renderBox.localToGlobal(Offset.zero);
-                                      final double localX = details.globalPosition.dx - origin.dx;
-                                      // Use local controller reference
-                                      final double scrollOffsetX = _scrollController.offset;
-                                      final double pxPerFrame = framePixelWidth * zoom;
-                                      double pointerRelX = (localX + scrollOffsetX - trackLabelWidth).clamp(0.0, double.infinity);
-                                      // Calculate max allowed frame with a safety margin to prevent the playhead
-                                      // from going too far to the right where it becomes hard to see or interact with
-                                      final int maxAllowedFrame = totalFrames > 0 ? totalFrames - 1 : 0;
-                                      final int newFrame = (pointerRelX / pxPerFrame).round().clamp(0, maxAllowedFrame);
-                                      _timelineViewModel.currentFrame = newFrame;
-                                      // Auto-scroll when playhead near edges
-                                      const double margin = 20.0;
-                                      // final ScrollController scrollController = _scrollController; // Already have _scrollController
-                                      double newScrollOffset = scrollOffsetX;
-                                      if (localX < margin) {
-                                        newScrollOffset = (scrollOffsetX - (margin - localX))
-                                          .clamp(0.0, _scrollController.position.maxScrollExtent);
-                                      } else if (localX > _viewportWidth - margin) { // Use stored viewport width
-                                        newScrollOffset = (scrollOffsetX + (localX - (_viewportWidth - margin)))
-                                          .clamp(0.0, _scrollController.position.maxScrollExtent);
-                                      }
-                                      if (newScrollOffset != scrollOffsetX) {
-                                        _scrollController.jumpTo(newScrollOffset);
-                                      }
-                                    },
-                                    child: const TimelinePlayhead(),
+                                Positioned(
+                                  top: 0,
+                                  bottom: 0,
+                                  left: _trackLabelWidth + playheadPosition, // Use local width
+                                  child: MouseRegion(
+                                    cursor: SystemMouseCursors.allScroll,
+                                    child: GestureDetector(
+                                      behavior: HitTestBehavior.translucent,
+                                      onHorizontalDragUpdate: (DragUpdateDetails details) {
+                                        final RenderBox? renderBox = context.findRenderObject() as RenderBox?;
+                                        if (renderBox == null) return;
+                                        final Offset origin = renderBox.localToGlobal(Offset.zero);
+                                        final double localX = details.globalPosition.dx - origin.dx;
+                                        final double scrollOffsetX = _scrollController.hasClients ? _scrollController.offset : 0.0;
+                                        final double pxPerFrame = framePixelWidth * zoom; // Use watched zoom
+
+                                        if (pxPerFrame <= 0) return; // Avoid division by zero
+
+                                        double pointerRelX = (localX + scrollOffsetX - _trackLabelWidth).clamp(0.0, double.infinity); // Use local width
+                                        final int maxAllowedFrame = totalFrames > 0 ? totalFrames - 1 : 0; // Use watched totalFrames
+                                        final int newFrame = (pointerRelX / pxPerFrame).round().clamp(0, maxAllowedFrame);
+
+                                        // Set frame on Navigation VM
+                                        _timelineNavigationViewModel.currentFrame = newFrame;
+
+                                        // Auto-scroll logic remains the same, using local _scrollController
+                                        const double margin = 20.0;
+                                        double newScrollOffset = scrollOffsetX;
+                                        if (localX < margin) {
+                                          newScrollOffset = (scrollOffsetX - (margin - localX))
+                                            .clamp(0.0, _scrollController.position.maxScrollExtent);
+                                        } else if (localX > _viewportWidth - margin) {
+                                          newScrollOffset = (scrollOffsetX + (localX - (_viewportWidth - margin)))
+                                            .clamp(0.0, _scrollController.position.maxScrollExtent);
+                                        }
+                                        if (newScrollOffset != scrollOffsetX) {
+                                          _scrollController.jumpTo(newScrollOffset);
+                                        }
+                                      },
+                                      child: const TimelinePlayhead(),
+                                    ),
                                   ),
                                 ),
-                              ),
-                              
-                              // --- Resizer Handle ---
-                              // Only show the resizer handle when tracks exist
+
+                              // --- Resizer Handle (Uses local state) ---
                               if (tracks.isNotEmpty)
-                              Positioned(
-                                top: 0,
-                                bottom: 0,
-                                left: trackLabelWidth - 3, // Position based on label width
-                                width: 6,
-                                child: GestureDetector(
-                                  onHorizontalDragUpdate: (DragUpdateDetails details) {
-                                    // Update notifier value directly and clamp
-                                    final currentWidth = _timelineViewModel.trackLabelWidthNotifier.value;
-                                    final newWidth = (currentWidth + details.delta.dx).clamp(50.0, 400.0); // Clamp width
-                                    _timelineViewModel.trackLabelWidthNotifier.value = newWidth;
-                                  },
-                                  child: MouseRegion(
-                                    cursor: SystemMouseCursors.resizeLeftRight,
-                                    child: Container(
-                                      color: theme.resources.subtleFillColorSecondary,
-                                      alignment: Alignment.center,
+                                Positioned(
+                                  top: 0,
+                                  bottom: 0,
+                                  left: _trackLabelWidth - 3, // Position based on local width
+                                  width: 6,
+                                  child: GestureDetector(
+                                    onHorizontalDragUpdate: (DragUpdateDetails details) {
+                                      // Update local state variable and trigger rebuild
+                                      setState(() {
+                                        _trackLabelWidth = (_trackLabelWidth + details.delta.dx).clamp(50.0, 400.0); // Clamp width
+                                      });
+                                    },
+                                    child: MouseRegion(
+                                      cursor: SystemMouseCursors.resizeLeftRight,
                                       child: Container(
-                                        width: 1.5,
-                                        color: theme.resources.controlStrokeColorDefault,
+                                        color: theme.resources.subtleFillColorSecondary,
+                                        alignment: Alignment.center,
+                                        child: Container(
+                                          width: 1.5,
+                                          color: theme.resources.controlStrokeColorDefault,
+                                        ),
                                       ),
                                     ),
                                   ),
                                 ),
-                              ),
-                          ],
-                        ),
-                        ),
-                      ),
-                    ],
-                  ),
+                            ],
+                          );
+                        } // Closes AnimatedBuilder builder
+                      ), // Closes AnimatedBuilder
+                    ), // Closes SizedBox
+                  ), // Closes SingleChildScrollView
+                ],
+              ), // Closes Stack
                 );
               },
             ),

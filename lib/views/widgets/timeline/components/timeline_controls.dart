@@ -1,5 +1,6 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
+import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart'; // Added import
 import 'package:video_player/video_player.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/models/enums/edit_mode.dart';
@@ -16,16 +17,17 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
     final controlsContentColor = theme.resources.textFillColorPrimary;
-    final timelineViewModel = di<TimelineViewModel>();
-    final editorViewModel = di<EditorViewModel>(); // Inject EditorViewModel
+    final timelineViewModel = di<TimelineViewModel>(); // Still needed for edit mode
+    final timelineNavigationViewModel = di<TimelineNavigationViewModel>(); // Inject Navigation VM
+    final editorViewModel = di<EditorViewModel>(); // Still needed for snapping/aspect lock
 
-    // Watch basic values
-    final isPlaying = watchValue((TimelineViewModel vm) => vm.isPlayingNotifier);
-    final totalFrames = watchValue((TimelineViewModel vm) => vm.totalFramesNotifier);
-    final zoom = watchValue((TimelineViewModel vm) => vm.zoomNotifier);
-    final isPlayheadLocked = watchValue((TimelineViewModel vm) => vm.isPlayheadLockedNotifier); // Watch lock state
+    // Watch navigation/playback values from TimelineNavigationViewModel
+    final isPlaying = watchValue((TimelineNavigationViewModel vm) => vm.isPlayingNotifier);
+    final totalFrames = watchValue((TimelineNavigationViewModel vm) => vm.totalFramesNotifier);
+    final zoom = watchValue((TimelineNavigationViewModel vm) => vm.zoomNotifier);
+    final isPlayheadLocked = watchValue((TimelineNavigationViewModel vm) => vm.isPlayheadLockedNotifier);
 
-    // Watch snapping and aspect ratio lock states from EditorViewModel
+    // Watch snapping and aspect ratio lock states from EditorViewModel (remains the same)
     final snappingEnabled = watchValue((EditorViewModel vm) => vm.snappingEnabledNotifier);
     final aspectRatioLocked = watchValue((EditorViewModel vm) => vm.aspectRatioLockedNotifier);
 
@@ -61,8 +63,9 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
             message: 'Zoom Out',
             child: IconButton(
               icon: Icon(HugeIcons.strokeRoundedMinusSign, size: 16, color: controlsContentColor),
-              onPressed: zoom > 0.2 // Use watched zoom directly
-                  ? () => timelineViewModel.zoom = zoom / 1.2
+              // Use navigation VM for zoom setter
+              onPressed: zoom > 0.2
+                  ? () => timelineNavigationViewModel.zoom = zoom / 1.2
                   : null,
             ),
           ),
@@ -78,8 +81,9 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
             message: 'Zoom In',
             child: IconButton(
               icon: Icon(HugeIcons.strokeRoundedAdd01, size: 16, color: controlsContentColor),
-              onPressed: zoom < 5.0 // Use watched zoom directly
-                  ? () => timelineViewModel.zoom = zoom * 1.2
+              // Use navigation VM for zoom setter
+              onPressed: zoom < 5.0
+                  ? () => timelineNavigationViewModel.zoom = zoom * 1.2
                   : null,
             ),
           ),
@@ -90,7 +94,8 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
             message: 'Go to Start',
             child: IconButton(
               icon: Icon(HugeIcons.strokeRoundedBackward01, size: 16, color: controlsContentColor),
-              onPressed: () => timelineViewModel.currentFrame = 0,
+              // Use navigation VM for currentFrame setter
+              onPressed: () => timelineNavigationViewModel.currentFrame = 0,
             ),
           ),
           Tooltip(
@@ -99,19 +104,20 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
               icon: Icon(
                 isPlaying ? HugeIcons.strokeRoundedPause : HugeIcons.strokeRoundedPlay, // Use watched isPlaying
                 size: 16,
-                color: controlsContentColor, // Ensure color consistency
+                color: controlsContentColor,
               ),
-              onPressed: timelineViewModel.togglePlayPause, // Call the correct ViewModel method
+              // Use navigation VM for togglePlayPause
+              onPressed: timelineNavigationViewModel.togglePlayPause,
             ),
           ),
           Tooltip(
             message: 'Go to End',
             child: IconButton(
               icon: Icon(HugeIcons.strokeRoundedForward01, size: 16, color: controlsContentColor),
-              // Use watched totalFrames
-              onPressed: () => timelineViewModel.currentFrame = totalFrames,
+              // Use navigation VM for currentFrame setter
+              onPressed: () => timelineNavigationViewModel.currentFrame = totalFrames,
             ),
-          ), // End Tooltip for Go to End
+          ),
 
           Tooltip( // Add Tooltip for Lock Playhead
             message: isPlayheadLocked ? 'Unlock Playhead Scroll' : 'Lock Playhead Scroll',
@@ -126,7 +132,8 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
                   size: 16,
                   color: controlsContentColor,
                 ),
-                onPressed: timelineViewModel.togglePlayheadLock,
+                // Use navigation VM for togglePlayheadLock
+                onPressed: timelineNavigationViewModel.togglePlayheadLock,
                 style: ButtonStyle(
                   padding: WidgetStateProperty.all(const EdgeInsets.all(4)),
                   foregroundColor: WidgetStateProperty.all(controlsContentColor),

@@ -1,7 +1,7 @@
 import 'package:flipedit/app.dart';
 import 'package:flipedit/di/service_locator.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
-import 'package:watch_it/watch_it.dart';
+import 'package:watch_it/watch_it.dart' as watch_it; // Add prefix
 import 'package:fvp/fvp.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:fluent_ui/fluent_ui.dart';
