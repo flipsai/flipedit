@@ -1,9 +1,8 @@
-import 'dart:async';
 
 import 'package:flipedit/models/clip.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
-import 'package:collection/collection.dart'; // For listEquals
+// For listEquals
 
 // Function types for dependencies
 typedef GetClips = List<ClipModel> Function();
@@ -136,7 +135,7 @@ class TimelineNavigationService extends ChangeNotifier {
     final maxAllowedFrame = newTotalFrames > 0 ? newTotalFrames - 1 : defaultEmptyDurationFrames;
     if (current > maxAllowedFrame) {
        currentFrame = maxAllowedFrame; // Use setter for clamping
-       logger.logDebug('Clamped current frame to ${this.currentFrame} after total frames update', _logTag);
+       logger.logDebug('Clamped current frame to $currentFrame after total frames update', _logTag);
        // Setter already notifies if value changed
     }
 

@@ -13,13 +13,11 @@ import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart'; // Added import
 import 'package:shared_preferences/shared_preferences.dart';
 // import 'package:watch_it/watch_it.dart'; // watch_it is used for widgets, not setup
-import 'package:get_it/get_it.dart'; // Import GetIt
 import 'package:flipedit/services/undo_redo_service.dart';
 import 'package:flipedit/viewmodels/preview_viewmodel.dart'; // Import PreviewViewModel
+import 'package:watch_it/watch_it.dart';
 
 // Get the instance of GetIt
-final di = GetIt.instance;
-
 Future<void> setupServiceLocator() async {
   // Register SharedPreferences asynchronously
   di.registerSingletonAsync<SharedPreferences>(() => SharedPreferences.getInstance());

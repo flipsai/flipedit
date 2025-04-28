@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart'; // Required for ChangeNotifier, ValueNotifier, VoidCallback, listEquals
 
-import 'package:collection/collection.dart'; // Keep this for other collection utilities if needed
+// Keep this for other collection utilities if needed
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/models/enums/edit_mode.dart';
@@ -40,7 +40,45 @@ class TimelineViewModel extends ChangeNotifier {
       ValueNotifier<List<ClipModel>>([]);
   List<ClipModel> get clips => List.unmodifiable(clipsNotifier.value);
 
-  // Removed trackLabelWidthNotifier - To be managed by the View
+  // Flag to track when playhead is being intentionally dragged
+  final ValueNotifier<bool> _isPlayheadDraggingNotifier = ValueNotifier<bool>(false);
+  bool get isPlayheadDragging => _isPlayheadDraggingNotifier.value;
+  set isPlayheadDragging(bool value) {
+    if (_isPlayheadDraggingNotifier.value != value) {
+      _isPlayheadDraggingNotifier.value = value;
+      logger.logDebug('Playhead dragging: $value', _logTag);
+    }
+  }
+
+  // Added track label width notifier for the width of the track label area
+  final ValueNotifier<double> trackLabelWidthNotifier = ValueNotifier<double>(120.0);
+  double get trackLabelWidth => trackLabelWidthNotifier.value;
+  set trackLabelWidth(double value) {
+    final clampedWidth = value.clamp(80.0, 300.0);
+    if (trackLabelWidthNotifier.value != clampedWidth) {
+      trackLabelWidthNotifier.value = clampedWidth;
+      logger.logInfo('Track label width updated to $clampedWidth', _logTag);
+    }
+  }
+
+  // Added currentFrame property for TimelineNavigationViewModel compatibility
+  // This should delegate to the navigation viewmodel in a full implementation
+  final ValueNotifier<int> currentFrameNotifier = ValueNotifier<int>(0);
+  static const DEFAULT_EMPTY_DURATION = 600000; // 10 minutes in milliseconds
+  int get currentFrame => currentFrameNotifier.value;
+  set currentFrame(int value) {
+    final totalFrames = totalFramesNotifier.value;
+    // Clamp to content duration when present
+    final int maxAllowedFrame = totalFrames > 0 ? totalFrames - 1 : ClipModel.msToFrames(DEFAULT_EMPTY_DURATION);
+    final clampedValue = value.clamp(0, maxAllowedFrame);
+    if (currentFrameNotifier.value == clampedValue) return;
+    currentFrameNotifier.value = clampedValue;
+    logger.logDebug('Current frame updated to $clampedValue', _logTag);
+  }
+
+  // Added totalFrames notifier
+  final ValueNotifier<int> totalFramesNotifier = ValueNotifier<int>(0);
+  int get totalFrames => totalFramesNotifier.value;
 
   final ValueNotifier<int?> selectedTrackIdNotifier = ValueNotifier<int?>(null);
   int? get selectedTrackId => selectedTrackIdNotifier.value;
@@ -122,7 +160,7 @@ class TimelineViewModel extends ChangeNotifier {
     }
   }
 
-  List<VoidCallback> _internalListeners = []; // Store listeners for disposal
+  final List<VoidCallback> _internalListeners = []; // Store listeners for disposal
 
   /// Executes a TimelineCommand and registers it with the Undo/Redo service.
   Future<void> runCommand(TimelineCommand cmd) async {
@@ -170,7 +208,7 @@ class TimelineViewModel extends ChangeNotifier {
   /// Sets up listeners for relevant service changes (DB Tracks).
   void _setupServiceListeners() {
     // Listen to track changes from the ProjectDatabaseService
-    final tracksListener = () {
+    tracksListener() {
       final serviceTracks = _projectDatabaseService.tracksNotifier.value;
        // Use listEquals for robust comparison
       if (!listEquals(tracksListNotifier.value, serviceTracks)) {
@@ -180,7 +218,7 @@ class TimelineViewModel extends ChangeNotifier {
           // Consider if refreshClips() is always needed here or only on specific track changes.
           refreshClips();
       }
-    };
+    }
     _projectDatabaseService.tracksNotifier.addListener(tracksListener);
     _internalListeners.add(() => _projectDatabaseService.tracksNotifier.removeListener(tracksListener));
 
@@ -469,7 +507,10 @@ class TimelineViewModel extends ChangeNotifier {
 
     // Dispose owned ValueNotifiers
     clipsNotifier.dispose();
-    // Removed trackLabelWidthNotifier disposal
+    _isPlayheadDraggingNotifier.dispose(); // Dispose the new notifier
+    trackLabelWidthNotifier.dispose(); // Dispose the track label width notifier
+    currentFrameNotifier.dispose(); // Dispose the current frame notifier
+    totalFramesNotifier.dispose(); // Dispose the total frames notifier
     currentEditMode.dispose();
     tracksListNotifier.dispose();
     selectedTrackIdNotifier.dispose();

@@ -2,7 +2,6 @@
 import 'package:fluent_ui/fluent_ui.dart'; // For Rect
 import 'package:flutter_box_transform/flutter_box_transform.dart'; // For Flip
 
-import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/services/project_database_service.dart';
 // import 'package:flipedit/services/undo_redo_service.dart'; // Not needed directly
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';

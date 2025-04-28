@@ -12,7 +12,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:watch_it/watch_it.dart' as watch_it; // Add prefix
+import 'package:watch_it/watch_it.dart';
 
 // --- Mock PathProviderPlatform START ---
 class FakePathProviderPlatform extends Fake
@@ -163,8 +163,7 @@ void setupMinTestWindowSize({
   double devicePixelRatio = 1.0,
 }) {
   final binding =
-      IntegrationTestWidgetsFlutterBinding.ensureInitialized()
-          as IntegrationTestWidgetsFlutterBinding;
+      IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   binding.window.physicalSizeTestValue = minSize;
   binding.window.devicePixelRatioTestValue = devicePixelRatio;
 }

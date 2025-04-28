@@ -1,16 +1,11 @@
-import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:video_player/video_player.dart';
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flutter_box_transform/flutter_box_transform.dart';
-import 'package:fvp/fvp.dart' as fvp; // Assuming fvp is needed
-// Remove watch_it import
-// import 'package:watch_it/watch_it.dart' hide di;
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/preview_viewmodel.dart';
-import 'package:flipedit/di/service_locator.dart';
-import 'package:flutter/foundation.dart'; // For ValueKey
+import 'package:watch_it/watch_it.dart';
 
 /// PreviewPanel displays the current timeline frame's video(s).
 /// Uses PreviewViewModel via DI.
@@ -42,9 +37,9 @@ class PreviewPanelContent extends StatefulWidget {
   final PreviewViewModel previewViewModel;
 
   const PreviewPanelContent({
-    Key? key,
+    super.key,
     required this.previewViewModel,
-  }) : super(key: key);
+  });
 
   @override
   _PreviewPanelContentState createState() => _PreviewPanelContentState();
@@ -249,11 +244,11 @@ class SnapGuidePainter extends StatelessWidget {
   final double? verticalSnapX;
 
   const SnapGuidePainter({
-    Key? key,
+    super.key,
     required this.containerSize,
     this.horizontalSnapY,
     this.verticalSnapX,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

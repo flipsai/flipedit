@@ -145,7 +145,7 @@ void main() {
 
   // --- Test Setup Function ---
   // Common setup steps performed at the beginning of each testWidgets block
-  Future<({EditorViewModel editorVm, Finder viewMenuButtonFinder})> _setupTest(WidgetTester tester) async {
+  Future<({EditorViewModel editorVm, Finder viewMenuButtonFinder})> setupTest(WidgetTester tester) async {
     print('Pumping FlipEditApp...');
     await tester.pumpWidget(FlipEditApp());
     // Increase settle time slightly if needed for initialization
@@ -173,7 +173,7 @@ void main() {
   testWidgets('View menu toggles Inspector visibility and updates checkmark/panel',
       (WidgetTester tester) async {
     print('\n=== Running Test: Inspector Toggle ===');
-    final setup = await _setupTest(tester);
+    final setup = await setupTest(tester);
     await _testPanelToggle(
       tester: tester,
       editorVm: setup.editorVm,
@@ -188,7 +188,7 @@ void main() {
   testWidgets('View menu toggles Timeline visibility and updates checkmark/panel',
       (WidgetTester tester) async {
     print('\n=== Running Test: Timeline Toggle ===');
-    final setup = await _setupTest(tester);
+    final setup = await setupTest(tester);
     await _testPanelToggle(
       tester: tester,
       editorVm: setup.editorVm,
@@ -203,7 +203,7 @@ void main() {
   testWidgets('View menu toggles Preview visibility and updates checkmark/panel',
       (WidgetTester tester) async {
     print('\n=== Running Test: Preview Toggle ===');
-    final setup = await _setupTest(tester);
+    final setup = await setupTest(tester);
     await _testPanelToggle(
       tester: tester,
       editorVm: setup.editorVm,

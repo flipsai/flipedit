@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart'; // For ValueNotifier
-import '../timeline_viewmodel.dart'; // Keep for ClipModel access maybe
+// Keep for ClipModel access maybe
 import 'timeline_command.dart';
 import '../../models/clip.dart';
 import 'package:flipedit/utils/logger.dart' as logger;

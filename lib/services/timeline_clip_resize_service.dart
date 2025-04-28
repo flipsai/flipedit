@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/viewmodels/commands/resize_clip_command.dart';
