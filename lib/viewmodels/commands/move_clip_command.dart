@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart'; // Added for ValueNotifier
-import '../timeline_viewmodel.dart';
 import 'timeline_command.dart';
 import '../../models/clip.dart';
 import 'package:flipedit/utils/logger.dart' as logger;

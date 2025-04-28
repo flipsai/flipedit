@@ -32,7 +32,7 @@ void main() {
   late ValueNotifier<List<project_db.Track>> testTracksNotifier; // Needed for ProjectDatabaseService mock
   
   // Define a static empty callback for test purposes
-  void _emptyCallback() {}
+  void emptyCallback() {}
 
 
   setUp(() {

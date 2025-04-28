@@ -158,7 +158,7 @@ void main() {
               }
 
               // Verify the tracks table is empty using the DAO's watch method
-              final initialTracks = await trackDao!.watchAllTracks().first;
+              final initialTracks = await trackDao.watchAllTracks().first;
               expect(initialTracks, isEmpty, reason: 'Tracks table should be empty initially.');
               print('Successfully verified project DB schema via service.trackDao (checked tracks table is empty).');
             } catch (e, stackTrace) {

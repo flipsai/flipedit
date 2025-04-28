@@ -64,19 +64,19 @@ class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase> with _$Pr
     if (success && oldRow != null) {
       final newRow = Clip(
         id: id,
-        trackId: clip.trackId.value!,
-        name: clip.name.value!,
-        type: clip.type.value!,
-        sourcePath: clip.sourcePath.value!,
-        startTimeInSourceMs: clip.startTimeInSourceMs.value!,
-        endTimeInSourceMs: clip.endTimeInSourceMs.value!,
-        startTimeOnTrackMs: clip.startTimeOnTrackMs.value!,
+        trackId: clip.trackId.value,
+        name: clip.name.value,
+        type: clip.type.value,
+        sourcePath: clip.sourcePath.value,
+        startTimeInSourceMs: clip.startTimeInSourceMs.value,
+        endTimeInSourceMs: clip.endTimeInSourceMs.value,
+        startTimeOnTrackMs: clip.startTimeOnTrackMs.value,
         metadataJson: clip.metadataJson.present ? clip.metadataJson.value : null,
-        createdAt: clip.createdAt.present && clip.createdAt.value != null
-            ? clip.createdAt.value!
+        createdAt: clip.createdAt.present
+            ? clip.createdAt.value
             : DateTime.now(),
-        updatedAt: clip.updatedAt.present && clip.updatedAt.value != null
-            ? clip.updatedAt.value!
+        updatedAt: clip.updatedAt.present
+            ? clip.updatedAt.value
             : DateTime.now(),
       );
       await logChange(
@@ -125,19 +125,19 @@ class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase> with _$Pr
       if (success && log) {
         final newRow = Clip(
           id: clipId,
-          trackId: updatedCompanion.trackId.value!,
-          name: updatedCompanion.name.value!,
-          type: updatedCompanion.type.value!,
-          sourcePath: updatedCompanion.sourcePath.value!,
-          startTimeInSourceMs: updatedCompanion.startTimeInSourceMs.value!,
-          endTimeInSourceMs: updatedCompanion.endTimeInSourceMs.value!,
-          startTimeOnTrackMs: updatedCompanion.startTimeOnTrackMs.value!,
+          trackId: updatedCompanion.trackId.value,
+          name: updatedCompanion.name.value,
+          type: updatedCompanion.type.value,
+          sourcePath: updatedCompanion.sourcePath.value,
+          startTimeInSourceMs: updatedCompanion.startTimeInSourceMs.value,
+          endTimeInSourceMs: updatedCompanion.endTimeInSourceMs.value,
+          startTimeOnTrackMs: updatedCompanion.startTimeOnTrackMs.value,
           metadataJson: updatedCompanion.metadataJson.present ? updatedCompanion.metadataJson.value : null,
-          createdAt: updatedCompanion.createdAt.present && updatedCompanion.createdAt.value != null
-              ? updatedCompanion.createdAt.value!
+          createdAt: updatedCompanion.createdAt.present
+              ? updatedCompanion.createdAt.value
               : DateTime.now(),
-          updatedAt: updatedCompanion.updatedAt.present && updatedCompanion.updatedAt.value != null
-              ? updatedCompanion.updatedAt.value!
+          updatedAt: updatedCompanion.updatedAt.present
+              ? updatedCompanion.updatedAt.value
               : DateTime.now(),
         );
         await logChange(

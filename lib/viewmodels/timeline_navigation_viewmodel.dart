@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart';
-import 'package:flipedit/di/service_locator.dart';
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/services/playback_service.dart';
 import 'package:flipedit/services/timeline_navigation_service.dart';

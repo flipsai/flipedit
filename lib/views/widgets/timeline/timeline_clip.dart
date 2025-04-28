@@ -5,14 +5,12 @@ import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart'; // Added import
-import 'package:flipedit/viewmodels/commands/resize_clip_command.dart';
 import 'package:flipedit/viewmodels/commands/move_clip_command.dart';
 import 'package:flipedit/viewmodels/commands/remove_clip_command.dart';
 import 'package:watch_it/watch_it.dart';
 import 'painters/video_frames_painter.dart';
 import 'package:flipedit/services/timeline_clip_resize_service.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
-import 'package:flutter/foundation.dart'; // For kTouchSlop
 
 /// A clip in the timeline track
 class TimelineClip extends StatefulWidget with WatchItStatefulWidgetMixin {
@@ -538,9 +536,8 @@ class _ResizeClipEdgeHandle extends StatefulWidget {
     required this.pixelsPerFrame, // Make required
     required this.onDragStart,
     required this.onDragUpdate,
-    required this.onDragEnd,
-    Key? key, // Add Key
-  }) : assert(direction == 'left' || direction == 'right'), super(key: key);
+    required this.onDragEnd, // Add Key
+  }) : assert(direction == 'left' || direction == 'right');
 
   @override
   State<_ResizeClipEdgeHandle> createState() => _ResizeClipEdgeHandleState();

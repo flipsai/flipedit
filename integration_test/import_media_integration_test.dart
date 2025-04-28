@@ -4,12 +4,10 @@ import 'package:integration_test/integration_test.dart';
 import 'package:flipedit/app.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:watch_it/watch_it.dart' as watch_it; // Add prefix
 import 'common_test_setup.dart';
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
-import 'package:flipedit/di/service_locator.dart';
-
+import 'package:watch_it/watch_it.dart';
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 

@@ -5,6 +5,10 @@ alwaysApply: true
 ---
  # FlipEdit Cursor Rules
 
+## Important Rules
+Dont comment your codes to explain your changes.
+Only comment when an explanation of a complex logic is needed, and it should be technical doc.
+
 ## Architecture
 - **Framework**: Flutter/Dart application for cross-platform video editing
 - **Architecture Pattern**: MVVM (Model-View-ViewModel) with clear separation of concerns

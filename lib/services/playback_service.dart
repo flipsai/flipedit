@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flipedit/models/clip.dart'; // For msToFrames
+// For msToFrames
 import 'package:flipedit/utils/logger.dart' as logger;
 
 // Placeholder for TimelineNavigationService - will be properly typed later

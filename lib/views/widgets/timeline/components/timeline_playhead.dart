@@ -3,14 +3,12 @@ import 'package:fluent_ui/fluent_ui.dart';
 /// A custom painter for drawing the timeline playhead marker (triangle + line).
 class _PlayheadPainter extends CustomPainter {
   final Color color;
-  final double strokeWidth;
-  final double triangleHeight;
-  final double triangleWidth;
+  double strokeWidth = 1.0;
+  double triangleHeight = 10.0;
+  double triangleWidth = 10.0;
 
   _PlayheadPainter({
     required this.color,
-    this.strokeWidth = 2.0,
-    this.triangleHeight = 8.0,
     this.triangleWidth = 10.0,
   });
 

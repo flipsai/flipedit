@@ -6,7 +6,7 @@ part 'change_log_dao.g.dart';
 
 @DriftAccessor(tables: [ChangeLogs])
 class ChangeLogDao extends DatabaseAccessor<ProjectDatabase> with _$ChangeLogDaoMixin {
-  ChangeLogDao(ProjectDatabase db) : super(db);
+  ChangeLogDao(super.db);
 
   Future<int> insertChange(ChangeLogsCompanion entry) {
     return into(changeLogs).insert(entry);

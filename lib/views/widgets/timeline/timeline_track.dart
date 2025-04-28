@@ -9,7 +9,6 @@ import 'package:flipedit/views/widgets/timeline/timeline_clip.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flutter/widgets.dart' as fw;
 import "dart:developer" as developer;
-import 'painters/track_background_painter.dart';
 // Removed unused: import 'package:flipedit/viewmodels/commands/roll_edit_command.dart';
 import 'components/track_background.dart'; // Import new component
 import 'components/drag_preview.dart'; // Import new component

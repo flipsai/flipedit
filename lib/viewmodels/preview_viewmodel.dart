@@ -2,7 +2,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_box_transform/flutter_box_transform.dart';
 import 'package:video_player/video_player.dart';
-import 'package:watch_it/watch_it.dart' as watch_it; // Add prefix
+// Add prefix
 import 'dart:io'; // Import for File
 
 import 'package:flipedit/models/clip.dart';
@@ -12,9 +12,9 @@ import 'package:flipedit/services/project_metadata_service.dart'; // Add import 
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
-import 'package:flipedit/di/service_locator.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
 import 'commands/update_clip_transform_command.dart';
+import 'package:watch_it/watch_it.dart';
 
 // TODO: Consider refining visibility logic (e.g., only top-most clip per track)
 class PreviewViewModel extends ChangeNotifier {

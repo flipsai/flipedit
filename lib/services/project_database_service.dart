@@ -406,7 +406,7 @@ class ProjectDatabaseService {
 
     try {
       for (final track in tracks.where((t) => t.id != null)) {
-        final dbClips = await clipDao!.getClipsForTrack(track.id!);
+        final dbClips = await clipDao!.getClipsForTrack(track.id);
         allClips.addAll(dbClips.map((dbClip) {
           // Estimate source duration if missing from DB data
           final sourceDuration = dbClip.sourceDurationMs ??
