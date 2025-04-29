@@ -55,6 +55,8 @@ Future<void> setupServiceLocator() async {
     () => TimelineNavigationViewModel(
       // Provide the function to get clips from the TimelineViewModel instance
       getClips: () => di<TimelineViewModel>().clips,
+      // Pass the clipsNotifier from the TimelineViewModel instance
+      clipsNotifier: di<TimelineViewModel>().clipsNotifier,
     ),
     dispose: (vm) => vm.dispose(), // Ensure dispose is called
   );

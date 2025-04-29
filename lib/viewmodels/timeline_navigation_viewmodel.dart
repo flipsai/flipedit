@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flipedit/models/clip.dart';
+import 'package:flipedit/viewmodels/timeline_viewmodel.dart'; // Needed for clipsNotifier type
 import 'package:flipedit/services/playback_service.dart';
 import 'package:flipedit/services/timeline_navigation_service.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
@@ -10,13 +11,19 @@ class TimelineNavigationViewModel extends ChangeNotifier {
   final String _logTag = 'TimelineNavigationViewModel';
 
   // --- Injected Services ---
+  // Make clipsNotifier required for proper initialization
+  final ValueNotifier<List<ClipModel>> _clipsNotifier;
   late final TimelineNavigationService _navigationService;
   late final PlaybackService _playbackService;
+
+  // Internal listener reference
+  VoidCallback? _clipsListener;
 
   // --- Constructor ---
   TimelineNavigationViewModel({
     required List<ClipModel> Function() getClips, // Function to get current clips
-  }) {
+    required ValueNotifier<List<ClipModel>> clipsNotifier, // Inject the notifier
+  }) : _clipsNotifier = clipsNotifier { // Store the injected notifier
     logger.logInfo('Initializing TimelineNavigationViewModel', _logTag);
 
     // Instantiate services and wire dependencies
@@ -39,6 +46,12 @@ class TimelineNavigationViewModel extends ChangeNotifier {
     _navigationService.timelineEndNotifier.addListener(notifyListeners);
     _navigationService.isPlayheadLockedNotifier.addListener(notifyListeners);
     _playbackService.isPlayingNotifier.addListener(notifyListeners);
+
+    // Listen to clip changes to trigger recalculation
+    _clipsListener = () {
+      recalculateTotalFrames(); // Call the existing method
+    };
+    _clipsNotifier.addListener(_clipsListener!);
   }
 
   // --- Delegated State Notifiers (Exposed for View Binding) ---
@@ -124,6 +137,11 @@ class TimelineNavigationViewModel extends ChangeNotifier {
     _navigationService.timelineEndNotifier.removeListener(notifyListeners);
     _navigationService.isPlayheadLockedNotifier.removeListener(notifyListeners);
     _playbackService.isPlayingNotifier.removeListener(notifyListeners);
+
+    // Remove the listener added for clipsNotifier
+    if (_clipsListener != null) {
+      _clipsNotifier.removeListener(_clipsListener!);
+    }
 
     // Dispose owned services
     _navigationService.dispose();

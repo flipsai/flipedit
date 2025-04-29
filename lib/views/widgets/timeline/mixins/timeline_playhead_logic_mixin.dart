@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'dart:developer' as developer;
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart'; // Needed for isPlayheadDragging
 import 'package:flipedit/views/widgets/timeline/timeline.dart';
@@ -21,7 +22,8 @@ mixin TimelinePlayheadLogicMixin on State<Timeline> implements TickerProvider {
 
   // --- Local State for Playhead Logic (Managed by Mixin) ---
   // Made public: Direct frame position controller - needs careful sync with VM
-  int currentFramePosition = 0; 
+  int currentFramePosition = 0;
+  late final ValueNotifier<int> visualFramePositionNotifier;
   // Track the mouse position for physics-based interactions
   Offset? _lastMousePosition;
   // Current horizontal velocity for momentum scrolling
@@ -43,6 +45,9 @@ mixin TimelinePlayheadLogicMixin on State<Timeline> implements TickerProvider {
     _ensurePlayheadVisibleCallback = ensurePlayheadVisible;
     // Sync initial frame position
     currentFramePosition = timelineNavigationViewModel.currentFrame;
+    visualFramePositionNotifier = ValueNotifier<int>(
+      currentFramePosition,
+    );
 
     // Add listeners (controllers are created in the main State's initState)
     playheadPhysicsController.addListener(handlePlayheadPhysics);
@@ -58,15 +63,18 @@ mixin TimelinePlayheadLogicMixin on State<Timeline> implements TickerProvider {
       syncCurrentFrame,
     );
     // Note: AnimationController listeners are automatically removed on dispose
+    visualFramePositionNotifier.dispose(); // Dispose the notifier
   }
 
   // Keep local frame in sync with view model when changed externally
   void syncCurrentFrame() {
     // Only update if the value actually changed and physics isn't running
-    if (currentFramePosition != timelineNavigationViewModel.currentFrame && 
+    if (currentFramePosition != timelineNavigationViewModel.currentFrame &&
         !playheadPhysicsController.isAnimating) {
       // Update local state and potentially trigger snap animation
-       currentFramePosition = timelineNavigationViewModel.currentFrame;
+      currentFramePosition = timelineNavigationViewModel.currentFrame;
+      visualFramePositionNotifier.value =
+          currentFramePosition; // Sync notifier too
       // Consider if a snap animation is needed here or if direct update is fine
       // If snapping is desired:
       // scrubSnapController.forward(from: 0.0);
@@ -83,7 +91,9 @@ mixin TimelinePlayheadLogicMixin on State<Timeline> implements TickerProvider {
     if (!playheadPhysicsController.isAnimating || !mounted) return;
 
     final double t = playheadPhysicsController.value;
-    final double decelerationFactor = math.cos(t * math.pi / 2); // Natural deceleration
+    final double decelerationFactor = math.cos(
+      t * math.pi / 2,
+    ); // Natural deceleration
     final double frameDelta = _horizontalVelocity * decelerationFactor * 0.2;
 
     if (frameDelta.abs() < 0.01) {
@@ -101,14 +111,8 @@ mixin TimelinePlayheadLogicMixin on State<Timeline> implements TickerProvider {
 
     if (newFrame != currentFramePosition) {
       currentFramePosition = newFrame;
-      // Update VM only when physics settles or during drag?
-      // Updating here causes continuous VM updates during physics
+      visualFramePositionNotifier.value = newFrame; // Update visual notifier
       timelineNavigationViewModel.currentFrame = newFrame;
-      // We need ensurePlayheadVisible from the Scroll mixin - how to call it?
-      // Option 1: Assume it exists via 'this' (requires Scroll mixin applied)
-      // Option 2: Pass a callback
-      // Let's assume Option 1 for now:
-      // ensurePlayheadVisible(newFrame); 
 
       setState(() {}); // Update UI
     }
@@ -120,24 +124,27 @@ mixin TimelinePlayheadLogicMixin on State<Timeline> implements TickerProvider {
 
     final double t = scrubSnapController.value;
     final double easedT = Curves.easeOutCubic.transform(t);
-    final int targetFrame = timelineNavigationViewModel.currentFrame; // Target is VM frame
-    final int startFrame = currentFramePosition; // Start from current animated position
+    final int targetFrame = timelineNavigationViewModel.currentFrame;
+    final int startFrame = currentFramePosition;
 
     // Calculate frame between start and target frames
-    final int interpolatedFrame = startFrame +
-        ((targetFrame - startFrame) * easedT).round();
+    final int interpolatedFrame =
+        startFrame + ((targetFrame - startFrame) * easedT).round();
 
     // Only update visually during animation
     if (interpolatedFrame != currentFramePosition) {
-       currentFramePosition = interpolatedFrame;
-       setState(() {}); // Update playhead visual position
+      currentFramePosition = interpolatedFrame;
+      visualFramePositionNotifier.value = interpolatedFrame;
+      setState(
+        () {},
+      );
     }
 
     // When animation completes, ensure final state matches VM
     if (t >= 1.0) {
       currentFramePosition = targetFrame;
-      // No VM update needed here, as it should already be the target
-       setState(() {});
+      visualFramePositionNotifier.value = targetFrame;
+      setState(() {});
     }
   }
 
@@ -145,8 +152,8 @@ mixin TimelinePlayheadLogicMixin on State<Timeline> implements TickerProvider {
 
   void handlePlayheadDragStart(DragStartDetails details) {
     timelineViewModel.isPlayheadDragging = true;
-    playheadPhysicsController.stop(); // Stop any ongoing physics
-    scrubSnapController.stop(); // Stop snapping
+    playheadPhysicsController.stop();
+    scrubSnapController.stop();
     _horizontalVelocity = 0.0;
     _cumulativeDragDelta = 0.0;
     _lastDragUpdateTime = DateTime.now();
@@ -156,12 +163,17 @@ mixin TimelinePlayheadLogicMixin on State<Timeline> implements TickerProvider {
   void handlePlayheadDragUpdate(DragUpdateDetails details) {
     if (!mounted) return;
 
-    final RenderBox? timelineRenderBox = this.context.findRenderObject() as RenderBox?;
+
+    final RenderBox? timelineRenderBox =
+        this.context.findRenderObject() as RenderBox?;
     // Also check if scrollController has clients, needed for scrollOffsetX
+    final bool hasScrollClients = scrollController.hasClients;
     if (timelineRenderBox == null || !scrollController.hasClients) return;
 
     // Convert global pointer position to local coordinates relative to the Timeline widget
-    final Offset timelineLocalPosition = timelineRenderBox.globalToLocal(details.globalPosition);
+    final Offset timelineLocalPosition = timelineRenderBox.globalToLocal(
+      details.globalPosition,
+    );
     final double scrollOffsetX = scrollController.offset;
     final double zoom = timelineNavigationViewModel.zoom;
     const double framePixelWidth = 5.0;
@@ -170,20 +182,25 @@ mixin TimelinePlayheadLogicMixin on State<Timeline> implements TickerProvider {
     if (pxPerFrame <= 0) return; // Avoid division by zero
 
     // Calculate pointer position relative to the start of the frame content area (after labels, considering scroll)
-    final double pointerRelX = (timelineLocalPosition.dx - trackLabelWidth + scrollOffsetX).clamp(0.0, double.infinity);
-    final int maxAllowedFrame = timelineNavigationViewModel.totalFrames > 0
-        ? timelineNavigationViewModel.totalFrames - 1
-        : 0;
-    final int newFrame = (pointerRelX / pxPerFrame).round().clamp(0, maxAllowedFrame);
+    final double pointerRelX = (timelineLocalPosition.dx -
+            trackLabelWidth +
+            scrollOffsetX)
+        .clamp(0.0, double.infinity);
+    final int maxAllowedFrame =
+        timelineNavigationViewModel.totalFrames > 0
+            ? timelineNavigationViewModel.totalFrames - 1
+            : 0;
+    final int newFrame = (pointerRelX / pxPerFrame).round().clamp(
+      0,
+      maxAllowedFrame,
+    );
 
     if (newFrame != currentFramePosition) {
-        currentFramePosition = newFrame; // Update local position immediately
-        timelineNavigationViewModel.currentFrame = newFrame; // Update VM
-        // Snap controller might fight this? Ensure snap is stopped.
-        scrubSnapController.stop();
-        // Trigger auto-scroll if needed by ensuring the new frame is visible
-        _ensurePlayheadVisibleCallback(newFrame); // Call the provided callback
-        setState(() {}); // Update UI
+      currentFramePosition = newFrame;
+      visualFramePositionNotifier.value = newFrame;
+      timelineNavigationViewModel.currentFrame = newFrame;
+      scrubSnapController.stop();
+      _ensurePlayheadVisibleCallback(newFrame);
     }
 
     // --- Velocity Calculation ---
@@ -191,15 +208,17 @@ mixin TimelinePlayheadLogicMixin on State<Timeline> implements TickerProvider {
     if (_lastDragUpdateTime != null && _lastMousePosition != null) {
       final double deltaX = details.globalPosition.dx - _lastMousePosition!.dx;
       final Duration timeDiff = now.difference(_lastDragUpdateTime!);
-      if (timeDiff.inMilliseconds > 5) { // Avoid calculating velocity too frequently
-         _cumulativeDragDelta += deltaX;
-         _horizontalVelocity = _cumulativeDragDelta / (timeDiff.inMilliseconds / 1000.0);
-         // Apply some smoothing or decay to velocity? Maybe later.
-         _cumulativeDragDelta = 0; // Reset cumulative delta after calculation
+      if (timeDiff.inMilliseconds > 5) {
+        // Avoid calculating velocity too frequently
+        _cumulativeDragDelta += deltaX;
+        _horizontalVelocity =
+            _cumulativeDragDelta / (timeDiff.inMilliseconds / 1000.0);
+        // Apply some smoothing or decay to velocity? Maybe later.
+        _cumulativeDragDelta = 0;
       }
       // Update last position and time for next calculation even if not used this frame
-        _lastMousePosition = details.globalPosition;
-        _lastDragUpdateTime = now;
+      _lastMousePosition = details.globalPosition;
+      _lastDragUpdateTime = now;
     } else {
       // Initialize on first update after start
       _lastMousePosition = details.globalPosition;
@@ -208,14 +227,18 @@ mixin TimelinePlayheadLogicMixin on State<Timeline> implements TickerProvider {
   }
 
   void handlePlayheadDragEnd(DragEndDetails details) {
-     timelineViewModel.isPlayheadDragging = false;
+    timelineViewModel.isPlayheadDragging = false;
     // Use calculated velocity for physics
     // Apply physics-based momentum if significant velocity
-     final double effectiveVelocity = details.velocity.pixelsPerSecond.dx / (viewportWidth > 0 ? viewportWidth : 1.0);
-    _horizontalVelocity = effectiveVelocity * 0.5; // Adjust sensitivity factor as needed
+    final double effectiveVelocity =
+        details.velocity.pixelsPerSecond.dx /
+        (viewportWidth > 0 ? viewportWidth : 1.0);
+    _horizontalVelocity =
+        effectiveVelocity * 0.5; // Adjust sensitivity factor as needed
 
-    if (_horizontalVelocity.abs() > 1.0 && mounted) { // Threshold adjusted
-       playheadPhysicsController.forward(from: 0.0);
+    if (_horizontalVelocity.abs() > 1.0 && mounted) {
+      // Threshold adjusted
+      playheadPhysicsController.forward(from: 0.0);
     }
 
     // Reset state
@@ -229,10 +252,12 @@ mixin TimelinePlayheadLogicMixin on State<Timeline> implements TickerProvider {
     timelineViewModel.isPlayheadDragging = false;
     _horizontalVelocity = 0.0;
     _lastMousePosition = null;
-     _lastDragUpdateTime = null;
+    _lastDragUpdateTime = null;
     _cumulativeDragDelta = 0.0;
     // Reset position to VM state? Or leave as is?
     currentFramePosition = timelineNavigationViewModel.currentFrame;
-     setState(() {});
+    setState(() {});
+    visualFramePositionNotifier.value =
+        currentFramePosition; // Reset visual notifier too
   }
-} 
+}
