@@ -36,10 +36,7 @@ class _PreviewPanelState extends State<PreviewPanel> {
 class PreviewPanelContent extends StatefulWidget {
   final PreviewViewModel previewViewModel;
 
-  const PreviewPanelContent({
-    super.key,
-    required this.previewViewModel,
-  });
+  const PreviewPanelContent({super.key, required this.previewViewModel});
 
   @override
   _PreviewPanelContentState createState() => _PreviewPanelContentState();
@@ -56,6 +53,8 @@ class _PreviewPanelContentState extends State<PreviewPanelContent> {
   late double? _hSnap;
   late double? _vSnap;
   late bool _aspectRatioLocked;
+  // Add local state variable to hold the set of initialized IDs (ensures state update triggers listener)
+  late Set<int> _initializedControllerIds;
 
   // Keep reference to EditorViewModel for listener
   late EditorViewModel _editorViewModel;
@@ -71,24 +70,46 @@ class _PreviewPanelContentState extends State<PreviewPanelContent> {
     _updateStateFromViewModel();
 
     // Add listeners
-    widget.previewViewModel.visibleClipsNotifier.addListener(_handleViewModelChange);
-    widget.previewViewModel.clipRectsNotifier.addListener(_handleViewModelChange);
-    widget.previewViewModel.clipFlipsNotifier.addListener(_handleViewModelChange);
-    widget.previewViewModel.selectedClipIdNotifier.addListener(_handleViewModelChange);
-    widget.previewViewModel.aspectRatioNotifier.addListener(_handleViewModelChange);
-    widget.previewViewModel.containerSizeNotifier.addListener(_handleViewModelChange);
-    widget.previewViewModel.activeHorizontalSnapYNotifier.addListener(_handleViewModelChange);
-    widget.previewViewModel.activeVerticalSnapXNotifier.addListener(_handleViewModelChange);
-    _editorViewModel.aspectRatioLockedNotifier.addListener(_handleViewModelChange);
+    widget.previewViewModel.visibleClipsNotifier.addListener(
+      _handleViewModelChange,
+    );
+    widget.previewViewModel.clipRectsNotifier.addListener(
+      _handleViewModelChange,
+    );
+    widget.previewViewModel.clipFlipsNotifier.addListener(
+      _handleViewModelChange,
+    );
+    widget.previewViewModel.selectedClipIdNotifier.addListener(
+      _handleViewModelChange,
+    );
+    widget.previewViewModel.aspectRatioNotifier.addListener(
+      _handleViewModelChange,
+    );
+    widget.previewViewModel.containerSizeNotifier.addListener(
+      _handleViewModelChange,
+    );
+    widget.previewViewModel.activeHorizontalSnapYNotifier.addListener(
+      _handleViewModelChange,
+    );
+    widget.previewViewModel.activeVerticalSnapXNotifier.addListener(
+      _handleViewModelChange,
+    );
+    _editorViewModel.aspectRatioLockedNotifier.addListener(
+      _handleViewModelChange,
+    );
+    // Listen to the new notifier for controller initialization changes
+    widget.previewViewModel.initializedControllerIdsNotifier.addListener(
+      _handleViewModelChange,
+    );
   }
 
   // Common listener callback
   void _handleViewModelChange() {
     // Update local state and trigger rebuild
     if (mounted) {
-       setState(() {
-           _updateStateFromViewModel();
-       });
+      setState(() {
+        _updateStateFromViewModel();
+      });
     }
   }
 
@@ -103,21 +124,45 @@ class _PreviewPanelContentState extends State<PreviewPanelContent> {
     _hSnap = widget.previewViewModel.activeHorizontalSnapYNotifier.value;
     _vSnap = widget.previewViewModel.activeVerticalSnapXNotifier.value;
     _aspectRatioLocked = _editorViewModel.aspectRatioLockedNotifier.value;
+    // Read the value from the new notifier into local state
+    _initializedControllerIds =
+        widget.previewViewModel.initializedControllerIdsNotifier.value;
   }
-
 
   @override
   void dispose() {
     // Remove listeners
-    widget.previewViewModel.visibleClipsNotifier.removeListener(_handleViewModelChange);
-    widget.previewViewModel.clipRectsNotifier.removeListener(_handleViewModelChange);
-    widget.previewViewModel.clipFlipsNotifier.removeListener(_handleViewModelChange);
-    widget.previewViewModel.selectedClipIdNotifier.removeListener(_handleViewModelChange);
-    widget.previewViewModel.aspectRatioNotifier.removeListener(_handleViewModelChange);
-    widget.previewViewModel.containerSizeNotifier.removeListener(_handleViewModelChange);
-    widget.previewViewModel.activeHorizontalSnapYNotifier.removeListener(_handleViewModelChange);
-    widget.previewViewModel.activeVerticalSnapXNotifier.removeListener(_handleViewModelChange);
-    _editorViewModel.aspectRatioLockedNotifier.removeListener(_handleViewModelChange);
+    widget.previewViewModel.visibleClipsNotifier.removeListener(
+      _handleViewModelChange,
+    );
+    widget.previewViewModel.clipRectsNotifier.removeListener(
+      _handleViewModelChange,
+    );
+    widget.previewViewModel.clipFlipsNotifier.removeListener(
+      _handleViewModelChange,
+    );
+    widget.previewViewModel.selectedClipIdNotifier.removeListener(
+      _handleViewModelChange,
+    );
+    widget.previewViewModel.aspectRatioNotifier.removeListener(
+      _handleViewModelChange,
+    );
+    widget.previewViewModel.containerSizeNotifier.removeListener(
+      _handleViewModelChange,
+    );
+    widget.previewViewModel.activeHorizontalSnapYNotifier.removeListener(
+      _handleViewModelChange,
+    );
+    widget.previewViewModel.activeVerticalSnapXNotifier.removeListener(
+      _handleViewModelChange,
+    );
+    _editorViewModel.aspectRatioLockedNotifier.removeListener(
+      _handleViewModelChange,
+    );
+    // Remove the listener for the new notifier
+    widget.previewViewModel.initializedControllerIdsNotifier.removeListener(
+      _handleViewModelChange,
+    );
     super.dispose();
   }
 
@@ -125,56 +170,79 @@ class _PreviewPanelContentState extends State<PreviewPanelContent> {
   Widget build(BuildContext context) {
     // Access the ViewModel via widget.previewViewModel
     final previewViewModel = widget.previewViewModel;
-    final videoControllers = previewViewModel.videoControllers; // Get controllers map
+    final videoControllers =
+        previewViewModel.videoControllers; // Get controllers map
 
     // --- Build using local state variables (_visibleClips, _clipRects, etc.) ---
     final List<Widget> transformablePlayers = [];
-    for (final clip in _visibleClips) { // Use local state
-       if (clip.type == ClipType.video && videoControllers.containsKey(clip.databaseId)) {
-           final videoController = videoControllers[clip.databaseId]!;
-           final currentRect = _clipRects[clip.databaseId] ?? Rect.zero; // Use local state
-           final currentFlip = _clipFlips[clip.databaseId] ?? Flip.none; // Use local state
 
-           if (videoController.value.isInitialized) {
-               final bool isSelected = _selectedClipId == clip.databaseId; // Use local state
+    for (final clip in _visibleClips) {
+      // Use local state
+      final hasController = videoControllers.containsKey(clip.databaseId);
+      final controller =
+          hasController ? videoControllers[clip.databaseId]! : null;
+      // Use the locally synced _initializedControllerIds set to check initialization status
+      final isInitialized = _initializedControllerIds.contains(
+        clip.databaseId,
+      ); // Use the synced set
+      final currentRect =
+          _clipRects[clip.databaseId] ?? Rect.zero; // Use local state
+      final currentFlip =
+          _clipFlips[clip.databaseId] ?? Flip.none; // Use local state
 
-               transformablePlayers.add(
-                   TransformableBox(
-                       key: ValueKey('preview_clip_${clip.databaseId!}'),
-                       rect: currentRect,
-                       flip: currentFlip,
-                       resizeModeResolver: () => _aspectRatioLocked ? ResizeMode.symmetricScale : ResizeMode.freeform, // Use local state
-                       // Callbacks still use previewViewModel directly
-                       onChanged: (result, details) {
-                           previewViewModel.handleRectChanged(clip.databaseId!, result.rect);
-                       },
-                       onDragStart: (result) {
-                            previewViewModel.handleTransformStart(clip.databaseId!);
-                       },
-                       onResizeStart: (HandlePosition handle, DragStartDetails event) {
-                            previewViewModel.handleTransformStart(clip.databaseId!);
-                       },
-                       onDragEnd: (result) {
-                            previewViewModel.handleTransformEnd(clip.databaseId!);
-                       },
-                       onResizeEnd: (HandlePosition handle, DragEndDetails event) {
-                            previewViewModel.handleTransformEnd(clip.databaseId!);
-                       },
-                       onTap: () {
-                            previewViewModel.selectClip(clip.databaseId!);
-                       },
-                       enabledHandles: isSelected ? const {...HandlePosition.values} : const {},
-                       visibleHandles: isSelected ? const {...HandlePosition.values} : const {},
-                       constraints: const BoxConstraints(
-                           minWidth: 48, minHeight: 36, maxWidth: 1920, maxHeight: 1080,
-                       ),
-                       contentBuilder: (context, rect, flip) {
-                           return VideoPlayer(videoController);
-                       },
-                   ),
-               );
-           }
-       }
+      // Check uses the isInitialized derived from the synced notifier state
+      if (clip.type == ClipType.video &&
+          hasController &&
+          controller != null &&
+          isInitialized) {
+        final bool isSelected =
+            _selectedClipId == clip.databaseId; // Use local state
+        transformablePlayers.add(
+          TransformableBox(
+            key: ValueKey('preview_clip_${clip.databaseId!}'),
+            rect: currentRect,
+            flip: currentFlip,
+            resizeModeResolver:
+                () =>
+                    _aspectRatioLocked
+                        ? ResizeMode.symmetricScale
+                        : ResizeMode.freeform, // Use local state
+            // Callbacks still use previewViewModel directly
+            onChanged: (result, details) {
+              previewViewModel.handleRectChanged(clip.databaseId!, result.rect);
+            },
+            onDragStart: (result) {
+              previewViewModel.handleTransformStart(clip.databaseId!);
+            },
+            onResizeStart: (HandlePosition handle, DragStartDetails event) {
+              previewViewModel.handleTransformStart(clip.databaseId!);
+            },
+            onDragEnd: (result) {
+              previewViewModel.handleTransformEnd(clip.databaseId!);
+            },
+            onResizeEnd: (HandlePosition handle, DragEndDetails event) {
+              previewViewModel.handleTransformEnd(clip.databaseId!);
+            },
+            onTap: () {
+              previewViewModel.selectClip(clip.databaseId!);
+            },
+            enabledHandles:
+                isSelected ? const {...HandlePosition.values} : const {},
+            visibleHandles:
+                isSelected ? const {...HandlePosition.values} : const {},
+            constraints: const BoxConstraints(
+              minWidth: 48,
+              minHeight: 36,
+              maxWidth: 1920,
+              maxHeight: 1080,
+            ),
+            contentBuilder: (context, rect, flip) {
+              // Now that the outer check ensures initialization, we can directly return the VideoPlayer.
+              return VideoPlayer(controller);
+            },
+          ),
+        );
+      }
     }
 
     Widget content;
@@ -182,7 +250,9 @@ class _PreviewPanelContentState extends State<PreviewPanelContent> {
       content = Center(
         child: Text(
           'No video at current playback position',
-          style: FluentTheme.of(context).typography.bodyLarge?.copyWith(color: Colors.white),
+          style: FluentTheme.of(
+            context,
+          ).typography.bodyLarge?.copyWith(color: Colors.white),
           textAlign: TextAlign.center,
         ),
       );
@@ -203,28 +273,35 @@ class _PreviewPanelContentState extends State<PreviewPanelContent> {
                   child: LayoutBuilder(
                     builder: (context, constraints) {
                       WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (mounted && previewViewModel.containerSize != constraints.biggest) {
-                              previewViewModel.updateContainerSize(constraints.biggest);
-                          }
+                        if (mounted &&
+                            previewViewModel.containerSize !=
+                                constraints.biggest) {
+                          previewViewModel.updateContainerSize(
+                            constraints.biggest,
+                          );
+                        }
                       });
                       return GestureDetector(
                         behavior: HitTestBehavior.opaque,
                         onTap: () {
-                           previewViewModel.selectClip(null);
+                          previewViewModel.selectClip(null);
                         },
                         child: Stack(
                           children: [
                             content,
-                            if (_containerSize != null && (_hSnap != null || _vSnap != null)) // Use local state
+                            if (_containerSize != null &&
+                                (_hSnap != null ||
+                                    _vSnap != null)) // Use local state
                               SnapGuidePainter(
-                                  containerSize: _containerSize!, // Use local state
-                                  horizontalSnapY: _hSnap, // Use local state
-                                  verticalSnapX: _vSnap, // Use local state
+                                containerSize:
+                                    _containerSize!, // Use local state
+                                horizontalSnapY: _hSnap, // Use local state
+                                verticalSnapX: _vSnap, // Use local state
                               ),
                           ],
                         ),
                       );
-                    }
+                    },
                   ),
                 ),
               ),
@@ -276,10 +353,11 @@ class _GuidePainter extends CustomPainter {
     this.horizontalSnapY,
     this.verticalSnapX,
     required this.lineColor,
-  }) : _paint = Paint()
-          ..color = lineColor
-          ..strokeWidth = 1.0
-          ..style = PaintingStyle.stroke;
+  }) : _paint =
+           Paint()
+             ..color = lineColor
+             ..strokeWidth = 1.0
+             ..style = PaintingStyle.stroke;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -302,7 +380,7 @@ class _GuidePainter extends CustomPainter {
   @override
   bool shouldRepaint(_GuidePainter oldDelegate) {
     return oldDelegate.horizontalSnapY != horizontalSnapY ||
-           oldDelegate.verticalSnapX != verticalSnapX ||
-           oldDelegate.lineColor != lineColor;
+        oldDelegate.verticalSnapX != verticalSnapX ||
+        oldDelegate.lineColor != lineColor;
   }
 }
