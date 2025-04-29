@@ -1,6 +1,4 @@
 import 'package:fluent_ui/fluent_ui.dart';
-// Removed import 'package:flipedit/services/project_database_service.dart';
-import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
 import 'package:flipedit/views/widgets/timeline/components/time_ruler.dart';
@@ -10,26 +8,19 @@ import 'package:flipedit/views/widgets/timeline/mixins/timeline_playhead_logic_m
 import 'package:flipedit/views/widgets/timeline/mixins/timeline_scroll_logic_mixin.dart';
 import 'package:flipedit/views/widgets/timeline/mixins/timeline_interaction_logic_mixin.dart';
 import 'package:watch_it/watch_it.dart';
-import 'dart:math' as math; // Add math import for max function
-import 'package:flipedit/utils/logger.dart'; // Import for logging functions
-import 'package:flipedit/models/clip.dart'; // Import ClipModel
-import 'dart:developer' as developer; // Import for developer logging
+import 'dart:math' as math;
+import 'package:flipedit/utils/logger.dart';
+import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/views/widgets/timeline/components/timeline_playhead.dart';
-import 'package:flutter/gestures.dart'; // Import for PointerHoverEvent
 
 /// Main timeline widget that shows clips and tracks
-/// Similar to the timeline in video editors like Premiere Pro or Final Cut
 class Timeline extends StatefulWidget with WatchItStatefulWidgetMixin {
-  // Mixin moved here
-  // Parameters for snapping and aspect ratio lock removed - now handled by EditorViewModel
-
   const Timeline({super.key});
 
   @override
   State<Timeline> createState() => _TimelineState();
 }
 
-// Apply the mixins here
 class _TimelineState extends State<Timeline>
     with
         TickerProviderStateMixin,
@@ -141,9 +132,6 @@ class _TimelineState extends State<Timeline>
       (TimelineNavigationViewModel vm) => vm.totalFramesNotifier,
     );
 
-    // Use currentFramePosition from TimelinePlayheadLogicMixin
-    // It's kept in sync internally by the mixin
-
     // Debug logging
     if (clips.isNotEmpty) {
       logDebug(
@@ -154,7 +142,7 @@ class _TimelineState extends State<Timeline>
 
     const double timeRulerHeight = 25.0;
     const double trackItemSpacing = 4.0;
-    const double framePixelWidth = 5.0; // Consistent constant
+    const double framePixelWidth = 5.0;
 
     return Container(
       color: theme.resources.cardBackgroundFillColorDefault,
@@ -170,8 +158,8 @@ class _TimelineState extends State<Timeline>
                 final double contentWidth =
                     totalFrames * zoom * framePixelWidth;
                 final double totalScrollableWidth = math.max(
-                  viewportWidth, // Ensure it's at least viewport width
-                  contentWidth + trackLabelWidth, // Content + label area
+                  viewportWidth,
+                  contentWidth + trackLabelWidth,
                 );
 
                 return ClipRect(
@@ -184,9 +172,7 @@ class _TimelineState extends State<Timeline>
                           width: viewportWidth,
                           child: TimeRuler(
                             zoom: zoom,
-                            availableWidth:
-                                viewportWidth -
-                                trackLabelWidth, // Correct width for ruler content
+                            availableWidth: viewportWidth - trackLabelWidth,
                           ),
                         ),
 
@@ -203,12 +189,11 @@ class _TimelineState extends State<Timeline>
                           // Temporarily replace AnimatedBuilder with Builder to test initial drag update
                           child: Builder(
                             builder: (context) {
-                              final currentScrollOffset = // Calculation now inside Builder
+                              final currentScrollOffset =
                                   scrollController.hasClients
                                       ? scrollController.offset
                                       : 0.0;
                               return Stack(
-                                // Return the Stack
                                 clipBehavior: Clip.none,
                                 children: [
                                   // Column containing TimeRuler and Tracks List
@@ -348,85 +333,98 @@ class _TimelineState extends State<Timeline>
                                       ),
                                     ],
                                   ),
+                                  if (tracks.isNotEmpty)
+                                    ValueListenableBuilder<int>(
+                                      valueListenable:
+                                          visualFramePositionNotifier,
+                                      builder: (context, visualFrame, _) {
+                                        final double playheadPositionPx =
+                                            visualFrame *
+                                            zoom *
+                                            framePixelWidth;
+                                        const double hitAreaWidth = 20.0;
+                                        final double finalLeft =
+                                            (trackLabelWidth +
+                                                playheadPositionPx) -
+                                            (hitAreaWidth / 2);
 
-                                  // Playhead and Resizer moved outside SingleChildScrollView
+                                        return Positioned(
+                                          top: 0,
+                                          bottom: 0,
+                                          left: finalLeft,
+                                          child: MouseRegion(
+                                            cursor:
+                                                SystemMouseCursors.allScroll,
+                                            child: GestureDetector(
+                                              behavior:
+                                                  HitTestBehavior.translucent,
+                                              onHorizontalDragStart:
+                                                  handlePlayheadDragStart,
+                                              onHorizontalDragUpdate:
+                                                  handlePlayheadDragUpdate,
+                                              onHorizontalDragEnd:
+                                                  handlePlayheadDragEnd,
+                                              onHorizontalDragCancel:
+                                                  handlePlayheadDragCancel,
+                                              child: SizedBox(
+                                                width: hitAreaWidth,
+                                                height: double.infinity,
+                                                child: Stack(
+                                                  clipBehavior: Clip.none,
+                                                  children: [
+                                                    Positioned(
+                                                      left:
+                                                          (hitAreaWidth - 10) /
+                                                          2,
+                                                      top: 0,
+                                                      bottom: 0,
+                                                      child:
+                                                          const TimelinePlayhead(),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  if (tracks.isNotEmpty)
+                                    Positioned(
+                                      top: 0,
+                                      bottom: 0,
+                                      left: trackLabelWidth - 3,
+                                      width: 6,
+                                      child: GestureDetector(
+                                        onHorizontalDragUpdate:
+                                            handleTrackLabelResize,
+                                        child: MouseRegion(
+                                          cursor:
+                                              SystemMouseCursors
+                                                  .resizeLeftRight,
+                                          child: Container(
+                                            color:
+                                                theme
+                                                    .resources
+                                                    .subtleFillColorTransparent,
+                                            alignment: Alignment.center,
+                                            child: Container(
+                                              width: 1.5,
+                                              color:
+                                                  theme
+                                                      .resources
+                                                      .controlStrokeColorDefault,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
                                 ],
                               );
                             },
                           ),
                         ),
                       ),
-                      // --- Track label width resizer handle (MOVED HERE) ---
-                      if (tracks.isNotEmpty)
-                        Positioned(
-                          top: 0,
-                          bottom: 0,
-                          left: trackLabelWidth - 3,
-                          width: 6,
-                          child: GestureDetector(
-                            // Use method from TimelineInteractionLogicMixin
-                            onHorizontalDragUpdate: handleTrackLabelResize,
-                            child: MouseRegion(
-                              cursor: SystemMouseCursors.resizeLeftRight,
-                              child: Container(
-                                color: theme.resources.subtleFillColorTransparent, // Make handle area transparent
-                                alignment: Alignment.center,
-                                child: Container(
-                                  width: 1.5, // Visible line width
-                                  color: theme.resources.controlStrokeColorDefault,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      // --- DaVinci Resolve-style Playhead (MOVED HERE) ---
-                      if (tracks.isNotEmpty)
-                        // Use ValueListenableBuilder to update playhead position directly
-                        ValueListenableBuilder<int>(
-                          valueListenable: visualFramePositionNotifier, // From mixin
-                          builder: (context, visualFrame, _) {
-                            // Get current scroll offset safely
-                            final currentScrollOffset = scrollController.hasClients ? scrollController.offset : 0.0;
-                            // Calculate pixel position based on the visual frame from the notifier
-                            final double playheadPositionPx = visualFrame * zoom * framePixelWidth;
-                            // Calculate final left position, accounting for scroll offset AND centering the hit area
-                            final double finalLeft = (trackLabelWidth + playheadPositionPx - currentScrollOffset) - (20.0 / 2);
-
-                            return Positioned(
-                              top: 0, // Position relative to the outer Stack
-                              bottom: 0,
-                              // Position based on the value from the notifier AND scroll offset
-                              left: finalLeft,
-                              child: MouseRegion(
-                                cursor: SystemMouseCursors.allScroll,
-                                child: GestureDetector(
-                                  behavior: HitTestBehavior.translucent,
-                                  // Use handlers from TimelinePlayheadLogicMixin
-                                  onHorizontalDragStart: handlePlayheadDragStart,
-                                  onHorizontalDragUpdate: handlePlayheadDragUpdate,
-                                  onHorizontalDragEnd: handlePlayheadDragEnd,
-                                  onHorizontalDragCancel: handlePlayheadDragCancel,
-                                  child: SizedBox(
-                                    width: 20, // Hit area width
-                                    height: double.infinity, // Span the container height
-                                    child: Stack(
-                                      clipBehavior: Clip.none,
-                                      children: [
-                                        // Playhead graphic itself
-                                        Positioned(
-                                          left: (20 - 10) / 2, // Center within hit area
-                                          top: 0,
-                                          bottom: 0,
-                                          child: const TimelinePlayhead(),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
                     ],
                   ),
                 );
