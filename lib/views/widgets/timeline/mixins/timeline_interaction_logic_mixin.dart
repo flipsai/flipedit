@@ -147,7 +147,6 @@ mixin TimelineInteractionLogicMixin on State<Timeline> {
           stackTrace: s,
           level: 1200, // Error level
         );
-        // Optionally show user feedback
       }
     }
   }
