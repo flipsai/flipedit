@@ -247,6 +247,29 @@ class TimelineViewModel extends ChangeNotifier {
     // State update is handled by the listener on projectDatabaseService.tracksNotifier
   }
 
+  /// Reorders tracks using the Command pattern.
+  Future<void> reorderTracks(int oldIndex, int newIndex) async {
+    final tracks = tracksListNotifier.value;
+    // Check if the indices are valid for the *current* list state
+    if (oldIndex < 0 || oldIndex >= tracks.length || newIndex < 0 || newIndex >= tracks.length) {
+      logger.logError(
+          'Invalid indices provided for track reordering: old=$oldIndex, new=$newIndex, count=${tracks.length}',
+          _logTag);
+      return;
+    }
+    if (oldIndex == newIndex) {
+       logger.logInfo('Attempted to reorder track to the same position: $oldIndex -> $newIndex', _logTag);
+       return; // No operation needed
+    }
+
+    final command = ReorderTracksCommand(
+      vm: this,
+      oldIndex: oldIndex,
+      newIndex: newIndex,
+    );
+    await runCommand(command);
+  }
+
   Future<void> loadClipsForProject(int projectId) async {
     logger.logInfo('🔄 Loading clips for project $projectId', _logTag);
 
@@ -482,17 +505,6 @@ class TimelineViewModel extends ChangeNotifier {
       targetTrackId: targetTrackId,
       targetStartTimeOnTrackMs: targetStartTimeOnTrackMs,
     );
-  }
-
-  /// Reorders tracks using the Command pattern.
-  Future<void> reorderTracks(int oldIndex, int newIndex) async {
-     final command = ReorderTracksCommand(
-       vm: this,
-       oldIndex: oldIndex,
-       newIndex: newIndex,
-     );
-     await runCommand(command);
-     // State update is handled by the listener on projectDatabaseService.tracksNotifier
   }
 
   @override

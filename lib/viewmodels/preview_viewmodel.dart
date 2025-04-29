@@ -234,6 +234,17 @@ class PreviewViewModel extends ChangeNotifier {
       }
     }
 
+    final tracks = _timelineViewModel.tracksNotifierForView.value;
+    final trackOrderMap = {
+      for (var i = 0; i < tracks.length; i++) tracks[i].id: i
+    };
+
+    currentlyVisibleClips.sort((a, b) {
+      final orderA = trackOrderMap[a.trackId] ?? -1;
+      final orderB = trackOrderMap[b.trackId] ?? -1;
+      return orderB.compareTo(orderA);
+    });
+
     logger.logVerbose(
       'Visible clip IDs at ${currentMs}ms: $visibleClipIds',
       _logTag,
