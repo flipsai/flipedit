@@ -179,7 +179,7 @@ class _TimelineClipState extends State<TimelineClip> {
         // Use the difference from the original frame for visual width/offset
         int actualFrameDelta = previewBoundary - _previewStartFrame!;
         previewWidthDelta = actualFrameDelta * pixelsPerFrame;
-        dragOffset = previewWidthDelta;
+        dragOffset = 0; // Keep dragOffset at 0 for left resize preview
         currentDisplayStartFrame = previewBoundary;
         currentDisplayEndFrame = _previewEndFrame!;
 
