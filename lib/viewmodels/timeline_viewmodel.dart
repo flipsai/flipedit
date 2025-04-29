@@ -249,11 +249,11 @@ class TimelineViewModel extends ChangeNotifier {
 
   /// Reorders tracks using the Command pattern.
   Future<void> reorderTracks(int oldIndex, int newIndex) async {
-    final tracks = tracksListNotifier.value;
-    // Check if the indices are valid for the *current* list state
-    if (oldIndex < 0 || oldIndex >= tracks.length || newIndex < 0 || newIndex >= tracks.length) {
+    final originalTracks = List<Track>.from(tracksListNotifier.value); // Capture original state
+    // Check indices against original list
+    if (oldIndex < 0 || oldIndex >= originalTracks.length || newIndex < 0 || newIndex >= originalTracks.length) {
       logger.logError(
-          'Invalid indices provided for track reordering: old=$oldIndex, new=$newIndex, count=${tracks.length}',
+          'Invalid indices provided for track reordering: old=$oldIndex, new=$newIndex, count=${originalTracks.length}',
           _logTag);
       return;
     }
@@ -262,12 +262,33 @@ class TimelineViewModel extends ChangeNotifier {
        return; // No operation needed
     }
 
+    // --- Optimistic Update --- 
+    final optimisticallyReorderedTracks = List<Track>.from(originalTracks); // Use original list
+    final trackToMove = optimisticallyReorderedTracks.removeAt(oldIndex);
+    optimisticallyReorderedTracks.insert(newIndex, trackToMove);
+    tracksListNotifier.value = optimisticallyReorderedTracks; 
+    logger.logInfo('Optimistically updated tracksNotifier for reorder: $oldIndex -> $newIndex', _logTag);
+    // --- End Optimistic Update ---
+
+    // Run the command to persist the change (and handle undo/redo)
     final command = ReorderTracksCommand(
       vm: this,
-      oldIndex: oldIndex,
-      newIndex: newIndex,
+      originalTracks: originalTracks, // Pass the original list to the command
+      oldIndex: oldIndex, 
+      newIndex: newIndex, 
     );
-    await runCommand(command);
+    try {
+      await runCommand(command);
+      // If successful, the listener update from DB should eventually match the optimistic state.
+    } catch (e) {
+      logger.logError('Error running ReorderTracksCommand: $e. Reverting optimistic update might be needed if listener doesn\'t catch up.', _logTag);
+      // Revert optimistic update on error to be safe
+      if (!listEquals(tracksListNotifier.value, originalTracks)) {
+         logger.logWarning('Reverting optimistic track reorder due to command error.', _logTag);
+         tracksListNotifier.value = originalTracks;
+      }
+    }
+    // Listener will handle final state update
   }
 
   Future<void> loadClipsForProject(int projectId) async {
