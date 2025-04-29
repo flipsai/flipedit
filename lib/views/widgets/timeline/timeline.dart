@@ -78,7 +78,9 @@ class _TimelineState extends State<Timeline>
     );
 
     // Initialize logic from the playhead mixin
-    initializePlayheadLogic();
+    initializePlayheadLogic(
+      ensurePlayheadVisible: ensurePlayheadVisible,
+    );
 
     // Define the listener callback function using the navigation view model
     _scrollRequestListener = () {
@@ -192,8 +194,8 @@ class _TimelineState extends State<Timeline>
                         scrollDirection: Axis.horizontal,
                         controller: scrollController,
                         physics: timelineViewModel.hasContent
-                            ? const ClampingScrollPhysics()
-                            : const NeverScrollableScrollPhysics(),
+                                ? const ClampingScrollPhysics()
+                                : const NeverScrollableScrollPhysics(),
                         child: SizedBox(
                           width: totalScrollableWidth,
                           child: AnimatedBuilder(
@@ -256,7 +258,7 @@ class _TimelineState extends State<Timeline>
                                                       'Drag media here to create a track',
                                                       style: theme.typography.body?.copyWith(
                                                         color: theme.resources.textFillColorSecondary,
-                                                      ),
+                                                          ),
                                                     ),
                                                   ],
                                                 ),
@@ -266,8 +268,8 @@ class _TimelineState extends State<Timeline>
                                             // Tracks list
                                             return ReorderableListView.builder(
                                               padding: const EdgeInsets.symmetric(
-                                                vertical: trackItemSpacing,
-                                              ),
+                                                    vertical: trackItemSpacing,
+                                                  ),
                                               // Use method from TimelineInteractionLogicMixin
                                               onReorder: (oldIndex, newIndex) =>
                                                   handleTrackReorder(oldIndex, newIndex, tracks.length),
@@ -307,7 +309,7 @@ class _TimelineState extends State<Timeline>
                                           behavior: HitTestBehavior.translucent,
                                           // Use handlers from TimelinePlayheadLogicMixin
                                           onHorizontalDragStart: handlePlayheadDragStart,
-                                          onHorizontalDragUpdate: (details) => handlePlayheadDragUpdate(details, context),
+                                          onHorizontalDragUpdate: handlePlayheadDragUpdate,
                                           onHorizontalDragEnd: handlePlayheadDragEnd,
                                           onHorizontalDragCancel: handlePlayheadDragCancel,
                                           // onTap is handled within the mixin if needed, currently no-op
