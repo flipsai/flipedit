@@ -18,12 +18,17 @@ class TimelineClip extends StatefulWidget with WatchItStatefulWidgetMixin {
   final int trackId;
   // isDragging prop kept for external compatibility / testing, but internal state is preferred
   final bool isDragging;
+  // Callbacks for resize preview handled by parent (TimelineTrack)
+  final Function(int previewStartFrame, int previewEndFrame)? onResizeUpdate;
+  final VoidCallback? onResizeEnd;
 
   const TimelineClip({
     super.key,
     required this.clip,
     required this.trackId,
     this.isDragging = false, // Add back with default value
+    this.onResizeUpdate,
+    this.onResizeEnd,
   });
 
   @override
@@ -492,9 +497,43 @@ class _TimelineClipState extends State<TimelineClip> {
     setState(() {
       _resizeAccumulatedDrag = newDrag;
     });
+    // Call the parent callback with the calculated preview frames
+    if (widget.onResizeUpdate != null && _previewStartFrame != null && _previewEndFrame != null) {
+      // Recalculate preview boundaries based on the new accumulated drag
+      // This duplicates some logic from build, consider refactoring later
+      final double pixelsPerFrame = (di<TimelineNavigationViewModel>().zoomNotifier.value > 0 ? 5.0 * di<TimelineNavigationViewModel>().zoomNotifier.value : 5.0);
+      int rawFrameDelta = (pixelsPerFrame > 0 ? (_resizeAccumulatedDrag / pixelsPerFrame) : 0).round();
+      int trackDeltaMs = ClipModel.framesToMs(rawFrameDelta);
+      int minTrackFrameDuration = 1;
+      int minSourceMsDuration = 1;
+      final originalSourceStartMs = widget.clip.startTimeInSourceMs;
+      final originalSourceEndMs = widget.clip.endTimeInSourceMs;
+      final sourceDurationMs = widget.clip.sourceDurationMs;
+      int allowedTrackFrameDelta;
+      int previewStart = _previewStartFrame!;
+      int previewEnd = _previewEndFrame!;
+
+      if (_resizingDirection == 'left') {
+        int targetSourceStartMs = originalSourceStartMs + trackDeltaMs;
+        int clampedSourceStartMs = targetSourceStartMs.clamp(0, originalSourceEndMs - minSourceMsDuration);
+        int allowedSourceDeltaMs = clampedSourceStartMs - originalSourceStartMs;
+        allowedTrackFrameDelta = ClipModel.msToFrames(allowedSourceDeltaMs);
+        previewStart = (_previewStartFrame! + allowedTrackFrameDelta).clamp(0, _previewEndFrame! - minTrackFrameDuration);
+      } else { // 'right'
+        int targetSourceEndMs = originalSourceEndMs + trackDeltaMs;
+        int clampedSourceEndMs = targetSourceEndMs.clamp(originalSourceStartMs + minSourceMsDuration, sourceDurationMs);
+        int allowedSourceDeltaMs = clampedSourceEndMs - originalSourceEndMs;
+        allowedTrackFrameDelta = ClipModel.msToFrames(allowedSourceDeltaMs);
+        previewEnd = (_previewEndFrame! + allowedTrackFrameDelta).clamp(_previewStartFrame! + minTrackFrameDuration, di<TimelineNavigationViewModel>().totalFramesNotifier.value);
+      }
+      widget.onResizeUpdate!(previewStart, previewEnd);
+    }
   }
 
   void _handleResizeEnd(String direction, double finalPixelDelta) async {
+    // Notify parent that resize interaction ended *before* resetting state
+    widget.onResizeEnd?.call();
+
     await _resizeService.handleResizeEnd(
       resizingDirection: _resizingDirection,
       previewStartFrame: _previewStartFrame,

@@ -15,6 +15,10 @@ import 'components/drag_preview.dart'; // Import new component
 import 'components/roll_edit_handle.dart'; // Import new component
 // Removed AddClipCommand import, handled by ViewModel
 
+// Callback types for resize preview handled by the track
+typedef ResizeUpdateCallback = void Function(int previewStartFrame, int previewEndFrame);
+typedef ResizeEndCallback = void Function();
+
 class TimelineTrack extends StatefulWidget with WatchItStatefulWidgetMixin {
   final Track track;
   final VoidCallback onDelete;
@@ -39,6 +43,9 @@ class _TimelineTrackState extends State<TimelineTrack> {
   late FocusNode _focusNode;
   late final ValueNotifier<Offset?> _hoverPositionNotifier = ValueNotifier(null);
   final GlobalKey _trackContentKey = GlobalKey();
+
+  // State for resize preview overlay
+  Rect? _resizePreviewRect;
 
   late TimelineViewModel _timelineViewModel;
   late TimelineNavigationViewModel _timelineNavigationViewModel; // Added
@@ -161,6 +168,44 @@ class _TimelineTrackState extends State<TimelineTrack> {
     // through the logic we added in the TimelineViewModel
     _timelineViewModel.selectedTrackId = widget.track.id;
   }
+
+  // --- Resize Preview Callback Handlers ---
+
+  void _handleClipResizeUpdate(int previewStartFrame, int previewEndFrame) {
+    final double zoom = _timelineNavigationViewModel.zoomNotifier.value;
+    const double pixelsPerFrameBase = 5.0;
+    final double pixelsPerFrame = pixelsPerFrameBase * zoom;
+    const double trackHeight = 65.0; // Assuming fixed height, match TimelineClip
+
+    if (pixelsPerFrame <= 0) return; // Avoid division by zero or negative width
+
+    final double previewLeft = previewStartFrame * pixelsPerFrame;
+    final double previewWidth = (previewEndFrame - previewStartFrame) * pixelsPerFrame;
+    // Clamp width to avoid issues, minimum visual width could be 1 pixel or similar
+    final double clampedWidth = previewWidth.clamp(1.0, double.infinity);
+    final double previewRight = previewLeft + clampedWidth;
+
+    // Calculate the Rect based on calculated pixel positions and track height
+    final newRect = Rect.fromLTRB(previewLeft, 0, previewRight, trackHeight);
+
+    // Only update state if the rect actually changes
+    if (_resizePreviewRect != newRect) {
+      setState(() {
+        _resizePreviewRect = newRect;
+      });
+    }
+  }
+
+  void _handleClipResizeEnd() {
+    // Only update state if we currently have a preview rect
+    if (_resizePreviewRect != null) {
+      setState(() {
+        _resizePreviewRect = null;
+      });
+    }
+  }
+
+  // --- End Resize Preview Callback Handlers ---
 
   @override
   Widget build(BuildContext context) {
@@ -370,11 +415,31 @@ class _TimelineTrackState extends State<TimelineTrack> {
                                 key: ValueKey(clip.databaseId ?? clip.sourcePath),
                                 clip: clip,
                                 trackId: widget.track.id,
+                                // Pass resize callbacks
+                                onResizeUpdate: _handleClipResizeUpdate,
+                                onResizeEnd: _handleClipResizeEnd,
                               ),
                             );
                           }),
 
-                        // Show preview overlay when dragging
+                        // --- Resize Preview Overlay ---
+                        if (_resizePreviewRect != null)
+                          Positioned.fromRect(
+                            rect: _resizePreviewRect!,
+                            child: IgnorePointer( // Prevent overlay from intercepting mouse events
+                              child: Container(
+                               decoration: BoxDecoration(
+                                 color: Colors.yellow.withOpacity(0.25),
+                                 borderRadius: BorderRadius.circular(10.0), // Match clip border radius
+                                 // Optional: Add a border for clarity
+                                 // border: Border.all(color: Colors.yellow.darken(20), width: 1),
+                               ),
+                             ),
+                           ),
+                          ),
+                        // --- End Resize Preview Overlay ---
+
+                        // Show (drag) preview overlay when dragging
                         if (frameForPreview >= 0 && timeForPreviewMs >= 0)
                           DragPreview( // Use new component
                             candidateData: candidateData,
