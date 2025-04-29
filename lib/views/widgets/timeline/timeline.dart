@@ -356,6 +356,29 @@ class _TimelineState extends State<Timeline>
                           ),
                         ),
                       ),
+                      // --- Track label width resizer handle (MOVED HERE) ---
+                      if (tracks.isNotEmpty)
+                        Positioned(
+                          top: 0,
+                          bottom: 0,
+                          left: trackLabelWidth - 3,
+                          width: 6,
+                          child: GestureDetector(
+                            // Use method from TimelineInteractionLogicMixin
+                            onHorizontalDragUpdate: handleTrackLabelResize,
+                            child: MouseRegion(
+                              cursor: SystemMouseCursors.resizeLeftRight,
+                              child: Container(
+                                color: theme.resources.subtleFillColorTransparent, // Make handle area transparent
+                                alignment: Alignment.center,
+                                child: Container(
+                                  width: 1.5, // Visible line width
+                                  color: theme.resources.controlStrokeColorDefault,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
                       // --- DaVinci Resolve-style Playhead (MOVED HERE) ---
                       if (tracks.isNotEmpty)
                         // Use ValueListenableBuilder to update playhead position directly
@@ -366,8 +389,8 @@ class _TimelineState extends State<Timeline>
                             final currentScrollOffset = scrollController.hasClients ? scrollController.offset : 0.0;
                             // Calculate pixel position based on the visual frame from the notifier
                             final double playheadPositionPx = visualFrame * zoom * framePixelWidth;
-                            // Calculate final left position, accounting for scroll offset AND centering
-                            final double finalLeft = trackLabelWidth + playheadPositionPx - currentScrollOffset - (10.0 / 2);
+                            // Calculate final left position, accounting for scroll offset AND centering the hit area
+                            final double finalLeft = (trackLabelWidth + playheadPositionPx - currentScrollOffset) - (20.0 / 2);
 
                             return Positioned(
                               top: 0, // Position relative to the outer Stack
@@ -403,30 +426,6 @@ class _TimelineState extends State<Timeline>
                               ),
                             );
                           },
-                        ),
-
-                      // --- Track label width resizer handle (MOVED HERE) ---
-                      if (tracks.isNotEmpty)
-                        Positioned(
-                          top: 0,
-                          bottom: 0,
-                          left: trackLabelWidth - 3,
-                          width: 6,
-                          child: GestureDetector(
-                            // Use method from TimelineInteractionLogicMixin
-                            onHorizontalDragUpdate: handleTrackLabelResize,
-                            child: MouseRegion(
-                              cursor: SystemMouseCursors.resizeLeftRight,
-                              child: Container(
-                                color: theme.resources.subtleFillColorTransparent, // Make handle area transparent
-                                alignment: Alignment.center,
-                                child: Container(
-                                  width: 1.5, // Visible line width
-                                  color: theme.resources.controlStrokeColorDefault,
-                                ),
-                              ),
-                            ),
-                          ),
                         ),
                     ],
                   ),
