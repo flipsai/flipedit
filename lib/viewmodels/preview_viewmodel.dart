@@ -49,6 +49,10 @@ class PreviewViewModel extends ChangeNotifier {
   // Interaction State
   final ValueNotifier<bool> isTransformingNotifier = ValueNotifier(false);
 
+  // Notifier to track which controller IDs have finished initializing
+  final ValueNotifier<Set<int>> initializedControllerIdsNotifier =
+      ValueNotifier({});
+
   // Video Controllers (Managed Internally)
   final Map<int, VideoPlayerController> _videoControllers = {};
   Map<int, VideoPlayerController> get videoControllers =>
@@ -159,12 +163,19 @@ class PreviewViewModel extends ChangeNotifier {
   }
 
   void _updateVisibleClipsAndControllers() {
-    logger.logVerbose('Visible clips update triggered', _logTag);
-    // Get current frame and convert to milliseconds
     final currentFrame =
         _timelineNavigationViewModel.currentFrameNotifier.value;
+    final initialCall =
+        !visibleClipsNotifier.value.isNotEmpty; // Heuristic for initial call
+    final allClips = _timelineViewModel.clipsNotifier.value; // Keep this one
+
+    logger.logInfo(
+      'Visible clips update triggered. InitialCall: $initialCall, CurrentFrame: $currentFrame, TotalClipsAvailable: ${allClips.length}',
+      _logTag,
+    );
+    // Get current frame and convert to milliseconds
     final currentMs = ClipModel.framesToMs(currentFrame);
-    final allClips = _timelineViewModel.clipsNotifier.value;
+    // final allClips = _timelineViewModel.clipsNotifier.value; // Remove duplicate definition
     final List<ClipModel> currentlyVisibleClips = [];
     final Map<int, Rect> currentRects = {};
     final Map<int, Flip> currentFlips = {};
@@ -196,11 +207,12 @@ class PreviewViewModel extends ChangeNotifier {
 
     // Special case: If we're at frame 0 and no clips are visible, check if there are video clips
     // starting at frame 0 or nearby that should be initialized
-    if (currentFrame == 0 && visibleClipIds.isEmpty) {
+    if (currentFrame == 0 && visibleClipIds.isEmpty && allClips.isNotEmpty) {
+      // Added check for allClips.isNotEmpty
       logger.logInfo(
-        'At frame 0 with no visible clips. Checking for clips starting near frame 0...',
+        'INITIAL CHECK: At frame 0 with no visible clips found yet. Checking for clips starting near frame 0 (first 10 frames)... Total clips checked: ${allClips.length}', // Added total clips for context
         _logTag,
-      );
+      ); // Correctly closes the logInfo call here
 
       for (final clip in allClips) {
         // Look for video clips starting within the first few frames
@@ -236,6 +248,17 @@ class PreviewViewModel extends ChangeNotifier {
       logger.logDebug('Disposing controller for clip $clipId', _logTag);
       _videoControllers[clipId]?.dispose();
       _videoControllers.remove(clipId);
+      // Remove from initialized set when disposing
+      final currentInitialized = Set<int>.from(
+        initializedControllerIdsNotifier.value,
+      );
+      if (currentInitialized.remove(clipId)) {
+        initializedControllerIdsNotifier.value = currentInitialized;
+        logger.logVerbose(
+          'Removed $clipId from initializedControllerIdsNotifier',
+          _logTag,
+        );
+      }
     }
 
     // 3. Initialize controllers for newly visible clips
@@ -267,11 +290,20 @@ class PreviewViewModel extends ChangeNotifier {
                 controller
                     .dispose(); // Dispose the controller if the clip is gone
                 _videoControllers.remove(clipId);
+                // Ensure it's also removed from initialized set if initialization fails/clip disappears
+                final currentInitializedOnFail = Set<int>.from(
+                  initializedControllerIdsNotifier.value,
+                );
+                if (currentInitializedOnFail.remove(clipId)) {
+                  initializedControllerIdsNotifier.value =
+                      currentInitializedOnFail;
+                }
                 return; // Exit early
               }
 
+              // --- Controller Initialization Successful ---
               logger.logInfo(
-                'Controller initialized for clip $clipId',
+                'Controller initialized successfully for clip $clipId',
                 _logTag,
               );
               controller.setLooping(false);
@@ -315,9 +347,31 @@ class PreviewViewModel extends ChangeNotifier {
                 controller.setVolume(1.0); // Set volume if playing
               }
 
-              notifyListeners(); // Notify UI that a controller is ready and positioned
+              // Update the initialized set
+              final currentInitialized = Set<int>.from(
+                initializedControllerIdsNotifier.value,
+              );
+              if (currentInitialized.add(clipId)) {
+                initializedControllerIdsNotifier.value = currentInitialized;
+                logger.logInfo(
+                  'Added $clipId to initializedControllerIdsNotifier. New set: $currentInitialized',
+                  _logTag,
+                );
+              }
+
+              // NOTE: No need for the old notifyListeners() call here anymore,
+              // the ValueNotifier update handles signaling automatically to its listeners.
+              // notifyListeners();
             })
             .catchError((error) {
+              // Remove from initialized set on error too
+              final currentInitializedOnError = Set<int>.from(
+                initializedControllerIdsNotifier.value,
+              );
+              if (currentInitializedOnError.remove(clipId)) {
+                initializedControllerIdsNotifier.value =
+                    currentInitializedOnError;
+              }
               logger.logError(
                 'Error initializing controller for clip $clipId: $error',
                 _logTag,
@@ -339,10 +393,14 @@ class PreviewViewModel extends ChangeNotifier {
 
     // 4. Update Notifiers if changed
     // Use deep equality check for lists/maps if necessary, or simple check for now
+    logger.logInfo(
+      'Visible clips calculated. Count: ${currentlyVisibleClips.length}. IDs: ${currentlyVisibleClips.map((c) => c.databaseId).toList()}',
+      _logTag,
+    );
     if (!listEquals(visibleClipsNotifier.value, currentlyVisibleClips)) {
       visibleClipsNotifier.value = currentlyVisibleClips;
-      logger.logVerbose(
-        'Updated visibleClipsNotifier: ${currentlyVisibleClips.length} clips',
+      logger.logInfo(
+        'Updated visibleClipsNotifier. New Count: ${currentlyVisibleClips.length}',
         _logTag,
       );
     }
