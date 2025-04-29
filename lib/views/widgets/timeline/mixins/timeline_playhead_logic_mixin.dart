@@ -3,7 +3,9 @@ import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart'; // Needed for isPlayheadDragging
 import 'package:flipedit/views/widgets/timeline/timeline.dart';
 import 'dart:math' as math;
-import 'package:watch_it/watch_it.dart'; // For di
+
+// Callback type definition
+typedef EnsureVisibleCallback = void Function(int frame);
 
 // Mixin to handle playhead logic including physics, snapping, and dragging
 mixin TimelinePlayheadLogicMixin on State<Timeline> implements TickerProvider {
@@ -30,10 +32,15 @@ mixin TimelinePlayheadLogicMixin on State<Timeline> implements TickerProvider {
   DateTime? _lastDragUpdateTime;
   // Current auto-scroll direction and speed (moved to interaction? No, tied to drag)
   // double _autoScrollSpeed = 0.0;
+  // Callback for scrolling
+  late EnsureVisibleCallback _ensurePlayheadVisibleCallback;
 
   // --- Initialization & Sync ---
 
-  void initializePlayheadLogic() {
+  void initializePlayheadLogic({
+    required EnsureVisibleCallback ensurePlayheadVisible,
+  }) {
+    _ensurePlayheadVisibleCallback = ensurePlayheadVisible;
     // Sync initial frame position
     currentFramePosition = timelineNavigationViewModel.currentFrame;
 
@@ -146,22 +153,24 @@ mixin TimelinePlayheadLogicMixin on State<Timeline> implements TickerProvider {
     _lastMousePosition = details.globalPosition;
   }
 
-  void handlePlayheadDragUpdate(DragUpdateDetails details, BuildContext context) {
+  void handlePlayheadDragUpdate(DragUpdateDetails details) {
     if (!mounted) return;
 
-    final RenderBox? renderBox = context.findRenderObject() as RenderBox?;
-    if (renderBox == null) return;
+    final RenderBox? timelineRenderBox = this.context.findRenderObject() as RenderBox?;
+    // Also check if scrollController has clients, needed for scrollOffsetX
+    if (timelineRenderBox == null || !scrollController.hasClients) return;
 
-    final Offset origin = renderBox.localToGlobal(Offset.zero);
-    final double localX = details.globalPosition.dx - origin.dx;
-    final double scrollOffsetX = scrollController.hasClients ? scrollController.offset : 0.0;
+    // Convert global pointer position to local coordinates relative to the Timeline widget
+    final Offset timelineLocalPosition = timelineRenderBox.globalToLocal(details.globalPosition);
+    final double scrollOffsetX = scrollController.offset;
     final double zoom = timelineNavigationViewModel.zoom;
     const double framePixelWidth = 5.0;
     final double pxPerFrame = framePixelWidth * zoom;
 
     if (pxPerFrame <= 0) return; // Avoid division by zero
 
-    final double pointerRelX = (localX + scrollOffsetX - trackLabelWidth).clamp(0.0, double.infinity);
+    // Calculate pointer position relative to the start of the frame content area (after labels, considering scroll)
+    final double pointerRelX = (timelineLocalPosition.dx - trackLabelWidth + scrollOffsetX).clamp(0.0, double.infinity);
     final int maxAllowedFrame = timelineNavigationViewModel.totalFrames > 0
         ? timelineNavigationViewModel.totalFrames - 1
         : 0;
@@ -172,7 +181,9 @@ mixin TimelinePlayheadLogicMixin on State<Timeline> implements TickerProvider {
         timelineNavigationViewModel.currentFrame = newFrame; // Update VM
         // Snap controller might fight this? Ensure snap is stopped.
         scrubSnapController.stop();
-         setState(() {}); // Update UI
+        // Trigger auto-scroll if needed by ensuring the new frame is visible
+        _ensurePlayheadVisibleCallback(newFrame); // Call the provided callback
+        setState(() {}); // Update UI
     }
 
     // --- Velocity Calculation ---
@@ -193,27 +204,6 @@ mixin TimelinePlayheadLogicMixin on State<Timeline> implements TickerProvider {
       // Initialize on first update after start
       _lastMousePosition = details.globalPosition;
       _lastDragUpdateTime = now;
-    }
-
-
-    // --- Auto-Scroll (Needs access to ensurePlayheadVisible or similar) ---
-    // Auto-scroll logic seems better placed in the scroll mixin triggered during drag
-    // Let's remove the direct scroll manipulation from here
-    // Consider adding a callback like 'onDragNearEdge(double direction)'
-    // Or call ensurePlayheadVisible directly if available
-    // ensurePlayheadVisible(newFrame); // Potentially call scroll logic here
-    
-    // Simplified auto-scroll check (can be refined in scroll mixin)
-    const double edgeMargin = 60.0;
-    final double distanceFromLeft = localX - trackLabelWidth;
-    final double distanceFromRight = viewportWidth - localX;
-
-    if (distanceFromLeft < edgeMargin) {
-      // Need to trigger scroll left
-      // Call ensurePlayheadVisible or a dedicated auto-scroll method
-    } else if (distanceFromRight < edgeMargin) {
-       // Need to trigger scroll right
-      // Call ensurePlayheadVisible or a dedicated auto-scroll method
     }
   }
 
