@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
+import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart'; // Added import
 import 'package:flipedit/views/widgets/timeline/timeline_clip.dart';
 import 'package:mockito/mockito.dart';
 // Removed unused mockito/annotations.dart
@@ -29,24 +30,27 @@ class MockTimelineViewModel extends Mock implements TimelineViewModel {
     return super.noSuchMethod(invocation, returnValue: returnValue, returnValueForMissingStub: returnValueForMissingStub);
   }
 }
+class MockTimelineNavigationViewModel extends Mock implements TimelineNavigationViewModel {} // Added mock
 class MockProjectDatabaseService extends Mock implements ProjectDatabaseService {}
 class MockEditorViewModel extends Mock implements EditorViewModel {}
 class MockValueNotifier<T> extends Mock implements ValueNotifier<T> {}
 
 void main() {
   late MockTimelineViewModel mockTimelineViewModel;
+  late MockTimelineNavigationViewModel mockTimelineNavigationViewModel; // Added mock instance
   late MockProjectDatabaseService mockProjectDatabaseService;
   late MockEditorViewModel mockEditorViewModel;
   late ClipModel testClip;
-  late ValueNotifier<double> testZoomNotifier; // Added notifier
-  late ValueNotifier<String?> testSelectedClipIdNotifier; // Added notifier
+  late ValueNotifier<double> testZoomNotifier; // Still needed for nav mock
+  late ValueNotifier<String?> testSelectedClipIdNotifier; // For EditorViewModel mock
 
   setUp(() {
    // 1. Reset DI first
     di.reset();
-    
+
    // 2. Create mocks
     mockTimelineViewModel = MockTimelineViewModel();
+    mockTimelineNavigationViewModel = MockTimelineNavigationViewModel(); // Create nav mock
     mockProjectDatabaseService = MockProjectDatabaseService();
     mockEditorViewModel = MockEditorViewModel();
 
@@ -83,11 +87,17 @@ void main() {
     // 4. Stub properties BEFORE registering mocks
    // 4. Stub properties BEFORE registering mocks
    // Correctly stub ValueNotifier properties by returning the pre-initialized notifiers
-    when(mockTimelineViewModel.zoomNotifier).thenReturn(testZoomNotifier);
+    // Stub TimelineNavigationViewModel properties
+    when(mockTimelineNavigationViewModel.zoomNotifier).thenReturn(testZoomNotifier);
+    // Stub EditorViewModel properties
     when(mockEditorViewModel.selectedClipIdNotifier).thenReturn(testSelectedClipIdNotifier);
- 
-     // 5. Register mocks AFTER stubbing
+    // Stub TimelineViewModel properties (if any needed for TimelineClip)
+    // e.g., when(mockTimelineViewModel.selectedClipIdNotifier).thenReturn(...);
+    // For now, TimelineClip primarily gets data via constructor & di
+
+      // 5. Register mocks AFTER stubbing
     di.registerSingleton<TimelineViewModel>(mockTimelineViewModel);
+    di.registerSingleton<TimelineNavigationViewModel>(mockTimelineNavigationViewModel); // Register nav mock
     di.registerSingleton<ProjectDatabaseService>(mockProjectDatabaseService);
     di.registerSingleton<EditorViewModel>(mockEditorViewModel);
   });

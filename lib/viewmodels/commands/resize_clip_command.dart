@@ -1,31 +1,37 @@
-import '../timeline_viewmodel.dart';
+import 'package:flutter/foundation.dart'; // For ValueNotifier
+// Keep for ClipModel access maybe, or remove if not needed
 import 'timeline_command.dart';
 import '../../models/clip.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
 import 'package:collection/collection.dart'; // For firstWhereOrNull
-import '../../services/timeline_logic_service.dart'; // Import the new service
-import 'package:watch_it/watch_it.dart'; // Import for di
+import '../../services/timeline_logic_service.dart';
+import '../../services/project_database_service.dart'; // Added
+import 'package:watch_it/watch_it.dart';
 
 /// Command to resize a clip by adjusting its start or end time.
 class ResizeClipCommand implements TimelineCommand {
-  final TimelineViewModel vm;
+  // Removed vm dependency
   final int clipId;
+  // Removed duplicate final int clipId;
   final String direction; // 'left' or 'right'
-  // Add dependency on TimelineLogicService
-  final TimelineLogicService _timelineLogicService = di<TimelineLogicService>();
   final int newBoundaryFrame; // The frame where the new edge will be
+  final ProjectDatabaseService _projectDatabaseService = di<ProjectDatabaseService>(); // Inject service
+  final TimelineLogicService _timelineLogicService = di<TimelineLogicService>(); // Inject service
+  final ValueNotifier<List<ClipModel>> clipsNotifier; // Pass notifier for update
 
   // Store original state for undo
-  ClipModel? _originalClipState;
-  List<ClipModel>? _originalNeighborStates;
+  ClipModel? _originalClipState; // Full state of the resized clip
+  Map<int, Map<String, dynamic>>? _neighborUpdatesForUndo; // {id: {field: oldValue, ...}} for updated neighbors
+  List<ClipModel>? _neighborsDeletedForUndo; // Full ClipModel for deleted neighbors
 
   static const _logTag = "ResizeClipCommand";
 
   ResizeClipCommand({
-    required this.vm,
+    // required this.vm, // Removed vm
     required this.clipId,
     required this.direction,
     required this.newBoundaryFrame,
+    required this.clipsNotifier, // Added notifier
   }) : assert(direction == 'left' || direction == 'right',
             'Direction must be "left" or "right"');
 
@@ -35,71 +41,24 @@ class ResizeClipCommand implements TimelineCommand {
       '[ResizeClipCommand] Executing: clipId=$clipId, direction=$direction, newBoundaryFrame=$newBoundaryFrame',
       _logTag,
     );
-    
-    // Store original state first
-    final existingClip = vm.clips.firstWhereOrNull((c) => c.databaseId == clipId);
-    if (existingClip != null) {
-      _originalClipState = existingClip.copyWith();
-    }
 
-    final clipToResize = vm.clips.firstWhereOrNull((c) => c.databaseId == clipId);
+    // Get current clips from the notifier
+    final currentClips = clipsNotifier.value;
+    final clipToResize = currentClips.firstWhereOrNull((c) => c.databaseId == clipId);
 
     if (clipToResize == null) {
-      logger.logError('[ResizeClipCommand] Clip $clipId not found in ViewModel', _logTag);
+      logger.logError('[ResizeClipCommand] Clip $clipId not found in provided clips list', _logTag);
       throw Exception('Clip $clipId not found for resizing');
     }
 
-    // --- Store state for Undo ---
-    _originalClipState = clipToResize.copyWith();
-
-    // Calculate the *potential* new TRACK time range to find affected neighbors
-    int potentialNewStartMs = clipToResize.startTimeOnTrackMs;
-    // Use existing endTimeOnTrackMs for potential end
-    int potentialNewEndMs = clipToResize.endTimeOnTrackMs;
-    // final newBoundaryMs = ClipModel.framesToMs(newBoundaryFrame); // Removed redundant definition
-
-    if (direction == 'left') {
-      potentialNewStartMs = ClipModel.framesToMs(newBoundaryFrame); // Calculate here directly
-      // potentialNewEndMs remains the same
-    } else { // direction == 'right'
-      // potentialNewStartMs remains the same
-      potentialNewEndMs = ClipModel.framesToMs(newBoundaryFrame); // Calculate here directly
+    if (_projectDatabaseService.clipDao == null) {
+      logger.logError('[ResizeClipCommand] Clip DAO not initialized', _logTag);
+      throw Exception('Clip DAO not initialized');
     }
 
-    // Ensure track start is before track end
-    if (potentialNewStartMs >= potentialNewEndMs) {
-      logger.logWarning('[ResizeClipCommand] Resize would result in zero or negative track duration. Clamping.', _logTag);
-      final minDurationMs = ClipModel.framesToMs(1);
-      if (direction == 'left') {
-        potentialNewStartMs = potentialNewEndMs - minDurationMs;
-      } else {
-        potentialNewEndMs = potentialNewStartMs + minDurationMs;
-      }
-    }
-
-
-    _originalNeighborStates = _timelineLogicService.getOverlappingClips(
-      vm.clips,
-      clipToResize.trackId,
-      potentialNewStartMs,
-      potentialNewEndMs,
-      clipId,
-    ).map((c) => c.copyWith()).toList();
-
-    // Also include neighbors affected by the *original* range if the resize shrinks the clip
-    final originalEndTimeMs = clipToResize.endTimeOnTrackMs; // Use original track end time
-    final oldNeighbors = _timelineLogicService.getOverlappingClips(
-      vm.clips,
-      clipToResize.trackId,
-      clipToResize.startTimeOnTrackMs,
-      originalEndTimeMs,
-      clipId,
-    ).map((c) => c.copyWith()).toList();
-    for (final oldNeighbor in oldNeighbors) {
-      if (!_originalNeighborStates!.any((n) => n.databaseId == oldNeighbor.databaseId)) {
-        _originalNeighborStates!.add(oldNeighbor);
-      }
-    }
+    _originalClipState = clipToResize.copyWith(); // Store full original state
+    _neighborUpdatesForUndo = {};
+    _neighborsDeletedForUndo = [];
     // --- End Store state ---
 
 
@@ -177,88 +136,143 @@ class ResizeClipCommand implements TimelineCommand {
 
     // --- Call placeClipOnTrack with Final Consistent Values ---
     logger.logInfo('[ResizeClipCommand] Final values: Track[$finalStartTimeOnTrackMs-$finalEndTimeOnTrackMs], Source[$finalStartTimeInSourceMs-$finalEndTimeInSourceMs]', _logTag);
+
     try {
-      final success = await vm.placeClipOnTrack(
-        clipId: clipId,
-        trackId: clipToResize.trackId,
+      // Use TimelineLogicService to calculate the effects of the placement
+      final placementResult = _timelineLogicService.prepareClipPlacement(
+        clips: currentClips,
+        clipId: clipId, // Pass clipId to indicate update
+        trackId: clipToResize.trackId, // Track ID doesn't change on resize
         type: clipToResize.type,
         sourcePath: clipToResize.sourcePath,
         sourceDurationMs: sourceDurationMs,
-        startTimeOnTrackMs: finalStartTimeOnTrackMs, // Use final calculated track time
-        endTimeOnTrackMs: finalEndTimeOnTrackMs,     // Use final calculated track time
-        startTimeInSourceMs: finalStartTimeInSourceMs, // Use final clamped source time
-        endTimeInSourceMs: finalEndTimeInSourceMs,     // Use final clamped source time
+        startTimeOnTrackMs: finalStartTimeOnTrackMs,
+        endTimeOnTrackMs: finalEndTimeOnTrackMs,
+        startTimeInSourceMs: finalStartTimeInSourceMs,
+        endTimeInSourceMs: finalEndTimeInSourceMs,
       );
 
-      if (success) {
-        logger.logInfo('[ResizeClipCommand] Successfully resized clip $clipId', _logTag);
-        // await vm.refreshClips(); // Rely on stream/notifier updates
-      } else {
-        logger.logWarning('[ResizeClipCommand] placeClipOnTrack returned false for clip $clipId resize', _logTag);
+       if (!placementResult['success']) {
+        throw Exception('prepareClipPlacement failed during resize command');
       }
+
+      final List<Map<String, dynamic>> neighborUpdates = List.from(placementResult['clipUpdates']);
+      final List<int> neighborsToDelete = List.from(placementResult['clipsToRemove']);
+      final Map<String, dynamic> mainClipUpdateData = Map.from(placementResult['newClipData']);
+
+
+      // --- Perform Database Operations ---
+      logger.logDebug('[ResizeClipCommand] Applying DB updates...', _logTag);
+
+      // 1. Update neighbors (Save original state first)
+       for (final update in neighborUpdates) {
+        final int neighborId = update['id'];
+        final Map<String, dynamic> fields = Map.from(update['fields']);
+        final originalNeighbor = currentClips.firstWhereOrNull((c) => c.databaseId == neighborId);
+        if (originalNeighbor != null) {
+          final Map<String, dynamic> originalValues = {};
+          fields.forEach((key, _) {
+             switch (key) {
+                case 'trackId': originalValues[key] = originalNeighbor.trackId; break;
+                case 'startTimeOnTrackMs': originalValues[key] = originalNeighbor.startTimeOnTrackMs; break;
+                case 'endTimeOnTrackMs': originalValues[key] = originalNeighbor.endTimeOnTrackMs; break;
+                case 'startTimeInSourceMs': originalValues[key] = originalNeighbor.startTimeInSourceMs; break;
+                case 'endTimeInSourceMs': originalValues[key] = originalNeighbor.endTimeInSourceMs; break;
+            }
+          });
+          _neighborUpdatesForUndo![neighborId] = originalValues;
+        }
+        await _projectDatabaseService.clipDao!.updateClipFields(neighborId, fields, log: false);
+      }
+
+      // 2. Delete neighbors (Save original state first)
+       for (final int neighborId in neighborsToDelete) {
+         final deletedNeighbor = currentClips.firstWhereOrNull((c) => c.databaseId == neighborId);
+         if(deletedNeighbor != null) {
+            _neighborsDeletedForUndo!.add(deletedNeighbor.copyWith());
+         }
+         await _projectDatabaseService.clipDao!.deleteClip(neighborId);
+      }
+
+      // 3. Update the main resized clip
+       await _projectDatabaseService.clipDao!.updateClipFields(
+        clipId,
+        {
+          // trackId, type, sourcePath, sourceDurationMs don't change
+          'startTimeOnTrackMs': mainClipUpdateData['startTimeOnTrackMs'],
+          'endTimeOnTrackMs': mainClipUpdateData['endTimeOnTrackMs'],
+          'startTimeInSourceMs': mainClipUpdateData['startTimeInSourceMs'],
+          'endTimeInSourceMs': mainClipUpdateData['endTimeInSourceMs'],
+        },
+        log: true, // Log the primary action
+      );
+
+      // --- Update ViewModel State ---
+      logger.logDebug('[ResizeClipCommand] Updating ViewModel state...', _logTag);
+      clipsNotifier.value = List<ClipModel>.from(placementResult['updatedClips']);
+
+      logger.logInfo('[ResizeClipCommand] Successfully executed resize for clip $clipId', _logTag);
+
     } catch (e) {
-      logger.logError('[ResizeClipCommand] Error resizing clip $clipId: $e', _logTag);
+      logger.logError('[ResizeClipCommand] Error executing resize for clip $clipId: $e', _logTag);
       rethrow;
     }
   }
 
   @override
   Future<void> undo() async {
-    logger.logInfo('[ResizeClipCommand] Undoing resize of clipId=$clipId', _logTag);
-    if (_originalClipState == null || _originalNeighborStates == null) {
-      logger.logError('[ResizeClipCommand] Cannot undo: Original state not saved', _logTag);
+    logger.logInfo('[ResizeClipCommand] Undoing resize for clipId=$clipId', _logTag);
+     if (_originalClipState == null || _neighborUpdatesForUndo == null || _neighborsDeletedForUndo == null) {
+      logger.logError('[ResizeClipCommand] Cannot undo: Original state not fully saved', _logTag);
       return;
+    }
+     if (_projectDatabaseService.clipDao == null) {
+      logger.logError('[ResizeClipCommand] Clip DAO not initialized for undo', _logTag);
+      throw Exception('Clip DAO not initialized for undo');
     }
 
     try {
-      // 1. Restore neighbors (similar complexity to MoveClipCommand undo)
-      logger.logInfo('[ResizeClipCommand] Restoring neighbors (basic implementation)', _logTag);
-       for (final originalNeighbor in _originalNeighborStates!) {
-          final currentNeighbor = vm.clips.firstWhereOrNull((c) => c.databaseId == originalNeighbor.databaseId);
-          if (currentNeighbor != null) {
-              await vm.projectDatabaseService.clipDao!.updateClipFields(
-                originalNeighbor.databaseId!,
-                {
-                  'trackId': originalNeighbor.trackId,
-                  'startTimeOnTrackMs': originalNeighbor.startTimeOnTrackMs,
-                  'startTimeInSourceMs': originalNeighbor.startTimeInSourceMs,
-                  'endTimeInSourceMs': originalNeighbor.endTimeInSourceMs,
-                },
-              );
-          } else {
-              // TODO: Implement re-insertion of deleted neighbors during undo.
-              logger.logWarning('[ResizeClipCommand] Undo cannot yet restore deleted neighbor ${originalNeighbor.databaseId}', _logTag);
-          }
-       }
+       // --- Restore Database State ---
+      logger.logDebug('[ResizeClipCommand][Undo] Restoring DB state...', _logTag);
 
-
-      // 2. Resize the clip back to its original state using placeClipOnTrack
-      logger.logInfo('[ResizeClipCommand] Restoring clip $clipId back to original state', _logTag);
-      final success = await vm.placeClipOnTrack(
-        clipId: clipId,
-        trackId: _originalClipState!.trackId,
-        type: _originalClipState!.type,
-        sourcePath: _originalClipState!.sourcePath,
-        sourceDurationMs: _originalClipState!.sourceDurationMs, // Restore source duration
-        startTimeOnTrackMs: _originalClipState!.startTimeOnTrackMs,
-        endTimeOnTrackMs: _originalClipState!.endTimeOnTrackMs,     // Restore end time on track
-        startTimeInSourceMs: _originalClipState!.startTimeInSourceMs,
-        endTimeInSourceMs: _originalClipState!.endTimeInSourceMs,
+      // 1. Restore the main resized clip to its original state
+      await _projectDatabaseService.clipDao!.updateClipFields(
+        clipId,
+        {
+          'startTimeOnTrackMs': _originalClipState!.startTimeOnTrackMs,
+          'endTimeOnTrackMs': _originalClipState!.endTimeOnTrackMs,
+          'startTimeInSourceMs': _originalClipState!.startTimeInSourceMs,
+          'endTimeInSourceMs': _originalClipState!.endTimeInSourceMs,
+          // Add other relevant fields if needed
+        },
+         log: true // Log the undo action
       );
 
-      if (success) {
-        logger.logInfo('[ResizeClipCommand] Successfully resized clip $clipId back', _logTag);
-        // await vm.refreshClips(); // Rely on stream/notifier updates
-      } else {
-        logger.logWarning('[ResizeClipCommand] placeClipOnTrack returned false when resizing clip $clipId back', _logTag);
+      // 2. Restore updated neighbors
+      for (final neighborId in _neighborUpdatesForUndo!.keys) {
+        final originalValues = _neighborUpdatesForUndo![neighborId]!;
+         await _projectDatabaseService.clipDao!.updateClipFields(neighborId, originalValues, log: false);
       }
 
-      // Clear state after successful undo
+      // 3. Re-insert deleted neighbors
+       for (final deletedNeighbor in _neighborsDeletedForUndo!) {
+        final companion = deletedNeighbor.toDbCompanion();
+         await _projectDatabaseService.clipDao!.insertClip(companion);
+      }
+
+      // --- Refresh ViewModel State ---
+       logger.logDebug('[ResizeClipCommand][Undo] ViewModel state should refresh via listeners.', _logTag);
+      // The ViewModel should listen to ProjectDatabaseService's clip changes
+
+       logger.logInfo('[ResizeClipCommand] Successfully undone resize for clip $clipId', _logTag);
+
+      // Clear undo state
       _originalClipState = null;
-      _originalNeighborStates = null;
+      _neighborUpdatesForUndo = null;
+      _neighborsDeletedForUndo = null;
 
     } catch (e) {
-      logger.logError('[ResizeClipCommand] Error undoing resize of clip $clipId: $e', _logTag);
+       logger.logError('[ResizeClipCommand] Error undoing resize for clip $clipId: $e', _logTag);
       rethrow;
     }
   }

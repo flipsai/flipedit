@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flipedit/models/project_asset.dart' as model;
+import 'package:flipedit/models/clip.dart'; // Import ClipModel
 import 'package:flipedit/persistence/dao/project_database_asset_dao.dart';
 import 'package:flipedit/persistence/dao/project_database_clip_dao.dart';
 import 'package:flipedit/persistence/dao/project_database_track_dao.dart';
@@ -344,6 +345,85 @@ class ProjectDatabaseService {
     } catch (e) {
       logError(_logTag, "Error renaming track: $e");
       return false;
+    }
+  }
+
+  /// Update the order of tracks in the database
+  Future<bool> updateTrackOrder(List<Track> reorderedTracks) async {
+    if (_trackDao == null || currentDatabase == null) {
+      logError(_logTag, "Cannot update track order: No project loaded");
+      return false;
+    }
+
+    // Calculate the final track order, but DON'T update the notifier optimistically yet.
+    final updatedTracksWithOrder = List<Track>.generate(
+      reorderedTracks.length,
+      (index) => reorderedTracks[index].copyWith(order: index),
+    );
+    // tracksNotifier.value = updatedTracks; // REMOVED: Avoid optimistic update causing race condition
+    
+    // Now update the database in the background
+    logInfo(
+      _logTag,
+      "Starting database transaction for updating order of ${updatedTracksWithOrder.length} tracks",
+    );
+      
+    try {
+      // Attempt the update using the transaction-wrapped DAO method
+      // Pass the list with the correct order calculated
+      await _trackDao!.updateTrackOrders(updatedTracksWithOrder);
+      logInfo(
+        _logTag,
+        "Successfully updated track order in database via transaction. UI will update via stream.",
+      );
+      // The tracksNotifier will be updated automatically by the watchAllTracks stream listener
+      // once the transaction is committed.
+      return true;
+    } catch (dbError) {
+      // If the transaction fails (e.g., due to existing lock), log the error.
+      logError(
+        _logTag,
+        "Database transaction for updating track order failed: $dbError. UI state remains unchanged.",
+      );
+      return false; 
+    }
+  }
+
+  /// Fetches all clips from all tracks and maps them to ClipModel.
+  Future<List<ClipModel>> getAllTimelineClips() async {
+    if (clipDao == null || currentDatabase == null) {
+      logWarning(
+        _logTag,
+        'Clip DAO or database not available, cannot fetch all timeline clips.',
+      );
+      return [];
+    }
+
+    logInfo(_logTag, 'Fetching all timeline clips from database...');
+
+    final tracks = tracksNotifier.value; // Use the current tracks from the notifier
+    List<ClipModel> allClips = [];
+
+    try {
+      for (final track in tracks.where((t) => t.id != null)) {
+        final dbClips = await clipDao!.getClipsForTrack(track.id);
+        allClips.addAll(dbClips.map((dbClip) {
+          // Estimate source duration if missing from DB data
+          final sourceDuration = dbClip.sourceDurationMs ??
+              (dbClip.endTimeInSourceMs - dbClip.startTimeInSourceMs)
+                  .clamp(0, 1 << 30);
+          // Use the factory constructor from ClipModel
+          return ClipModel.fromDbData(
+            dbClip,
+            sourceDurationMs: sourceDuration,
+          );
+        }));
+      }
+       logInfo(_logTag, 'Successfully fetched ${allClips.length} clips.');
+      return allClips;
+    } catch (e) {
+      logError(_logTag, "Error fetching all timeline clips: $e");
+      return []; // Return empty list on error
     }
   }
 

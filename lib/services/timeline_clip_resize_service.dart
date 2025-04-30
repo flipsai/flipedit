@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/viewmodels/commands/resize_clip_command.dart';
@@ -62,10 +61,11 @@ class TimelineClipResizeService {
     bool boundaryChanged = newBoundaryFrame != originalBoundaryFrame;
     if (boundaryChanged) {
       final command = ResizeClipCommand(
-        vm: timelineVm,
+        // vm: timelineVm, // Removed vm parameter
         clipId: clip.databaseId!,
         direction: direction,
         newBoundaryFrame: newBoundaryFrame,
+        clipsNotifier: timelineVm.clipsNotifier, // Pass the notifier
       );
       try {
         // Await the command execution to ensure the view model state is updated

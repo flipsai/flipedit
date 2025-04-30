@@ -114,7 +114,7 @@ class AddClipCommand implements TimelineCommand {
 
     // 2.3 Insert the new clip using the final calculated placement data
     final newClipDataMap = placement['newClipData'] as Map<String, dynamic>; // Defined here
-    logger.logInfo('[AddClipCommand] Inserting new clip: ${newClipDataMap}', _logTag);
+    logger.logInfo('[AddClipCommand] Inserting new clip: $newClipDataMap', _logTag);
 
     _insertedClipId = await _databaseService.clipDao!.insertClip(
       project_db.ClipsCompanion(
