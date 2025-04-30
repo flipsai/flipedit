@@ -1,3 +1,4 @@
+import 'dart:async'; // Import for Timer (debouncing)
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_box_transform/flutter_box_transform.dart';
@@ -8,7 +9,8 @@ import 'dart:io'; // Import for File
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/enums/clip_type.dart'; // Import ClipType
 import 'package:flipedit/services/project_database_service.dart';
-import 'package:flipedit/services/project_metadata_service.dart'; // Add import for ProjectMetadataService
+import 'package:flipedit/services/project_metadata_service.dart';
+import 'package:flipedit/services/composite_video_service.dart'; // Import CompositeVideoService
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
@@ -26,10 +28,10 @@ class PreviewViewModel extends ChangeNotifier {
   late final EditorViewModel _editorViewModel;
   late final ProjectDatabaseService _projectDatabaseService;
   late final ProjectMetadataService _projectMetadataService;
-  // Add UndoRedoService if needed directly, or rely on TimelineVM's runCommand
+  late final CompositeVideoService _compositeVideoService; // Add CompositeVideoService dependency
 
   // --- State Notifiers (Exposed to View) ---
-  final ValueNotifier<List<ClipModel>> visibleClipsNotifier = ValueNotifier([]);
+  final ValueNotifier<List<ClipModel>> visibleClipsNotifier = ValueNotifier([]); // Clips currently visible for interaction overlays
   final ValueNotifier<Map<int, Rect>> clipRectsNotifier = ValueNotifier({});
   final ValueNotifier<Map<int, Flip>> clipFlipsNotifier = ValueNotifier({});
   final ValueNotifier<int?> selectedClipIdNotifier = ValueNotifier(null);
@@ -48,15 +50,6 @@ class PreviewViewModel extends ChangeNotifier {
 
   // Interaction State
   final ValueNotifier<bool> isTransformingNotifier = ValueNotifier(false);
-
-  // Notifier to track which controller IDs have finished initializing
-  final ValueNotifier<Set<int>> initializedControllerIdsNotifier =
-      ValueNotifier({});
-
-  // Video Controllers (Managed Internally)
-  final Map<int, VideoPlayerController> _videoControllers = {};
-  Map<int, VideoPlayerController> get videoControllers =>
-      Map.unmodifiable(_videoControllers);
 
   // Store pre-transform state for undo
   final Map<int, Rect> _preTransformRects = {};
@@ -79,11 +72,11 @@ class PreviewViewModel extends ChangeNotifier {
       _updatePlaybackPosition,
     );
     _timelineViewModel.clipsNotifier.addListener(
-      _updateVisibleClipsAndControllers,
+      _handleTimelineOrTransformChange, // Consolidate update triggers
     );
-    _timelineNavigationViewModel.isPlayingNotifier.addListener(
-      _handlePlayStateChange,
-    );
+    // Remove listener for isPlayingNotifier, handled by frame changes
+    // _timelineNavigationViewModel.isPlayingNotifier.addListener(_handlePlayStateChange);
+  
     // Listen to selection changes to update the selectedClipIdNotifier
     _timelineViewModel.selectedClipIdNotifier.addListener(_updateSelection);
     // Listen for project load events through the ProjectMetadataService
@@ -93,340 +86,94 @@ class PreviewViewModel extends ChangeNotifier {
 
     // --- Initial Setup ---
     _updateAspectRatio();
-    _updateVisibleClipsAndControllers(); // Initial call to load clips
+    _handleTimelineOrTransformChange(); // Initial call to determine visible clips and trigger composite
     _updateSelection(); // Initial selection sync
     logger.logInfo('PreviewViewModel initialized.', _logTag);
   }
 
   // --- Listener Callbacks ---
 
+  // Listener for frame changes from TimelineNavigationViewModel
   void _updatePlaybackPosition() {
-    // Get current frame and convert to milliseconds
-    final currentFrame =
-        _timelineNavigationViewModel.currentFrameNotifier.value;
+    final currentFrame = _timelineNavigationViewModel.currentFrameNotifier.value;
     final currentMs = ClipModel.framesToMs(currentFrame);
     logger.logVerbose(
-      'Playback position update triggered: ${currentMs}ms (Frame: $currentFrame)',
+      'Playback position update triggered: ${currentMs}ms (Frame: $currentFrame). Triggering composite update.',
       _logTag,
     );
-
-    for (var entry in _videoControllers.entries) {
-      final clipId = entry.key;
-      final controller = entry.value;
-      // Find the clip model from the TimelineViewModel's list
-      final clip = _findClipByIdInternal(clipId);
-
-      if (clip == null || !controller.value.isInitialized) {
-        logger.logVerbose(
-          'Skipping position update for clip $clipId (Clip found: ${clip != null}, Controller init: ${controller.value.isInitialized})',
-          _logTag,
-        );
-        continue; // Skip if clip not found or controller not ready
-      }
-
-      // Calculate the position within the source video
-      final positionInClipMs = currentMs - clip.startTimeOnTrackMs;
-      final sourcePositionMs = clip.startTimeInSourceMs + positionInClipMs;
-
-      // Check if the current time is actually within the clip's duration on the timeline
-      if (currentMs >= clip.startTimeOnTrackMs &&
-          currentMs < clip.endTimeOnTrackMs) {
-        // Seek the video controller to the calculated source position
-        // Add a small tolerance to avoid potential floating point issues if needed
-        final seekPosition = Duration(
-          milliseconds: sourcePositionMs.clamp(0, clip.sourceDurationMs),
-        );
-
-        // Only seek if the position is significantly different or if paused
-        if ((controller.value.position - seekPosition).abs() >
-                const Duration(milliseconds: 50) ||
-            !controller.value.isPlaying) {
-          logger.logVerbose(
-            'Seeking clip $clipId to ${seekPosition.inMilliseconds}ms (source)',
-            _logTag,
-          );
-          controller.seekTo(seekPosition);
-        }
-      } else {
-        // If the controller is playing but shouldn't be, pause it
-        if (controller.value.isPlaying) {
-          logger.logVerbose(
-            'Pausing clip $clipId (outside active range)',
-            _logTag,
-          );
-          controller.pause();
-        }
-      }
-    }
-    // Also trigger an update for visible clips, as playback position might affect visibility
-    _updateVisibleClipsAndControllers();
+    _triggerCompositeUpdate();
   }
 
-  void _updateVisibleClipsAndControllers() {
-    final currentFrame =
-        _timelineNavigationViewModel.currentFrameNotifier.value;
-    final initialCall =
-        !visibleClipsNotifier.value.isNotEmpty; // Heuristic for initial call
-    final allClips = _timelineViewModel.clipsNotifier.value; // Keep this one
+  // Listener for changes in timeline clips or clip transforms
+  void _handleTimelineOrTransformChange() {
+    final currentFrame = _timelineNavigationViewModel.currentFrameNotifier.value;
+    final currentMs = ClipModel.framesToMs(currentFrame);
+    final allClips = _timelineViewModel.clipsNotifier.value;
 
     logger.logInfo(
-      'Visible clips update triggered. InitialCall: $initialCall, CurrentFrame: $currentFrame, TotalClipsAvailable: ${allClips.length}',
+      'Timeline/Transform change detected. CurrentFrame: $currentFrame, TotalClipsAvailable: ${allClips.length}',
       _logTag,
     );
-    // Get current frame and convert to milliseconds
-    final currentMs = ClipModel.framesToMs(currentFrame);
-    // final allClips = _timelineViewModel.clipsNotifier.value; // Remove duplicate definition
-    final List<ClipModel> currentlyVisibleClips = [];
+
+    // 1. Determine which clips are potentially visible for interaction
+    final List<ClipModel> potentiallyVisibleClips = [];
     final Map<int, Rect> currentRects = {};
     final Map<int, Flip> currentFlips = {};
     final Set<int> visibleClipIds = {};
 
-    // Log the total clips available for debugging
-    logger.logVerbose('Total clips in timeline: ${allClips.length}', _logTag);
-
-    // 1. Determine which clips are visible at the current time
-    // Iterate directly over the list of clips
     for (final clip in allClips) {
       if (clip.databaseId != null &&
           currentMs >= clip.startTimeOnTrackMs &&
-          currentMs < clip.endTimeOnTrackMs) {
-        // TODO: Implement logic for track layering (e.g., only show top-most video)
-        // For now, consider all overlapping clips "visible" for controller management
-        if (clip.type == ClipType.video || clip.type == ClipType.image) {
-          // Only manage controllers for visual types
-          currentlyVisibleClips.add(clip);
-          visibleClipIds.add(clip.databaseId!);
-          // Use the correct getters from ClipModel for transform state
-          currentRects[clip.databaseId!] =
-              clip.previewRect ?? Rect.zero; // Use stored rect or default
-          currentFlips[clip.databaseId!] =
-              clip.previewFlip; // Use stored flip or default
-        }
+          currentMs < clip.endTimeOnTrackMs &&
+          (clip.type == ClipType.video || clip.type == ClipType.image)) {
+        potentiallyVisibleClips.add(clip);
+        visibleClipIds.add(clip.databaseId!);
+        currentRects[clip.databaseId!] = clip.previewRect ?? Rect.zero;
+        currentFlips[clip.databaseId!] = clip.previewFlip;
       }
     }
 
-    // Special case: If we're at frame 0 and no clips are visible, check if there are video clips
-    // starting at frame 0 or nearby that should be initialized
-    if (currentFrame == 0 && visibleClipIds.isEmpty && allClips.isNotEmpty) {
-      // Added check for allClips.isNotEmpty
-      logger.logInfo(
-        'INITIAL CHECK: At frame 0 with no visible clips found yet. Checking for clips starting near frame 0 (first 10 frames)... Total clips checked: ${allClips.length}', // Added total clips for context
-        _logTag,
-      ); // Correctly closes the logInfo call here
-
-      for (final clip in allClips) {
-        // Look for video clips starting within the first few frames
-        if (clip.databaseId != null &&
-            clip.startTimeOnTrackMs <= ClipModel.framesToMs(10) &&
-            (clip.type == ClipType.video || clip.type == ClipType.image)) {
-          logger.logInfo(
-            'Pre-initializing clip that starts soon: ID ${clip.databaseId} at frame ${ClipModel.msToFrames(clip.startTimeOnTrackMs)}',
-            _logTag,
-          );
-
-          // Add to visible clips for initialization
-          currentlyVisibleClips.add(clip);
-          visibleClipIds.add(clip.databaseId!);
-          // Use the correct getters from ClipModel for transform state
-          currentRects[clip.databaseId!] = clip.previewRect ?? Rect.zero;
-          currentFlips[clip.databaseId!] = clip.previewFlip;
-        }
-      }
-    }
-
+    // Sort by track order (higher tracks on top)
     final tracks = _timelineViewModel.tracksNotifierForView.value;
-    final trackOrderMap = {
-      for (var i = 0; i < tracks.length; i++) tracks[i].id: i
-    };
-
-    currentlyVisibleClips.sort((a, b) {
+    final trackOrderMap = { for (var i = 0; i < tracks.length; i++) tracks[i].id: i };
+    potentiallyVisibleClips.sort((a, b) {
       final orderA = trackOrderMap[a.trackId] ?? -1;
       final orderB = trackOrderMap[b.trackId] ?? -1;
-      return orderB.compareTo(orderA);
+      return orderB.compareTo(orderA); // Higher index (visually lower track) comes first
     });
 
     logger.logVerbose(
-      'Visible clip IDs at ${currentMs}ms: $visibleClipIds',
+      'Visible clip IDs for interaction overlays at ${currentMs}ms: $visibleClipIds',
       _logTag,
     );
 
-    // 2. Dispose controllers for clips no longer visible
-    final Set<int> existingControllerIds = _videoControllers.keys.toSet();
-    final Set<int> idsToDispose = existingControllerIds.difference(
-      visibleClipIds,
-    );
-    for (final clipId in idsToDispose) {
-      logger.logDebug('Disposing controller for clip $clipId', _logTag);
-      _videoControllers[clipId]?.dispose();
-      _videoControllers.remove(clipId);
-      // Remove from initialized set when disposing
-      final currentInitialized = Set<int>.from(
-        initializedControllerIdsNotifier.value,
-      );
-      if (currentInitialized.remove(clipId)) {
-        initializedControllerIdsNotifier.value = currentInitialized;
-        logger.logVerbose(
-          'Removed $clipId from initializedControllerIdsNotifier',
-          _logTag,
-        );
-      }
+    // 2. Update Notifiers for the View's interactive overlays
+    // Only update if the lists/maps actually changed to avoid unnecessary rebuilds
+    bool changed = false;
+    if (!listEquals(visibleClipsNotifier.value.map((c) => c.databaseId).toList(), potentiallyVisibleClips.map((c) => c.databaseId).toList())) {
+      visibleClipsNotifier.value = potentiallyVisibleClips;
+      changed = true;
+      logger.logInfo('Updated visibleClipsNotifier. New Count: ${potentiallyVisibleClips.length}');
     }
-
-    // 3. Initialize controllers for newly visible clips
-    final Set<int> idsToInitialize = visibleClipIds.difference(
-      existingControllerIds,
-    );
-    for (final clipId in idsToInitialize) {
-      // Find the clip model from the TimelineViewModel's list
-      final clip = _findClipByIdInternal(clipId);
-      if (clip != null &&
-          clip.type == ClipType.video &&
-          File(clip.sourcePath).existsSync()) {
-        logger.logDebug(
-          'Initializing controller for clip $clipId (Source: ${clip.sourcePath})',
-          _logTag,
-        );
-        final controller = VideoPlayerController.file(File(clip.sourcePath));
-        _videoControllers[clipId] = controller;
-        controller
-            .initialize()
-            .then((_) async {
-              // Find the clip model again inside the .then block, in case state changed
-              final currentClip = _findClipByIdInternal(clipId);
-              if (currentClip == null) {
-                logger.logWarning(
-                  'Clip $clipId disappeared before controller initialization finished.',
-                  _logTag,
-                );
-                controller
-                    .dispose(); // Dispose the controller if the clip is gone
-                _videoControllers.remove(clipId);
-                // Ensure it's also removed from initialized set if initialization fails/clip disappears
-                final currentInitializedOnFail = Set<int>.from(
-                  initializedControllerIdsNotifier.value,
-                );
-                if (currentInitializedOnFail.remove(clipId)) {
-                  initializedControllerIdsNotifier.value =
-                      currentInitializedOnFail;
-                }
-                return; // Exit early
-              }
-
-              // --- Controller Initialization Successful ---
-              logger.logInfo(
-                'Controller initialized successfully for clip $clipId',
-                _logTag,
-              );
-              controller.setLooping(false);
-              controller.setVolume(0.0); // Start muted
-
-              // Calculate the precise starting position within the source video
-              final currentFrame =
-                  _timelineNavigationViewModel.currentFrameNotifier.value;
-              final currentMs = ClipModel.framesToMs(currentFrame);
-              final positionInClipMs =
-                  currentMs - currentClip.startTimeOnTrackMs;
-              final sourcePositionMs =
-                  currentClip.startTimeInSourceMs + positionInClipMs;
-              final seekPosition = Duration(
-                milliseconds: sourcePositionMs.clamp(
-                  0,
-                  currentClip.sourceDurationMs,
-                ),
-              );
-
-              logger.logVerbose(
-                'Seeking newly initialized clip $clipId to ${seekPosition.inMilliseconds}ms (source) based on current frame $currentFrame',
-                _logTag,
-              );
-              await controller.seekTo(
-                seekPosition,
-              ); // Seek to the correct start position
-              await controller.pause(); // Ensure it starts paused
-
-              // Now check if playback is active and if this clip *should* be playing
-              final isPlaying =
-                  _timelineNavigationViewModel.isPlayingNotifier.value;
-              if (isPlaying &&
-                  currentMs >= currentClip.startTimeOnTrackMs &&
-                  currentMs < currentClip.endTimeOnTrackMs) {
-                logger.logVerbose(
-                  'Playback active, starting newly initialized controller for clip $clipId',
-                  _logTag,
-                );
-                controller.play();
-                controller.setVolume(1.0); // Set volume if playing
-              }
-
-              // Update the initialized set
-              final currentInitialized = Set<int>.from(
-                initializedControllerIdsNotifier.value,
-              );
-              if (currentInitialized.add(clipId)) {
-                initializedControllerIdsNotifier.value = currentInitialized;
-                logger.logInfo(
-                  'Added $clipId to initializedControllerIdsNotifier. New set: $currentInitialized',
-                  _logTag,
-                );
-              }
-
-              // NOTE: No need for the old notifyListeners() call here anymore,
-              // the ValueNotifier update handles signaling automatically to its listeners.
-              // notifyListeners();
-            })
-            .catchError((error) {
-              // Remove from initialized set on error too
-              final currentInitializedOnError = Set<int>.from(
-                initializedControllerIdsNotifier.value,
-              );
-              if (currentInitializedOnError.remove(clipId)) {
-                initializedControllerIdsNotifier.value =
-                    currentInitializedOnError;
-              }
-              logger.logError(
-                'Error initializing controller for clip $clipId: $error',
-                _logTag,
-              );
-              _videoControllers.remove(clipId); // Remove failed controller
-            });
-      } else if (clip?.type != ClipType.video) {
-        logger.logVerbose(
-          'Skipping controller init for non-video clip $clipId (Type: ${clip?.type})',
-          _logTag,
-        );
-      } else if (clip != null && !File(clip.sourcePath).existsSync()) {
-        logger.logError(
-          'Video file not found for clip $clipId at path: ${clip.sourcePath}',
-          _logTag,
-        );
-      }
-    }
-
-    // 4. Update Notifiers if changed
-    // Use deep equality check for lists/maps if necessary, or simple check for now
-    logger.logInfo(
-      'Visible clips calculated. Count: ${currentlyVisibleClips.length}. IDs: ${currentlyVisibleClips.map((c) => c.databaseId).toList()}',
-      _logTag,
-    );
-    if (!listEquals(visibleClipsNotifier.value, currentlyVisibleClips)) {
-      visibleClipsNotifier.value = currentlyVisibleClips;
-      logger.logInfo(
-        'Updated visibleClipsNotifier. New Count: ${currentlyVisibleClips.length}',
-        _logTag,
-      );
-    }
-    // Using toString comparison for maps as a simple check; replace with deep equality if needed
-    if (clipRectsNotifier.value.toString() != currentRects.toString()) {
+    if (!mapEquals(clipRectsNotifier.value, currentRects)) {
       clipRectsNotifier.value = currentRects;
-      logger.logVerbose('Updated clipRectsNotifier', _logTag);
+      changed = true;
+      logger.logVerbose('Updated clipRectsNotifier');
     }
-    if (clipFlipsNotifier.value.toString() != currentFlips.toString()) {
+    if (!mapEquals(clipFlipsNotifier.value, currentFlips)) {
       clipFlipsNotifier.value = currentFlips;
-      logger.logVerbose('Updated clipFlipsNotifier', _logTag);
+      changed = true;
+      logger.logVerbose('Updated clipFlipsNotifier');
     }
 
-    // 5. Trigger a general state update for the view
-    notifyListeners();
+    // 3. Trigger composite update regardless of notifier changes,
+    //    as the underlying timeline data might have changed even if visible set is same.
+    _triggerCompositeUpdate();
+
+    // 4. Notify listeners if visual state for overlays changed
+    if (changed) {
+      notifyListeners(); // Let the View know overlay data changed
+    }
   }
 
   void _updateAspectRatio() {
@@ -485,6 +232,26 @@ class PreviewViewModel extends ChangeNotifier {
     activeVerticalSnapXNotifier.value = null;
   }
 
+  // Method to handle flip changes from the UI
+  void handleFlipChanged(int clipId, Flip newFlip) {
+    final currentFlips = Map<int, Flip>.from(clipFlipsNotifier.value);
+    if (currentFlips[clipId] != newFlip) {
+      logger.logDebug('Flip changed for clip $clipId to $newFlip', _logTag);
+      currentFlips[clipId] = newFlip;
+      clipFlipsNotifier.value = currentFlips;
+
+      // Trigger persistence and composite update immediately after flip change
+      // We can reuse handleTransformEnd logic, passing the current rect and the new flip
+      final currentRect = clipRectsNotifier.value[clipId];
+      if (currentRect != null) {
+         handleTransformEnd(clipId, currentRect, newFlip); // Pass explicit flip
+      } else {
+         logger.logWarning('Cannot persist flip change for clip $clipId, rect is missing.', _logTag);
+      }
+    }
+  }
+
+
   void handleTransformStart(int clipId) {
     if (!isTransformingNotifier.value) isTransformingNotifier.value = true;
     final currentRect = clipRectsNotifier.value[clipId];
@@ -507,27 +274,23 @@ class PreviewViewModel extends ChangeNotifier {
     }
   }
 
-  void handleTransformEnd(int clipId) {
-    isTransformingNotifier.value = false; // Assume only one transform at a time
-    activeHorizontalSnapYNotifier.value = null; // Clear snap lines
+  // Overload or modify handleTransformEnd to accept optional final states for flips
+  void handleTransformEnd(int clipId, [Rect? explicitRect, Flip? explicitFlip]) {
+    isTransformingNotifier.value = false;
+    activeHorizontalSnapYNotifier.value = null;
     activeVerticalSnapXNotifier.value = null;
 
-    final finalRect = clipRectsNotifier.value[clipId];
-    final finalFlip =
-        clipFlipsNotifier.value[clipId]; // TODO: Handle flip changes if needed
+    final finalRect = explicitRect ?? clipRectsNotifier.value[clipId];
+    final finalFlip = explicitFlip ?? clipFlipsNotifier.value[clipId];
 
     if (finalRect == null) {
-      logger.logError(
-        'Cannot persist transform end, final rect state not found for clip $clipId',
-        _logTag,
-      );
-      _preTransformRects.remove(clipId); // Clean up stored state
+      logger.logError('Cannot persist transform end, final rect state not found for clip $clipId', _logTag);
+      _preTransformRects.remove(clipId);
       _preTransformFlips.remove(clipId);
       return;
     }
-    final finalFlipNonNull = finalFlip ?? Flip.none; // Use default if null
+    final finalFlipNonNull = finalFlip ?? Flip.none;
 
-    // Retrieve the state before the transform began
     final oldRect = _preTransformRects.remove(clipId);
     final oldFlip = _preTransformFlips.remove(clipId);
 
@@ -552,98 +315,94 @@ class PreviewViewModel extends ChangeNotifier {
         newRect: finalRect,
         newFlip: finalFlipNonNull, // Use non-null version
         oldRect: oldRect, // Pass old state for undo
-        oldFlip: oldFlip, // Pass old state for undo
+        oldFlip: oldFlip,
       );
       // Use TimelineViewModel's runCommand to execute and register for undo
-      _timelineViewModel.runCommand(command).catchError((e) {
-        logger.logError(
-          'Error running UpdateClipTransformCommand: $e',
-          _logTag,
-        );
-        // Handle error appropriately, maybe show a message to the user
+      _timelineViewModel.runCommand(command).then((_) {
+         // Trigger composite update AFTER the command successfully updates the model
+         logger.logInfo('Transform persisted, triggering composite update.', _logTag);
+         _triggerCompositeUpdate();
+      }).catchError((e) {
+        logger.logError('Error running UpdateClipTransformCommand: $e', _logTag);
+        // Optionally revert UI state or show error
       });
     } else {
-      logger.logDebug(
-        'No change detected after transform for clip $clipId. Skipping persistence.',
-        _logTag,
-      );
+      logger.logDebug('No change detected after transform for clip $clipId. Skipping persistence.', _logTag);
+      // No need to trigger composite update if nothing changed
     }
   }
 
-  void _handlePlayStateChange() {
-    final isPlaying = _timelineNavigationViewModel.isPlayingNotifier.value;
-    final currentFrame =
-        _timelineNavigationViewModel.currentFrameNotifier.value;
-    final currentMs = ClipModel.framesToMs(currentFrame);
-    logger.logDebug(
-      'Play state change detected: ${isPlaying ? "Playing" : "Paused"}',
-      _logTag,
-    );
-
-    for (var entry in _videoControllers.entries) {
-      final clipId = entry.key;
-      final controller = entry.value;
-      final clip = _findClipByIdInternal(clipId);
-
-      if (clip == null || !controller.value.isInitialized) continue;
-
-      // Check if this clip is active at the current time
-      if (currentMs >= clip.startTimeOnTrackMs &&
-          currentMs < clip.endTimeOnTrackMs) {
-        if (isPlaying) {
-          if (!controller.value.isPlaying) {
-            logger.logVerbose(
-              'Handling Play: Starting controller for clip $clipId',
-              _logTag,
-            );
-            controller.play();
-            controller.setVolume(1.0); // Ensure volume on play
-          }
-        } else {
-          // Paused state
-          if (controller.value.isPlaying) {
-            logger.logVerbose(
-              'Handling Pause: Pausing controller for clip $clipId',
-              _logTag,
-            );
-            controller.pause();
-          }
-        }
-      } else {
-        // If the clip is not active at the current time, ensure it's paused
-        // This handles cases where playback stops exactly at a clip boundary
-        if (controller.value.isPlaying) {
-          logger.logVerbose(
-            'Handling Play State Change: Pausing inactive clip $clipId',
-            _logTag,
-          );
-          controller.pause();
-        }
-      }
-    }
-    // We might still need _updatePlaybackPosition to be called if the frame *also* changed,
-    // but this handler specifically addresses the direct play/pause toggle action.
-  }
+  // Removed _handlePlayStateChange as it's covered by frame updates
 
   // Method to reinitialize preview when a project is loaded
   void _handleProjectLoaded() {
-    final currentProject =
-        _projectMetadataService.currentProjectMetadataNotifier.value;
+    final currentProject = _projectMetadataService.currentProjectMetadataNotifier.value;
     if (currentProject != null) {
-      logger.logInfo(
-        'Project loaded: ${currentProject.name}. Reinitializing preview panel',
-        _logTag,
-      );
-      // Dispose any existing controllers
-      for (final controller in _videoControllers.values) {
-        controller.dispose();
-      }
-      _videoControllers.clear();
+      logger.logInfo('Project loaded: ${currentProject.name}. Reinitializing preview panel', _logTag);
+      // Reset state related to previous project if necessary (e.g., clear visible clips)
+      visibleClipsNotifier.value = [];
+      clipRectsNotifier.value = {};
+      clipFlipsNotifier.value = {};
+      selectedClipIdNotifier.value = null; // Deselect
 
-      _updatePlaybackPosition();
-      _updateVisibleClipsAndControllers();
+      // Trigger initial update for the new project
+      _handleTimelineOrTransformChange();
     }
   }
+
+
+  // --- Composite Update Trigger ---
+
+  // Debounce mechanism to avoid excessive FFmpeg calls
+  Timer? _debounceTimer;
+  static const Duration _debounceDuration = Duration(milliseconds: 100); // Adjust as needed
+
+  void _triggerCompositeUpdate() {
+     if (_debounceTimer?.isActive ?? false) _debounceTimer!.cancel();
+
+     _debounceTimer = Timer(_debounceDuration, () async {
+        logger.logInfo('Debounced: Triggering composite video creation...', _logTag);
+        final currentMs = ClipModel.framesToMs(_timelineNavigationViewModel.currentFrameNotifier.value);
+        final clips = _timelineViewModel.clipsNotifier.value; // Use the source of truth
+        final positions = clipRectsNotifier.value; // Use the latest UI state
+        final flips = clipFlipsNotifier.value; // Use the latest UI state
+        final size = containerSizeNotifier.value;
+
+        // Filter clips based on current time *before* passing to service
+        // This ensures the service only gets clips relevant to the requested time
+         final activeClips = clips.where((clip) {
+             if (clip.databaseId == null) return false;
+             final clipStart = clip.startTimeOnTrackMs;
+             final duration = clip.durationInSourceMs;
+             final clipEnd = clipStart + duration;
+             return currentMs >= clipStart && currentMs < clipEnd && (clip.type == ClipType.video || clip.type == ClipType.image);
+         }).toList();
+
+
+        if (activeClips.isEmpty && currentMs > 0) {
+            logger.logInfo('No active clips at ${currentMs}ms, skipping FFmpeg. Player state remains.', _logTag);
+            // Optionally clear the player texture if desired when no clips are active
+            // await _compositeVideoService.clearPlayer(); // Need to add this method
+            return;
+        }
+
+         logger.logVerbose('Calling createCompositeVideo with ${activeClips.length} active clips, time ${currentMs}ms, size $size', _logTag);
+
+        try {
+          await _compositeVideoService.createCompositeVideo(
+            clips: activeClips, // Pass only active clips
+            positions: positions, // Pass all known positions
+            flips: flips,         // Pass all known flips
+            currentTimeMs: currentMs,
+            containerSize: size,
+          );
+          logger.logInfo('Composite video creation request finished.', _logTag);
+        } catch (e, stack) {
+          logger.logError('Error calling createCompositeVideo: $e\n$stack', _logTag);
+        }
+     });
+  }
+
 
   // --- Internal Helper Methods ---
 
@@ -663,27 +422,19 @@ class PreviewViewModel extends ChangeNotifier {
   void dispose() {
     logger.logInfo('PreviewViewModel disposing...', _logTag);
     // --- Remove Listeners ---
-    _timelineNavigationViewModel.currentFrameNotifier.removeListener(
-      _updatePlaybackPosition,
-    );
-    _timelineViewModel.clipsNotifier.removeListener(
-      _updateVisibleClipsAndControllers,
-    );
-    _timelineNavigationViewModel.isPlayingNotifier.removeListener(
-      _handlePlayStateChange,
-    );
-    // _editorViewModel.aspectRatioNotifier.removeListener(_updateAspectRatio); // Removed
+    _timelineNavigationViewModel.currentFrameNotifier.removeListener(_updatePlaybackPosition);
+    _timelineViewModel.clipsNotifier.removeListener(_handleTimelineOrTransformChange);
+    // _timelineNavigationViewModel.isPlayingNotifier.removeListener(_handlePlayStateChange); // Removed listener
     _timelineViewModel.selectedClipIdNotifier.removeListener(_updateSelection);
     _projectMetadataService.currentProjectMetadataNotifier.removeListener(
       _handleProjectLoaded,
     );
-
-    // Dispose all video controllers
-    for (final controller in _videoControllers.values) {
-      controller.dispose();
-    }
-    _videoControllers.clear();
-
+  
+    // Cancel debounce timer if active
+    _debounceTimer?.cancel();
+  
+    // No video controllers to dispose
+  
     // Dispose notifiers
     visibleClipsNotifier.dispose();
     clipRectsNotifier.dispose();
@@ -694,7 +445,8 @@ class PreviewViewModel extends ChangeNotifier {
     activeHorizontalSnapYNotifier.dispose();
     activeVerticalSnapXNotifier.dispose();
     isTransformingNotifier.dispose();
-
+    // initializedControllerIdsNotifier.dispose(); // Removed
+  
     super.dispose();
     logger.logInfo('PreviewViewModel disposed.', _logTag);
   }

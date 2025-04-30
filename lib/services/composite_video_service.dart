@@ -153,49 +153,32 @@ class CompositeVideoService {
 
         // --- 7. Load Frame into MdkPlayerService ---
         logger.logInfo('FFmpeg success. Loading frame $newCompositePath into MDK player.', _logTag);
+
+        // Step 1: Load the media
         final playerLoadSuccess = await _mdkPlayerService.setAndPrepareMedia(_currentCompositeFilePath!);
 
         if (!playerLoadSuccess) {
-            logger.logError('Failed to load generated frame into MDK player.', _logTag);
-            await _deleteTempFile(_currentCompositeFilePath); // Clean up unused file
-             _currentCompositeFilePath = null;
-             // Clear player just in case it's in a bad state
-             // await _mdkPlayerService.clearMedia(); // Ensure this is commented out
-            success = false;
-            return success; // Early exit on failure
-        }
-
-        // --- 8. Final Player Setup (Surface Size, Texture Update) ---
-        // Get dimensions from the player after loading
-        final videoInfo = _mdkPlayerService.player?.mediaInfo.video?.firstOrNull?.codec;
-        final loadedWidth = videoInfo?.width;
-        final loadedHeight = videoInfo?.height;
-
-        if (loadedWidth == null || loadedHeight == null || loadedWidth <= 0 || loadedHeight <= 0) {
-            logger.logError('Could not get valid dimensions from loaded media: ${loadedWidth}x$loadedHeight', _logTag);
+            logger.logError('Failed to load generated frame into MDK player via setAndPrepareMedia.', _logTag);
             await _deleteTempFile(_currentCompositeFilePath);
             _currentCompositeFilePath = null;
-            // await _mdkPlayerService.clearMedia(); // Ensure this is commented out
             success = false;
-            return success;
+            return success; // Exit early
         }
 
-        logger.logInfo('Setting player surface size to ${loadedWidth}x$loadedHeight', _logTag);
-        _mdkPlayerService.setVideoSurfaceSize(loadedWidth, loadedHeight);
+        // Step 2: Prepare the loaded frame for display (handles size, seek, texture)
+        logger.logInfo('Media loaded, preparing frame for display...', _logTag);
+        final framePrepared = await _mdkPlayerService.prepareFrameForDisplay();
 
-        // Seek to the start (it's a single frame video) and update texture
-        await _mdkPlayerService.seek(0, pauseAfterSeek: true); // Ensure paused
-        final textureId = await _mdkPlayerService.updateTexture(width: loadedWidth, height: loadedHeight);
-
-        if (textureId > 0) {
-            logger.logInfo('Successfully created composite frame, loaded into player, and updated texture ($textureId).', _logTag);
+        if (framePrepared) {
+            final textureId = _mdkPlayerService.textureIdNotifier.value;
+            logger.logInfo('Successfully created composite frame, loaded and prepared for display with texture ID $textureId.', _logTag);
             success = true;
         } else {
-             logger.logError('Failed to update texture after loading composite frame.', _logTag);
-             await _deleteTempFile(_currentCompositeFilePath);
-             _currentCompositeFilePath = null;
-             // await _mdkPlayerService.clearMedia(); // Ensure this is commented out
-             success = false;
+            logger.logError('Failed to prepare composite frame for display after loading.', _logTag);
+            // MdkPlayerService.prepareFrameForDisplay already calls clearMedia on failure
+            await _deleteTempFile(_currentCompositeFilePath); // Still delete the ffmpeg output
+            _currentCompositeFilePath = null;
+            success = false;
         }
 
         return success;
