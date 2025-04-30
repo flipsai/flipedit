@@ -31,6 +31,8 @@ class PreviewViewModel extends ChangeNotifier {
   late final CompositeVideoService _compositeVideoService; // Add CompositeVideoService dependency
 
   // --- State Notifiers (Exposed to View) ---
+  final ValueNotifier<int> textureIdNotifier = ValueNotifier<int>(-1); // Expose texture ID from CompositeVideoService
+  final ValueNotifier<bool> isProcessingNotifier = ValueNotifier(false); // Expose processing state from CompositeVideoService
   final ValueNotifier<List<ClipModel>> visibleClipsNotifier = ValueNotifier([]); // Clips currently visible for interaction overlays
   final ValueNotifier<Map<int, Rect>> clipRectsNotifier = ValueNotifier({});
   final ValueNotifier<Map<int, Flip>> clipFlipsNotifier = ValueNotifier({});
@@ -66,6 +68,11 @@ class PreviewViewModel extends ChangeNotifier {
     _editorViewModel = di<EditorViewModel>();
     _projectDatabaseService = di<ProjectDatabaseService>();
     _projectMetadataService = di<ProjectMetadataService>();
+    _compositeVideoService = di<CompositeVideoService>(); // Get CompositeVideoService dependency
+
+    // Initialize notifiers from CompositeVideoService
+    textureIdNotifier.value = _compositeVideoService.textureIdNotifier.value;
+    isProcessingNotifier.value = _compositeVideoService.isProcessingNotifier.value;
 
     // --- Setup Listeners ---
     _timelineNavigationViewModel.currentFrameNotifier.addListener(
@@ -83,7 +90,10 @@ class PreviewViewModel extends ChangeNotifier {
     _projectMetadataService.currentProjectMetadataNotifier.addListener(
       _handleProjectLoaded,
     );
-
+    // Listen to notifiers from CompositeVideoService and update local notifiers
+    _compositeVideoService.textureIdNotifier.addListener(_updateTextureId);
+    _compositeVideoService.isProcessingNotifier.addListener(_updateIsProcessing);
+  
     // --- Initial Setup ---
     _updateAspectRatio();
     _handleTimelineOrTransformChange(); // Initial call to determine visible clips and trigger composite
@@ -429,6 +439,9 @@ class PreviewViewModel extends ChangeNotifier {
     _projectMetadataService.currentProjectMetadataNotifier.removeListener(
       _handleProjectLoaded,
     );
+    // Remove listeners for CompositeVideoService notifiers
+    _compositeVideoService.textureIdNotifier.removeListener(_updateTextureId);
+    _compositeVideoService.isProcessingNotifier.removeListener(_updateIsProcessing);
   
     // Cancel debounce timer if active
     _debounceTimer?.cancel();
@@ -436,6 +449,8 @@ class PreviewViewModel extends ChangeNotifier {
     // No video controllers to dispose
   
     // Dispose notifiers
+    textureIdNotifier.dispose(); // Dispose new notifier
+    isProcessingNotifier.dispose(); // Dispose new notifier
     visibleClipsNotifier.dispose();
     clipRectsNotifier.dispose();
     clipFlipsNotifier.dispose();
@@ -449,5 +464,17 @@ class PreviewViewModel extends ChangeNotifier {
   
     super.dispose();
     logger.logInfo('PreviewViewModel disposed.', _logTag);
+  }
+
+  // --- New Listener Callbacks for CompositeVideoService Notifiers ---
+
+  void _updateTextureId() {
+    textureIdNotifier.value = _compositeVideoService.textureIdNotifier.value;
+    logger.logVerbose('PreviewViewModel updated textureId: ${textureIdNotifier.value}', _logTag);
+  }
+
+  void _updateIsProcessing() {
+    isProcessingNotifier.value = _compositeVideoService.isProcessingNotifier.value;
+    logger.logVerbose('PreviewViewModel updated isProcessing: ${isProcessingNotifier.value}', _logTag);
   }
 }

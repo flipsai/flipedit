@@ -138,7 +138,6 @@ class MdkPlayerService {
   Future<void> clearMedia() async {
       if (_player == null) return;
 
-      logger.logInfo('Clearing media from player.', _logTag);
       try {
           final currentStatus = _player!.mediaStatus;
 
@@ -146,20 +145,20 @@ class MdkPlayerService {
           if (!currentStatus.test(mdk.MediaStatus.noMedia) && !currentStatus.test(mdk.MediaStatus.invalid)) {
               _player!.setMedia('', mdk.MediaType.unknown); // Set empty path
               // Consider a small delay for the player to process
-              await Future.delayed(const Duration(milliseconds: 20)); 
+              await Future.delayed(const Duration(milliseconds: 20));
           }
 
           // Ensure player is stopped
           if (_player!.state != mdk.PlaybackState.stopped) {
              _player!.state = mdk.PlaybackState.stopped; // Explicitly stop
-             await Future.delayed(const Duration(milliseconds: 20)); 
+             await Future.delayed(const Duration(milliseconds: 20));
           }
 
           textureIdNotifier.value = -1; // Reset texture ID
           isPlayerReadyNotifier.value = false; // Mark as not ready
           _mediaStatusMonitor.cancelWaits(); // Cancel status waits
-      } catch(e, stack) { 
-           logger.logError('Error during clearMedia operation: $e\n$stack', _logTag); 
+      } catch(e, stack) {
+           logger.logError('Error during clearMedia operation: $e\n$stack', _logTag);
            // Attempt reinitialization on error during clear
            _initPlayer();
       }

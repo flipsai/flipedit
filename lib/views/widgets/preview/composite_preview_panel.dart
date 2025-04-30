@@ -1,11 +1,7 @@
-import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/widgets.dart' as flutter;
-// import 'package:fvp/mdk.dart' as mdk; // MDK import likely not needed here anymore
 import 'package:flutter_box_transform/flutter_box_transform.dart';
 import 'package:flipedit/models/clip.dart';
-import 'package:flipedit/models/enums/clip_type.dart';
-import 'package:flipedit/services/composite_video_service.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/preview_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
@@ -23,7 +19,6 @@ class CompositePreviewPanel extends StatefulWidget {
 
 class _CompositePreviewPanelState extends State<CompositePreviewPanel> {
   late final PreviewViewModel _previewViewModel;
-  late final CompositeVideoService _compositeVideoService;
   late final TimelineNavigationViewModel _navigationViewModel; // Keep for frame info if needed
   late final EditorViewModel _editorViewModel; // Keep for aspect ratio lock
 
@@ -33,24 +28,20 @@ class _CompositePreviewPanelState extends State<CompositePreviewPanel> {
   void initState() {
     super.initState();
     _previewViewModel = di<PreviewViewModel>();
-    _compositeVideoService = di<CompositeVideoService>();
     _navigationViewModel = di<TimelineNavigationViewModel>();
     _editorViewModel = di<EditorViewModel>();
 
     logger.logInfo('CompositePreviewPanel initialized', _logTag);
-    // No listeners needed here anymore, build method reacts to ValueListenables
   }
 
   @override
   void dispose() {
     logger.logInfo('CompositePreviewPanel disposing', _logTag);
-    // No listeners to remove
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // Get static values needed for layout
     final aspectRatio = _previewViewModel.aspectRatioNotifier.value;
 
     logger.logVerbose('CompositePreviewPanel building...', _logTag);
@@ -84,9 +75,9 @@ class _CompositePreviewPanelState extends State<CompositePreviewPanel> {
                         child: Stack(
                           fit: StackFit.expand, // Ensure Stack fills the container
                           children: [
-                            // 1. MDK Player Texture (Listens to textureIdNotifier)
+                            // 1. MDK Player Texture (Listens to textureIdNotifier from ViewModel)
                             ValueListenableBuilder<int>(
-                              valueListenable: _compositeVideoService.textureIdNotifier,
+                              valueListenable: _previewViewModel.textureIdNotifier, // Listen to ViewModel
                               builder: (context, textureId, _) {
                                 logger.logVerbose('Texture ID builder: $textureId', _logTag);
                                 if (textureId > 0) {
@@ -152,9 +143,9 @@ class _CompositePreviewPanelState extends State<CompositePreviewPanel> {
                               },
                             ),
 
-                            // 3. Loading Indicator (Listens to isProcessingNotifier)
+                            // 3. Loading Indicator (Listens to isProcessingNotifier from ViewModel)
                             ValueListenableBuilder<bool>(
-                              valueListenable: _compositeVideoService.isProcessingNotifier,
+                              valueListenable: _previewViewModel.isProcessingNotifier, // Listen to ViewModel
                               builder: (context, isProcessing, _) {
                                 logger.logVerbose('Processing state builder: $isProcessing', _logTag);
                                 if (isProcessing) {
@@ -165,9 +156,9 @@ class _CompositePreviewPanelState extends State<CompositePreviewPanel> {
                               },
                             ),
 
-                            // 4. Empty State (Listens to texture and visible clips)
+                            // 4. Empty State (Listens to texture and visible clips from ViewModel)
                             ValueListenableBuilder<int>(
-                                valueListenable: _compositeVideoService.textureIdNotifier,
+                                valueListenable: _previewViewModel.textureIdNotifier, // Listen to ViewModel
                                 builder: (context, textureId, _) {
                                   return ValueListenableBuilder<List<ClipModel>>(
                                       valueListenable: _previewViewModel.visibleClipsNotifier,
@@ -191,7 +182,7 @@ class _CompositePreviewPanelState extends State<CompositePreviewPanel> {
 
                             // 5. Debug Texture ID Indicator (Optional)
                             ValueListenableBuilder<int>(
-                              valueListenable: _compositeVideoService.textureIdNotifier,
+                              valueListenable: _previewViewModel.textureIdNotifier, // Listen to ViewModel
                               builder: (context, textureId, _) {
                                 if (textureId <= 0) return const SizedBox.shrink();
                                 return Positioned(
@@ -208,19 +199,19 @@ class _CompositePreviewPanelState extends State<CompositePreviewPanel> {
                                 );
                               },
                             ),
-                          ], // End main Stack children
-                        ), // End GestureDetector
-                      ); // End return GestureDetector
-                    }, // End LayoutBuilder builder
-                  ), // End Container
-                ), // End AspectRatio
-              ), // End Center
-            ), // End Expanded
-          ), // End Column children[0]
-        ], // End Column children
-      ), // End Container
-    ); // End build return
-  } // End build method
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   // Helper method to build a single TransformableBox overlay
   Widget _buildTransformableBoxOverlay(
@@ -248,7 +239,6 @@ class _CompositePreviewPanelState extends State<CompositePreviewPanel> {
 
       // Callbacks connected directly to PreviewViewModel
       onChanged: (result, details) => _previewViewModel.handleRectChanged(clipId, result.rect),
-      // onFlip: (newFlip) => _previewViewModel.handleFlipChanged(clipId, newFlip), // Removed - handle flip via VM directly if needed elsewhere
       onDragStart: (_) => _previewViewModel.handleTransformStart(clipId),
       onResizeStart: (_, __) => _previewViewModel.handleTransformStart(clipId),
       onDragEnd: (_) => _previewViewModel.handleTransformEnd(clipId),
@@ -277,4 +267,4 @@ class _CompositePreviewPanelState extends State<CompositePreviewPanel> {
       },
     );
   }
-} // End _CompositePreviewPanelState class
+}
