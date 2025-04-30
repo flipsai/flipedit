@@ -4,13 +4,15 @@ import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
-import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart'; // Added import
+import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
 import 'package:flipedit/viewmodels/commands/move_clip_command.dart';
-import 'package:flipedit/viewmodels/commands/remove_clip_command.dart';
 import 'package:watch_it/watch_it.dart';
-import 'painters/video_frames_painter.dart';
 import 'package:flipedit/services/timeline_clip_resize_service.dart';
-import 'package:flipedit/utils/logger.dart' as logger;
+
+// Import extracted components
+import 'resize_clip_handle.dart';
+import 'clip_content_renderer.dart';
+import 'clip_context_menu.dart';
 
 /// A clip in the timeline track
 class TimelineClip extends StatefulWidget with WatchItStatefulWidgetMixin {
@@ -248,58 +250,9 @@ class _TimelineClipState extends State<TimelineClip> {
               editorVm.selectedClipId = widget.clip.databaseId?.toString();
             },
             // --- Drag Handling for MOVEMENT ---
-            onHorizontalDragStart: (details) {
-              if (_resizingDirection != null) return; // Ignore if resizing
-              _moveDragStartX = details.localPosition.dx;
-              _originalMoveStartFrame = widget.clip.startFrame;
-              _currentMoveFrame = _originalMoveStartFrame; // Reset visual frame
-              
-              timelineVm.selectedClipId = widget.clip.databaseId;
-              editorVm.selectedClipId = widget.clip.databaseId?.toString();
-              if (_isMoving) { setState(() { _isMoving = false; }); } // Reset state if needed
-            },
-            onHorizontalDragUpdate: (details) {
-              if (_resizingDirection != null) return; // Ignore if resizing
-              final currentDragX = details.localPosition.dx;
-              final dragDeltaInPixels = currentDragX - _moveDragStartX;
-              final dragDeltaInFrames = (dragDeltaInPixels / pixelsPerFrame).round();
-
-              if (!_isMoving && dragDeltaInFrames != 0) {
-                setState(() { _isMoving = true; });
-              }
-              if (_isMoving) {
-                if (pixelsPerFrame <= 0) return; // Safety check
-                final newStartFrame = _originalMoveStartFrame + dragDeltaInFrames;
-                final clampedStartFrame = newStartFrame.clamp(0, 1000000000); // Clamp move
-
-                if (_currentMoveFrame != clampedStartFrame) {
-                  setState(() { _currentMoveFrame = clampedStartFrame; });
-                }
-              }
-            },
-            onHorizontalDragEnd: (details) {
-              if (_resizingDirection != null) return; // Ignore if resizing
-              if (_isMoving && _originalMoveStartFrame != _currentMoveFrame) {
-                if (widget.clip.databaseId != null) {
-                  final newStartTimeMs = ClipModel.framesToMs(_currentMoveFrame);
-                  final cmd = MoveClipCommand(
-                    // vm: timelineVm, // Removed vm parameter
-                    clipId: widget.clip.databaseId!,
-                    newTrackId: widget.clip.trackId,
-                    newStartTimeOnTrackMs: newStartTimeMs,
-                    clipsNotifier: timelineVm.clipsNotifier, // Pass the notifier
-                  );
-                  timelineVm.runCommand(cmd);
-                  // Set flag to wait for VM update
-                  _awaitingMoveConfirmation = true;
-                }
-              }
-              // Always reset _isMoving flag immediately after drag ends to allow resize handles.
-              // SetState is called to reflect _isMoving=false and potentially _awaitingMoveConfirmation=true.
-              setState(() {
-                 _isMoving = false;
-              });
-            },
+            onHorizontalDragStart: _handleMoveStart,
+            onHorizontalDragUpdate: _handleMoveUpdate,
+            onHorizontalDragEnd: _handleMoveEnd,
             // --- Context Menu ---
             onSecondaryTapUp: (details) {
               editorVm.selectedClipId = widget.clip.databaseId?.toString();
@@ -307,7 +260,7 @@ class _TimelineClipState extends State<TimelineClip> {
                 barrierDismissible: true,
                 dismissWithEsc: true,
                 position: details.globalPosition,
-                builder: (context) => _buildContextMenu(context),
+                builder: (context) => ClipContextMenu(clip: widget.clip),
               );
             },
             // --- Clip Visual Container ---
@@ -346,14 +299,20 @@ class _TimelineClipState extends State<TimelineClip> {
                   // Main content visualization (clipped by SizedBox width)
                   ClipRRect(
                     borderRadius: BorderRadius.circular(borderRadiusValue - 2),
-                    child: _buildClipContent(clipColor, contrastColor, theme),
+                    child: ClipContentRenderer(
+                      clip: widget.clip,
+                      clipColor: clipColor,
+                      contrastColor: contrastColor,
+                      theme: theme,
+                    ),
                   ),
                   // Left resize handle
                   Positioned(
                     left: 0, top: 0, bottom: 0, width: 8,
-                    child: _ResizeClipEdgeHandle(
-                      direction: 'left', clip: widget.clip,
-                      pixelsPerFrame: pixelsPerFrame, // Pass calculated value
+                    child: ResizeClipHandle(
+                      direction: 'left',
+                      clip: widget.clip,
+                      pixelsPerFrame: pixelsPerFrame,
                       onDragStart: () => _handleResizeStart('left'),
                       onDragUpdate: (delta) => _handleResizeUpdate(delta),
                       onDragEnd: (finalDelta) => _handleResizeEnd('left', finalDelta),
@@ -362,9 +321,10 @@ class _TimelineClipState extends State<TimelineClip> {
                   // Right resize handle
                   Positioned(
                     right: 0, top: 0, bottom: 0, width: 8,
-                    child: _ResizeClipEdgeHandle(
-                      direction: 'right', clip: widget.clip,
-                      pixelsPerFrame: pixelsPerFrame, // Pass calculated value
+                    child: ResizeClipHandle(
+                      direction: 'right',
+                      clip: widget.clip,
+                      pixelsPerFrame: pixelsPerFrame,
                       onDragStart: () => _handleResizeStart('right'),
                       onDragUpdate: (delta) => _handleResizeUpdate(delta),
                       onDragEnd: (finalDelta) => _handleResizeEnd('right', finalDelta),
@@ -395,91 +355,75 @@ class _TimelineClipState extends State<TimelineClip> {
     );
   }
 
-  // --- Helper Methods (Inside State) ---
-
-  String _getTimePosition() {
-    final startMs = widget.clip.startTimeOnTrackMs;
-    final startSec = startMs / 1000.0;
-    return '${startSec.toStringAsFixed(1)}s';
-  }
-
-  Widget _buildClipContent(Color clipColor, Color contrastColor, FluentThemeData theme) {
-    final contentColor = contrastColor.withAlpha(200);
-    final contentBackgroundColor = clipColor.withAlpha(170);
-    final fileName = widget.clip.sourcePath.split('/').last;
-    final fileNameNoExt = fileName.contains('.') ? fileName.substring(0, fileName.lastIndexOf('.')) : fileName;
-    const double fixedClipHeight = 65.0;
-
-    // Simplified rendering logic for brevity - keep only one case for example
-    switch (widget.clip.type) {
-      case ClipType.video:
-      default: // Fallback for other types
-        return SizedBox(
-          height: fixedClipHeight,
-          child: Stack(
-            children: [
-              Container(
-                height: fixedClipHeight,
-                decoration: BoxDecoration(
-                  color: contentBackgroundColor,
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft, end: Alignment.bottomRight,
-                    colors: [clipColor.withAlpha(170), clipColor.withAlpha(140)],
-                  ),
-                ),
-              ),
-              CustomPaint(painter: VideoFramesPainter(color: contentColor.withAlpha(30)), child: const SizedBox.expand()),
-              Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(FluentIcons.video, size: 16, color: contentColor),
-                    if (widget.clip.durationFrames > 20)
-                      Padding(padding: const EdgeInsets.only(top: 2), child: Text(fileNameNoExt, style: theme.typography.caption?.copyWith(color: contentColor, fontSize: 8), overflow: TextOverflow.ellipsis, maxLines: 1)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-       // Add cases for other clip types here...
+  // Move handlers
+  void _handleMoveStart(DragStartDetails details) {
+    if (_resizingDirection != null) return;
+    _moveDragStartX = details.localPosition.dx;
+    _originalMoveStartFrame = widget.clip.startFrame;
+    _currentMoveFrame = _originalMoveStartFrame;
+    
+    di<TimelineViewModel>().selectedClipId = widget.clip.databaseId;
+    di<EditorViewModel>().selectedClipId = widget.clip.databaseId?.toString();
+    if (_isMoving) {
+      setState(() { _isMoving = false; });
     }
   }
 
-  Widget _buildContextMenu(BuildContext context) {
-    final timelineVm = di<TimelineViewModel>();
-    return MenuFlyout(
-      items: [
-        MenuFlyoutItem(
-          leading: const Icon(FluentIcons.delete),
-          text: const Text('Remove Clip'),
-          onPressed: () {
-            Flyout.of(context).close();
-            if (widget.clip.databaseId != null) {
-              timelineVm.runCommand(RemoveClipCommand(vm: timelineVm, clipId: widget.clip.databaseId!));
-            } else {
-              logger.logError('[TimelineClip] Attempted to remove clip without databaseId', 'UI');
-            }
-          },
-        ),
-        // Add other menu items if needed
-      ],
-    );
+  void _handleMoveUpdate(DragUpdateDetails details) {
+    if (_resizingDirection != null) return;
+    final zoom = di<TimelineNavigationViewModel>().zoomNotifier.value;
+    final pixelsPerFrame = (zoom > 0 ? 5.0 * zoom : 5.0);
+    
+    final currentDragX = details.localPosition.dx;
+    final dragDeltaInPixels = currentDragX - _moveDragStartX;
+    final dragDeltaInFrames = (dragDeltaInPixels / pixelsPerFrame).round();
+
+    if (!_isMoving && dragDeltaInFrames != 0) {
+      setState(() { _isMoving = true; });
+    }
+    if (_isMoving) {
+      if (pixelsPerFrame <= 0) return;
+      final newStartFrame = _originalMoveStartFrame + dragDeltaInFrames;
+      final clampedStartFrame = newStartFrame.clamp(0, 1000000000);
+
+      if (_currentMoveFrame != clampedStartFrame) {
+        setState(() { _currentMoveFrame = clampedStartFrame; });
+      }
+    }
   }
 
-  // --- Resize Handle Callbacks (Inside State) ---
+  void _handleMoveEnd(DragEndDetails details) {
+    if (_resizingDirection != null) return;
+    if (_isMoving && _originalMoveStartFrame != _currentMoveFrame) {
+      if (widget.clip.databaseId != null) {
+        final newStartTimeMs = ClipModel.framesToMs(_currentMoveFrame);
+        final cmd = MoveClipCommand(
+          clipId: widget.clip.databaseId!,
+          newTrackId: widget.clip.trackId,
+          newStartTimeOnTrackMs: newStartTimeMs,
+          clipsNotifier: di<TimelineViewModel>().clipsNotifier,
+        );
+        di<TimelineViewModel>().runCommand(cmd);
+        _awaitingMoveConfirmation = true;
+      }
+    }
+    setState(() {
+      _isMoving = false;
+    });
+  }
+
+  // Resize handlers
   void _handleResizeStart(String direction) {
-    // Allow resize start only if NOT moving AND NOT awaiting move confirmation
     if (_isMoving || _awaitingMoveConfirmation) return;
     final result = _resizeService.handleResizeStart(
-      isMoving: _isMoving, // Will be false here
+      isMoving: _isMoving,
       direction: direction,
       startFrame: widget.clip.startFrame,
       endFrame: widget.clip.endFrame,
     );
     if (result.containsKey('resizingDirection')) {
       setState(() {
-        _isResizing = true; // Start resizing gesture
+        _isResizing = true;
         _resizingDirection = result['resizingDirection'];
         _resizeAccumulatedDrag = result['resizeAccumulatedDrag'];
         _previewStartFrame = result['previewStartFrame'];
@@ -497,11 +441,10 @@ class _TimelineClipState extends State<TimelineClip> {
     setState(() {
       _resizeAccumulatedDrag = newDrag;
     });
-    // Call the parent callback with the calculated preview frames
+    
     if (widget.onResizeUpdate != null && _previewStartFrame != null && _previewEndFrame != null) {
-      // Recalculate preview boundaries based on the new accumulated drag
-      // This duplicates some logic from build, consider refactoring later
-      final double pixelsPerFrame = (di<TimelineNavigationViewModel>().zoomNotifier.value > 0 ? 5.0 * di<TimelineNavigationViewModel>().zoomNotifier.value : 5.0);
+      final zoom = di<TimelineNavigationViewModel>().zoomNotifier.value;
+      final pixelsPerFrame = (zoom > 0 ? 5.0 * zoom : 5.0);
       int rawFrameDelta = (pixelsPerFrame > 0 ? (_resizeAccumulatedDrag / pixelsPerFrame) : 0).round();
       int trackDeltaMs = ClipModel.framesToMs(rawFrameDelta);
       int minTrackFrameDuration = 1;
@@ -509,7 +452,6 @@ class _TimelineClipState extends State<TimelineClip> {
       final originalSourceStartMs = widget.clip.startTimeInSourceMs;
       final originalSourceEndMs = widget.clip.endTimeInSourceMs;
       final sourceDurationMs = widget.clip.sourceDurationMs;
-      int allowedTrackFrameDelta;
       int previewStart = _previewStartFrame!;
       int previewEnd = _previewEndFrame!;
 
@@ -517,13 +459,13 @@ class _TimelineClipState extends State<TimelineClip> {
         int targetSourceStartMs = originalSourceStartMs + trackDeltaMs;
         int clampedSourceStartMs = targetSourceStartMs.clamp(0, originalSourceEndMs - minSourceMsDuration);
         int allowedSourceDeltaMs = clampedSourceStartMs - originalSourceStartMs;
-        allowedTrackFrameDelta = ClipModel.msToFrames(allowedSourceDeltaMs);
+        int allowedTrackFrameDelta = ClipModel.msToFrames(allowedSourceDeltaMs);
         previewStart = (_previewStartFrame! + allowedTrackFrameDelta).clamp(0, _previewEndFrame! - minTrackFrameDuration);
-      } else { // 'right'
+      } else {
         int targetSourceEndMs = originalSourceEndMs + trackDeltaMs;
         int clampedSourceEndMs = targetSourceEndMs.clamp(originalSourceStartMs + minSourceMsDuration, sourceDurationMs);
         int allowedSourceDeltaMs = clampedSourceEndMs - originalSourceEndMs;
-        allowedTrackFrameDelta = ClipModel.msToFrames(allowedSourceDeltaMs);
+        int allowedTrackFrameDelta = ClipModel.msToFrames(allowedSourceDeltaMs);
         previewEnd = (_previewEndFrame! + allowedTrackFrameDelta).clamp(_previewStartFrame! + minTrackFrameDuration, di<TimelineNavigationViewModel>().totalFramesNotifier.value);
       }
       widget.onResizeUpdate!(previewStart, previewEnd);
@@ -531,7 +473,6 @@ class _TimelineClipState extends State<TimelineClip> {
   }
 
   void _handleResizeEnd(String direction, double finalPixelDelta) async {
-    // Notify parent that resize interaction ended *before* resetting state
     widget.onResizeEnd?.call();
 
     await _resizeService.handleResizeEnd(
@@ -540,94 +481,18 @@ class _TimelineClipState extends State<TimelineClip> {
       previewEndFrame: _previewEndFrame,
       direction: direction,
       finalPixelDelta: finalPixelDelta,
-      timelineVm: di<TimelineViewModel>(), // Still need TimelineVM for runCommand
+      timelineVm: di<TimelineViewModel>(),
       clip: widget.clip,
-      zoom: di<TimelineNavigationViewModel>().zoomNotifier.value, // Get zoom from Navigation VM
+      zoom: di<TimelineNavigationViewModel>().zoomNotifier.value,
       runCommand: (cmd) => di<TimelineViewModel>().runCommand(cmd),
     );
-    // Reset local state after command is dispatched.
-    // _isResizing flag prevents snap-back during the rebuild triggered by this setState.
+    
     setState(() {
-      _isResizing = false; // End resizing gesture
+      _isResizing = false;
       _resizingDirection = null;
       _resizeAccumulatedDrag = 0.0;
       _previewStartFrame = null;
       _previewEndFrame = null;
     });
-  }
-// END OF _TimelineClipState
-}
-
-
-// --- Separate Widget for the Resize Handle (File Scope) ---
-
-class _ResizeClipEdgeHandle extends StatefulWidget {
-  final String direction;
-  final ClipModel clip;
-  final double pixelsPerFrame; // Receive pre-calculated value based on zoom
-  final VoidCallback onDragStart;
-  final ValueChanged<double> onDragUpdate; // Pass accumulated *pixel* delta
-  final ValueChanged<double> onDragEnd;    // Pass final accumulated *pixel* delta
-
-  const _ResizeClipEdgeHandle({
-    required this.direction,
-    required this.clip,
-    required this.pixelsPerFrame, // Make required
-    required this.onDragStart,
-    required this.onDragUpdate,
-    required this.onDragEnd, // Add Key
-  }) : assert(direction == 'left' || direction == 'right');
-
-  @override
-  State<_ResizeClipEdgeHandle> createState() => _ResizeClipEdgeHandleState();
-}
-
-class _ResizeClipEdgeHandleState extends State<_ResizeClipEdgeHandle> {
-  double _accumulatedPixelDelta = 0.0; // Only need to track pixel delta
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = FluentTheme.of(context);
-    final bool isLeft = widget.direction == 'left';
-    final Color handleColor = theme.accentColor.light.withOpacity(0.5); // Use consistent color
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.resizeLeftRight,
-      child: GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onHorizontalDragStart: (details) {
-          _accumulatedPixelDelta = 0; // Reset delta on new drag
-          widget.onDragStart(); // Notify parent: drag started
-        },
-        onHorizontalDragUpdate: (details) {
-          // Accumulate raw pixel delta
-           _accumulatedPixelDelta += details.primaryDelta ?? 0;
-           widget.onDragUpdate(_accumulatedPixelDelta); // Notify parent with current delta
-           // No setState needed here unless the handle itself changes appearance during drag
-        },
-        onHorizontalDragEnd: (details) {
-          // Final notification to parent with the total accumulated delta
-          widget.onDragEnd(_accumulatedPixelDelta);
-          // Reset internal state for next drag
-          _accumulatedPixelDelta = 0;
-        },
-        child: Container(
-          width: 8,
-          decoration: BoxDecoration(
-            color: handleColor,
-            borderRadius: BorderRadius.only(
-              topLeft: isLeft ? const Radius.circular(3) : Radius.zero,
-              bottomLeft: isLeft ? const Radius.circular(3) : Radius.zero,
-              topRight: !isLeft ? const Radius.circular(3) : Radius.zero,
-              bottomRight: !isLeft ? const Radius.circular(3) : Radius.zero,
-            ),
-             border: Border( // Subtle border for visual separation
-              left: isLeft ? BorderSide.none : BorderSide(color: Colors.black.withOpacity(0.2), width: 0.5),
-              right: !isLeft ? BorderSide.none : BorderSide(color: Colors.black.withOpacity(0.2), width: 0.5),
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }
