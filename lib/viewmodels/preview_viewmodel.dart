@@ -134,20 +134,22 @@ class PreviewViewModel extends ChangeNotifier {
         // Seek the video controller to the calculated source position
         // Add a small tolerance to avoid potential floating point issues if needed
         final seekPosition = Duration(
-          milliseconds: sourcePositionMs.clamp(0, clip.sourceDurationMs),
-        );
+           milliseconds: sourcePositionMs.clamp(0, clip.sourceDurationMs),
+         );
 
-        // Only seek if the position is significantly different or if paused
-        if ((controller.value.position - seekPosition).abs() >
-                const Duration(milliseconds: 50) ||
-            !controller.value.isPlaying) {
-          logger.logVerbose(
-            'Seeking clip $clipId to ${seekPosition.inMilliseconds}ms (source)',
-            _logTag,
-          );
-          controller.seekTo(seekPosition);
-        }
-      } else {
+         // --- Seeking Logic ---
+         // Only perform seek operations when NOT playing (i.e., during scrubbing)
+         // During playback, rely on the controller's internal progression.
+         final isPlaying = _timelineNavigationViewModel.isPlayingNotifier.value;
+         if (!isPlaying) {
+           logger.logVerbose(
+             'Scrubbing: Seeking clip $clipId to ${seekPosition.inMilliseconds}ms (source). Muting first.',
+             _logTag,
+           );
+           controller.setVolume(0.0); // Mute before scrubbing seek
+           controller.seekTo(seekPosition); // Seek only when scrubbing
+         }
+        } else {
         // If the controller is playing but shouldn't be, pause it
         if (controller.value.isPlaying) {
           logger.logVerbose(

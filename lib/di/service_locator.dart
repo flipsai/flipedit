@@ -6,7 +6,7 @@ import 'package:flipedit/services/uv_manager.dart';
 import 'package:flipedit/services/layout_service.dart';
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/services/project_metadata_service.dart';
-import 'package:flipedit/services/composite_video_service.dart';
+import 'package:flipedit/services/ffmpeg_composite_service.dart';
 import 'package:flipedit/viewmodels/app_viewmodel.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
@@ -38,7 +38,12 @@ Future<void> setupServiceLocator() async {
   di.registerLazySingleton<UvManager>(() => UvManager());
   di.registerLazySingleton<ComfyUIService>(() => ComfyUIService());
   di.registerLazySingleton<LayoutService>(() => LayoutService());
-  di.registerLazySingleton<CompositeVideoService>(() => CompositeVideoService());
+  
+  // Register the new FFmpeg-based composite service
+  di.registerLazySingleton<FfmpegCompositeService>(
+    () => FfmpegCompositeService(),
+    dispose: (service) => service.dispose(),
+  );
 
   // Undo/Redo service for project clips
   di.registerLazySingleton<UndoRedoService>(

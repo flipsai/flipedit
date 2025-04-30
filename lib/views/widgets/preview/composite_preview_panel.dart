@@ -1,18 +1,19 @@
 import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/widgets.dart' as flutter;
-import 'package:fvp/mdk.dart' as mdk;
 import 'package:flutter_box_transform/flutter_box_transform.dart';
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
-import 'package:flipedit/services/composite_video_service.dart';
+import 'package:flipedit/services/ffmpeg_composite_service.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/preview_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
+import 'package:video_player/video_player.dart';
 import 'package:watch_it/watch_it.dart';
 
 /// CompositePreviewPanel displays the current timeline frame using a single composited video
+/// using ffmpeg_cli for processing and video_player for display
 class CompositePreviewPanel extends StatefulWidget {
   const CompositePreviewPanel({super.key});
 
@@ -22,7 +23,7 @@ class CompositePreviewPanel extends StatefulWidget {
 
 class _CompositePreviewPanelState extends State<CompositePreviewPanel> {
   late final PreviewViewModel _previewViewModel;
-  late final CompositeVideoService _compositeVideoService;
+  late final FfmpegCompositeService _ffmpegCompositeService;
   late final TimelineNavigationViewModel _navigationViewModel;
   late final EditorViewModel _editorViewModel;
   
@@ -34,12 +35,17 @@ class _CompositePreviewPanelState extends State<CompositePreviewPanel> {
   bool _isCurrentlyTransforming = false;
   final Map<int, Rect> _lastRects = {};
   final Map<int, Flip> _lastFlips = {};
+  
+  // Debounce for timeline scrubbing
+  Timer? _scrubDebounceTimer;
+  Timer? _playbackTimer;
+  int _lastUpdatedFrame = -1;
 
   @override
   void initState() {
     super.initState();
     _previewViewModel = di<PreviewViewModel>();
-    _compositeVideoService = di<CompositeVideoService>();
+    _ffmpegCompositeService = di<FfmpegCompositeService>();
     _navigationViewModel = di<TimelineNavigationViewModel>();
     _editorViewModel = di<EditorViewModel>();
     
@@ -49,13 +55,14 @@ class _CompositePreviewPanelState extends State<CompositePreviewPanel> {
     _previewViewModel.visibleClipsNotifier.addListener(_onVisibleClipsChanged);
     _previewViewModel.clipRectsNotifier.addListener(_onRectChanged);
     _previewViewModel.clipFlipsNotifier.addListener(_onFlipChanged);
-    _navigationViewModel.currentFrameNotifier.addListener(_updatePlaybackPosition);
-    _compositeVideoService.isProcessingNotifier.addListener(_updateProcessingState);
+    _navigationViewModel.currentFrameNotifier.addListener(_onTimelinePositionChanged);
+    _navigationViewModel.isPlayingNotifier.addListener(_syncPlaybackState);
+    _ffmpegCompositeService.isProcessingNotifier.addListener(_updateProcessingState);
     
     // Force a first update
     WidgetsBinding.instance.addPostFrameCallback((_) {
       logger.logInfo('CompositePreviewPanel post-frame callback - forcing update', _logTag);
-      _updateCompositeVideo();
+      _updateCompositeVideo(immediate: true);
     });
   }
 
@@ -65,11 +72,14 @@ class _CompositePreviewPanelState extends State<CompositePreviewPanel> {
     _previewViewModel.visibleClipsNotifier.removeListener(_onVisibleClipsChanged);
     _previewViewModel.clipRectsNotifier.removeListener(_onRectChanged);
     _previewViewModel.clipFlipsNotifier.removeListener(_onFlipChanged);
-    _navigationViewModel.currentFrameNotifier.removeListener(_updatePlaybackPosition);
-    _compositeVideoService.isProcessingNotifier.removeListener(_updateProcessingState);
+    _navigationViewModel.currentFrameNotifier.removeListener(_onTimelinePositionChanged);
+    _navigationViewModel.isPlayingNotifier.removeListener(_syncPlaybackState);
+    _ffmpegCompositeService.isProcessingNotifier.removeListener(_updateProcessingState);
     
-    // Cancel any pending debounce timer
+    // Cancel any pending debounce timers
     _transformDebounceTimer?.cancel();
+    _scrubDebounceTimer?.cancel();
+    _playbackTimer?.cancel();
     
     super.dispose();
   }
@@ -77,15 +87,53 @@ class _CompositePreviewPanelState extends State<CompositePreviewPanel> {
   void _updateProcessingState() {
     if (mounted) {
       setState(() {
-        _isGenerating = _compositeVideoService.isProcessingNotifier.value;
+        _isGenerating = _ffmpegCompositeService.isProcessingNotifier.value;
       });
     }
   }
   
-  void _updatePlaybackPosition() {
-    // No need to seek - composite video is generated at the exact right frame
+  void _syncPlaybackState() {
+    final isPlaying = _navigationViewModel.isPlayingNotifier.value;
+    
+    if (isPlaying) {
+      // If timeline is playing, ensure our video segment is playing
+      if (_ffmpegCompositeService.videoPlayerController != null) {
+        _ffmpegCompositeService.videoPlayerController!.play();
+      }
+    } else {
+      // If timeline is paused, pause our video segment
+      if (_ffmpegCompositeService.videoPlayerController != null) {
+        _ffmpegCompositeService.videoPlayerController!.pause();
+      }
+    }
+  }
+  
+  void _onTimelinePositionChanged() {
+    final currentFrame = _navigationViewModel.currentFrameNotifier.value;
+    
+    // Skip if we're just scrubbing very rapidly and the frame is close to the last one
+    // This prevents excessive video generation during fast scrubbing
+    if (_lastUpdatedFrame != -1 && (currentFrame - _lastUpdatedFrame).abs() < 5) {
+      return;
+    }
+    
+    // Debounce timeline scrubbing to avoid excessive FFmpeg calls
+    if (_scrubDebounceTimer?.isActive ?? false) {
+      _scrubDebounceTimer!.cancel();
+    }
+    
+    // Longer debounce when scrubbing far away
+    final debounceMs = (_lastUpdatedFrame != -1 && (currentFrame - _lastUpdatedFrame).abs() > 30)
+        ? 300 // Longer debounce for big jumps
+        : 100; // Short debounce for small moves
+    
+    // Only update if not currently transforming
     if (!_isCurrentlyTransforming) {
-      _updateCompositeVideo();
+      _scrubDebounceTimer = Timer(Duration(milliseconds: debounceMs), () {
+        logger.logInfo('Timeline position changed to frame $currentFrame', _logTag);
+        _updateCompositeVideo();
+        _lastUpdatedFrame = currentFrame;
+      });
     }
   }
   
@@ -159,7 +207,7 @@ class _CompositePreviewPanelState extends State<CompositePreviewPanel> {
     _lastFlips.remove(clipId);
   }
   
-  Future<void> _updateCompositeVideo() async {
+  Future<void> _updateCompositeVideo({bool immediate = false}) async {
     if (_isGenerating || _isCurrentlyTransforming) return;
     
     final clips = _previewViewModel.visibleClipsNotifier.value;
@@ -207,18 +255,21 @@ class _CompositePreviewPanelState extends State<CompositePreviewPanel> {
         }
       }
       
-      // Log the maps for debugging
-      logger.logInfo('Positions map keys: ${positionsWithDefaults.keys.join(', ')}', _logTag);
-      logger.logInfo('Flips map keys: ${flipsWithDefaults.keys.join(', ')}', _logTag);
-      
-      // Generate the composite video
-      await _compositeVideoService.createCompositeVideo(
+      // Generate the composite video using ffmpeg_cli
+      final result = await _ffmpegCompositeService.createCompositeVideo(
         clips: videoClips,
         positions: positionsWithDefaults,
         flips: flipsWithDefaults,
         currentTimeMs: currentTimeMs,
         containerSize: containerSize,
       );
+      
+      // If successful and the timeline is playing, ensure our video is playing too
+      if (result && _navigationViewModel.isPlayingNotifier.value) {
+        if (_ffmpegCompositeService.videoPlayerController != null) {
+          _ffmpegCompositeService.videoPlayerController!.play();
+        }
+      }
     }
   }
   
@@ -232,8 +283,6 @@ class _CompositePreviewPanelState extends State<CompositePreviewPanel> {
     final selectedClipId = _previewViewModel.selectedClipIdNotifier.value;
     final aspectRatio = _previewViewModel.aspectRatioNotifier.value;
     final aspectRatioLocked = _editorViewModel.aspectRatioLockedNotifier.value;
-    
-    logger.logInfo('CompositePreviewPanel building with $clipCount clips: $clipIds', _logTag);
     
     return Container(
       color: Colors.grey[160],
@@ -260,30 +309,42 @@ class _CompositePreviewPanelState extends State<CompositePreviewPanel> {
                         },
                         child: Stack(
                           children: [
-                            // Background and base video player
+                            // Background
                             Container(color: Colors.black),
                             
-                            // MDK Player view
-                            if (_compositeVideoService.player != null && !_isCurrentlyTransforming)
-                              Positioned.fill(
-                                child: ValueListenableBuilder<int>(
-                                  valueListenable: _compositeVideoService.textureIdNotifier,
-                                  builder: (context, textureId, _) {
-                                    logger.logInfo('Rendering texture with ID: $textureId', _logTag);
-                                    
-                                    if (textureId <= 0) {
-                                      return Center(
-                                        child: Text(
-                                          'Texture not available (ID: $textureId)',
-                                          style: FluentTheme.of(context).typography.bodyLarge?.copyWith(color: Colors.white),
-                                        ),
+                            // Video player view
+                            ValueListenableBuilder<bool>(
+                              valueListenable: _ffmpegCompositeService.isPlayerReadyNotifier,
+                              builder: (context, isReady, _) {
+                                final playerController = _ffmpegCompositeService.videoPlayerController;
+                                
+                                if (!isReady || playerController == null) {
+                                  return const Center(
+                                    child: ProgressRing(),
+                                  );
+                                }
+                                
+                                return Positioned.fill(
+                                  child: ValueListenableBuilder<VideoPlayerValue>(
+                                    valueListenable: playerController,
+                                    builder: (context, value, child) {
+                                      if (value.hasError) {
+                                        return Center(
+                                          child: Text(
+                                            'Error playing video',
+                                            style: FluentTheme.of(context).typography.bodyLarge?.copyWith(color: Colors.white),
+                                          ),
+                                        );
+                                      }
+                                      
+                                      return RepaintBoundary(
+                                        child: VideoPlayer(playerController),
                                       );
-                                    }
-                                    
-                                    return flutter.Texture(textureId: textureId);
-                                  },
-                                ),
-                              ),
+                                    },
+                                  ),
+                                );
+                              },
+                            ),
                             
                             // Transformable boxes for clips
                             ...visibleClips.map((clip) {
@@ -378,26 +439,60 @@ class _CompositePreviewPanelState extends State<CompositePreviewPanel> {
                                   textAlign: TextAlign.center,
                                 ),
                               ),
-                              
-                            // Debug indicator for texture ID  
-                            ValueListenableBuilder<int>(
-                              valueListenable: _compositeVideoService.textureIdNotifier,
-                              builder: (context, textureId, _) {
-                                if (textureId <= 0) return const SizedBox();
-                                
-                                return Positioned(
-                                  bottom: 8,
-                                  right: 8,
-                                  child: Container(
+                            
+                            // Playback Control overlay (centered button)
+                            if (_ffmpegCompositeService.videoPlayerController != null &&
+                                !_isGenerating && 
+                                !_isCurrentlyTransforming)
+                              ValueListenableBuilder<bool>(
+                                valueListenable: _navigationViewModel.isPlayingNotifier,
+                                builder: (context, isPlaying, _) {
+                                  return Center(
+                                    child: IconButton(
+                                      icon: Icon(
+                                        isPlaying ? FluentIcons.pause : FluentIcons.play,
+                                        size: 40,
+                                        color: Colors.white.withOpacity(0.8),
+                                      ),
+                                      onPressed: _navigationViewModel.togglePlayPause,
+                                      style: ButtonStyle(
+                                        backgroundColor: ButtonState.all(Colors.black.withOpacity(0.3)),
+                                        shape: ButtonState.all(const CircleBorder()),
+                                        iconSize: ButtonState.all(40),
+                                        padding: ButtonState.all(const EdgeInsets.all(12)),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            
+                            // Debug indicators
+                            Positioned(
+                              bottom: 8,
+                              right: 8,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
                                     padding: const EdgeInsets.all(4),
                                     color: Colors.black.withOpacity(0.5),
                                     child: Text(
-                                      'Texture ID: $textureId',
+                                      'Frame: ${_navigationViewModel.currentFrameNotifier.value}',
                                       style: const TextStyle(color: Colors.white, fontSize: 10),
                                     ),
                                   ),
-                                );
-                              },
+                                  if (_ffmpegCompositeService.currentCompositeFilePath != null)
+                                    Container(
+                                      padding: const EdgeInsets.all(4),
+                                      color: Colors.black.withOpacity(0.5),
+                                      child: Text(
+                                        'Segment: ${_ffmpegCompositeService.currentCompositeFilePath!.split('/').last}',
+                                        style: const TextStyle(color: Colors.white, fontSize: 10),
+                                      ),
+                                    ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
@@ -412,4 +507,4 @@ class _CompositePreviewPanelState extends State<CompositePreviewPanel> {
       ),
     );
   }
-} 
+}
