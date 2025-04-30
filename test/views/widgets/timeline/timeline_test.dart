@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
+import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart'; // Added import
 import 'package:flipedit/views/widgets/timeline/timeline.dart';
 import 'package:mockito/mockito.dart';
 import 'package:fluent_ui/fluent_ui.dart';
@@ -12,55 +13,66 @@ import 'package:flipedit/persistence/database/project_database.dart' as project_
 
 // Mocks
 class MockTimelineViewModel extends Mock implements TimelineViewModel {}
+class MockTimelineNavigationViewModel extends Mock implements TimelineNavigationViewModel {} // Added mock
 class MockProjectDatabaseService extends Mock implements ProjectDatabaseService {}
 class MockUndoRedoService extends Mock implements UndoRedoService {} // Keep mock class definition
 class MockValueNotifier<T> extends Mock implements ValueNotifier<T> {} // Add mock notifier helper
 
 void main() {
   late MockTimelineViewModel mockTimelineViewModel;
+  late MockTimelineNavigationViewModel mockTimelineNavigationViewModel; // Added mock instance
   late MockProjectDatabaseService mockProjectDatabaseService;
-  // Notifiers and Controllers needed by Timeline widget
-  late ValueNotifier<List<ClipModel>> testClipsNotifier;
-  late ValueNotifier<int> testCurrentFrameNotifier;
-  late ValueNotifier<double> testZoomNotifier;
-  late ValueNotifier<int> testTotalFramesNotifier;
-  late ValueNotifier<double> testTrackLabelWidthNotifier;
-  late ScrollController testScrollController;
-  late ValueNotifier<List<project_db.Track>> testTracksNotifier;
+  // Notifiers and Controllers needed by Timeline widget / mocks
+  late ValueNotifier<List<ClipModel>> testClipsNotifier; // Needed for TimelineViewModel mock
+  late ValueNotifier<int> testCurrentFrameNotifier; // Needed for TimelineNavigationViewModel mock
+  late ValueNotifier<double> testZoomNotifier; // Needed for TimelineNavigationViewModel mock
+  late ValueNotifier<int> testTotalFramesNotifier; // Needed for TimelineNavigationViewModel mock
+  // testTrackLabelWidthNotifier removed as it's no longer in TimelineViewModel
+  late ScrollController testScrollController; // Still needed for Timeline widget itself
+  late ValueNotifier<List<project_db.Track>> testTracksNotifier; // Needed for ProjectDatabaseService mock
   
   // Define a static empty callback for test purposes
-  void _emptyCallback() {}
+  void emptyCallback() {}
 
 
   setUp(() {
    // 1. Reset DI first
     di.reset();
-    
+
    // 2. Create mocks
     mockTimelineViewModel = MockTimelineViewModel();
+    mockTimelineNavigationViewModel = MockTimelineNavigationViewModel(); // Create nav mock
     mockProjectDatabaseService = MockProjectDatabaseService();
 
-   // 3. Initialize real Notifiers/Controller needed by mocks
+   // 3. Initialize real Notifiers/Controller needed by mocks/widget
+    // For TimelineViewModel mock:
     testClipsNotifier = ValueNotifier<List<ClipModel>>([]);
+    // For TimelineNavigationViewModel mock:
     testCurrentFrameNotifier = ValueNotifier<int>(0);
     testZoomNotifier = ValueNotifier<double>(1.0);
     testTotalFramesNotifier = ValueNotifier<int>(0);
-    testTrackLabelWidthNotifier = ValueNotifier<double>(120.0);
-    testScrollController = ScrollController();
+    // For ProjectDatabaseService mock:
     testTracksNotifier = ValueNotifier<List<project_db.Track>>([]);
- 
+    // For Timeline widget itself:
+    testScrollController = ScrollController();
+
+
    // 4. Stub all properties BEFORE registering mocks
-    // Use thenAnswer for view model properties
-    // Correctly stub properties by returning the pre-initialized notifiers and controllers
+    // Stub TimelineViewModel properties
     when(mockTimelineViewModel.clipsNotifier).thenReturn(testClipsNotifier);
-    when(mockTimelineViewModel.currentFrameNotifier).thenReturn(testCurrentFrameNotifier);
-    when(mockTimelineViewModel.zoomNotifier).thenReturn(testZoomNotifier);
-    when(mockTimelineViewModel.totalFramesNotifier).thenReturn(testTotalFramesNotifier);
-    when(mockTimelineViewModel.trackLabelWidthNotifier).thenReturn(testTrackLabelWidthNotifier);
-    when(mockProjectDatabaseService.tracksNotifier).thenReturn(testTracksNotifier); // Keep as is for service mock
- 
+    when(mockTimelineViewModel.tracksNotifierForView).thenReturn(testTracksNotifier); // Stub this now
+
+    // Stub TimelineNavigationViewModel properties
+    when(mockTimelineNavigationViewModel.currentFrameNotifier).thenReturn(testCurrentFrameNotifier);
+    when(mockTimelineNavigationViewModel.zoomNotifier).thenReturn(testZoomNotifier);
+    when(mockTimelineNavigationViewModel.totalFramesNotifier).thenReturn(testTotalFramesNotifier);
+
+    // Stub ProjectDatabaseService properties
+    when(mockProjectDatabaseService.tracksNotifier).thenReturn(testTracksNotifier);
+
    // 5. Register mocks AFTER all stubbing is complete
     di.registerSingleton<TimelineViewModel>(mockTimelineViewModel);
+    di.registerSingleton<TimelineNavigationViewModel>(mockTimelineNavigationViewModel); // Register nav mock
     di.registerSingleton<ProjectDatabaseService>(mockProjectDatabaseService);
   });
 

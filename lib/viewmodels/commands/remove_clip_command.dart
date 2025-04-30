@@ -1,4 +1,6 @@
+import 'package:watch_it/watch_it.dart'; // Import watch_it for di
 import '../timeline_viewmodel.dart';
+import '../timeline_navigation_viewmodel.dart';
 import 'timeline_command.dart';
 import '../../models/clip.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
@@ -48,7 +50,8 @@ class RemoveClipCommand implements TimelineCommand {
       if (indexToRemove != -1) {
         currentClips.removeAt(indexToRemove);
         vm.clipsNotifier.value = currentClips; // Notify listeners
-        vm.recalculateAndUpdateTotalFrames(); // Call public method
+        // Use TimelineNavigationViewModel directly via di
+        di<TimelineNavigationViewModel>().navigationService.recalculateAndUpdateTotalFrames();
         logger.logInfo('[RemoveClipCommand] Removed clip $clipId and updated notifier', _logTag);
       } else {
         logger.logWarning(
@@ -106,7 +109,8 @@ class RemoveClipCommand implements TimelineCommand {
       currentClips.add(clipToRestore);
       currentClips.sort((a, b) => a.startTimeOnTrackMs.compareTo(b.startTimeOnTrackMs));
       vm.clipsNotifier.value = currentClips;
-      vm.recalculateAndUpdateTotalFrames(); // Call public method
+      // Use TimelineNavigationViewModel directly via di
+      di<TimelineNavigationViewModel>().navigationService.recalculateAndUpdateTotalFrames();
 
       logger.logInfo('[RemoveClipCommand] Successfully restored clip $clipId', _logTag);
       _removedClipData = null; // Clear data after successful undo

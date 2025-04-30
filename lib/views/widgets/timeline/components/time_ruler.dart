@@ -1,10 +1,9 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:watch_it/watch_it.dart';
 import 'dart:math' as math;
-import '../../../../models/clip.dart'; // Import for ClipModel
-import '../../../../viewmodels/timeline_viewmodel.dart';
+// Import for ClipModel
 import '../../../../services/project_database_service.dart';
-import '../../../../persistence/database/project_database.dart'; // Import for Track
+// Import for Track
 import '../../../../utils/logger.dart' as logger;
 
 /// A ruler widget that displays frame numbers and tick marks for the timeline using CustomPaint

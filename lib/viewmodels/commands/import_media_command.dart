@@ -99,7 +99,7 @@ class ImportMediaCommand {
       int? height;
       
       if (assetType == ClipType.video || assetType == ClipType.audio) {
-        final mediaDuration = await MediaUtils.getMediaDuration(filePath);
+        final mediaDuration = MediaUtils.getMediaDuration(filePath);
         durationMs = mediaDuration?.inMilliseconds ?? 0;
         if (assetType == ClipType.video) {
           final dimensions = await MediaUtils.getVideoDimensions(filePath);
