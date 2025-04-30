@@ -277,15 +277,46 @@ class MdkPlayerService {
 
   /// Clears the current media from the player.
   Future<void> clearMedia() async {
-      if (_player == null) return;
-      logger.logInfo('Clearing media from player.', _logTag);
+      // logger.logInfo('>>> Entered clearMedia method.', _logTag); // Removed log
+      if (_player == null) {
+         // logger.logInfo('Player is null in clearMedia, returning.', _logTag); // Removed log
+         return;
+      }
+      logger.logInfo('Clearing media from player.', _logTag); // Restored original log
+      // logger.logInfo('Player is not null, proceeding with clearMedia.', _logTag); // Removed log
       try {
-          _player!.setMedia('', mdk.MediaType.unknown); // Set empty path
-          _player!.state = mdk.PlaybackState.stopped; // Explicitly stop
+          // logger.logInfo('Entering try block in clearMedia...', _logTag); // Removed log
+          final currentStatus = _player!.mediaStatus;
+          // logger.logInfo('Current media status in clearMedia: $currentStatus', _logTag); // Removed log
+
+          // Check if media is already invalid or not present before calling setMedia('')
+          if (currentStatus.test(mdk.MediaStatus.noMedia) || currentStatus.test(mdk.MediaStatus.invalid)) {
+              // logger.logInfo('Skipping setMedia("", unknown) as media status is $currentStatus.', _logTag); // Removed log
+          } else {
+              // Only call setMedia if there might be valid media loaded
+              // logger.logInfo('Calling _player.setMedia("", unknown) in clearMedia...', _logTag); // Removed log
+              _player!.setMedia('', mdk.MediaType.unknown); // Set empty path
+              // logger.logInfo('Completed _player.setMedia("", unknown) in clearMedia.', _logTag); // Removed log
+          }
+
+          // Only attempt to check/set state if media wasn't already invalid/noMedia
+          if (!(currentStatus.test(mdk.MediaStatus.noMedia) || currentStatus.test(mdk.MediaStatus.invalid))) {
+              if (_player!.state != mdk.PlaybackState.stopped) {
+                 // logger.logInfo('Setting _player.state = stopped in clearMedia...', _logTag); // Removed log
+                 _player!.state = mdk.PlaybackState.stopped; // Explicitly stop
+                 // logger.logInfo('Completed setting _player.state = stopped in clearMedia.', _logTag); // Removed log
+              } else {
+                 // logger.logInfo('Player state already stopped (or was invalid/noMedia).', _logTag); // Removed log
+              }
+          } else {
+               // logger.logInfo('Skipping state check/set as media status was $currentStatus.', _logTag); // Removed log
+          }
+
+
           textureIdNotifier.value = -1; // Reset texture ID
           isPlayerReadyNotifier.value = false; // Mark as not ready
-      } catch(e) {
-           logger.logError('Error clearing media: $e', _logTag);
+      } catch(e, stack) { // Add stack trace to log
+           logger.logError('Error during clearMedia operation: $e\n$stack', _logTag); // Log stack trace
            // Attempt reinitialization on error
            _initPlayer();
       }

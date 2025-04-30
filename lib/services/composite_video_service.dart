@@ -54,8 +54,8 @@ class CompositeVideoService {
   }) async {
     // Prevent concurrent operations
     if (_isCompositing) {
-      logger.logInfo('Compositing is already in progress, skipping request.', _logTag);
-      return false;
+      // logger.logInfo('Compositing is already in progress, skipping request.', _logTag); // Removed log
+      return false; // Removed duplicate return
     }
 
     _isCompositing = true;
@@ -65,13 +65,15 @@ class CompositeVideoService {
     try {
         // --- 1. Determine Active Clips ---
         final effectiveTimeMs = currentTimeMs < 1 ? 0 : currentTimeMs; // Handle time 0
+        // logger.logInfo('Calling _getActiveClips...', _logTag); // Removed log
         final activeClips = _getActiveClips(clips, positions, flips, effectiveTimeMs);
-        logger.logInfo('Found ${activeClips.length} active clips at ${effectiveTimeMs}ms', _logTag);
+        logger.logInfo('Found ${activeClips.length} active clips at ${effectiveTimeMs}ms', _logTag); // Kept summary log
 
         // --- 2. Handle No Active Clips ---
         if (activeClips.isEmpty) {
-            logger.logInfo('No active video clips to display at ${effectiveTimeMs}ms. Clearing player.', _logTag);
-            await _mdkPlayerService.clearMedia();
+            logger.logInfo('No active video clips to display at ${effectiveTimeMs}ms. Player state remains unchanged.', _logTag); // Updated log
+            // await _mdkPlayerService.clearMedia(); // REMOVED potentially unsafe call
+            // logger.logInfo('Player clearMedia call completed.', _logTag); // Removed log
             // No compositing needed, operation successful in its own way
             success = true;
             return success; // Early exit
@@ -84,7 +86,9 @@ class CompositeVideoService {
         final List<Map<String, dynamic>> videoInputs = [];
         final List<Map<String, dynamic>> layoutInputs = [];
 
+        // logger.logInfo('Preparing FFmpeg data for ${activeClips.length} clips...', _logTag); // Removed log
         for (final clip in activeClips) {
+             // logger.logInfo('Processing clip ID: ${clip.databaseId}', _logTag); // Removed log
              // We know these are non-null due to _getActiveClips filter
             final clipId = clip.databaseId!;
             final rect = positions[clipId]!;
@@ -110,9 +114,12 @@ class CompositeVideoService {
                 'flip_v': flip == Flip.vertical,
              });
         }
+        // logger.logInfo('Finished preparing FFmpeg data.', _logTag); // Removed log
 
         // --- 4. Generate Temporary File Path ---
+        // logger.logInfo('Getting temporary directory...', _logTag); // Removed log
         final tempDir = await getTemporaryDirectory();
+        // logger.logInfo('Got temporary directory: ${tempDir.path}', _logTag); // Removed log
         final newCompositePath = p.join(
           tempDir.path,
           'composite_frame_${const Uuid().v4()}.mp4',
@@ -124,7 +131,7 @@ class CompositeVideoService {
         _currentCompositeFilePath = newCompositePath;
 
         // --- 5. Generate Frame using FfmpegCompositeService ---
-        logger.logInfo('Calling FfmpegCompositeService to generate frame...', _logTag);
+        logger.logInfo('Calling FfmpegCompositeService to generate frame $newCompositePath...', _logTag); // Simplified log
         final ffmpegSuccess = await _ffmpegCompositeService.generateCompositeFrame(
           videoInputs: videoInputs,
           layoutInputs: layoutInputs,
@@ -139,7 +146,7 @@ class CompositeVideoService {
             await _deleteTempFile(_currentCompositeFilePath); // Clean up failed file
             _currentCompositeFilePath = null;
             // Consider clearing the player or attempting recovery? For now, just fail.
-            await _mdkPlayerService.clearMedia();
+            // await _mdkPlayerService.clearMedia(); // Ensure this is commented out
             success = false;
             return success; // Early exit on failure
         }
@@ -153,7 +160,7 @@ class CompositeVideoService {
             await _deleteTempFile(_currentCompositeFilePath); // Clean up unused file
              _currentCompositeFilePath = null;
              // Clear player just in case it's in a bad state
-             await _mdkPlayerService.clearMedia();
+             // await _mdkPlayerService.clearMedia(); // Ensure this is commented out
             success = false;
             return success; // Early exit on failure
         }
@@ -168,7 +175,7 @@ class CompositeVideoService {
             logger.logError('Could not get valid dimensions from loaded media: ${loadedWidth}x$loadedHeight', _logTag);
             await _deleteTempFile(_currentCompositeFilePath);
             _currentCompositeFilePath = null;
-            await _mdkPlayerService.clearMedia();
+            // await _mdkPlayerService.clearMedia(); // Ensure this is commented out
             success = false;
             return success;
         }
@@ -187,7 +194,7 @@ class CompositeVideoService {
              logger.logError('Failed to update texture after loading composite frame.', _logTag);
              await _deleteTempFile(_currentCompositeFilePath);
              _currentCompositeFilePath = null;
-             await _mdkPlayerService.clearMedia();
+             // await _mdkPlayerService.clearMedia(); // Ensure this is commented out
              success = false;
         }
 
@@ -198,14 +205,14 @@ class CompositeVideoService {
       // General error handling: Clean up temp file
       await _deleteTempFile(_currentCompositeFilePath);
       _currentCompositeFilePath = null;
-      await _mdkPlayerService.clearMedia(); // Try to reset player
+      // await _mdkPlayerService.clearMedia(); // Ensure this is commented out
       success = false;
       return success;
     } finally {
       // --- Release Lock and Update Notifier ---
       isProcessingNotifier.value = false;
       _isCompositing = false;
-       logger.logInfo('Compositing process finished. Success: $success', _logTag);
+       // logger.logInfo('Compositing process finished. Success: $success', _logTag); // Ensure this is removed/commented
     }
   }
 
