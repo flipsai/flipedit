@@ -68,6 +68,17 @@ class FfmpegCompositeService {
       String filterComplex = '';
       final List<String> ffmpegInputArgs = [];
 
+      // Ensure canvas dimensions are even for libx264 compatibility
+      final int evenCanvasWidth = canvasWidth.isOdd ? canvasWidth - 1 : canvasWidth;
+      final int evenCanvasHeight = canvasHeight.isOdd ? canvasHeight - 1 : canvasHeight;
+
+      // If dimensions changed, log a warning as it might slightly affect layout
+      if (evenCanvasWidth != canvasWidth || evenCanvasHeight != canvasHeight) {
+        logger.logWarning(
+            'Canvas dimensions adjusted to be even: ${canvasWidth}x${canvasHeight} -> ${evenCanvasWidth}x${evenCanvasHeight}. This might cause minor layout shifts.',
+            _logTag);
+      }
+
       // Input processing: Seek to the specific frame time for each input
       for (int i = 0; i < videoInputs.length; i++) {
         final sourcePosMs = videoInputs[i]['source_pos_ms'] as int;
@@ -104,21 +115,26 @@ class FfmpegCompositeService {
 
       // Create the base canvas
       filterComplex +=
-          'color=c=black:s=${canvasWidth}x$canvasHeight:d=0.04[base];'; // Create a ~1-frame duration base (adjust d if needed)
+          'color=c=black:s=${evenCanvasWidth}x$evenCanvasHeight:d=0.04[base];'; // Use even dimensions
 
       // Overlay videos onto the base canvas
       String lastOverlayOutput = '[base]';
       for (int i = 0; i < videoInputs.length; i++) {
         final layout = layoutInputs[i];
-        final x = (layout['x'] as num).round();
-        final y = (layout['y'] as num).round();
+        final targetWidth = (layout['width'] as num).round();
+        final targetHeight = (layout['height'] as num).round();
+
+        // Calculate centered coordinates instead of using layout x/y
+        final centerX = ((evenCanvasWidth - targetWidth) / 2).round();
+        final centerY = ((evenCanvasHeight - targetHeight) / 2).round();
+
         final overlayOutput =
             (i == videoInputs.length - 1)
                 ? '[out]'
                 : '[ovr$i]'; // Final output is [out]
 
         filterComplex +=
-            '$lastOverlayOutput[v$i]overlay=x=$x:y=$y:shortest=1$overlayOutput;'; // Use shortest=1 for single frame
+            '$lastOverlayOutput[v$i]overlay=x=$centerX:y=$centerY:shortest=1$overlayOutput;'; // Use centered coordinates
         if (i < videoInputs.length - 1) {
           lastOverlayOutput = overlayOutput;
         }
@@ -134,8 +150,7 @@ class FfmpegCompositeService {
         '-map', '[out]', // Map the final overlay output
         '-frames:v', '1', // Output exactly one video frame
         '-c:v', 'libx264', // Use H.264 encoding
-        '-preset', 'ultrafast', // Prioritize speed
-        '-tune', 'fastdecode', // Optimize for fast decoding
+        '-preset', 'superfast', // Prioritize speed
         '-pix_fmt', 'yuv420p', // Standard pixel format
         '-flags', '+low_delay', // Optimize for low delay
         '-threads', '0', // Use all available CPU threads

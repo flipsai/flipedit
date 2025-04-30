@@ -317,6 +317,67 @@ class MdkPlayerService {
     }
   }
 
+  /// Updates the texture after a seek operation completes.
+  /// Assumes the player is prepared and seek completed successfully.
+  /// Returns true if the texture was updated successfully.
+  Future<bool> updateTextureAfterSeek() async {
+    if (_player == null) {
+        logger.logError('Cannot update texture, player is null.', _logTag);
+        isPlayerReadyNotifier.value = false;
+        return false;
+    }
+    if (!(_player!.mediaStatus.test(mdk.MediaStatus.loaded) || _player!.mediaStatus.test(mdk.MediaStatus.prepared))) {
+        logger.logWarning('Player not in loaded/prepared state, cannot reliably update texture after seek.', _logTag);
+        // Don't necessarily fail here, but proceed with caution
+    }
+
+    logger.logInfo('Updating texture after seek...', _logTag);
+    // isPlayerReadyNotifier.value = false; // Don't reset readiness here if seek was ok
+
+    try {
+        // 1. Get Dimensions
+        final videoInfo = _player!.mediaInfo.video?.firstOrNull?.codec;
+        final width = videoInfo?.width;
+        final height = videoInfo?.height;
+        if (width == null || height == null || width <= 0 || height <= 0) {
+            logger.logError('Could not get valid dimensions from media after seek: ${width}x$height', _logTag);
+            isPlayerReadyNotifier.value = false;
+            // await clearMedia(); // Avoid potentially problematic clearMedia
+            return false;
+        }
+        logger.logVerbose('Got video dimensions for texture update: ${width}x$height.', _logTag);
+
+        // 2. Set Surface Size (might be redundant if unchanged, but safe to call)
+        if (!_textureManager.setVideoSurfaceSize(width, height)) {
+            logger.logError('Failed to set video surface size for texture update.', _logTag);
+            isPlayerReadyNotifier.value = false;
+            // await clearMedia();
+            return false;
+        }
+        logger.logVerbose('Video surface size set for texture update.', _logTag);
+
+        // 3. Update Texture
+        final newTextureId = await _textureManager.updateTexture(width: width, height: height);
+        if (newTextureId <= 0) {
+            logger.logError('Failed to get valid texture ID after seek.', _logTag);
+            isPlayerReadyNotifier.value = false;
+            // await clearMedia();
+            return false;
+        }
+        logger.logInfo('Texture updated successfully after seek. New ID: $newTextureId.', _logTag);
+
+        // 4. Mark as Ready
+        isPlayerReadyNotifier.value = true;
+        return true;
+
+    } catch (e, stack) {
+        logger.logError('Error during updateTextureAfterSeek: $e\n$stack', _logTag);
+        isPlayerReadyNotifier.value = false;
+        // await clearMedia();
+        return false;
+    }
+  }
+
   void dispose() {
     logger.logInfo('Disposing MdkPlayerService.', _logTag);
     _mediaStatusMonitor.cancelWaits(); // Cancel any pending waits

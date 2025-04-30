@@ -1,5 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flutter/widgets.dart' as flutter;
+import 'package:video_player/video_player.dart';
 import 'package:flutter_box_transform/flutter_box_transform.dart';
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
@@ -8,8 +8,7 @@ import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
 import 'package:watch_it/watch_it.dart';
 
-/// CompositePreviewPanel displays the current timeline frame using a single composited video texture
-/// and overlays interactive TransformableBox widgets for manipulation.
+/// CompositePreviewPanel displays the current timeline frame using a VideoPlayer widget driven by PreviewViewModel.
 class CompositePreviewPanel extends StatefulWidget {
   const CompositePreviewPanel({super.key});
 
@@ -19,8 +18,7 @@ class CompositePreviewPanel extends StatefulWidget {
 
 class _CompositePreviewPanelState extends State<CompositePreviewPanel> {
   late final PreviewViewModel _previewViewModel;
-  late final TimelineNavigationViewModel _navigationViewModel; // Keep for frame info if needed
-  late final EditorViewModel _editorViewModel; // Keep for aspect ratio lock
+  late final EditorViewModel _editorViewModel;
 
   final String _logTag = 'CompositePreviewPanel';
 
@@ -28,194 +26,207 @@ class _CompositePreviewPanelState extends State<CompositePreviewPanel> {
   void initState() {
     super.initState();
     _previewViewModel = di<PreviewViewModel>();
-    _navigationViewModel = di<TimelineNavigationViewModel>();
     _editorViewModel = di<EditorViewModel>();
-
     logger.logInfo('CompositePreviewPanel initialized', _logTag);
+    _previewViewModel.addListener(_rebuild);
   }
 
   @override
   void dispose() {
     logger.logInfo('CompositePreviewPanel disposing', _logTag);
+    _previewViewModel.removeListener(_rebuild);
     super.dispose();
+  }
+
+  void _rebuild() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final aspectRatio = _previewViewModel.aspectRatioNotifier.value;
+    final previewVm = _previewViewModel;
+    final editorVm = _editorViewModel;
 
-    logger.logVerbose('CompositePreviewPanel building...', _logTag);
+    final controller = previewVm.controller;
+    final isControllerInitialized = controller?.value.isInitialized ?? false;
+    final aspectRatio = previewVm.aspectRatioNotifier.value;
+    final containerSize = previewVm.containerSizeNotifier.value;
+    final visibleClipsForOverlay = previewVm.visibleClipsNotifier.value;
+    final clipRects = previewVm.clipRectsNotifier.value;
+    final clipFlips = previewVm.clipFlipsNotifier.value;
+    final selectedClipId = previewVm.selectedClipIdNotifier.value;
+    final aspectRatioLocked = editorVm.aspectRatioLockedNotifier.value;
 
-    return Container(
-      color: Colors.grey[160], // Background for the panel area
-      child: Column(
-        children: [
-          Expanded(
-            child: Center(
-              child: AspectRatio(
-                aspectRatio: aspectRatio,
-                child: Container(
-                  color: Colors.black, // Background for the aspect ratio container
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      // Update container size in ViewModel after layout
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (mounted && _previewViewModel.containerSize != constraints.biggest) {
-                          _previewViewModel.updateContainerSize(constraints.biggest);
-                          logger.logVerbose('Updated container size: ${constraints.biggest}', _logTag);
-                        }
-                      });
+    logger.logVerbose(
+      'CompositePreviewPanel building... Controller: ${controller?.textureId}, Initialized: $isControllerInitialized',
+      _logTag,
+    );
 
-                      return GestureDetector(
-                        behavior: HitTestBehavior.opaque, // Ensure taps outside clips are caught
-                        onTap: () {
-                          logger.logVerbose('Background tapped, deselecting clip.', _logTag);
-                          _previewViewModel.selectClip(null); // Deselect clip on background tap
-                        },
-                        child: Stack(
-                          fit: StackFit.expand, // Ensure Stack fills the container
-                          children: [
-                            // 1. MDK Player Texture (Listens to textureIdNotifier from ViewModel)
-                            ValueListenableBuilder<int>(
-                              valueListenable: _previewViewModel.textureIdNotifier, // Listen to ViewModel
-                              builder: (context, textureId, _) {
-                                logger.logVerbose('Texture ID builder: $textureId', _logTag);
-                                if (textureId > 0) {
-                                  // Use Positioned.fill to ensure texture covers the area
-                                  return Positioned.fill(
-                                    child: flutter.Texture(textureId: textureId),
-                                  );
-                                } else {
-                                  // Show nothing if texture is invalid (black background suffices)
-                                  return const SizedBox.shrink();
+    return ValueListenableBuilder<int?>(
+      valueListenable: previewVm.firstActiveVideoClipIdNotifier,
+      builder: (_, firstActiveVideoClipId, __) {
+        return ValueListenableBuilder<Map<int, Rect>>(
+          valueListenable: previewVm.clipRectsNotifier,
+          builder: (_, clipRects, __) {
+            final videoRect = (firstActiveVideoClipId != null)
+                ? clipRects[firstActiveVideoClipId]
+                : null;
+
+            logger.logVerbose(
+              'CompositePreviewPanel building... Controller: ${controller?.textureId}, VideoRect: $videoRect',
+              _logTag,
+            );
+
+            return Container(
+              color: Colors.grey[160],
+              child: Column(
+                children: [
+                  Expanded(
+                    child: Center(
+                      child: AspectRatio(
+                        aspectRatio: aspectRatio,
+                        child: Container(
+                          color: Colors.black,
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                if (mounted && previewVm.containerSize != constraints.biggest) {
+                                  previewVm.updateContainerSize(constraints.biggest);
+                                  logger.logVerbose('Updated container size: ${constraints.biggest}', _logTag);
                                 }
-                              },
-                            ),
+                              });
+                              
+                              final Size actualSize = constraints.biggest;
+                              final scaleX = (previewVm.containerSize?.width ?? 0) > 0 
+                                  ? actualSize.width / previewVm.containerSize!.width 
+                                  : 1.0;
+                              final scaleY = (previewVm.containerSize?.height ?? 0) > 0
+                                  ? actualSize.height / previewVm.containerSize!.height
+                                  : 1.0;
 
-                            // 2. Transformable Box Overlays (Listens to multiple VM notifiers)
-                            ValueListenableBuilder<List<ClipModel>>(
-                              valueListenable: _previewViewModel.visibleClipsNotifier,
-                              builder: (context, visibleClipsForOverlay, _) {
-                                // Also listen to rects, flips, and selection to rebuild overlays correctly
-                                return ValueListenableBuilder<Map<int, Rect>>(
-                                  valueListenable: _previewViewModel.clipRectsNotifier,
-                                  builder: (context, clipRects, _) {
-                                    return ValueListenableBuilder<Map<int, Flip>>(
-                                      valueListenable: _previewViewModel.clipFlipsNotifier,
-                                      builder: (context, clipFlips, _) {
-                                        return ValueListenableBuilder<int?>(
-                                          valueListenable: _previewViewModel.selectedClipIdNotifier,
-                                          builder: (context, selectedClipId, _) {
-                                            // Listen to aspect ratio lock state as well
-                                            return ValueListenableBuilder<bool>(
-                                              valueListenable: _editorViewModel.aspectRatioLockedNotifier,
-                                              builder: (context, aspectRatioLocked, _) {
-                                                logger.logVerbose('Building overlays for ${visibleClipsForOverlay.length} clips. Selected: $selectedClipId', _logTag);
-                                                return Stack( // Stack for the overlays themselves
-                                                  fit: StackFit.expand,
-                                                  children: visibleClipsForOverlay.map((clip) {
-                                                    if (clip.databaseId == null) return const SizedBox.shrink();
+                              return GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () {
+                                  logger.logVerbose('Background tapped, deselecting clip.', _logTag);
+                                  previewVm.selectClip(null);
+                                },
+                                child: Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    Builder(builder: (context) {
+                                      final currentController = previewVm.controller;
+                                      final isInit = currentController?.value.isInitialized ?? false;
+                                      final hasError = currentController?.value.hasError ?? false;
 
-                                                    final clipId = clip.databaseId!;
-                                                    final isSelected = selectedClipId == clipId;
-                                                    // Get rect/flip, providing defaults if missing (shouldn't happen with VM logic)
-                                                    final currentRect = clipRects[clipId] ?? Rect.zero;
-                                                    final currentFlip = clipFlips[clipId] ?? Flip.none;
+                                      if (currentController != null && isInit && videoRect != null) {
+                                        final pixelLeft = videoRect.left * scaleX;
+                                        final pixelTop = videoRect.top * scaleY;
+                                        final pixelWidth = videoRect.width * scaleX;
+                                        final pixelHeight = videoRect.height * scaleY;
 
-                                                    return _buildTransformableBoxOverlay(
-                                                      context,
-                                                      clipId,
-                                                      currentRect,
-                                                      currentFlip,
-                                                      isSelected,
-                                                      aspectRatioLocked,
+                                        final safeWidth = pixelWidth < 0 ? 0.0 : pixelWidth;
+                                        final safeHeight = pixelHeight < 0 ? 0.0 : pixelHeight;
+
+                                        return Positioned(
+                                          left: pixelLeft,
+                                          top: pixelTop,
+                                          width: safeWidth,
+                                          height: safeHeight,
+                                          child: AspectRatio(
+                                            aspectRatio: currentController.value.aspectRatio,
+                                            child: VideoPlayer(currentController),
+                                          ),
+                                        );
+                                      } else if (hasError) {
+                                        return Center(
+                                          child: Text(
+                                            'Error loading video: ${currentController?.value.errorDescription}',
+                                            style: FluentTheme.of(context).typography.bodyLarge?.copyWith(color: Colors.red),
+                                            textAlign: TextAlign.center,
+                                          ),
+                                        );
+                                      } else if (currentController != null && !isInit) {
+                                        return const Center(child: ProgressRing());
+                                      } else {
+                                        return Center(
+                                          child: Text(
+                                            'No video at current playback position',
+                                            style: FluentTheme.of(context).typography.bodyLarge?.copyWith(color: Colors.white),
+                                            textAlign: TextAlign.center,
+                                          ),
+                                        );
+                                      }
+                                    }),
+
+                                    ValueListenableBuilder<List<ClipModel>>(
+                                      valueListenable: previewVm.visibleClipsNotifier,
+                                      builder: (_, visibleClipsForOverlay, __) {
+                                        return ValueListenableBuilder<Map<int, Rect>>(
+                                          valueListenable: previewVm.clipRectsNotifier,
+                                          builder: (_, clipRects, __) {
+                                            return ValueListenableBuilder<Map<int, Flip>>(
+                                              valueListenable: previewVm.clipFlipsNotifier,
+                                              builder: (_, clipFlips, __) {
+                                                return ValueListenableBuilder<int?>(
+                                                  valueListenable: previewVm.selectedClipIdNotifier,
+                                                  builder: (_, selectedClipId, __) {
+                                                    return ValueListenableBuilder<bool>(
+                                                      valueListenable: editorVm.aspectRatioLockedNotifier,
+                                                      builder: (_, aspectRatioLocked, __) {
+                                                        return Stack(
+                                                          fit: StackFit.expand,
+                                                          children: visibleClipsForOverlay.map((clip) {
+                                                            if (clip.databaseId == null) return const SizedBox.shrink();
+                                                            final clipId = clip.databaseId!;
+                                                            final isSelected = selectedClipId == clipId;
+                                                            final currentRect = clipRects[clipId] ?? Rect.zero;
+                                                            final currentFlip = clipFlips[clipId] ?? Flip.none;
+                                                            return _buildTransformableBoxOverlay(
+                                                              context,
+                                                              previewVm,
+                                                              editorVm,
+                                                              clipId,
+                                                              currentRect,
+                                                              currentFlip,
+                                                              isSelected,
+                                                              aspectRatioLocked,
+                                                            );
+                                                          }).toList(),
+                                                        );
+                                                      },
                                                     );
-                                                  }).toList(),
+                                                  },
                                                 );
                                               },
                                             );
                                           },
                                         );
                                       },
-                                    );
-                                  },
-                                );
-                              },
-                            ),
-
-                            // 3. Loading Indicator (Listens to isProcessingNotifier from ViewModel)
-                            ValueListenableBuilder<bool>(
-                              valueListenable: _previewViewModel.isProcessingNotifier, // Listen to ViewModel
-                              builder: (context, isProcessing, _) {
-                                logger.logVerbose('Processing state builder: $isProcessing', _logTag);
-                                if (isProcessing) {
-                                  return const Center(child: ProgressRing());
-                                } else {
-                                  return const SizedBox.shrink();
-                                }
-                              },
-                            ),
-
-                            // 4. Empty State (Listens to texture and visible clips from ViewModel)
-                            ValueListenableBuilder<int>(
-                                valueListenable: _previewViewModel.textureIdNotifier, // Listen to ViewModel
-                                builder: (context, textureId, _) {
-                                  return ValueListenableBuilder<List<ClipModel>>(
-                                      valueListenable: _previewViewModel.visibleClipsNotifier,
-                                      builder: (context, clipsForOverlay, _) {
-                                        final hasTexture = textureId > 0;
-                                        final hasOverlays = clipsForOverlay.isNotEmpty;
-                                        logger.logVerbose('Empty state builder: HasTexture=$hasTexture, HasOverlays=$hasOverlays', _logTag);
-                                        if (!hasTexture && !hasOverlays) {
-                                          return Center(
-                                            child: Text(
-                                              'No video at current playback position',
-                                              style: FluentTheme.of(context).typography.bodyLarge?.copyWith(color: Colors.white),
-                                              textAlign: TextAlign.center,
-                                            ),
-                                          );
-                                        } else {
-                                          return const SizedBox.shrink(); // Show nothing if texture or overlays exist
-                                        }
-                                      });
-                                }),
-
-                            // 5. Debug Texture ID Indicator (Optional)
-                            ValueListenableBuilder<int>(
-                              valueListenable: _previewViewModel.textureIdNotifier, // Listen to ViewModel
-                              builder: (context, textureId, _) {
-                                if (textureId <= 0) return const SizedBox.shrink();
-                                return Positioned(
-                                  bottom: 8,
-                                  right: 8,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(4),
-                                    color: Colors.black.withOpacity(0.5),
-                                    child: Text(
-                                      'Tex ID: $textureId',
-                                      style: const TextStyle(color: Colors.white, fontSize: 10),
                                     ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ],
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
                         ),
-                      );
-                    },
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
-            ),
-          ),
-        ],
-      ),
+            );
+          },
+        );
+      },
     );
   }
 
-  // Helper method to build a single TransformableBox overlay
   Widget _buildTransformableBoxOverlay(
     BuildContext context,
+    PreviewViewModel previewVm,
+    EditorViewModel editorVm,
     int clipId,
     Rect rect,
     Flip flip,
@@ -223,33 +234,29 @@ class _CompositePreviewPanelState extends State<CompositePreviewPanel> {
     bool aspectRatioLocked,
   ) {
     return TransformableBox(
-      key: ValueKey('preview_clip_$clipId'), // Use unique key
+      key: ValueKey('preview_clip_$clipId'),
       rect: rect,
       flip: flip,
-      // Configuration for flutter_box_transform
       resizeModeResolver: () =>
           aspectRatioLocked ? ResizeMode.symmetricScale : ResizeMode.freeform,
-      constraints: const BoxConstraints( // Example constraints
+      constraints: const BoxConstraints(
         minWidth: 20,
         minHeight: 20,
-        maxWidth: 4096, // Allow large sizes if needed
+        maxWidth: 4096,
         maxHeight: 4096,
       ),
-      clampingRect: Rect.largest, // Allow movement anywhere within the parent Stack
+      clampingRect: Rect.largest,
 
-      // Callbacks connected directly to PreviewViewModel
-      onChanged: (result, details) => _previewViewModel.handleRectChanged(clipId, result.rect),
-      onDragStart: (_) => _previewViewModel.handleTransformStart(clipId),
-      onResizeStart: (_, __) => _previewViewModel.handleTransformStart(clipId),
-      onDragEnd: (_) => _previewViewModel.handleTransformEnd(clipId),
-      onResizeEnd: (_, __) => _previewViewModel.handleTransformEnd(clipId),
-      onTap: () => _previewViewModel.selectClip(clipId),
+      onChanged: (result, details) => previewVm.handleRectChanged(clipId, result.rect),
+      onDragStart: (_) => previewVm.handleTransformStart(clipId),
+      onResizeStart: (_, __) => previewVm.handleTransformStart(clipId),
+      onDragEnd: (_) => previewVm.handleTransformEnd(clipId),
+      onResizeEnd: (_, __) => previewVm.handleTransformEnd(clipId),
+      onTap: () => previewVm.selectClip(clipId),
 
-      // Control handle visibility based on selection
       enabledHandles: isSelected ? const {...HandlePosition.values} : const {},
       visibleHandles: isSelected ? const {...HandlePosition.values} : const {},
 
-      // Simple border for visual feedback
       contentBuilder: (context, rect, flip) {
         return Container(
           decoration: BoxDecoration(
@@ -257,11 +264,7 @@ class _CompositePreviewPanelState extends State<CompositePreviewPanel> {
               color: isSelected ? Colors.blue.withOpacity(0.7) : Colors.transparent,
               width: 1.5,
             ),
-            // Optional: Add a semi-transparent fill when selected?
-            // color: isSelected ? Colors.blue.withOpacity(0.1) : Colors.transparent,
           ),
-          // Important: Use SizedBox.expand to ensure the content fills the box,
-          // otherwise, the border might not render correctly.
           child: const SizedBox.expand(),
         );
       },

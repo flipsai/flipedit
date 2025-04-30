@@ -54,8 +54,7 @@ class CompositeVideoService {
   }) async {
     // Prevent concurrent operations
     if (_isCompositing) {
-      // logger.logInfo('Compositing is already in progress, skipping request.', _logTag); // Removed log
-      return false; // Removed duplicate return
+      return false; 
     }
 
     _isCompositing = true;
@@ -65,137 +64,95 @@ class CompositeVideoService {
     try {
         // --- 1. Determine Active Clips ---
         final effectiveTimeMs = currentTimeMs < 1 ? 0 : currentTimeMs; // Handle time 0
-        // logger.logInfo('Calling _getActiveClips...', _logTag); // Removed log
         final activeClips = _getActiveClips(clips, positions, flips, effectiveTimeMs);
-        logger.logInfo('Found ${activeClips.length} active clips at ${effectiveTimeMs}ms', _logTag); // Kept summary log
+        logger.logInfo('Found ${activeClips.length} active clips at ${effectiveTimeMs}ms', _logTag); 
 
-        // --- 2. Handle No Active Clips ---
+        // --- 2. Handle No Active Clips or Select First Clip ---
         if (activeClips.isEmpty) {
-            logger.logInfo('No active video clips to display at ${effectiveTimeMs}ms. Player state remains unchanged.', _logTag); // Updated log
-            // await _mdkPlayerService.clearMedia(); // REMOVED potentially unsafe call
-            // logger.logInfo('Player clearMedia call completed.', _logTag); // Removed log
-            // No compositing needed, operation successful in its own way
+            logger.logInfo('No active video clips to display at ${effectiveTimeMs}ms.', _logTag);
+            // Don\'t call clearMedia() as it might crash.
+            // Instead, set textureId to 0 and pause player.
+            // await _mdkPlayerService.clearMedia(); 
+            _mdkPlayerService.textureIdNotifier.value = 0; // Signal invalid texture to UI
+            await _mdkPlayerService.pause(); // Ensure player is stopped
             success = true;
-            return success; // Early exit
-        }
-
-        // --- 3. Prepare Data for FFmpeg ---
-        final canvasWidth = (containerSize?.width ?? 1920).round();
-        final canvasHeight = (containerSize?.height ?? 1080).round();
-
-        final List<Map<String, dynamic>> videoInputs = [];
-        final List<Map<String, dynamic>> layoutInputs = [];
-
-        // logger.logInfo('Preparing FFmpeg data for ${activeClips.length} clips...', _logTag); // Removed log
-        for (final clip in activeClips) {
-             // logger.logInfo('Processing clip ID: ${clip.databaseId}', _logTag); // Removed log
-             // We know these are non-null due to _getActiveClips filter
-            final clipId = clip.databaseId!;
-            final rect = positions[clipId]!;
-            final flip = flips[clipId]!;
-
-            // Calculate source position
-             int positionInClipMs = effectiveTimeMs - clip.startTimeOnTrackMs;
-             positionInClipMs = positionInClipMs < 0 ? 0 : positionInClipMs; // Clamp >= 0
-             int sourcePosMs = clip.startTimeInSourceMs + positionInClipMs;
-             sourcePosMs = sourcePosMs.clamp(clip.startTimeInSourceMs, clip.endTimeInSourceMs); // Clamp within source bounds
-
-             videoInputs.add({
-                'path': clip.sourcePath,
-                'source_pos_ms': sourcePosMs,
-             });
-
-             layoutInputs.add({
-                'x': rect.left.round(),
-                'y': rect.top.round(),
-                'width': rect.width.clamp(1.0, canvasWidth.toDouble()).round(),
-                'height': rect.height.clamp(1.0, canvasHeight.toDouble()).round(),
-                'flip_h': flip == Flip.horizontal,
-                'flip_v': flip == Flip.vertical,
-             });
-        }
-        // logger.logInfo('Finished preparing FFmpeg data.', _logTag); // Removed log
-
-        // --- 4. Generate Temporary File Path ---
-        // logger.logInfo('Getting temporary directory...', _logTag); // Removed log
-        final tempDir = await getTemporaryDirectory();
-        // logger.logInfo('Got temporary directory: ${tempDir.path}', _logTag); // Removed log
-        final newCompositePath = p.join(
-          tempDir.path,
-          'composite_frame_${const Uuid().v4()}.mp4',
-        );
-        logger.logInfo('Generated temporary path for composite frame: $newCompositePath', _logTag);
-
-        // Clean up previous temp file *before* generating new one
-        await _deleteTempFile(_currentCompositeFilePath);
-        _currentCompositeFilePath = newCompositePath;
-
-        // --- 5. Generate Frame using FfmpegCompositeService ---
-        logger.logInfo('Calling FfmpegCompositeService to generate frame $newCompositePath...', _logTag); // Simplified log
-        final ffmpegSuccess = await _ffmpegCompositeService.generateCompositeFrame(
-          videoInputs: videoInputs,
-          layoutInputs: layoutInputs,
-          outputFile: _currentCompositeFilePath!,
-          canvasWidth: canvasWidth,
-          canvasHeight: canvasHeight,
-        );
-
-        // --- 6. Handle FFmpeg Failure ---
-        if (!ffmpegSuccess) {
-            logger.logError('FFmpeg frame generation failed for $newCompositePath.', _logTag);
-            await _deleteTempFile(_currentCompositeFilePath); // Clean up failed file
-            _currentCompositeFilePath = null;
-            // Consider clearing the player or attempting recovery? For now, just fail.
-            // await _mdkPlayerService.clearMedia(); // Ensure this is commented out
-            success = false;
-            return success; // Early exit on failure
-        }
-
-        // --- 7. Load Frame into MdkPlayerService ---
-        logger.logInfo('FFmpeg success. Loading frame $newCompositePath into MDK player.', _logTag);
-
-        // Step 1: Load the media
-        final playerLoadSuccess = await _mdkPlayerService.setAndPrepareMedia(_currentCompositeFilePath!);
-
-        if (!playerLoadSuccess) {
-            logger.logError('Failed to load generated frame into MDK player via setAndPrepareMedia.', _logTag);
-            await _deleteTempFile(_currentCompositeFilePath);
-            _currentCompositeFilePath = null;
-            success = false;
-            return success; // Exit early
-        }
-
-        // Step 2: Prepare the loaded frame for display (handles size, seek, texture)
-        logger.logInfo('Media loaded, preparing frame for display...', _logTag);
-        final framePrepared = await _mdkPlayerService.prepareFrameForDisplay();
-
-        if (framePrepared) {
-            final textureId = _mdkPlayerService.textureIdNotifier.value;
-            logger.logInfo('Successfully created composite frame, loaded and prepared for display with texture ID $textureId.', _logTag);
-            success = true;
+            // No further processing needed
         } else {
-            logger.logError('Failed to prepare composite frame for display after loading.', _logTag);
-            // MdkPlayerService.prepareFrameForDisplay already calls clearMedia on failure
-            await _deleteTempFile(_currentCompositeFilePath); // Still delete the ffmpeg output
-            _currentCompositeFilePath = null;
-            success = false;
+            // --- 3. Process ONLY the First Active Clip ---
+            final firstClip = activeClips.first;
+            logger.logInfo('Processing only the first active clip: ID ${firstClip.databaseId}, Path: ${firstClip.sourcePath}', _logTag);
+
+            // Calculate source position for the first clip
+            int positionInClipMs = effectiveTimeMs - firstClip.startTimeOnTrackMs;
+            positionInClipMs = positionInClipMs < 0 ? 0 : positionInClipMs; // Clamp >= 0
+            int sourcePosMs = firstClip.startTimeInSourceMs + positionInClipMs;
+            sourcePosMs = sourcePosMs.clamp(firstClip.startTimeInSourceMs, firstClip.endTimeInSourceMs); // Clamp within source bounds
+
+            logger.logInfo('Calculated source position for MDK: ${sourcePosMs}ms', _logTag);
+
+            // --- 4. Load and Prepare Media in MDK Directly ---
+            logger.logInfo('Loading and preparing media: ${firstClip.sourcePath}', _logTag);
+            // Use setAndPrepareMedia which likely handles loading and initial setup
+            final loadPrepareSuccess = await _mdkPlayerService.setAndPrepareMedia(firstClip.sourcePath);
+
+            if (!loadPrepareSuccess) {
+                logger.logError('MDK failed to load and prepare media: ${firstClip.sourcePath}', _logTag);
+                success = false;
+            } else {
+                logger.logInfo('Media prepared. Seeking to ${sourcePosMs}ms.', _logTag);
+                // Explicitly seek after preparation
+                final seekSuccess = await _mdkPlayerService.seek(sourcePosMs, pauseAfterSeek: true); // Assuming pauseAfterSeek is desired
+
+                if (!seekSuccess) {
+                    logger.logError('MDK failed to seek to ${sourcePosMs}ms.', _logTag);
+                    success = false;
+                    // MdkPlayerService should handle cleanup/state internally on seek failure
+                } else {
+                    logger.logInfo('Seek successful. Preparing frame for display.', _logTag);
+                    // Call the new method to update texture without seeking again
+                    final textureUpdated = await _mdkPlayerService.updateTextureAfterSeek(); 
+
+                    if (textureUpdated) {
+                        final textureId = _mdkPlayerService.textureIdNotifier.value;
+                        logger.logInfo('Successfully loaded and prepared frame from source video with texture ID $textureId.', _logTag);
+                        success = true;
+                    } else {
+                        logger.logError('MDK failed to update texture after seek.', _logTag);
+                        success = false;
+                    }
+                }
+            }
         }
+        
+        // --- FFmpeg Steps Removed --- 
+        // final canvasWidth = (containerSize?.width ?? 1920).round();
+        // final canvasHeight = (containerSize?.height ?? 1080).round();
+        // final List<Map<String, dynamic>> videoInputs = [];
+        // final List<Map<String, dynamic>> layoutInputs = [];
+        // ... (input preparation loop removed) ...
+        // final tempDir = await getTemporaryDirectory();
+        // final newCompositePath = p.join(...);
+        // await _deleteTempFile(_currentCompositeFilePath);
+        // _currentCompositeFilePath = newCompositePath;
+        // final ffmpegSuccess = await _ffmpegCompositeService.generateCompositeFrame(...);
+        // ... (ffmpeg handling removed) ...
+        // final playerLoadSuccess = await _mdkPlayerService.setAndPrepareMedia(_currentCompositeFilePath!); 
+        // ... (loading composite file removed) ...
 
         return success;
 
     } catch (e, stackTrace) {
-      logger.logError('Error creating composite video frame: $e\n$stackTrace', _logTag);
-      // General error handling: Clean up temp file
-      await _deleteTempFile(_currentCompositeFilePath);
-      _currentCompositeFilePath = null;
-      // await _mdkPlayerService.clearMedia(); // Ensure this is commented out
+      logger.logError('Error processing video frame: $e\\n$stackTrace', _logTag);
+      // General error handling: Clean up temp file (though none should exist now)
+      // await _deleteTempFile(_currentCompositeFilePath); // Removed as it's unused
+      // _currentCompositeFilePath = null; // Removed as it's unused
+      await _mdkPlayerService.clearMedia(); // Clear player on general error
       success = false;
       return success;
     } finally {
       // --- Release Lock and Update Notifier ---
       isProcessingNotifier.value = false;
       _isCompositing = false;
-       // logger.logInfo('Compositing process finished. Success: $success', _logTag); // Ensure this is removed/commented
     }
   }
 
@@ -282,3 +239,4 @@ class CompositeVideoService {
     }
   }
 }
+
