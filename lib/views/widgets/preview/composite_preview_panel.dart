@@ -263,28 +263,41 @@ class _CompositePreviewPanelState extends State<CompositePreviewPanel> {
                             // Background and base video player
                             Container(color: Colors.black),
                             
-                            // MDK Player view
-                            if (_compositeVideoService.player != null && !_isCurrentlyTransforming)
-                              Positioned.fill(
-                                child: ValueListenableBuilder<int>(
-                                  valueListenable: _compositeVideoService.textureIdNotifier,
-                                  builder: (context, textureId, _) {
-                                    logger.logInfo('Rendering texture with ID: $textureId', _logTag);
-                                    
-                                    if (textureId <= 0) {
-                                      return Center(
-                                        child: Text(
-                                          'Texture not available (ID: $textureId)',
-                                          style: FluentTheme.of(context).typography.bodyLarge?.copyWith(color: Colors.white),
-                                        ),
-                                      );
-                                    }
-                                    
-                                    return flutter.Texture(textureId: textureId);
-                                  },
-                                ),
-                              ),
-                            
+                            // MDK Player view - Render based on player readiness and transform state
+                            ValueListenableBuilder<bool>(
+                              valueListenable: _compositeVideoService.isPlayerReadyNotifier,
+                              builder: (context, isPlayerReady, _) {
+                                // Only show texture widget if player is ready AND not currently transforming
+                                if (isPlayerReady && !_isCurrentlyTransforming) {
+                                  return Positioned.fill(
+                                    child: ValueListenableBuilder<int>(
+                                      valueListenable: _compositeVideoService.textureIdNotifier,
+                                      builder: (context, textureId, _) {
+                                        logger.logDebug('Player ready: $isPlayerReady, Texture ID: $textureId', _logTag);
+
+                                        if (textureId <= 0) {
+                                          // Player is ready, but texture ID is invalid
+                                          return Center(
+                                            child: Text(
+                                              'Texture not available (ID: $textureId)',
+                                              style: FluentTheme.of(context).typography.bodyLarge?.copyWith(color: Colors.white),
+                                            ),
+                                          );
+                                        }
+
+                                        // Player ready and texture ID is valid
+                                        return flutter.Texture(textureId: textureId);
+                                      },
+                                    ),
+                                  );
+                                } else {
+                                  // Player not ready or is transforming, show nothing (black background suffices)
+                                  logger.logDebug('Player not ready ($isPlayerReady) or transforming ($_isCurrentlyTransforming), hiding texture.', _logTag);
+                                  return const SizedBox.shrink();
+                                }
+                              },
+                            ),
+
                             // Transformable boxes for clips
                             ...visibleClips.map((clip) {
                               if (clip.databaseId == null) return const SizedBox();
