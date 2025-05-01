@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:flipedit/models/clip.dart';
-import 'package:flipedit/viewmodels/timeline_viewmodel.dart'; // Needed for clipsNotifier type
 import 'package:flipedit/services/playback_service.dart';
 import 'package:flipedit/services/timeline_navigation_service.dart';
 import 'package:flipedit/utils/logger.dart' as logger;

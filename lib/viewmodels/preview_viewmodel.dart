@@ -29,6 +29,7 @@ class PreviewViewModel extends ChangeNotifier {
   // --- State Notifiers (Exposed to View) ---
   final ValueNotifier<String?> compositeFramePathNotifier = ValueNotifier(null); // Path to the generated frame image
   final ValueNotifier<bool> isGeneratingFrameNotifier = ValueNotifier(false); // Loading indicator
+  final ValueNotifier<List<String>> videoSegmentsNotifier = ValueNotifier([]); // Paths to video segments for continuous playback
 
   final ValueNotifier<List<ClipModel>> visibleClipsNotifier = ValueNotifier([]);
   final ValueNotifier<Map<int, Rect>> clipRectsNotifier = ValueNotifier({});
@@ -53,6 +54,7 @@ class PreviewViewModel extends ChangeNotifier {
   // Removed: String? _currentSourcePath;
   String? _lastGeneratedFramePath; // Keep track to delete old frames
   final Uuid _uuid = const Uuid(); // For generating unique filenames
+  List<String> _lastGeneratedSegments = []; // Track generated segments for cleanup
 
   PreviewViewModel() {
     logger.logInfo('PreviewViewModel initializing...', _logTag);
@@ -121,195 +123,174 @@ class PreviewViewModel extends ChangeNotifier {
 
   // Listener for play/pause state changes
   void _handlePlaybackStateChange() {
-    // Playback state changes don't directly affect the static frame generation.
-    // If the view needs to react instantly to play/pause (e.g., show an overlay),
-    // it can listen directly to _timelineNavigationViewModel.isPlayingNotifier.
-    // Triggering a frame update here is likely unnecessary.
-    logger.logVerbose('Playback state changed. Frame update handled by frame changes.', _logTag);
+    final bool isPlaying = _timelineNavigationViewModel.isPlayingNotifier.value;
+    logger.logInfo('Playback state changed: $isPlaying', _logTag);
+    
+    if (isPlaying) {
+      // When playback starts, ensure we have segments to play
+      _ensurePlaybackSegmentsAvailable();
+    } else {
+      // When stopped, update the preview frame (this happens via _onFrameChanged)
+      logger.logVerbose('Playback stopped. Frame update handled by frame changes.', _logTag);
+    }
   }
 
-  // The core logic to update the preview content based on current state (Made public)
-  Future<void> updatePreviewContent() async {
-    if (isGeneratingFrameNotifier.value) {
-      logger.logVerbose('Frame generation already in progress, skipping.', _logTag);
-      return; // Avoid concurrent generations
-    }
-
-    // --- Check Playback State ---
-    if (_playbackService.isPlayingNotifier.value) {
-      logger.logVerbose('Playback active, skipping composite frame generation.', _logTag);
-      // Optionally clear the frame or leave the last one showing
-      // If we want to show the frame *before* playback started, we might need
-      // additional logic in _handlePlaybackStateChange to store/restore the path.
-      // For now, just skip generation.
-      return;
-    }
-    // --- End Playback State Check ---
-
-    final currentFrame = _timelineNavigationViewModel.currentFrameNotifier.value;
-    final currentMs = ClipModel.framesToMs(currentFrame);
-    final allClips = _timelineViewModel.clipsNotifier.value;
-
-    logger.logVerbose(
-      'Attempting to update preview content for frame $currentFrame (${currentMs}ms)',
-      _logTag,
-    );
-
-    // 1. Determine potentially visible clips for interaction overlays
-    final List<ClipModel> potentiallyVisibleClips = [];
-    final Map<int, Rect> currentRects = {};
-    final Map<int, Flip> currentFlips = {};
-    final Set<int> visibleClipIds = {};
-
-    for (final clip in allClips) {
-      if (clip.databaseId != null &&
-          currentMs >= clip.startTimeOnTrackMs &&
-          currentMs < clip.endTimeOnTrackMs &&
-          (clip.type == ClipType.video || clip.type == ClipType.image)) { // Include images for overlays
-        potentiallyVisibleClips.add(clip);
-        visibleClipIds.add(clip.databaseId!);
-        currentRects[clip.databaseId!] = clip.previewRect ?? const Rect.fromLTWH(0, 0, 1, 1); // Default if null
-        currentFlips[clip.databaseId!] = clip.previewFlip;
+  /// Ensures video segments are available for playback
+  /// This is called when playback starts to prepare segments in advance
+  Future<void> _ensurePlaybackSegmentsAvailable() async {
+    // If segments are already available, no need to regenerate
+    if (videoSegmentsNotifier.value.isNotEmpty) {
+      final segments = videoSegmentsNotifier.value;
+      for (final segment in segments) {
+        if (!File(segment).existsSync()) {
+          // If any segment doesn't exist, regenerate all
+          logger.logWarning('Segment file not found: $segment. Regenerating segments.', _logTag);
+          await _generatePlaybackSegments();
+          return;
+        }
       }
-    }
-
-    // Update interaction overlay notifiers
-    bool overlaysChanged = false;
-    if (!listEquals(visibleClipsNotifier.value.map((c) => c.databaseId).toList(), potentiallyVisibleClips.map((c) => c.databaseId).toList())) {
-      visibleClipsNotifier.value = potentiallyVisibleClips;
-      overlaysChanged = true;
-      logger.logInfo('Updated visibleClipsNotifier. New Count: ${potentiallyVisibleClips.length}');
-    }
-    if (!mapEquals(clipRectsNotifier.value, currentRects)) {
-      clipRectsNotifier.value = currentRects;
-      overlaysChanged = true;
-    }
-    if (!mapEquals(clipFlipsNotifier.value, currentFlips)) {
-      clipFlipsNotifier.value = currentFlips;
-      overlaysChanged = true;
-    }
-    // 2. Filter for only *video* clips for the composite video generation
-    final List<ClipModel> activeVideoClips = potentiallyVisibleClips
-        .where((clip) => clip.type == ClipType.video)
-        .toList();
-
-    // Update the first active video clip ID (might still be useful for some UI elements)
-    final newActiveClipId = activeVideoClips.isNotEmpty ? activeVideoClips.first.databaseId : null;
-    if (firstActiveVideoClipIdNotifier.value != newActiveClipId) {
-      firstActiveVideoClipIdNotifier.value = newActiveClipId;
-      logger.logVerbose('Updated firstActiveVideoClipId: $newActiveClipId', _logTag);
-    }
-
-    // Get container size for canvas dimensions
-    final Size? size = containerSizeNotifier.value;
-    if (size == null || size.isEmpty || size.width <= 0 || size.height <= 0) {
-      logger.logWarning('Container size is invalid ($size). Cannot generate composite video.', _logTag);
-      // Ensure frame path is null if we can't generate
-      if (compositeFramePathNotifier.value != null) {
-        await _deleteLastGeneratedFrame();
-        compositeFramePathNotifier.value = null;
-      }
+      logger.logInfo('Using ${segments.length} existing segments for playback', _logTag);
       return;
     }
     
-    // Use floor to avoid potential issues with FFmpeg filters if dimensions aren't integers
-    final int canvasWidth = size.width.floor();
-    final int canvasHeight = size.height.floor();
-
-    // If no *video* clips are active, clear the frame
-    if (activeVideoClips.isEmpty) {
-      logger.logVerbose('No active video clips at ${currentMs}ms. Clearing preview.', _logTag);
-      if (compositeFramePathNotifier.value != null) {
-        await _deleteLastGeneratedFrame();
-        compositeFramePathNotifier.value = null;
-      }
+    // Generate segments if none available
+    logger.logInfo('No playback segments available. Generating segments.', _logTag);
+    await _generatePlaybackSegments();
+  }
+  
+  /// Generates playback segments without showing loading UI
+  Future<void> _generatePlaybackSegments() async {
+    // Don't generate if we're already generating
+    if (isGeneratingFrameNotifier.value) {
+      logger.logVerbose('Generation already in progress, waiting for it to complete', _logTag);
       return;
     }
-
-    // Generate a unique output path in the temporary directory
-    final tempDir = await getTemporaryDirectory();
-    // Use .mp4 extension for video instead of png
-    final outputFileName = 'flipedit_preview_${_uuid.v4()}.mp4';
-    final outputFilePath = '${tempDir.path}/$outputFileName';
-
-    isGeneratingFrameNotifier.value = true;
-
+    
+    // Use a local variable instead of the notifier to avoid UI updates
+    final bool originalGeneratingValue = isGeneratingFrameNotifier.value;
+    
     try {
-      // 3. Prepare inputs for FfmpegCompositeService
+      // Don't update the isGeneratingFrame notifier - this keeps the UI responsive
+      // isGeneratingFrameNotifier.value = true; 
+      
+      // Get current frame position
+      final currentFrame = _timelineNavigationViewModel.currentFrameNotifier.value;
+      final currentMs = ClipModel.framesToMs(currentFrame);
+      final allClips = _timelineViewModel.clipsNotifier.value;
+      
+      // Get container size for canvas dimensions
+      final Size? size = containerSizeNotifier.value;
+      if (size == null || size.isEmpty) {
+        logger.logWarning('Container size is invalid. Cannot generate segments.', _logTag);
+        return;
+      }
+      
+      // Get active video clips at current position
+      final List<ClipModel> activeVideoClips = allClips
+          .where((clip) => 
+            clip.databaseId != null &&
+            currentMs >= clip.startTimeOnTrackMs &&
+            currentMs < clip.endTimeOnTrackMs &&
+            clip.type == ClipType.video)
+          .toList();
+          
+      if (activeVideoClips.isEmpty) {
+        logger.logWarning('No active video clips at current position.', _logTag);
+        return;
+      }
+      
+      // Generate a temporary directory for segments
+      final tempDir = await getTemporaryDirectory();
+      final segmentsDir = '${tempDir.path}/preview_segments_${_uuid.v4()}';
+      await Directory(segmentsDir).create(recursive: true);
+      
+      final int canvasWidth = size.width.floor();
+      final int canvasHeight = size.height.floor();
+      
+      // Prepare inputs for segment generation
       final List<Map<String, dynamic>> videoInputs = [];
       final List<Map<String, dynamic>> layoutInputs = [];
-
+      
       for (final clip in activeVideoClips) {
-        // Calculate source position in milliseconds
-        int positionInClipMs = currentMs - clip.startTimeOnTrackMs;
-        positionInClipMs = positionInClipMs < 0 ? 0 : positionInClipMs; // Clamp at start
-        int sourcePosMs = clip.startTimeInSourceMs + positionInClipMs;
-        // Clamp at end based on source duration
-        sourcePosMs = sourcePosMs.clamp(clip.startTimeInSourceMs, clip.endTimeInSourceMs);
-
+        final clipId = clip.databaseId;
+        if (clipId == null) continue;
+        
+        Rect? rect = clip.previewRect ?? const Rect.fromLTWH(0, 0, 1, 1);
+        Flip flip = clip.previewFlip;
+        
+        // Convert coordinates
+        final int x = (rect.left * canvasWidth).floor();
+        final int y = (rect.top * canvasHeight).floor();
+        final int width = (rect.width * canvasWidth).floor();
+        final int height = (rect.height * canvasHeight).floor();
+        
+        // Calculate source position
+        final int clipStartTimelineMs = clip.startTimeOnTrackMs;
+        final int relativePositionMs = currentMs - clipStartTimelineMs;
+        int sourcePositionMs = clip.startTimeInSourceMs + relativePositionMs;
+        
+        // Align source position to frame boundaries for consistent timing
+        sourcePositionMs = ClipModel.alignToFrameBoundary(sourcePositionMs);
+        
         videoInputs.add({
           'path': clip.sourcePath,
-          'source_pos_ms': sourcePosMs,
+          'source_pos_ms': sourcePositionMs,
         });
-
-        // Convert normalized Rect (0-1) to absolute pixel values for FFmpeg layout
-        final Rect normRect = clip.previewRect ?? const Rect.fromLTWH(0, 0, 1, 1); // Default to full if null
+        
+        // Get flip values
+        final bool flipH = flip == Flip.horizontal;
+        final bool flipV = flip == Flip.vertical;
+        
         layoutInputs.add({
-          'x': (normRect.left * canvasWidth).round().clamp(0, canvasWidth),
-          'y': (normRect.top * canvasHeight).round().clamp(0, canvasHeight),
-          'width': (normRect.width * canvasWidth).round().clamp(1, canvasWidth),
-          'height': (normRect.height * canvasHeight).round().clamp(1, canvasHeight),
-          'flip_h': clip.previewFlip == Flip.horizontal,
-          'flip_v': clip.previewFlip == Flip.vertical,
+          'x': x,
+          'y': y,
+          'width': width,
+          'height': height,
+          'flip_h': flipH,
+          'flip_v': flipV,
         });
       }
-
-      logger.logInfo(
-        'Generating composite video with ${activeVideoClips.length} clips at ${currentMs}ms. Output: $outputFilePath',
-        _logTag);
-
-      // 4. Call FfmpegCompositeService to generate a short video segment (1 second)
-      // This replaces the single-frame PNG generation with video generation
-      final success = await _ffmpegCompositeService.generateVideoSegment(
+      
+      // Clean up old segments first
+      await _cleanupLastGeneratedSegments();
+      
+      // Generate segments with a longer duration (60 seconds)
+      final playbackDurationMs = 60 * 1000; // 60 seconds
+      
+      final result = await _ffmpegCompositeService.generateSmoothPreview(
         videoInputs: videoInputs,
         layoutInputs: layoutInputs,
-        outputFile: outputFilePath,
+        outputDirectory: segmentsDir,
+        previewId: _uuid.v4(),
         canvasWidth: canvasWidth,
         canvasHeight: canvasHeight,
-        durationMs: 1000,
+        totalDurationMs: playbackDurationMs,
         fps: 30,
       );
-
-      if (success) {
-        logger.logInfo('Composite video generated successfully: $outputFilePath', _logTag);
-        // Delete the previous file *before* updating the notifier
-        await _deleteLastGeneratedFrame();
-        compositeFramePathNotifier.value = outputFilePath;
-        _lastGeneratedFramePath = outputFilePath; // Store the new path
-      } else {
-        logger.logError('Failed to generate composite video.', _logTag);
-        // Clear the path on failure
-        await _deleteLastGeneratedFrame();
-        compositeFramePathNotifier.value = null;
-        _lastGeneratedFramePath = null;
-        // Attempt to delete the failed output file
-        try {
-          final failedFile = File(outputFilePath);
-          if (await failedFile.exists()) {
-            await failedFile.delete();
-            logger.logInfo('Deleted failed output file: $outputFilePath', _logTag);
-          }
-        } catch (e) {
-          logger.logWarning('Could not delete failed output file $outputFilePath: $e', _logTag);
+      
+      if (result['segments'] != null && (result['segments'] as List).isNotEmpty) {
+        final segments = result['segments'] as List<String>;
+        logger.logInfo('Generated ${segments.length} playback segments', _logTag);
+        
+        // Store the segments
+        _lastGeneratedSegments = segments;
+        videoSegmentsNotifier.value = segments;
+        
+        // Use the first segment as the preview frame
+        if (compositeFramePathNotifier.value == null) {
+          compositeFramePathNotifier.value = segments.first;
+          _lastGeneratedFramePath = segments.first;
         }
+      } else {
+        logger.logError('Failed to generate playback segments', _logTag);
       }
     } catch (e, stack) {
-      logger.logError('Error generating composite video: $e', _logTag, stack);
-      await _deleteLastGeneratedFrame();
-      compositeFramePathNotifier.value = null;
-      _lastGeneratedFramePath = null;
+      logger.logError('Error generating playback segments: $e', _logTag, stack);
     } finally {
-      isGeneratingFrameNotifier.value = false;
+      // Only update the notifier if it changed during this operation
+      if (isGeneratingFrameNotifier.value != originalGeneratingValue) {
+        isGeneratingFrameNotifier.value = originalGeneratingValue;
+      }
     }
   }
 
@@ -479,6 +460,220 @@ class PreviewViewModel extends ChangeNotifier {
     }
     
     return activeClips;
+  }
+
+  // Clean up previously generated segments
+  Future<void> _cleanupLastGeneratedSegments() async {
+    if (_lastGeneratedSegments.isEmpty) return;
+    
+    for (final segment in _lastGeneratedSegments) {
+      try {
+        final file = File(segment);
+        if (await file.exists()) {
+          await file.delete();
+        }
+      } catch (e) {
+        logger.logWarning('Failed to delete segment: $segment, error: $e', _logTag);
+      }
+    }
+    
+    // Clear the list
+    _lastGeneratedSegments = [];
+    videoSegmentsNotifier.value = [];
+  }
+
+  // The core logic to update the preview content based on current state (Made public)
+  Future<void> updatePreviewContent() async {
+    if (isGeneratingFrameNotifier.value) {
+      logger.logVerbose('Frame generation already in progress, skipping.', _logTag);
+      return; // Avoid concurrent generations
+    }
+
+    // --- Check Playback State ---
+    if (_playbackService.isPlayingNotifier.value) {
+      logger.logVerbose('Playback active, skipping composite frame generation.', _logTag);
+      // During playback, we use the segments system instead
+      _ensurePlaybackSegmentsAvailable();
+      return;
+    }
+    // --- End Playback State Check ---
+
+    final currentFrame = _timelineNavigationViewModel.currentFrameNotifier.value;
+    final currentMs = ClipModel.framesToMs(currentFrame);
+    final allClips = _timelineViewModel.clipsNotifier.value;
+
+    logger.logVerbose(
+      'Attempting to update preview content for frame $currentFrame (${currentMs}ms)',
+      _logTag,
+    );
+
+    // 1. Determine potentially visible clips for interaction overlays
+    final List<ClipModel> potentiallyVisibleClips = [];
+    final Map<int, Rect> currentRects = {};
+    final Map<int, Flip> currentFlips = {};
+    final Set<int> visibleClipIds = {};
+
+    for (final clip in allClips) {
+      if (clip.databaseId != null &&
+          currentMs >= clip.startTimeOnTrackMs &&
+          currentMs < clip.endTimeOnTrackMs &&
+          (clip.type == ClipType.video || clip.type == ClipType.image)) { // Include images for overlays
+        potentiallyVisibleClips.add(clip);
+        visibleClipIds.add(clip.databaseId!);
+        currentRects[clip.databaseId!] = clip.previewRect ?? const Rect.fromLTWH(0, 0, 1, 1); // Default if null
+        currentFlips[clip.databaseId!] = clip.previewFlip;
+      }
+    }
+
+    // Update interaction overlay notifiers
+    bool overlaysChanged = false;
+    if (!listEquals(visibleClipsNotifier.value.map((c) => c.databaseId).toList(), potentiallyVisibleClips.map((c) => c.databaseId).toList())) {
+      visibleClipsNotifier.value = potentiallyVisibleClips;
+      overlaysChanged = true;
+      logger.logInfo('Updated visibleClipsNotifier. New Count: ${potentiallyVisibleClips.length}');
+    }
+    if (!mapEquals(clipRectsNotifier.value, currentRects)) {
+      clipRectsNotifier.value = currentRects;
+      overlaysChanged = true;
+    }
+    if (!mapEquals(clipFlipsNotifier.value, currentFlips)) {
+      clipFlipsNotifier.value = currentFlips;
+      overlaysChanged = true;
+    }
+    // 2. Filter for only *video* clips for the composite video generation
+    final List<ClipModel> activeVideoClips = potentiallyVisibleClips
+        .where((clip) => clip.type == ClipType.video)
+        .toList();
+
+    // Update the first active video clip ID (might still be useful for some UI elements)
+    final newActiveClipId = activeVideoClips.isNotEmpty ? activeVideoClips.first.databaseId : null;
+    if (firstActiveVideoClipIdNotifier.value != newActiveClipId) {
+      firstActiveVideoClipIdNotifier.value = newActiveClipId;
+      logger.logVerbose('Updated firstActiveVideoClipId: $newActiveClipId', _logTag);
+    }
+
+    // Get container size for canvas dimensions
+    final Size? size = containerSizeNotifier.value;
+    if (size == null || size.isEmpty || size.width <= 0 || size.height <= 0) {
+      logger.logWarning('Container size is invalid ($size). Cannot generate composite video.', _logTag);
+      // Ensure frame path is null if we can't generate
+      if (compositeFramePathNotifier.value != null) {
+        await _deleteLastGeneratedFrame();
+        compositeFramePathNotifier.value = null;
+      }
+      return;
+    }
+    
+    // Use floor to avoid potential issues with FFmpeg filters if dimensions aren't integers
+    final int canvasWidth = size.width.floor();
+    final int canvasHeight = size.height.floor();
+
+    // If no *video* clips are active, clear the frame
+    if (activeVideoClips.isEmpty) {
+      logger.logVerbose('No active video clips at ${currentMs}ms. Clearing preview.', _logTag);
+      if (compositeFramePathNotifier.value != null) {
+        await _deleteLastGeneratedFrame();
+        compositeFramePathNotifier.value = null;
+      }
+      return;
+    }
+
+    // Generate a unique output path in the temporary directory
+    final tempDir = await getTemporaryDirectory();
+    // Use .mp4 extension for video instead of png
+    final outputFileName = 'flipedit_preview_${_uuid.v4()}.mp4';
+    final outputFilePath = '${tempDir.path}/$outputFileName';
+
+    isGeneratingFrameNotifier.value = true;
+
+    try {
+      // 3. Prepare inputs for FfmpegCompositeService
+      final List<Map<String, dynamic>> videoInputs = [];
+      final List<Map<String, dynamic>> layoutInputs = [];
+
+      for (final clip in activeVideoClips) {
+        // Calculate source position in milliseconds
+        int positionInClipMs = currentMs - clip.startTimeOnTrackMs;
+        positionInClipMs = positionInClipMs < 0 ? 0 : positionInClipMs; // Clamp at start
+        int sourcePosMs = clip.startTimeInSourceMs + positionInClipMs;
+        // Clamp at end based on source duration
+        sourcePosMs = sourcePosMs.clamp(clip.startTimeInSourceMs, clip.endTimeInSourceMs);
+        
+        // Align source position to frame boundaries for consistent timing
+        sourcePosMs = ClipModel.alignToFrameBoundary(sourcePosMs);
+
+        videoInputs.add({
+          'path': clip.sourcePath,
+          'source_pos_ms': sourcePosMs,
+        });
+
+        // Convert normalized Rect (0-1) to absolute pixel values for FFmpeg layout
+        final Rect normRect = clip.previewRect ?? const Rect.fromLTWH(0, 0, 1, 1); // Default to full if null
+        layoutInputs.add({
+          'x': (normRect.left * canvasWidth).round().clamp(0, canvasWidth),
+          'y': (normRect.top * canvasHeight).round().clamp(0, canvasHeight),
+          'width': (normRect.width * canvasWidth).round().clamp(1, canvasWidth),
+          'height': (normRect.height * canvasHeight).round().clamp(1, canvasHeight),
+          'flip_h': clip.previewFlip == Flip.horizontal,
+          'flip_v': clip.previewFlip == Flip.vertical,
+        });
+      }
+
+      logger.logInfo(
+        'Generating composite video with ${activeVideoClips.length} clips at ${currentMs}ms. Output: $outputFilePath',
+        _logTag);
+
+      final success = await _ffmpegCompositeService.generateVideoSegment(
+        videoInputs: videoInputs,
+        layoutInputs: layoutInputs,
+        outputFile: outputFilePath,
+        canvasWidth: canvasWidth,
+        canvasHeight: canvasHeight,
+        durationMs: 1000,
+        fps: 30,
+      );
+
+      if (success) {
+        logger.logInfo('Composite video generated successfully: $outputFilePath', _logTag);
+        // Delete the previous file *before* updating the notifier
+        await _deleteLastGeneratedFrame();
+        compositeFramePathNotifier.value = outputFilePath;
+        _lastGeneratedFramePath = outputFilePath; // Store the new path
+        
+        // Set single segment for consistent interface
+        _lastGeneratedSegments = [outputFilePath];
+        videoSegmentsNotifier.value = [outputFilePath];
+      } else {
+        logger.logError('Failed to generate composite video.', _logTag);
+        // Clear the path on failure
+        await _deleteLastGeneratedFrame();
+        compositeFramePathNotifier.value = null;
+        _lastGeneratedFramePath = null;
+        videoSegmentsNotifier.value = [];
+        _lastGeneratedSegments = [];
+        
+        // Attempt to delete the failed output file
+        try {
+          final failedFile = File(outputFilePath);
+          if (await failedFile.exists()) {
+            await failedFile.delete();
+            logger.logInfo('Deleted failed output file: $outputFilePath', _logTag);
+          }
+        } catch (e) {
+          logger.logWarning('Could not delete failed output file $outputFilePath: $e', _logTag);
+        }
+      }
+    } catch (e, stack) {
+      logger.logError('Error generating composite video: $e', _logTag, stack);
+      await _deleteLastGeneratedFrame();
+      await _cleanupLastGeneratedSegments();
+      compositeFramePathNotifier.value = null;
+      _lastGeneratedFramePath = null;
+      videoSegmentsNotifier.value = [];
+      _lastGeneratedSegments = [];
+    } finally {
+      isGeneratingFrameNotifier.value = false;
+    }
   }
 }
 

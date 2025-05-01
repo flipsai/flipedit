@@ -281,6 +281,9 @@ class FfmpegCompositeService {
     required int canvasHeight,
     required int durationMs,
     int fps = 30,
+    int segmentSizeMs = 5000, // Default to 5-second segments instead of using durationMs directly
+    String preset = 'medium', // Better balance between speed and quality (vs 'ultrafast')
+    int crf = 20, // Slightly better quality (23 → 20)
   }) async {
     if (videoInputs.isEmpty) {
       logger.logError(
@@ -427,20 +430,24 @@ class FfmpegCompositeService {
       
       final String filterComplex = filterParts.join(';');
       
-      // Calculate duration in seconds
-      final durationSec = durationMs / 1000.0;
+      // Calculate duration in seconds - use segmentSizeMs parameter instead of durationMs
+      final durationSec = segmentSizeMs / 1000.0;
       
-      // Final command arguments for video segment
+      // Final command arguments for video segment with improved encoding settings
       final ffmpegArgs = [
         ...ffmpegInputArgs,
         '-filter_complex', filterComplex,
         '-map', '[out]',
         '-t', durationSec.toString(), // Set duration
         '-c:v', 'libx264', // H.264 codec
-        '-preset', 'ultrafast', // Fast encoding for preview
-        '-crf', '23', // Reasonable quality
+        '-preset', preset, // Better encoding preset for reduced buffering
+        '-crf', crf.toString(), // Better quality-size ratio
         '-pix_fmt', 'yuv420p', // Compatible pixel format
         '-r', fps.toString(), // Set frame rate
+        '-profile:v', 'main', // Ensure good compatibility
+        '-tune', 'fastdecode', // Optimize for decoding speed
+        '-movflags', '+faststart', // Optimize for faster start
+        '-g', '30', // Set keyframe interval to 1 second at 30fps
         '-an', // No audio
         '-y', // Overwrite output
         outputFile,
@@ -484,6 +491,248 @@ class FfmpegCompositeService {
       logger.logError('Error generating video segment: $e', _logTag, stackTrace);
       return false;
     }
+  }
+
+  /// Generates a series of overlapping video segments for seamless playback
+  /// 
+  /// Parameters:
+  /// - `videoInputs`: List of maps with video source info (path, source_pos_ms)
+  /// - `layoutInputs`: List of maps with layout info (x, y, width, height, flip_h, flip_v)
+  /// - `outputDirectory`: Directory to store segment files
+  /// - `outputFilePrefix`: Prefix for segment filenames
+  /// - `canvasWidth`: Width of the output video
+  /// - `canvasHeight`: Height of the output video
+  /// - `totalDurationMs`: Total duration to generate segments for
+  /// - `segmentSizeMs`: Size of each segment in milliseconds (default: 5000ms)
+  /// - `overlapMs`: Overlap between segments in milliseconds (default: 500ms)
+  /// - `fps`: Frames per second (default: 30)
+  /// 
+  /// Returns list of generated segment file paths if successful, empty list otherwise
+  Future<List<String>> generateSegmentSeries({
+    required List<Map<String, dynamic>> videoInputs,
+    required List<Map<String, dynamic>> layoutInputs,
+    required String outputDirectory,
+    required String outputFilePrefix,
+    required int canvasWidth,
+    required int canvasHeight,
+    required int totalDurationMs,
+    int segmentSizeMs = 5000,
+    int overlapMs = 500,
+    int fps = 30,
+    String preset = 'medium',
+  }) async {
+    if (videoInputs.isEmpty) {
+      logger.logError('Invalid input: Video inputs list cannot be empty.', _logTag);
+      return [];
+    }
+
+    // Create output directory if it doesn't exist
+    final outputDir = Directory(outputDirectory);
+    if (!await outputDir.exists()) {
+      await outputDir.create(recursive: true);
+      logger.logInfo('Created output directory: ${outputDir.path}', _logTag);
+    }
+
+    // Calculate number of segments needed - align to frame boundaries
+    final int frameRate = fps;
+    final double frameDuration = 1000.0 / frameRate; // Duration of one frame in ms
+    
+    // Round segment size and overlap to match frame boundaries
+    final int adjustedSegmentSizeMs = ((segmentSizeMs / frameDuration).round() * frameDuration).toInt();
+    final int adjustedOverlapMs = ((overlapMs / frameDuration).round() * frameDuration).toInt();
+    
+    if (adjustedSegmentSizeMs != segmentSizeMs || adjustedOverlapMs != overlapMs) {
+      logger.logInfo(
+        'Adjusted segment timing to align with frame boundaries: size ${segmentSizeMs}ms -> ${adjustedSegmentSizeMs}ms, overlap ${overlapMs}ms -> ${adjustedOverlapMs}ms',
+        _logTag,
+      );
+    }
+    
+    final int effectiveSegmentSize = adjustedSegmentSizeMs - adjustedOverlapMs;
+    final int numSegments = (totalDurationMs / effectiveSegmentSize).ceil();
+    
+    logger.logInfo(
+      'Generating $numSegments segments of ${adjustedSegmentSizeMs}ms with ${adjustedOverlapMs}ms overlap for ${totalDurationMs}ms total duration',
+      _logTag,
+    );
+
+    final List<String> generatedFiles = [];
+    
+    // Generate each segment with appropriate offset
+    for (int i = 0; i < numSegments; i++) {
+      final int startTimeMs = i * effectiveSegmentSize;
+      
+      // Ensure start time aligns with frame boundary
+      final int adjustedStartTimeMs = ((startTimeMs / frameDuration).round() * frameDuration).toInt();
+      
+      final String segmentFileName = '$outputFilePrefix-segment-$i.mp4';
+      final String segmentPath = '$outputDirectory/$segmentFileName';
+      
+      // Adjust video inputs for this segment with frame-aligned timings
+      final List<Map<String, dynamic>> segmentVideoInputs = videoInputs.map((input) {
+        // Calculate source position aligned to frame boundaries
+        final int originalSourcePosMs = (input['source_pos_ms'] as int) + adjustedStartTimeMs;
+        final int adjustedSourcePosMs = ((originalSourcePosMs / frameDuration).round() * frameDuration).toInt();
+        
+        return {
+          ...input,
+          'source_pos_ms': adjustedSourcePosMs,
+        };
+      }).toList();
+      
+      logger.logInfo('Generating segment $i starting at ${adjustedStartTimeMs}ms', _logTag);
+      
+      // Generate this segment
+      final success = await generateVideoSegment(
+        videoInputs: segmentVideoInputs,
+        layoutInputs: layoutInputs,
+        outputFile: segmentPath,
+        canvasWidth: canvasWidth,
+        canvasHeight: canvasHeight,
+        durationMs: totalDurationMs - adjustedStartTimeMs, // Remaining duration
+        segmentSizeMs: adjustedSegmentSizeMs,
+        fps: fps,
+        preset: preset,
+      );
+      
+      if (success) {
+        generatedFiles.add(segmentPath);
+        logger.logInfo('Successfully generated segment: $segmentFileName', _logTag);
+      } else {
+        logger.logError('Failed to generate segment $i', _logTag);
+        // Continue with other segments even if one fails
+      }
+    }
+    
+    return generatedFiles;
+  }
+
+  /// Generates a smooth preview video with optimized segments for reduced buffering
+  /// 
+  /// This is a convenience method that wraps generateSegmentSeries with optimized
+  /// parameters for smooth playback with minimal buffering.
+  ///
+  /// Parameters:
+  /// - `videoInputs`: List of maps with video source info (path, source_pos_ms)
+  /// - `layoutInputs`: List of maps with layout info (x, y, width, height, flip_h, flip_v)
+  /// - `outputDirectory`: Directory to store segment files
+  /// - `previewId`: Unique identifier for this preview (used in filenames)
+  /// - `canvasWidth`: Width of the output video
+  /// - `canvasHeight`: Height of the output video
+  /// - `totalDurationMs`: Total duration of the preview
+  /// - `fps`: Frames per second (default: 30)
+  ///
+  /// Returns a map with:
+  /// - 'segments': List of generated segment file paths
+  /// - 'metadata': Information about the segments for playback
+  Future<Map<String, dynamic>> generateSmoothPreview({
+    required List<Map<String, dynamic>> videoInputs,
+    required List<Map<String, dynamic>> layoutInputs,
+    required String outputDirectory,
+    required String previewId,
+    required int canvasWidth,
+    required int canvasHeight,
+    required int totalDurationMs,
+    int fps = 30,
+  }) async {
+    // Optimized parameters for smooth playback - aligned to frame boundaries
+    const int segmentSize = 10000; // 10-second segments
+    const int segmentOverlap = 1000; // 1-second overlap
+    const String encodingPreset = 'veryfast'; // Balanced encoding speed/quality
+    
+    // Calculate frame-aligned segment size and overlap
+    final double frameDuration = 1000.0 / fps;
+    final int alignedSegmentSize = ((segmentSize / frameDuration).round() * frameDuration).toInt();
+    final int alignedOverlap = ((segmentOverlap / frameDuration).round() * frameDuration).toInt();
+    
+    if (alignedSegmentSize != segmentSize || alignedOverlap != segmentOverlap) {
+      logger.logInfo(
+        'Aligned segment timing with frame boundaries: size ${segmentSize}ms -> ${alignedSegmentSize}ms, overlap ${segmentOverlap}ms -> ${alignedOverlap}ms',
+        _logTag,
+      );
+    }
+    
+    final String outputPrefix = 'preview-$previewId';
+    
+    // Ensure input source positions are frame-aligned
+    final List<Map<String, dynamic>> alignedVideoInputs = videoInputs.map((input) {
+      final int originalSourcePosMs = input['source_pos_ms'] as int;
+      final int adjustedSourcePosMs = ((originalSourcePosMs / frameDuration).round() * frameDuration).toInt();
+      
+      if (originalSourcePosMs != adjustedSourcePosMs) {
+        logger.logVerbose(
+          'Aligned source position with frame boundary: ${originalSourcePosMs}ms -> ${adjustedSourcePosMs}ms',
+          _logTag,
+        );
+      }
+      
+      return {
+        ...input,
+        'source_pos_ms': adjustedSourcePosMs,
+      };
+    }).toList();
+    
+    // Generate the segment series with frame-aligned parameters
+    final segments = await generateSegmentSeries(
+      videoInputs: alignedVideoInputs,
+      layoutInputs: layoutInputs,
+      outputDirectory: outputDirectory,
+      outputFilePrefix: outputPrefix,
+      canvasWidth: canvasWidth,
+      canvasHeight: canvasHeight,
+      totalDurationMs: totalDurationMs,
+      segmentSizeMs: alignedSegmentSize,
+      overlapMs: alignedOverlap,
+      fps: fps,
+      preset: encodingPreset,
+    );
+    
+    if (segments.isEmpty) {
+      logger.logError('Failed to generate any preview segments', _logTag);
+      return {
+        'segments': <String>[],
+        'metadata': {
+          'success': false,
+          'error': 'Failed to generate preview segments',
+        },
+      };
+    }
+    
+    // Calculate segment metadata for playback (helps video player handle segments)
+    final List<Map<String, dynamic>> segmentMetadata = [];
+    final int effectiveSegmentSize = alignedSegmentSize - alignedOverlap;
+    
+    for (int i = 0; i < segments.length; i++) {
+      final int startTimeMs = i * effectiveSegmentSize;
+      // Ensure start time aligns with frame boundaries
+      final int adjustedStartTimeMs = ((startTimeMs / frameDuration).round() * frameDuration).toInt();
+      final int endTimeMs = min(adjustedStartTimeMs + alignedSegmentSize, totalDurationMs);
+      
+      segmentMetadata.add({
+        'path': segments[i],
+        'start_ms': adjustedStartTimeMs,
+        'end_ms': endTimeMs,
+        'duration_ms': endTimeMs - adjustedStartTimeMs,
+      });
+    }
+    
+    logger.logInfo(
+      'Generated smooth preview with ${segments.length} segments for ${totalDurationMs}ms duration',
+      _logTag,
+    );
+    
+    return {
+      'segments': segments,
+      'metadata': {
+        'success': true,
+        'segment_count': segments.length,
+        'total_duration_ms': totalDurationMs,
+        'segment_size_ms': alignedSegmentSize,
+        'segment_overlap_ms': alignedOverlap,
+        'fps': fps,
+        'segments': segmentMetadata,
+      },
+    };
   }
 }
 
