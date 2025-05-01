@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_box_transform/flutter_box_transform.dart';
 // Import the standard video_player package
 import 'package:video_player/video_player.dart'; 
-import 'package:collection/collection.dart'; // Import for firstWhereOrNull
 
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/enums/clip_type.dart'; // Import ClipType
