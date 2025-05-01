@@ -76,7 +76,6 @@ class ProjectDatabaseAssetDao extends DatabaseAccessor<ProjectDatabase> with _$P
     int? width,
     int? height,
     double? fileSize,
-    String? thumbnailPath,
   }) async {
     logInfo(_logTag, "Importing asset: $filePath");
     
@@ -92,7 +91,7 @@ class ProjectDatabaseAssetDao extends DatabaseAccessor<ProjectDatabase> with _$P
         width: width != null ? Value(width) : const Value.absent(),
         height: height != null ? Value(height) : const Value.absent(),
         fileSize: fileSize != null ? Value(fileSize) : const Value.absent(),
-        thumbnailPath: thumbnailPath != null ? Value(thumbnailPath) : const Value.absent(),
+        // thumbnailPath: thumbnailPath != null ? Value(thumbnailPath) : const Value.absent(),
         updatedAt: Value(DateTime.now()),
       );
       

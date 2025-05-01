@@ -5,7 +5,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/utils/logger.dart';
-import 'package:flipedit/utils/media_utils.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart'; // Import ProjectViewModel
 import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
@@ -98,22 +97,22 @@ class ImportMediaCommand {
       int? width;
       int? height;
       
-      if (assetType == ClipType.video || assetType == ClipType.audio) {
-        final mediaDuration = MediaUtils.getMediaDuration(filePath);
-        durationMs = mediaDuration?.inMilliseconds ?? 0;
-        if (assetType == ClipType.video) {
-          final dimensions = await MediaUtils.getVideoDimensions(filePath);
-          width = dimensions?.width;
-          height = dimensions?.height;
-        }
-      } else if (assetType == ClipType.image) {
-        final dimensions = await MediaUtils.getImageDimensions(filePath);
-        width = dimensions?.width;
-        height = dimensions?.height;
-      }
+      // if (assetType == ClipType.video || assetType == ClipType.audio) {
+      //   final mediaDuration = MediaUtils.getMediaDuration(filePath);
+      //   durationMs = mediaDuration?.inMilliseconds ?? 0;
+      //   if (assetType == ClipType.video) {
+      //     final dimensions = await MediaUtils.getVideoDimensions(filePath);
+      //     width = dimensions?.width;
+      //     height = dimensions?.height;
+      //   }
+      // } else if (assetType == ClipType.image) {
+      //   final dimensions = await MediaUtils.getImageDimensions(filePath);
+      //   width = dimensions?.width;
+      //   height = dimensions?.height;
+      // }
       
       // Generate thumbnail
-      String? thumbnailPath = await MediaUtils.generateThumbnail(filePath, assetType);
+      // String? thumbnailPath = await MediaUtils.generateThumbnail(filePath, assetType);
       
       // Import asset using the database service
       logInfo(_logTag, "Calling databaseService.importAsset for: $filePath");
@@ -124,7 +123,7 @@ class ImportMediaCommand {
         width: width,
         height: height,
         fileSize: fileSize.toDouble(),
-        thumbnailPath: thumbnailPath,
+        // thumbnailPath: thumbnailPath,
       );
     } catch (e) {
       logError(_logTag, "Error importing media asset: $e");

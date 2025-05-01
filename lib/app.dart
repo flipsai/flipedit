@@ -1,5 +1,4 @@
 import 'dart:io' show Platform;
-import 'package:flipedit/views/widgets/preview/composite_preview_example_demo.dart';
 import 'package:fluent_ui/fluent_ui.dart' as fluent;
 import 'package:flutter/widgets.dart'; // Import WidgetsBinding
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
@@ -82,7 +81,7 @@ class FlipEditApp extends fluent.StatelessWidget with WatchItMixin {
         ),
       ),
       themeMode: fluent.ThemeMode.system,
-      home: CompositePreviewDemo(), // Use the conditionally built widget
+      home: homeWidget,
     );
   }
 }
