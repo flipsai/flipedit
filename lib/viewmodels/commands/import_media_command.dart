@@ -97,23 +97,6 @@ class ImportMediaCommand {
       int? width;
       int? height;
       
-      // if (assetType == ClipType.video || assetType == ClipType.audio) {
-      //   final mediaDuration = MediaUtils.getMediaDuration(filePath);
-      //   durationMs = mediaDuration?.inMilliseconds ?? 0;
-      //   if (assetType == ClipType.video) {
-      //     final dimensions = await MediaUtils.getVideoDimensions(filePath);
-      //     width = dimensions?.width;
-      //     height = dimensions?.height;
-      //   }
-      // } else if (assetType == ClipType.image) {
-      //   final dimensions = await MediaUtils.getImageDimensions(filePath);
-      //   width = dimensions?.width;
-      //   height = dimensions?.height;
-      // }
-      
-      // Generate thumbnail
-      // String? thumbnailPath = await MediaUtils.generateThumbnail(filePath, assetType);
-      
       // Import asset using the database service
       logInfo(_logTag, "Calling databaseService.importAsset for: $filePath");
       return await _databaseService.importAsset(
