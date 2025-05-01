@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert'; // Import dart:convert for utf8
 import 'package:path_provider/path_provider.dart';
 import 'uv_downloader.dart';
 import 'package:flipedit/utils/logger.dart';
@@ -53,9 +54,78 @@ class UvManager {
       if (!Platform.isWindows) {
         await Process.run('chmod', ['+x', _uvPath]);
       }
+      
+      // Run the main.py script
+      await runMainPythonScript();
     } catch (e, stackTrace) {
       logError(_logTag, e, stackTrace);
       rethrow;
+    }
+  }
+  
+  /// Runs the main Python script that's included in the app assets
+  /// Runs the main Python script that's included in the app assets
+  Future<ProcessResult?> runMainPythonScript() async {
+    try {
+      const defaultEnvName = 'flipedit_default';
+      
+      // Ensure default environment exists, create if not
+      if (!await doesEnvExist(defaultEnvName)) {
+        logInfo(_logTag, 'Creating default Python environment: $defaultEnvName');
+        await createVenv(defaultEnvName);
+      }
+      
+      // Ensure dependencies are installed (uv is idempotent, safe to run always)
+      logInfo(_logTag, 'Ensuring Python dependencies are installed...');
+      try {
+        await installPackage('websockets', defaultEnvName);
+        await installPackage('opencv-python', defaultEnvName);
+        await installPackage('numpy', defaultEnvName);
+        logInfo(_logTag, 'Python dependencies check/install complete.');
+      } catch (e) {
+         logError(_logTag, 'Failed to install Python dependencies: $e');
+         // Optionally rethrow or handle the error appropriately
+         throw Exception('Failed to install required Python packages.');
+      }
+
+      // Get the path to the video_stream_server.py script in assets directory
+      final scriptPath = 'assets/video_stream_server.py';
+      final scriptFile = File(scriptPath);
+      
+      if (!await scriptFile.exists()) {
+        logError(_logTag, 'Python script not found at: $scriptPath');
+        return null;
+      }
+      
+      // Get paths to video assets
+      final videoPath1 = 'assets/sample_video_1.mp4';
+      final videoPath2 = 'assets/sample_video_2.mp4';
+      
+      logInfo(_logTag, 'Running Python video stream server script: $scriptPath');
+      // Run the script in a separate process without waiting for it to finish
+      // since it's a long-running server
+      final process = await startPythonScript(defaultEnvName, scriptPath, [
+        '--video1', videoPath1,
+        '--video2', videoPath2,
+        '--host', 'localhost',
+        '--port', '8080',
+      ]);
+      
+      logInfo(_logTag, 'Python server process started (PID: ${process.pid})');
+      
+      // Log stdout and stderr asynchronously
+      process.stdout.transform(utf8.decoder).listen((data) {
+        logInfo('PythonServer', data.trim());
+      });
+      process.stderr.transform(utf8.decoder).listen((data) {
+        logError('PythonServer', data.trim());
+      });
+      
+      // Return null immediately as the process runs in the background
+      return null;
+    } catch (e, stackTrace) {
+      logError(_logTag, 'Error running Python video server script: $e', stackTrace);
+      return null;
     }
   }
   
@@ -180,7 +250,7 @@ class UvManager {
     }
   }
   
-  // Run Python script within a virtual environment
+  /// Runs a Python script within a virtual environment and returns the ProcessResult
   Future<ProcessResult> runPythonScript(String envName, String scriptPath, List<String> args) async {
     String pythonExe;
     if (Platform.isWindows) {
@@ -191,6 +261,19 @@ class UvManager {
     
     logInfo(_logTag, 'Running script with Python at: $pythonExe');
     return await Process.run(pythonExe, [scriptPath, ...args]);
+  }
+  
+  /// Starts a Python script within a virtual environment and returns the Process object
+  Future<Process> startPythonScript(String envName, String scriptPath, List<String> args) async {
+    String pythonExe;
+    if (Platform.isWindows) {
+      pythonExe = '$_appDataDir\\venvs\\$envName\\Scripts\\python.exe';
+    } else {
+      pythonExe = '$_appDataDir/venvs/$envName/bin/python';
+    }
+    
+    logInfo(_logTag, 'Starting script with Python at: $pythonExe');
+    return await Process.start(pythonExe, [scriptPath, ...args]);
   }
 
   Future<List<String>> listVenvs() async {

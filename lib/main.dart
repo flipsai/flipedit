@@ -1,6 +1,7 @@
 import 'package:flipedit/app.dart';
 import 'package:flipedit/di/service_locator.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
+import 'package:flipedit/services/uv_manager.dart';
 // Add prefix
 import 'package:window_manager/window_manager.dart';
 import 'package:fluent_ui/fluent_ui.dart';
@@ -15,6 +16,16 @@ Future<void> main() async {
 
   // Set up dependency injection
   await setupServiceLocator();
+
+  // Initialize UvManager
+  try {
+    final uvManager = di.get<UvManager>();
+    await uvManager.initialize();
+    logInfo('main', 'UvManager initialized successfully');
+  } catch (e) {
+    logError('main', 'Failed to initialize UvManager: $e');
+    // Continue app execution even if UV initialization fails
+  }
 
   // Ensure ViewModels are accessible to watch_it and load last project
   // Make sure ProjectViewModel is registered before trying to use it
