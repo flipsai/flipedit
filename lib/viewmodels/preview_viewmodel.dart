@@ -1,26 +1,23 @@
 import 'dart:async'; // Import for Timer (debouncing)
+import 'dart:io'; // Add File import
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_box_transform/flutter_box_transform.dart';
 // Import the standard video_player package
 import 'package:video_player/video_player.dart'; 
-import 'dart:io'; // Import for File
 import 'package:collection/collection.dart'; // Import for firstWhereOrNull
 
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/enums/clip_type.dart'; // Import ClipType
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/services/project_metadata_service.dart';
-// Remove CompositeVideoService dependency
-// import 'package:flipedit/services/composite_video_service.dart'; 
+import 'package:flipedit/services/composite_video_service.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
-import 'commands/update_clip_transform_command.dart';
 import 'package:watch_it/watch_it.dart';
 
-// TODO: Consider refining visibility logic (e.g., only top-most clip per track)
 class PreviewViewModel extends ChangeNotifier {
   final String _logTag = 'PreviewViewModel';
 
@@ -30,8 +27,7 @@ class PreviewViewModel extends ChangeNotifier {
   late final EditorViewModel _editorViewModel;
   late final ProjectDatabaseService _projectDatabaseService;
   late final ProjectMetadataService _projectMetadataService;
-  // Remove CompositeVideoService dependency
-  // late final CompositeVideoService _compositeVideoService; 
+  late final CompositeVideoService _compositeVideoService;
 
   // --- State Notifiers (Exposed to View) ---
   // Replace texture ID and processing notifiers with the controller itself
@@ -73,8 +69,7 @@ class PreviewViewModel extends ChangeNotifier {
     _editorViewModel = di<EditorViewModel>();
     _projectDatabaseService = di<ProjectDatabaseService>();
     _projectMetadataService = di<ProjectMetadataService>();
-    // Remove CompositeVideoService dependency
-    // _compositeVideoService = di<CompositeVideoService>(); 
+    _compositeVideoService = di<CompositeVideoService>();
 
     // Remove initialization from CompositeVideoService
     // textureIdNotifier.value = _compositeVideoService.textureIdNotifier.value;
@@ -198,104 +193,179 @@ class PreviewViewModel extends ChangeNotifier {
         currentFlips[clip.databaseId!] = clip.previewFlip;
       }
     }
-    // Sort potentiallyVisibleClips (same logic as before)
-    // ... (sorting logic omitted for brevity, assume it's the same) ...
-
 
     // Update interaction overlay notifiers (same as before)
     bool overlaysChanged = false;
-     if (!listEquals(visibleClipsNotifier.value.map((c) => c.databaseId).toList(), potentiallyVisibleClips.map((c) => c.databaseId).toList())) {
+    if (!listEquals(visibleClipsNotifier.value.map((c) => c.databaseId).toList(), potentiallyVisibleClips.map((c) => c.databaseId).toList())) {
       visibleClipsNotifier.value = potentiallyVisibleClips;
       overlaysChanged = true;
       logger.logInfo('Updated visibleClipsNotifier. New Count: ${potentiallyVisibleClips.length}');
     }
-    // ... (update clipRectsNotifier, clipFlipsNotifier - same logic) ...
+
+    // Update rects and flips if needed
+    if (!mapEquals(clipRectsNotifier.value, currentRects)) {
+      clipRectsNotifier.value = currentRects;
+      overlaysChanged = true;
+    }
+    if (!mapEquals(clipFlipsNotifier.value, currentFlips)) {
+      clipFlipsNotifier.value = currentFlips;
+      overlaysChanged = true;
+    }
+    
     if (overlaysChanged) {
       notifyListeners(); // Notify view about overlay changes
     }
 
+    // 2. Filter for only video clips for composite display
+    final List<ClipModel> activeVideoClips = potentiallyVisibleClips
+        .where((clip) => clip.type == ClipType.video)
+        .toList();
 
-    // 2. Determine the primary video content (first active VIDEO clip)
-    final ClipModel? firstVideoClip = potentiallyVisibleClips.firstWhereOrNull(
-      (clip) => clip.type == ClipType.video,
-    );
-
-    // Update the notifier for the active clip ID
-    final newActiveClipId = firstVideoClip?.databaseId;
+    // Update the notifier for the active clip ID (keeping for now)
+    final newActiveClipId = activeVideoClips.isNotEmpty ? activeVideoClips.first.databaseId : null;
     if (firstActiveVideoClipIdNotifier.value != newActiveClipId) {
       firstActiveVideoClipIdNotifier.value = newActiveClipId;
       logger.logVerbose('Updated firstActiveVideoClipId: $newActiveClipId', _logTag);
     }
 
-    if (firstVideoClip == null) {
-      // No active video clip, dispose controller if it exists
+    if (activeVideoClips.isEmpty) {
+      // No active video clips, dispose controller if it exists
       if (_controller != null) {
-        logger.logInfo('No active video clip. Disposing controller.', _logTag);
+        logger.logInfo('No active video clips. Disposing controller.', _logTag);
         await _disposeController();
         _currentSourcePath = null;
         notifyListeners(); // Notify view that controller is gone
       }
-       logger.logVerbose('No active video clip at ${currentMs}ms.', _logTag);
-      return; 
+      logger.logVerbose('No active video clips at ${currentMs}ms.', _logTag);
+      return;
+    }
+    
+    // Skip composite video handling if there are multiple video clips - CompositePreviewPanel handles this now
+    if (activeVideoClips.length >= 2) {
+      logger.logInfo('Multiple active video clips (${activeVideoClips.length}). Skipping processing as CompositePreviewPanel will handle it.', _logTag);
+      // Dispose any existing controller since it's now handled by CompositePreviewPanel
+      if (_controller != null) {
+        await _disposeController();
+        _currentSourcePath = null;
+        notifyListeners();
+      }
+      return;
     }
 
-    // 3. Manage VideoPlayerController
-    final sourcePath = firstVideoClip.sourcePath;
-    final sourceUri = Uri.file(sourcePath); // Use Uri.file for local paths
-
-    // Calculate the position within the source video file
-    int positionInClipMs = currentMs - firstVideoClip.startTimeOnTrackMs;
-    positionInClipMs = positionInClipMs < 0 ? 0 : positionInClipMs;
-    int sourcePosMs = firstVideoClip.startTimeInSourceMs + positionInClipMs;
-    sourcePosMs = sourcePosMs.clamp(firstVideoClip.startTimeInSourceMs, firstVideoClip.endTimeInSourceMs);
-    final seekPosition = Duration(milliseconds: sourcePosMs);
-
     try {
-      if (_controller == null || _currentSourcePath != sourcePath) {
-        // Initialize new controller
-        await _disposeController();
-        _controller = VideoPlayerController.networkUrl(sourceUri);
-        _currentSourcePath = sourcePath;
-        _controller!.addListener(notifyListeners); // Add listener immediately
-        await _controller!.initialize();
-        logger.logInfo('Controller initialized. Initial seek to $seekPosition.', _logTag);
-        await _controller!.seekTo(seekPosition);
-        await _controller!.pause(); // Start paused
-        notifyListeners(); 
-        // If timeline is already playing when source changes, start playback immediately
-        if (isTimelinePlaying) {
-           await _controller!.play();
+      // 3. Use CompositeVideoService to generate the composite display
+      logger.logInfo('Generating composite video with ${activeVideoClips.length} clips at ${currentMs}ms', _logTag);
+      
+      // Pass the container size to the composite service
+      final containerSize = containerSizeNotifier.value;
+      
+      // Call the composite service to generate the video
+      final success = await _compositeVideoService.createCompositeVideo(
+        clips: activeVideoClips,
+        currentTimeMs: currentMs,
+        containerSize: containerSize,
+      );
+      
+      if (!success) {
+        logger.logError('Failed to create composite video', _logTag);
+        
+        // For single clip case, fall back to direct video player as backup
+        if (activeVideoClips.length == 1) {
+          logger.logInfo('Falling back to direct video playback for single clip', _logTag);
+          final clip = activeVideoClips.first;
+          
+          // Calculate the source position
+          int positionInClipMs = currentMs - clip.startTimeOnTrackMs;
+          positionInClipMs = positionInClipMs < 0 ? 0 : positionInClipMs;
+          int sourcePosMs = clip.startTimeInSourceMs + positionInClipMs;
+          sourcePosMs = sourcePosMs.clamp(clip.startTimeInSourceMs, clip.endTimeInSourceMs);
+          final seekPosition = Duration(milliseconds: sourcePosMs);
+          
+          // Use direct video player for the single clip
+          await _disposeController();
+          _controller = VideoPlayerController.file(File(clip.sourcePath));
+          _currentSourcePath = clip.sourcePath;
+          
+          // Initialize and prepare
+          _controller!.addListener(notifyListeners);
+          await _controller!.initialize();
+          await _controller!.seekTo(seekPosition);
+          
+          // Update playback state based on timeline
+          if (isTimelinePlaying) {
+            await _controller!.play();
+          } else {
+            await _controller!.pause();
+          }
+          
+          notifyListeners();
+          logger.logInfo('Successfully set up direct playback for single clip', _logTag);
+          return;
         }
-      } else {
-        // Controller exists, source is the same.
-        // SEEK ONLY IF PAUSED.
-        if (!isTimelinePlaying) {
-            final currentPosition = await _controller!.position ?? Duration.zero;
-            final difference = (currentPosition - seekPosition).abs();
-            if (difference > const Duration(milliseconds: 100)) { 
-               logger.logVerbose('Timeline Paused: Seeking existing controller to $seekPosition.', _logTag);
-               await _controller!.seekTo(seekPosition);
-                if (_controller!.value.isPlaying) { // Ensure pause after scrub seek
-                  await _controller!.pause();
-                }
-            } else {
-               logger.logVerbose('Timeline Paused: Seek position already close.', _logTag);
-                if (_controller!.value.isPlaying) { // Ensure pause if close but playing
-                  await _controller!.pause();
-                }
-            }
+        
+        // Clean up on failure
+        await _disposeController();
+        _currentSourcePath = null;
+        notifyListeners();
+        return;
+      }
+      
+      // 4. Get the texture from the composite service and create a VideoPlayerController
+      final textureId = _compositeVideoService.textureId;
+      if (textureId <= 0) {
+        logger.logError('Invalid texture ID from composite service: $textureId', _logTag);
+        await _disposeController();
+        _currentSourcePath = null;
+        notifyListeners();
+        return;
+      }
+      
+      // If we have a new texture ID or no controller, create one
+      final newSourcePath = "composite_$textureId"; // Use texture ID as part of unique identifier
+      if (_controller == null || _currentSourcePath != newSourcePath) {
+        // Dispose old controller
+        await _disposeController();
+        
+        // Get the path from the composite service
+        final compositePath = _compositeVideoService.getCompositeFilePath();
+        if (compositePath == null || compositePath.isEmpty) {
+          logger.logError('Invalid composite file path from service', _logTag);
+          notifyListeners();
+          return;
+        }
+        
+        // Create a new controller using the file path
+        _controller = VideoPlayerController.file(
+          File(compositePath),
+        );
+        _currentSourcePath = newSourcePath;
+        
+        // Initialize and prepare
+        _controller!.addListener(notifyListeners);
+        await _controller!.initialize();
+        
+        // Update playback state based on timeline
+        if (isTimelinePlaying) {
+          await _controller!.play();
         } else {
-           // Timeline is Playing: Do NOT seek here. The playback state handler
-           // ensures play() is called. We only need to ensure it IS playing.
-           if (!_controller!.value.isPlaying) {
-              logger.logWarning('Timeline Playing but controller paused. Re-initiating play via state handler trigger.', _logTag);
-              // Trigger the state handler instead of calling play directly
-              _handlePlaybackStateChange(); 
-           }
+          await _controller!.pause();
+        }
+        
+        // Notify UI that controller has changed
+        notifyListeners();
+      } else {
+        // Controller exists but we may need to update playback state
+        if (isTimelinePlaying && !_controller!.value.isPlaying) {
+          await _controller!.play();
+        } else if (!isTimelinePlaying && _controller!.value.isPlaying) {
+          await _controller!.pause();
         }
       }
+      
+      logger.logInfo('Successfully updated composite video display', _logTag);
+      
     } catch (e, stack) {
-      logger.logError('Error managing VideoPlayerController: $e', _logTag, stack);
+      logger.logError('Error creating or displaying composite video: $e', _logTag, stack);
       await _disposeController();
       _currentSourcePath = null;
       notifyListeners();
@@ -352,97 +422,6 @@ class PreviewViewModel extends ChangeNotifier {
     if (containerSizeNotifier.value != newSize) {
       containerSizeNotifier.value = newSize;
       logger.logDebug('Container size updated: $newSize', _logTag);
-    }
-  }
-
-  void selectClip(int? clipId) {
-    if (selectedClipIdNotifier.value != clipId) {
-      selectedClipIdNotifier.value = clipId;
-      _timelineViewModel.selectedClipId = clipId;
-      logger.logDebug('Clip selected via Preview: $clipId', _logTag);
-    }
-  }
-
-  // --- Transform Handling ---
-
-  void handleTransformStart(int clipId) {
-    if (!isTransformingNotifier.value) {
-      isTransformingNotifier.value = true;
-      // Store initial state for undo
-      _preTransformRects[clipId] = clipRectsNotifier.value[clipId] ?? Rect.zero;
-      _preTransformFlips[clipId] = clipFlipsNotifier.value[clipId] ?? Flip.none;
-      logger.logVerbose('Transform started for clip $clipId', _logTag);
-    }
-  }
-
-  void handleRectChanged(int clipId, Rect newRect) {
-    // TODO: Snapping logic
-    logger.logVerbose('Rect changed (pre-snap): $clipId, $newRect', _logTag);
-    final currentRects = Map<int, Rect>.from(clipRectsNotifier.value);
-    currentRects[clipId] = newRect;
-    clipRectsNotifier.value = currentRects;
-    // TODO: Update snap lines
-    activeHorizontalSnapYNotifier.value = null;
-    activeVerticalSnapXNotifier.value = null;
-  }
-
-  void handleFlipChanged(int clipId, Flip newFlip) {
-    final currentFlips = Map<int, Flip>.from(clipFlipsNotifier.value);
-    if (currentFlips[clipId] != newFlip) {
-      logger.logDebug('Flip changed for clip $clipId to $newFlip', _logTag);
-      currentFlips[clipId] = newFlip;
-      clipFlipsNotifier.value = currentFlips;
-    }
-  }
-
-  void handleTransformEnd(int clipId) async {
-    if (isTransformingNotifier.value) {
-      isTransformingNotifier.value = false;
-      activeHorizontalSnapYNotifier.value = null;
-      activeVerticalSnapXNotifier.value = null;
-      logger.logVerbose('Transform ended for clip $clipId', _logTag);
-
-      // Persist changes and create undo command
-      final currentRect = clipRectsNotifier.value[clipId];
-      final currentFlip = clipFlipsNotifier.value[clipId];
-      final initialRect = _preTransformRects[clipId];
-      final initialFlip = _preTransformFlips[clipId];
-
-      if (currentRect != null && currentFlip != null && initialRect != null && initialFlip != null && (currentRect != initialRect || currentFlip != initialFlip)) {
-        logger.logInfo('Persisting transform for clip $clipId: Rect=$currentRect, Flip=$currentFlip', _logTag);
-        
-        // Use UpdateClipTransformCommand
-        final command = UpdateClipTransformCommand(
-          timelineViewModel: _timelineViewModel,
-          clipId: clipId,
-          newRect: currentRect,
-          newFlip: currentFlip,
-          oldRect: initialRect,
-          oldFlip: initialFlip,
-          projectDatabaseService: _projectDatabaseService,
-        );
-        // Assuming an UndoRedoService exists and is accessible (e.g., via DI)
-        // di<UndoRedoService>().executeCommand(command);
-        
-        // Execute the command directly and handle potential errors
-        try {
-           await command.execute(); 
-            // Command internally logs success
-           // Update timeline notifier *after* successful execution
-           await _timelineViewModel.refreshClips(); 
-        } catch (error, cmdStack) {
-           // Command internally logs failure
-           logger.logError('UpdateClipTransformCommand failed from PreviewViewModel: $error', _logTag, cmdStack);
-           // Optionally revert UI or show error message
-        }
-
-      } else {
-         logger.logVerbose('No significant transform change detected for clip $clipId to persist.', _logTag);
-      }
-
-      // Clear pre-transform state
-      _preTransformRects.remove(clipId);
-      _preTransformFlips.remove(clipId);
     }
   }
 }
