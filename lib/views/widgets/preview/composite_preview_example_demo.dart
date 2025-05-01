@@ -20,65 +20,81 @@ class _CompositePreviewDemoState extends State<CompositePreviewDemo> {
   bool _isLoading = true;
   bool _hasError = false;
   String _errorMessage = '';
-  bool _showCustomPathInput = false;
   final TextEditingController _video1Controller = TextEditingController();
   final TextEditingController _video2Controller = TextEditingController();
-  
+  final TextEditingController _avFilterController =
+      TextEditingController(text: '[in]eq=brightness=0.1:contrast=1.2[out]');
+
   // Reference to the compositor for controlling playback
   MdkVideoCompositor? _compositor;
   bool _isPlaying = false;
-  
+
   @override
   void initState() {
     super.initState();
     _findVideoPaths();
   }
-  
+
   @override
   void dispose() {
     _video1Controller.dispose();
     _video2Controller.dispose();
+    _avFilterController.dispose(); // Dispose the new controller
     super.dispose();
   }
-  
+
   Future<void> _findVideoPaths() async {
     try {
       // Default to assets paths
       video1Path = 'assets/sample_video_1.mp4';
       video2Path = 'assets/sample_video_2.mp4';
-      
-      logger.logInfo('Checking if videos exist at default paths', 'CompositePreviewDemo');
-      
+
+      logger.logInfo(
+        'Checking if videos exist at default paths',
+        'CompositePreviewDemo',
+      );
+
       // Check if the asset files exist
       final directory = Directory('assets');
       if (await directory.exists()) {
         final entities = await directory.list().toList();
         final fileNames = entities.map((e) => e.path.split('/').last).toList();
-        
-        logger.logInfo('Found files in assets directory: $fileNames', 'CompositePreviewDemo');
-        
+
+        logger.logInfo(
+          'Found files in assets directory: $fileNames',
+          'CompositePreviewDemo',
+        );
+
         // If any of the sample files don't exist, try to find alternative videos
-        if (!fileNames.contains('sample_video_1.mp4') || !fileNames.contains('sample_video_2.mp4')) {
+        if (!fileNames.contains('sample_video_1.mp4') ||
+            !fileNames.contains('sample_video_2.mp4')) {
           // Look for any mp4 files
-          final videoFiles = entities.where((e) => e.path.endsWith('.mp4')).toList();
-          
+          final videoFiles =
+              entities.where((e) => e.path.endsWith('.mp4')).toList();
+
           if (videoFiles.length >= 2) {
             video1Path = videoFiles[0].path;
             video2Path = videoFiles[1].path;
-            logger.logInfo('Using alternative videos: $video1Path, $video2Path', 'CompositePreviewDemo');
+            logger.logInfo(
+              'Using alternative videos: $video1Path, $video2Path',
+              'CompositePreviewDemo',
+            );
           }
         }
       }
-      
+
       // Set the controllers with the found paths
       _video1Controller.text = video1Path;
       _video2Controller.text = video2Path;
-      
+
       setState(() {
         _isLoading = false;
       });
     } catch (e) {
-      logger.logError('Error setting up video paths: $e', 'CompositePreviewDemo');
+      logger.logError(
+        'Error setting up video paths: $e',
+        'CompositePreviewDemo',
+      );
       setState(() {
         _isLoading = false;
         _hasError = true;
@@ -86,30 +102,29 @@ class _CompositePreviewDemoState extends State<CompositePreviewDemo> {
       });
     }
   }
-  
-  void _applyCustomPaths() {
-    setState(() {
-      video1Path = _video1Controller.text;
-      video2Path = _video2Controller.text;
-      _showCustomPathInput = false;
-      logger.logInfo('Applied custom video paths: $video1Path, $video2Path', 'CompositePreviewDemo');
-      _isPlaying = false; // Reset play state when paths change
-    });
-  }
-  
-  void _onCompositorCreated(MdkVideoCompositor compositor) {
+
+  void _onCompositorCreated(MdkVideoCompositor compositor) async {
     _compositor = compositor;
+    logger.logInfo(
+      'Compositor created and initial overlay settings applied',
+      'CompositePreviewDemo',
+    );
   }
-  
+
   void _togglePlayback() async {
-    if (_compositor == null || _compositor!.playerService == null || _compositor!.playerService.player == null) {
-      logger.logError('Cannot toggle playback, compositor or player not available', 'CompositePreviewDemo');
+    if (_compositor == null ||
+        _compositor!.playerService == null ||
+        _compositor!.playerService.player == null) {
+      logger.logError(
+        'Cannot toggle playback, compositor or player not available',
+        'CompositePreviewDemo',
+      );
       return;
     }
-    
+
     try {
       final player = _compositor!.playerService.player!;
-      
+
       if (_isPlaying) {
         // Pause
         player.state = mdk.PlaybackState.paused;
@@ -117,32 +132,45 @@ class _CompositePreviewDemoState extends State<CompositePreviewDemo> {
         // Play
         player.state = mdk.PlaybackState.playing;
       }
-      
+
       setState(() {
         _isPlaying = !_isPlaying;
       });
-      
-      logger.logInfo('Playback toggled to ${_isPlaying ? "playing" : "paused"}', 'CompositePreviewDemo');
+
+      logger.logInfo(
+        'Playback toggled to ${_isPlaying ? "playing" : "paused"}',
+        'CompositePreviewDemo',
+      );
     } catch (e) {
       logger.logError('Error toggling playback: $e', 'CompositePreviewDemo');
     }
   }
-  
+
+  void _applyAvFilter() {
+    if (_compositor != null) {
+      final filterString = _avFilterController.text;
+      if (filterString.isNotEmpty) {
+        logger.logInfo(
+          'Applying AVFilter: $filterString',
+          'CompositePreviewDemo',
+        );
+        _compositor!.applyVideoFilterGraph(filterString);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
-        body: Center(child: fluent_ui.ProgressRing()),
-      );
+      return const Scaffold(body: Center(child: fluent_ui.ProgressRing()));
     }
-    
+
     if (_hasError) {
       return Scaffold(
-        appBar: AppBar(
-          title: const Text('Error'),
-        ),
+        appBar: AppBar(title: const Text('Error')),
         body: Center(
-          child: Text('Error: $_errorMessage', 
+          child: Text(
+            'Error: $_errorMessage',
             style: const TextStyle(color: Colors.red),
           ),
         ),
@@ -152,16 +180,6 @@ class _CompositePreviewDemoState extends State<CompositePreviewDemo> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('MDK Video Compositor Demo'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () {
-              setState(() {
-                _showCustomPathInput = !_showCustomPathInput;
-              });
-            },
-          ),
-        ],
       ),
       body: Center(
         child: Column(
@@ -171,42 +189,34 @@ class _CompositePreviewDemoState extends State<CompositePreviewDemo> {
               padding: EdgeInsets.all(16.0),
               child: Text(
                 'Composite Video Preview using MDK API',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
             ),
-            if (_showCustomPathInput) ...[
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: Column(
-                  children: [
-                    TextField(
-                      controller: _video1Controller,
-                      decoration: const InputDecoration(
-                        labelText: 'Video 1 Path',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _video2Controller,
-                      decoration: const InputDecoration(
-                        labelText: 'Video 2 Path',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    ElevatedButton(
-                      onPressed: _applyCustomPaths,
-                      child: const Text('Apply Paths'),
-                    ),
-                  ],
-                ),
+
+            // Section for AVFilter Input
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 8.0,
               ),
-              const SizedBox(height: 16),
-            ],
+              child: Column(
+                children: [
+                  TextField(
+                    controller: _avFilterController,
+                    decoration: const InputDecoration(
+                      labelText: 'FFmpeg Video AVFilter Graph',
+                      hintText: 'e.g., [in]eq=brightness=0.1:contrast=1.2[out]',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ElevatedButton(
+                    onPressed: _applyAvFilter,
+                    child: const Text('Apply AVFilter'),
+                  ),
+                ],
+              ),
+            ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: Text(
@@ -223,6 +233,26 @@ class _CompositePreviewDemoState extends State<CompositePreviewDemo> {
                   icon: Icon(_isPlaying ? Icons.pause : Icons.play_arrow),
                   label: Text(_isPlaying ? 'Pause' : 'Play'),
                 ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    if (_compositor != null) {
+                      logger.logInfo(
+                        'Resetting and retrying video setup...',
+                        'CompositePreviewDemo',
+                      );
+                      final id =
+                          await _compositor!
+                              .resetAndRetryVideoSetup(); // Call the renamed method
+                      logger.logInfo(
+                        'Forced texture creation result: $id',
+                        'CompositePreviewDemo',
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Retry Video'),
+                ),
               ],
             ),
             Expanded(
@@ -238,7 +268,9 @@ class _CompositePreviewDemoState extends State<CompositePreviewDemo> {
                     video1Path: video1Path,
                     video2Path: video2Path,
                     onCompositorCreated: _onCompositorCreated,
-                    key: ValueKey('$video1Path-$video2Path'), // Force rebuild when paths change
+                    key: ValueKey(
+                      '$video1Path-$video2Path',
+                    ), // Force rebuild when paths change
                   ),
                 ),
               ),
@@ -256,20 +288,3 @@ class _CompositePreviewDemoState extends State<CompositePreviewDemo> {
     );
   }
 }
-
-/// Run this as a standalone app for testing
-void main() {
-  runApp(const CompositePreviewDemoApp());
-}
-
-class CompositePreviewDemoApp extends StatelessWidget {
-  const CompositePreviewDemoApp({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return const MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: CompositePreviewDemo(),
-    );
-  }
-} 

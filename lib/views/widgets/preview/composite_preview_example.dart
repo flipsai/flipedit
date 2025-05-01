@@ -1,11 +1,6 @@
-import 'dart:async';
-import 'dart:ffi';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:fvp/fvp.dart';
 import 'package:fvp/mdk.dart' as mdk;
-import 'package:ffi/ffi.dart';
-import 'package:watch_it/watch_it.dart';
 import 'package:fluent_ui/fluent_ui.dart' as fluent_ui;
 import 'package:flipedit/services/mdk_player_service.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
@@ -30,7 +25,6 @@ class CompositeVideoPreview extends StatefulWidget {
 class _CompositeVideoPreviewState extends State<CompositeVideoPreview> {
   final _logTag = 'CompositeVideoPreview';
   late MdkVideoCompositor _compositor;
-  int _textureId = -1;
   bool _isInitialized = false;
   bool _hasError = false;
   String _errorMessage = '';
@@ -46,39 +40,29 @@ class _CompositeVideoPreviewState extends State<CompositeVideoPreview> {
     try {
       logger.logInfo('Initializing compositor with videos: ${widget.video1Path}, ${widget.video2Path}', _logTag);
       
-      // Initialize the compositor with both video paths
       await _compositor.initialize(
         video1Path: widget.video1Path,
         video2Path: widget.video2Path,
       );
 
-      // Notify if callback exists
       if (widget.onCompositorCreated != null) {
         widget.onCompositorCreated!(_compositor);
       }
 
-      // Get the texture ID for rendering
-      final textureId = await _compositor.prepareCompositeTexture();
-      
-      if (textureId > 0) {
+      if (mounted) {
         setState(() {
-          _textureId = textureId;
           _isInitialized = true;
         });
-        logger.logInfo('Compositor initialized successfully with texture ID: $_textureId', _logTag);
-      } else {
-        setState(() {
-          _hasError = true;
-          _errorMessage = 'Failed to get valid texture ID';
-        });
-        logger.logError('Failed to get valid texture ID', _logTag);
       }
+      logger.logInfo('Compositor initialized successfully', _logTag);
     } catch (e) {
       logger.logError('Error initializing compositor: $e', _logTag);
-      setState(() {
-        _hasError = true;
-        _errorMessage = e.toString();
-      });
+      if (mounted) {
+        setState(() {
+          _hasError = true;
+          _errorMessage = e.toString();
+        });
+      }
     }
   }
 
@@ -113,7 +97,18 @@ class _CompositeVideoPreviewState extends State<CompositeVideoPreview> {
           child: SizedBox(
             width: _compositor.width.toDouble(),
             height: _compositor.height.toDouble(),
-            child: Texture(textureId: _textureId),
+            child: ValueListenableBuilder<int>(
+              valueListenable: _compositor.playerService.textureIdNotifier,
+              builder: (context, textureId, _) {
+                logger.logInfo('Texture ID updated: $textureId', _logTag);
+                if (textureId <= 0) {
+                  return const Center(
+                    child: fluent_ui.ProgressRing(),
+                  );
+                }
+                return Texture(textureId: textureId);
+              },
+            ),
           ),
         ),
       ),
@@ -129,14 +124,13 @@ class MdkVideoCompositor {
   int _height = 0;
   bool _isDisposed = false;
   
-  // Use the MdkPlayerService to handle media playback and texture creation
   final MdkPlayerService _playerService = MdkPlayerService();
 
-  // Expose player service for external control
   MdkPlayerService get playerService => _playerService;
 
   int get width => _width;
   int get height => _height;
+  int get textureId => _playerService.textureId;
   
   MdkVideoCompositor();
 
@@ -145,17 +139,15 @@ class MdkVideoCompositor {
     required String video2Path,
   }) async {
     try {
-      _videoFiles.clear(); // Clear any existing entries
+      _videoFiles.clear();
       _videoFiles.add(video1Path);
       _videoFiles.add(video2Path);
       
       logger.logInfo('Video paths to use: $_videoFiles', _logTag);
       
-      // Check if files exist
       final firstVideoExists = await _checkFileExists(_videoFiles[0]);
       logger.logInfo('First video exists: $firstVideoExists at path: ${_videoFiles[0]}', _logTag);
       
-      // Set up the media in the playerService
       final mediaSetupSuccess = await _playerService.setAndPrepareMedia(
         _videoFiles[0], 
         type: mdk.MediaType.video
@@ -165,13 +157,6 @@ class MdkVideoCompositor {
         throw Exception('Failed to set up media in player service');
       }
       
-      // Initialize the player and check its state
-      final playerInitialized = await _initializePlayer();
-      if (!playerInitialized) {
-        throw Exception('Failed to initialize player in ready state');
-      }
-      
-      // Get dimensions from the first video
       final player = _playerService.player;
       if (player == null) {
         throw Exception('Player is null after media setup');
@@ -186,154 +171,128 @@ class MdkVideoCompositor {
         throw Exception('Invalid video dimensions: ${_width}x$_height');
       }
       
-      // Configure the player with our compositing settings using appropriate properties
-      _setupCompositing();
+      // await _setupCompositing();
       
-      logger.logInfo('Compositor initialized with dimensions: ${_width}x$_height', _logTag);
+      // If texture ID is still invalid after setup, try to force texture creation
+      if (_playerService.textureId <= 0) {
+        logger.logInfo('Texture ID still invalid after setup, attempting reset and retry...', _logTag);
+        final forcedId = await resetAndRetryVideoSetup(); // Use the renamed method
+        
+        if (forcedId <= 0) {
+          logger.logWarning('Failed to force texture creation', _logTag);
+        } else {
+          logger.logInfo('Successfully forced texture creation with ID: $forcedId', _logTag);
+        }
+      }
+      
+      logger.logInfo('Compositor initialized with dimensions: ${_width}x$_height, texture ID: ${_playerService.textureId}', _logTag);
     } catch (e) {
       logger.logError('Failed to initialize compositor: $e', _logTag);
       rethrow;
     }
   }
 
-  /// Check if a file exists, handling asset paths specially
   Future<bool> _checkFileExists(String path) async {
     if (path.startsWith('assets/') || path.startsWith('/assets/')) {
-      // For assets, we need to handle this specially 
-      // Assets should exist but we can't check directly with File().exists()
       return true;
     }
     return File(path).existsSync();
   }
 
   String _getProperPath(String originalPath) {
-    // Check if this is an asset path
-    if (originalPath.startsWith('assets/')) {
-      // Use asset:/// for flutter assets
-      return 'asset:///${originalPath}';
-    } else if (File(originalPath).existsSync()) {
-      // Absolute file path that exists
+    // Already has the asset:/// prefix
+    if (originalPath.startsWith('asset:///')) {
       return originalPath;
-    } else {
-      // Try as an asset as fallback
-      logger.logWarning('File not found at $originalPath, trying as asset', _logTag);
-      return 'asset:///$originalPath';
-    }
-  }
-
-  void _setupCompositing() {
-    if (_videoFiles.length < 2 || _playerService.player == null) return;
-    
-    try {
-      final player = _playerService.player!;
-      
-      // Log player state before changing properties
-      logger.logInfo('Player state before setup: ${player.state}', _logTag);
-      
-      // Ensure player is stopped temporarily while we configure it
-      final previousState = player.state;
-      if (previousState != mdk.PlaybackState.stopped) {
-        player.state = mdk.PlaybackState.stopped;
-        // Brief pause to let the player react to state change
-        Future.delayed(const Duration(milliseconds: 20));
-      }
-      
-      // Set up basic player properties for optimal compositing performance
-      player.setProperty('video.decoder.thread_count', '4');
-      player.setProperty('buffer_range', '8');
-      player.setProperty('continue_at_end', '1');
-      player.setProperty('video.clear_on_stop', '0');
-      player.setProperty('gpu.priority', 'high'); // Prioritize GPU use for compositing
-      player.setActiveTracks(mdk.MediaType.audio, []); // Disable audio
-      
-      // Handle path for second video correctly
-      final secondVideoPath = _getProperPath(_videoFiles[1]);
-      logger.logInfo('Using second video path: $secondVideoPath', _logTag);
-      
-      // Create a complex filter string for MDK
-      // This example uses blend_mode=overlay and opacity=0.5
-      final filterString = 'overlay=x=0:y=0:blend_mode=overlay:opacity=0.5';
-      
-      // Apply the filter to set up compositing
-      player.setProperty('video.filters', filterString);
-      
-      // Add the second video as a source
-      player.setProperty('video.input.1', secondVideoPath);
-      
-      // Restore previous state if it was playing/paused
-      if (previousState == mdk.PlaybackState.playing || previousState == mdk.PlaybackState.paused) {
-        player.state = previousState;
-      } else {
-        // Otherwise start playback to activate filters/compositing
-        player.state = mdk.PlaybackState.playing;
-        // Then immediately pause to keep the frame static if needed
-        Future.delayed(const Duration(milliseconds: 100), () {
-          if (_playerService.player != null) {
-            _playerService.player!.state = mdk.PlaybackState.paused;
-          }
-        });
-      }
-      
-      logger.logInfo('Compositing setup complete', _logTag);
-    } catch (e) {
-      logger.logError('Error setting up compositing: $e', _logTag);
-    }
-  }
-
-  /// Get a texture ID for Flutter rendering
-  Future<int> prepareCompositeTexture() async {
-    if (_isDisposed) {
-      logger.logWarning('Attempted to prepare texture after disposal', _logTag);
-      return -1;
     }
     
-    try {
-      // Initialize player if needed
-      await _initializePlayer();
-      
-      // Prepare the frame for display using the service
-      final frameDisplaySuccess = await _playerService.prepareFrameForDisplay();
-      if (!frameDisplaySuccess) {
-        logger.logError('Failed to prepare frame for display', _logTag);
-        return -1;
-      }
-      
-      // Get the texture ID from the service
-      final textureId = _playerService.textureId;
-      
-      if (textureId > 0) {
-        logger.logInfo('Using texture ID: $textureId', _logTag);
-        
-        // Make sure we have a visible frame by starting playback
-        final player = _playerService.player;
-        if (player != null) {
-          // Force a playing state to ensure compositing is active
-          logger.logInfo('Setting player to playing state to activate compositing', _logTag);
-          player.state = mdk.PlaybackState.playing;
-          
-          // Give the player a moment to render the first frame with compositing
-          await Future.delayed(const Duration(milliseconds: 300));
-          
-          // Pause to keep the frame static
-          player.state = mdk.PlaybackState.paused;
-        }
-        
-        return textureId;
-      } else {
-        logger.logError('Failed to get valid texture ID', _logTag);
-        return -1;
-      }
-    } catch (e) {
-      logger.logError('Error preparing composite texture: $e', _logTag);
-      return -1;
+    // Needs the asset:/// prefix
+    if (originalPath.startsWith('assets/')) {
+      return 'asset:///' + originalPath;
     }
+    
+    // Check if it's a file path
+    if (File(originalPath).existsSync()) {
+      return originalPath;
+    }
+    
+    // Last resort, try it as an asset
+    logger.logWarning('Path not found as file: $originalPath, trying as asset', _logTag);
+    return 'asset:///' + (originalPath.startsWith('/') ? originalPath.substring(1) : originalPath);
   }
+
+  // Future<void> _setupCompositing() async {
+  //   if (_videoFiles.length < 2 || _playerService.player == null) return;
+    
+  //   try {
+  //     final player = _playerService.player!;
+      
+  //     logger.logInfo('Player state before setup: ${player.state}', _logTag);
+      
+  //     final previousState = player.state;
+      
+  //     // Configure the player for better performance
+  //     player.setProperty('video.decoder.thread_count', '4');
+  //     player.setProperty('buffer_range', '8');
+  //     player.setActiveTracks(mdk.MediaType.audio, []);
+      
+  //     // Ensure the second video path is correctly formatted
+  //     final secondVideoPath = _getProperPath(_videoFiles[1]);
+  //     logger.logInfo('Using second video path: $secondVideoPath', _logTag);
+      
+  //     // Set the second input source first before configuring filters
+  //     player.setProperty('video.input.1', secondVideoPath);
+      
+  //     // Wait for the second input to be recognized
+  //     await Future.delayed(const Duration(milliseconds: 200));
+      
+  //     // Configure an FFmpeg filter for compositing
+  //     // Note: [0] is the first video input, [1] is the second video input
+  //     // This uses the overlay filter which takes two inputs and overlays one on top of the other
+  //     // Format: [main_video][overlay_video]overlay=x:y:format=auto:alpha=0.5
+  //     final filterString = '[0:v][1:v]overlay=x=W/4:y=H/4:format=auto:alpha=0.7';
+      
+  //     player.setProperty('video.filters', filterString);
+  //     logger.logInfo('Video filter set: ${player.getProperty('video.filters')}', _logTag);
+      
+  //     // Play to ensure media is decoded and filter is applied
+  //     player.state = mdk.PlaybackState.playing;
+  //     await Future.delayed(const Duration(milliseconds: 500));
+  //     player.state = mdk.PlaybackState.paused;
+  //     await Future.delayed(const Duration(milliseconds: 100));
+      
+  //     // Create/update texture for rendering
+  //     final textureId = await player.updateTexture(width: _width, height: _height);
+  //     logger.logInfo('Texture updated with ID: $textureId', _logTag);
+      
+  //     // Manually update texture ID notifier if needed
+  //     if (textureId > 0 && _playerService.textureId < 0) {
+  //       // Access the internal notifier and force update
+  //       _playerService.textureIdNotifier.value = textureId;
+  //       logger.logInfo('Manually updated textureIdNotifier to: $textureId', _logTag);
+  //     }
+      
+  //     // Explicitly render a frame to make sure the composite is visible
+  //     player.renderVideo();
+      
+  //     // Log the filter chain to verify it's correct
+  //     logger.logInfo('Current filter chain: ${player.getProperty('video.filters')}', _logTag);
+  //     logger.logInfo('Input 1 path: ${player.getProperty('video.input.1')}', _logTag);
+      
+  //     // Apply previous state if needed
+  //     if (previousState == mdk.PlaybackState.playing) {
+  //       player.state = previousState;
+  //     }
+      
+  //     logger.logInfo('Compositing setup complete with texture ID: ${_playerService.textureId}', _logTag);
+  //   } catch (e) {
+  //     logger.logError('Error setting up compositing: $e', _logTag);
+  //   }
+  // }
 
   void dispose() {
     if (_isDisposed) return;
     
     try {
-      // Clean up resources
       _playerService.clearMedia();
       _videoFiles.clear();
       _isDisposed = true;
@@ -343,38 +302,121 @@ class MdkVideoCompositor {
     }
   }
 
-  // Add initializePlayer method to explicitly ensure the player is ready before compositing
-  Future<bool> _initializePlayer() async {
+  /// Resets filters and inputs, re-applies compositing setup, and attempts texture creation.
+  Future<int> resetAndRetryVideoSetup() async {
+    if (_playerService.player == null || _width <= 0 || _height <= 0) {
+      logger.logWarning('Cannot reset/retry video setup - invalid state (player null or dimensions invalid)', _logTag);
+      return -1;
+    }
+     if (_isDisposed) {
+      logger.logWarning('Cannot reset/retry video setup - compositor is disposed', _logTag);
+      return -1;
+    }
+
+    try {
+      logger.logInfo('Forcing texture creation with size: ${_width}x$_height', _logTag);
+      
+      // Temporarily pause if playing
+      final currentState = _playerService.player!.state;
+      if (currentState == mdk.PlaybackState.playing) {
+        _playerService.player!.state = mdk.PlaybackState.paused;
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+      
+      // Log current state before reset
+      final player = _playerService.player!;
+      logger.logInfo('State before reset: filters="${player.getProperty('video.filters')}", avfilter="${player.getProperty('video.avfilter')}", input1="${player.getProperty('video.input.1')}"', _logTag);
+
+      // Explicitly clear custom avfilter
+      logger.logInfo('Clearing video.avfilter...', _logTag);
+      player.setProperty('video.avfilter', '');
+
+      // Re-apply the compositing setup
+      logger.logInfo('Re-applying compositing setup via _setupCompositing()...', _logTag);
+      // await _setupCompositing(); // This should reset video.filters and video.input.1
+
+      // First, try setting the surface size explicitly
+      _playerService.player!.setVideoSurfaceSize(_width, _height);
+      await Future.delayed(const Duration(milliseconds: 50));
+      
+      // Get current texture ID
+      int currentId = _playerService.textureId;
+      
+      // If we already have a valid texture ID, just return it
+      if (currentId > 0) {
+        logger.logInfo('Already have valid texture ID: $currentId', _logTag);
+        
+        // Restore state if needed
+        if (currentState == mdk.PlaybackState.playing) {
+          _playerService.player!.state = currentState;
+        }
+        
+        return currentId;
+      }
+      
+      // Force update texture
+      final newId = await _playerService.player!.updateTexture(width: _width, height: _height);
+      logger.logInfo('Force updated texture with result: $newId', _logTag);
+      
+      // Manually update texture ID notifier if needed
+      if (newId > 0 && _playerService.textureId < 0) {
+        _playerService.textureIdNotifier.value = newId;
+        logger.logInfo('Manual override of textureIdNotifier to: $newId', _logTag);
+      }
+      
+      // Render a frame
+      _playerService.player!.renderVideo();
+      
+      // Restore state if needed
+      if (currentState == mdk.PlaybackState.playing) {
+        _playerService.player!.state = currentState;
+      } else {
+        // Ensure a frame is rendered even if paused
+        player.renderVideo();
+      }
+      
+      return _playerService.textureId;
+    } catch (e) {
+      logger.logError('Error forcing texture creation: $e', _logTag);
+      return -1;
+    }
+  }
+
+  /// Apply a custom FFmpeg video filter graph string using the 'video.avfilter' property.
+  Future<void> applyVideoFilterGraph(String userFilterGraph) async {
     if (_playerService.player == null) {
-      logger.logError('Player is null after media setup', _logTag);
-      return false;
+      logger.logWarning('Cannot apply filter graph, player is null', _logTag);
+      return;
+    }
+    if (_isDisposed) {
+      logger.logWarning('Cannot apply filter graph, compositor is disposed', _logTag);
+       return;
     }
 
     try {
       final player = _playerService.player!;
       
-      // Ensure player is in a proper state
-      logger.logInfo('Initializing player, current state: ${player.state}', _logTag);
-      
-      // Reset player if in a problematic state
-      if (player.state == mdk.PlaybackState.stopped || player.state == mdk.PlaybackState.notRunning) {
-        logger.logWarning('Player in problematic state, resetting', _logTag);
-        player.state = mdk.PlaybackState.stopped;
-        await Future.delayed(const Duration(milliseconds: 50));
+      // Log state before applying
+      String filtersBefore = player.getProperty('video.filters') ?? 'null';
+      String avfilterBefore = player.getProperty('video.avfilter') ?? 'null';
+      logger.logInfo('Before applying user filter: video.filters="$filtersBefore", video.avfilter="$avfilterBefore"', _logTag);
+
+      // Apply the filter using video.avfilter
+      logger.logInfo('Applying user filter graph to video.avfilter: "$userFilterGraph"', _logTag);
+      player.setProperty('video.avfilter', userFilterGraph); // Use the documented property
+
+      // Log state after applying
+      String filtersAfter = player.getProperty('video.filters') ?? 'null';
+      String avfilterAfter = player.getProperty('video.avfilter') ?? 'null';
+      logger.logInfo('After applying user filter: video.filters="$filtersAfter", video.avfilter="$avfilterAfter"', _logTag);
+
+      // Re-render if paused to potentially show immediate effect
+      if (player.state != mdk.PlaybackState.playing) {
+        player.renderVideo();
       }
-      
-      // Ensure we're ready to compose
-      final mediaStatus = player.mediaStatus;
-      if (mediaStatus.test(mdk.MediaStatus.invalid) || mediaStatus.test(mdk.MediaStatus.noMedia)) {
-        logger.logError('Media status is not valid: $mediaStatus', _logTag);
-        return false;
-      }
-      
-      logger.logInfo('Player initialized successfully', _logTag);
-      return true;
+
     } catch (e) {
-      logger.logError('Error initializing player: $e', _logTag);
-      return false;
+      logger.logError('Error applying video filter graph: $e', _logTag);
     }
   }
-} 
+}
