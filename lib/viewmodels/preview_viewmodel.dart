@@ -1,19 +1,12 @@
-import 'dart:async';
-import 'dart:io';
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_box_transform/flutter_box_transform.dart';
 import 'package:flipedit/models/clip.dart';
-import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/services/project_metadata_service.dart';
 import 'package:flipedit/services/playback_service.dart';
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
 import 'package:watch_it/watch_it.dart';
-
-import 'package:path_provider/path_provider.dart';
-import 'package:uuid/uuid.dart';
 
 class PreviewViewModel extends ChangeNotifier {
   final String _logTag = 'PreviewViewModel';
@@ -48,11 +41,6 @@ class PreviewViewModel extends ChangeNotifier {
   Size? get containerSize => containerSizeNotifier.value;
   String? get compositeFramePath => compositeFramePathNotifier.value;
   bool get isGeneratingFrame => isGeneratingFrameNotifier.value;
-
-  // Removed: String? _currentSourcePath;
-  String? _lastGeneratedFramePath; // Keep track to delete old frames
-  final Uuid _uuid = const Uuid(); // For generating unique filenames
-  List<String> _lastGeneratedSegments = []; // Track generated segments for cleanup
 
   PreviewViewModel() {
     logger.logInfo('PreviewViewModel initializing...', _logTag);
