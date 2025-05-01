@@ -81,7 +81,7 @@ class FlipEditApp extends fluent.StatelessWidget with WatchItMixin {
         ),
       ),
       themeMode: fluent.ThemeMode.system,
-      home: homeWidget, // Use the conditionally built widget
+      home: homeWidget,
     );
   }
 }

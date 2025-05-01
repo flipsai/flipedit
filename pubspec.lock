@@ -543,14 +543,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.1.0"
-  fvp:
-    dependency: "direct main"
-    description:
-      name: fvp
-      sha256: "895421eafcb14c3f66fed24b20b6421e45711224d0df29ecd7b8bdb37a867f69"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.31.2"
   gap:
     dependency: transitive
     description:
@@ -932,6 +924,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "5.0.3"
+  process_run:
+    dependency: "direct main"
+    description:
+      name: process_run
+      sha256: "6ec839cdd3e6de4685318e7686cd4abb523c3d3a55af0e8d32a12ae19bc66622"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.2.4"
   provider:
     dependency: transitive
     description:
@@ -1233,6 +1233,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.3.1"
+  synchronized:
+    dependency: transitive
+    description:
+      name: synchronized
+      sha256: "0669c70faae6270521ee4f05bffd2919892d42d1276e6c495be80174b6bc0ef6"
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.3.1"
   tabbed_view:
     dependency: transitive
     description:
@@ -1466,7 +1474,7 @@ packages:
     source: hosted
     version: "1.0.0"
   web_socket_channel:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: web_socket_channel
       sha256: d645757fb0f4773d602444000a8131ff5d48c9e47adfe9772652dd1a4f2d45c8
@@ -1477,10 +1485,10 @@ packages:
     dependency: transitive
     description:
       name: webdriver
-      sha256: "3d773670966f02a646319410766d3b5e1037efb7f07cc68f844d5e06cd4d61c8"
+      sha256: "2f3a14ca026957870cfd9c635b83507e0e51d8091568e90129fbf805aba7cade"
       url: "https://pub.dev"
     source: hosted
-    version: "3.0.4"
+    version: "3.1.0"
   webkit_inspection_protocol:
     dependency: transitive
     description:

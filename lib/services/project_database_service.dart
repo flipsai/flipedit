@@ -190,7 +190,6 @@ class ProjectDatabaseService {
     int? width,
     int? height,
     double? fileSize,
-    String? thumbnailPath,
   }) async {
     if (_assetDao == null || currentDatabase == null) {
       logError(_logTag, "Cannot import asset: No project loaded");
@@ -205,7 +204,6 @@ class ProjectDatabaseService {
         width: width,
         height: height,
         fileSize: fileSize,
-        thumbnailPath: thumbnailPath,
       );
 
       // Manually refresh the assets notifier after successful import

@@ -1,309 +1,242 @@
-import 'package:fluent_ui/fluent_ui.dart';
-import 'package:video_player/video_player.dart';
-import 'package:flipedit/models/clip.dart';
-import 'package:flipedit/models/enums/clip_type.dart';
-import 'package:flutter_box_transform/flutter_box_transform.dart';
-import 'package:flipedit/viewmodels/editor_viewmodel.dart';
-import 'package:flipedit/viewmodels/preview_viewmodel.dart';
-import 'package:watch_it/watch_it.dart';
+import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
-/// PreviewPanel displays the current timeline frame's video(s).
-/// Uses PreviewViewModel via DI.
-class PreviewPanel extends StatefulWidget {
+import 'package:fluent_ui/fluent_ui.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:watch_it/watch_it.dart'; // Import watch_it
+import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart'; // Import ViewModel
+
+/// PreviewPanel displays the video stream from the Python WebSocket server.
+class PreviewPanel extends StatefulWidget with WatchItStatefulWidgetMixin { // Apply mixin here
   const PreviewPanel({super.key});
 
   @override
   _PreviewPanelState createState() => _PreviewPanelState();
 }
 
-class _PreviewPanelState extends State<PreviewPanel> {
-  late final PreviewViewModel _previewViewModel;
-
+class _PreviewPanelState extends State<PreviewPanel> { // Remove mixin from State
+  // WebSocket connection parameters
+  final String _wsUrl = 'ws://localhost:8080'; // Default URL
+  
+  WebSocketChannel? _channel;
+  late TimelineNavigationViewModel _timelineNavViewModel; // Add ViewModel instance
+  ui.Image? _currentFrame;
+  bool _isConnected = false;
+  String _status = 'Disconnected';
+  
+  // Performance tracking
+  int _framesReceived = 0;
+  int _fps = 0;
+  DateTime _lastFpsUpdate = DateTime.now();
+  
+  // Controls
+  bool _autoConnect = true; // Automatically connect on widget init
+  Timer? _fpsTimer;
+  
+  // Listener for playback state changes
+  VoidCallback? _isPlayingListener;
+  
   @override
   void initState() {
     super.initState();
-    _previewViewModel = di<PreviewViewModel>();
+    
+    _timelineNavViewModel = di<TimelineNavigationViewModel>(); // Get ViewModel instance
+    
+    // Update FPS counter once per second
+    _fpsTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) { // Check if the widget is still mounted
+        setState(() {
+          _fps = _framesReceived;
+          _framesReceived = 0;
+        });
+      }
+    });
+    
+    // Auto-connect if enabled
+    if (_autoConnect) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) { // Ensure widget is mounted before connecting
+          _connectToWebSocket();
+        }
+      });
+    }
+    
+    // Add listener for playback state changes
+    _isPlayingListener = () {
+      final isPlaying = _timelineNavViewModel.isPlayingNotifier.value;
+      _sendPlaybackCommand(isPlaying);
+    };
+    _timelineNavViewModel.isPlayingNotifier.addListener(_isPlayingListener!);
   }
-
+  
   @override
-  Widget build(BuildContext context) {
-    return PreviewPanelContent(previewViewModel: _previewViewModel);
+  void dispose() {
+    // Remove listener
+    if (_isPlayingListener != null) {
+      _timelineNavViewModel.isPlayingNotifier.removeListener(_isPlayingListener!);
+    }
+    _fpsTimer?.cancel(); // Cancel the timer
+    _disconnectWebSocket();
+    super.dispose();
   }
-}
-
-// --- Preview Panel Content (Stateful + Manual Listeners) ---
-
-class PreviewPanelContent extends StatefulWidget {
-  final PreviewViewModel previewViewModel;
-
-  const PreviewPanelContent({super.key, required this.previewViewModel});
-
-  @override
-  _PreviewPanelContentState createState() => _PreviewPanelContentState();
-}
-
-class _PreviewPanelContentState extends State<PreviewPanelContent> {
-  // Local state variables mirroring ViewModel notifiers
-  late List<ClipModel> _visibleClips;
-  late Map<int, Rect> _clipRects;
-  late Map<int, Flip> _clipFlips;
-  late int? _selectedClipId;
-  late double _aspectRatio;
-  late Size? _containerSize;
-  late double? _hSnap;
-  late double? _vSnap;
-  late bool _aspectRatioLocked;
-  // Add local state variable to hold the set of initialized IDs (ensures state update triggers listener)
-  late Set<int> _initializedControllerIds;
-
-  // Keep reference to EditorViewModel for listener
-  late EditorViewModel _editorViewModel;
-
-  @override
-  void initState() {
-    super.initState();
-
-    // Get EditorViewModel instance from DI
-    _editorViewModel = di<EditorViewModel>();
-
-    // Initialize local state from ViewModel
-    _updateStateFromViewModel();
-
-    // Add listeners
-    widget.previewViewModel.visibleClipsNotifier.addListener(
-      _handleViewModelChange,
-    );
-    widget.previewViewModel.clipRectsNotifier.addListener(
-      _handleViewModelChange,
-    );
-    widget.previewViewModel.clipFlipsNotifier.addListener(
-      _handleViewModelChange,
-    );
-    widget.previewViewModel.selectedClipIdNotifier.addListener(
-      _handleViewModelChange,
-    );
-    widget.previewViewModel.aspectRatioNotifier.addListener(
-      _handleViewModelChange,
-    );
-    widget.previewViewModel.containerSizeNotifier.addListener(
-      _handleViewModelChange,
-    );
-    widget.previewViewModel.activeHorizontalSnapYNotifier.addListener(
-      _handleViewModelChange,
-    );
-    widget.previewViewModel.activeVerticalSnapXNotifier.addListener(
-      _handleViewModelChange,
-    );
-    _editorViewModel.aspectRatioLockedNotifier.addListener(
-      _handleViewModelChange,
-    );
-    // Listen to the new notifier for controller initialization changes
-    widget.previewViewModel.initializedControllerIdsNotifier.addListener(
-      _handleViewModelChange,
-    );
+  
+  // Method to send play/pause command
+  void _sendPlaybackCommand(bool isPlaying) {
+    if (_channel != null && _isConnected) {
+      final command = isPlaying ? "play" : "pause";
+      debugPrint('Sending command to Python server: $command');
+      try {
+        _channel!.sink.add(command);
+      } catch (e) {
+        debugPrint('Error sending command: $e');
+        // Handle potential errors, e.g., if the connection is closing
+      }
+    }
   }
-
-  // Common listener callback
-  void _handleViewModelChange() {
-    // Update local state and trigger rebuild
+  
+  void _connectToWebSocket() {
+    if (_isConnected) {
+      _disconnectWebSocket();
+    }
+    
     if (mounted) {
       setState(() {
-        _updateStateFromViewModel();
+        _status = 'Connecting...';
+      });
+    }
+    
+    try {
+      _channel = WebSocketChannel.connect(Uri.parse(_wsUrl));
+      
+      // Immediately send current playback state upon connection
+      _sendPlaybackCommand(_timelineNavViewModel.isPlayingNotifier.value);
+      
+      _channel!.stream.listen(
+        (dynamic message) {
+          _handleIncomingFrame(message);
+        },
+        onError: (error) {
+          if (mounted) {
+            setState(() {
+              _isConnected = false;
+              _status = 'Error: $error';
+            });
+          }
+        },
+        onDone: () {
+          if (mounted) {
+            setState(() {
+              _isConnected = false;
+              _status = 'Disconnected';
+            });
+          }
+          // Attempt to reconnect after a delay if autoConnect is true
+          if (_autoConnect) {
+            Future.delayed(const Duration(seconds: 5), () {
+              if (mounted && !_isConnected) {
+                _connectToWebSocket();
+              }
+            });
+          }
+        },
+        cancelOnError: true, // Close the stream on error
+      );
+      
+      if (mounted) {
+        setState(() {
+          _isConnected = true;
+          _status = 'Connected';
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isConnected = false;
+          _status = 'Connection Error: $e';
+        });
+      }
+    }
+  }
+  
+  void _disconnectWebSocket() {
+    _channel?.sink.close();
+    _channel = null; // Ensure channel is nullified
+    if (mounted) {
+      setState(() {
+        _isConnected = false;
+        _status = 'Disconnected';
+        _currentFrame = null; // Clear frame on disconnect
       });
     }
   }
-
-  // Helper to update all local state variables
-  void _updateStateFromViewModel() {
-    _visibleClips = widget.previewViewModel.visibleClipsNotifier.value;
-    _clipRects = widget.previewViewModel.clipRectsNotifier.value;
-    _clipFlips = widget.previewViewModel.clipFlipsNotifier.value;
-    _selectedClipId = widget.previewViewModel.selectedClipIdNotifier.value;
-    _aspectRatio = widget.previewViewModel.aspectRatioNotifier.value;
-    _containerSize = widget.previewViewModel.containerSizeNotifier.value;
-    _hSnap = widget.previewViewModel.activeHorizontalSnapYNotifier.value;
-    _vSnap = widget.previewViewModel.activeVerticalSnapXNotifier.value;
-    _aspectRatioLocked = _editorViewModel.aspectRatioLockedNotifier.value;
-    // Read the value from the new notifier into local state
-    _initializedControllerIds =
-        widget.previewViewModel.initializedControllerIdsNotifier.value;
+  
+  void _handleIncomingFrame(dynamic message) {
+    if (message is String) {
+      try {
+        // Decode base64 image
+        final Uint8List bytes = base64Decode(message);
+        _processImageBytes(bytes);
+      } catch (e) {
+        debugPrint('Error decoding frame: $e');
+      }
+    } else if (message is List<int>) {
+      // Handle binary frame (though server sends base64 string)
+      final Uint8List bytes = Uint8List.fromList(message);
+      _processImageBytes(bytes);
+    }
   }
-
-  @override
-  void dispose() {
-    // Remove listeners
-    widget.previewViewModel.visibleClipsNotifier.removeListener(
-      _handleViewModelChange,
-    );
-    widget.previewViewModel.clipRectsNotifier.removeListener(
-      _handleViewModelChange,
-    );
-    widget.previewViewModel.clipFlipsNotifier.removeListener(
-      _handleViewModelChange,
-    );
-    widget.previewViewModel.selectedClipIdNotifier.removeListener(
-      _handleViewModelChange,
-    );
-    widget.previewViewModel.aspectRatioNotifier.removeListener(
-      _handleViewModelChange,
-    );
-    widget.previewViewModel.containerSizeNotifier.removeListener(
-      _handleViewModelChange,
-    );
-    widget.previewViewModel.activeHorizontalSnapYNotifier.removeListener(
-      _handleViewModelChange,
-    );
-    widget.previewViewModel.activeVerticalSnapXNotifier.removeListener(
-      _handleViewModelChange,
-    );
-    _editorViewModel.aspectRatioLockedNotifier.removeListener(
-      _handleViewModelChange,
-    );
-    // Remove the listener for the new notifier
-    widget.previewViewModel.initializedControllerIdsNotifier.removeListener(
-      _handleViewModelChange,
-    );
-    super.dispose();
+  
+  void _processImageBytes(Uint8List bytes) {
+    // Use decodeImageFromList for better performance and error handling
+    ui.decodeImageFromList(bytes, (ui.Image result) {
+      if (mounted) {
+        setState(() {
+          _currentFrame = result;
+          _framesReceived++;
+        });
+      }
+    });
   }
-
+  
   @override
   Widget build(BuildContext context) {
-    // Access the ViewModel via widget.previewViewModel
-    final previewViewModel = widget.previewViewModel;
-    final videoControllers =
-        previewViewModel.videoControllers; // Get controllers map
-
-    // --- Build using local state variables (_visibleClips, _clipRects, etc.) ---
-    final List<Widget> transformablePlayers = [];
-
-    for (final clip in _visibleClips) {
-      // Use local state
-      final hasController = videoControllers.containsKey(clip.databaseId);
-      final controller =
-          hasController ? videoControllers[clip.databaseId]! : null;
-      // Use the locally synced _initializedControllerIds set to check initialization status
-      final isInitialized = _initializedControllerIds.contains(
-        clip.databaseId,
-      ); // Use the synced set
-      final currentRect =
-          _clipRects[clip.databaseId] ?? Rect.zero; // Use local state
-      final currentFlip =
-          _clipFlips[clip.databaseId] ?? Flip.none; // Use local state
-
-      // Check uses the isInitialized derived from the synced notifier state
-      if (clip.type == ClipType.video &&
-          hasController &&
-          controller != null &&
-          isInitialized) {
-        final bool isSelected =
-            _selectedClipId == clip.databaseId; // Use local state
-        transformablePlayers.add(
-          TransformableBox(
-            key: ValueKey('preview_clip_${clip.databaseId!}'),
-            rect: currentRect,
-            flip: currentFlip,
-            resizeModeResolver:
-                () =>
-                    _aspectRatioLocked
-                        ? ResizeMode.symmetricScale
-                        : ResizeMode.freeform, // Use local state
-            // Callbacks still use previewViewModel directly
-            onChanged: (result, details) {
-              previewViewModel.handleRectChanged(clip.databaseId!, result.rect);
-            },
-            onDragStart: (result) {
-              previewViewModel.handleTransformStart(clip.databaseId!);
-            },
-            onResizeStart: (HandlePosition handle, DragStartDetails event) {
-              previewViewModel.handleTransformStart(clip.databaseId!);
-            },
-            onDragEnd: (result) {
-              previewViewModel.handleTransformEnd(clip.databaseId!);
-            },
-            onResizeEnd: (HandlePosition handle, DragEndDetails event) {
-              previewViewModel.handleTransformEnd(clip.databaseId!);
-            },
-            onTap: () {
-              previewViewModel.selectClip(clip.databaseId!);
-            },
-            enabledHandles:
-                isSelected ? const {...HandlePosition.values} : const {},
-            visibleHandles:
-                isSelected ? const {...HandlePosition.values} : const {},
-            constraints: const BoxConstraints(
-              minWidth: 48,
-              minHeight: 36,
-              maxWidth: 1920,
-              maxHeight: 1080,
-            ),
-            contentBuilder: (context, rect, flip) {
-              // Now that the outer check ensures initialization, we can directly return the VideoPlayer.
-              return VideoPlayer(controller);
-            },
-          ),
-        );
-      }
-    }
-
-    Widget content;
-    if (transformablePlayers.isEmpty) {
-      content = Center(
-        child: Text(
-          'No video at current playback position',
-          style: FluentTheme.of(
-            context,
-          ).typography.bodyLarge?.copyWith(color: Colors.white),
-          textAlign: TextAlign.center,
-        ),
-      );
-    } else {
-      content = Stack(children: transformablePlayers);
-    }
-
     return Container(
-      color: Colors.grey[160],
+      color: FluentTheme.of(context).scaffoldBackgroundColor,
       child: Column(
         children: [
+          // Status bar
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+            color: _isConnected ? Colors.green.lighter : Colors.red.lighter,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Preview Stream: $_status'),
+                Text('FPS: $_fps'),
+              ],
+            ),
+          ),
+          
+          // Video display
           Expanded(
-            child: Center(
-              child: AspectRatio(
-                aspectRatio: _aspectRatio, // Use local state
-                child: Container(
-                  color: Colors.black.withOpacity(0.1),
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (mounted &&
-                            previewViewModel.containerSize !=
-                                constraints.biggest) {
-                          previewViewModel.updateContainerSize(
-                            constraints.biggest,
-                          );
-                        }
-                      });
-                      return GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () {
-                          previewViewModel.selectClip(null);
-                        },
-                        child: Stack(
-                          children: [
-                            content,
-                            if (_containerSize != null &&
-                                (_hSnap != null ||
-                                    _vSnap != null)) // Use local state
-                              SnapGuidePainter(
-                                containerSize:
-                                    _containerSize!, // Use local state
-                                horizontalSnapY: _hSnap, // Use local state
-                                verticalSnapX: _vSnap, // Use local state
-                              ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                ),
+            child: Container(
+              color: Colors.black,
+              child: Center(
+                child: _currentFrame != null
+                    ? VideoFrameWidget(image: _currentFrame!)
+                    : Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const ProgressRing(),
+                          const SizedBox(height: 10),
+                          Text(
+                            _status,
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                        ],
+                      ),
               ),
             ),
           ),
@@ -313,74 +246,71 @@ class _PreviewPanelContentState extends State<PreviewPanelContent> {
   }
 }
 
-// --- Snap Guide Painter (Keep as is) ---
-// (Painter code remains the same as previously written)
-class SnapGuidePainter extends StatelessWidget {
-  final Size containerSize;
-  final double? horizontalSnapY;
-  final double? verticalSnapX;
-
-  const SnapGuidePainter({
-    super.key,
-    required this.containerSize,
-    this.horizontalSnapY,
-    this.verticalSnapX,
-  });
-
+/// Widget to render the video frame using CustomPainter
+class VideoFrameWidget extends StatelessWidget {
+  final ui.Image image;
+  
+  const VideoFrameWidget({super.key, required this.image});
+  
   @override
   Widget build(BuildContext context) {
-    final accentColor = FluentTheme.of(context).accentColor;
-
     return CustomPaint(
-      size: containerSize,
-      painter: _GuidePainter(
-        horizontalSnapY: horizontalSnapY,
-        verticalSnapX: verticalSnapX,
-        lineColor: accentColor,
-      ),
+      painter: VideoFramePainter(image),
+      size: Size.infinite, // Takes available space
     );
   }
 }
 
-class _GuidePainter extends CustomPainter {
-  final double? horizontalSnapY;
-  final double? verticalSnapX;
-  final Color lineColor;
-
-  final Paint _paint;
-
-  _GuidePainter({
-    this.horizontalSnapY,
-    this.verticalSnapX,
-    required this.lineColor,
-  }) : _paint =
-           Paint()
-             ..color = lineColor
-             ..strokeWidth = 1.0
-             ..style = PaintingStyle.stroke;
-
+/// CustomPainter to draw the video frame, maintaining aspect ratio
+class VideoFramePainter extends CustomPainter {
+  final ui.Image image;
+  
+  VideoFramePainter(this.image);
+  
   @override
   void paint(Canvas canvas, Size size) {
-    if (horizontalSnapY != null) {
-      canvas.drawLine(
-        Offset(0, horizontalSnapY!),
-        Offset(size.width, horizontalSnapY!),
-        _paint,
-      );
+    // Calculate aspect ratios
+    final double imageRatio = image.width / image.height;
+    final double screenRatio = size.width / size.height;
+    
+    double drawWidth;
+    double drawHeight;
+    
+    // Determine drawing dimensions to fit the image within the bounds
+    if (imageRatio > screenRatio) {
+      // Image is wider than the available space
+      drawWidth = size.width;
+      drawHeight = drawWidth / imageRatio;
+    } else {
+      // Image is taller than the available space
+      drawHeight = size.height;
+      drawWidth = drawHeight * imageRatio;
     }
-    if (verticalSnapX != null) {
-      canvas.drawLine(
-        Offset(verticalSnapX!, 0),
-        Offset(verticalSnapX!, size.height),
-        _paint,
-      );
-    }
+    
+    // Calculate the position to center the image
+    final Offset position = Offset(
+      (size.width - drawWidth) / 2,
+      (size.height - drawHeight) / 2,
+    );
+    
+    // Define the source rectangle (entire image)
+    final Rect sourceRect = Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble());
+    
+    // Define the destination rectangle (where to draw on canvas)
+    final Rect destRect = position & Size(drawWidth, drawHeight);
+    
+    // Draw the image
+    canvas.drawImageRect(
+      image,
+      sourceRect,
+      destRect,
+      Paint(), // Use default Paint settings
+    );
   }
-
+  
   @override
-  bool shouldRepaint(_GuidePainter oldDelegate) {
-    return oldDelegate.horizontalSnapY != horizontalSnapY ||
-        oldDelegate.verticalSnapX != verticalSnapX ||
-        oldDelegate.lineColor != lineColor;
+  bool shouldRepaint(VideoFramePainter oldDelegate) {
+    // Repaint only if the image object itself has changed
+    return image != oldDelegate.image;
   }
 }

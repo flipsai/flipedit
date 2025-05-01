@@ -294,7 +294,15 @@ class ClipModel {
   }
 
   static int framesToMs(int frames) {
-    return (frames * 1000 / _defaultFrameRate).round();
+    // Use exact multiplication and division to ensure consistent frame boundaries
+    return (frames * 1000.0 / _defaultFrameRate).round();
+  }
+
+  // Helper method to ensure a time value is aligned to frame boundaries
+  static int alignToFrameBoundary(int ms) {
+    // Convert to frames and back to ms to force alignment
+    final int frames = msToFrames(ms);
+    return framesToMs(frames);
   }
 
   int get startFrame => msToFrames(startTimeOnTrackMs);
