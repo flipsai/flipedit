@@ -1,16 +1,15 @@
 import 'dart:io';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:video_player/video_player.dart';
-import 'package:flipedit/models/clip.dart';
-import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/preview_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
+import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
 import 'package:watch_it/watch_it.dart';
-import 'package:flipedit/services/composite_video_service.dart';
 
-/// CompositePreviewPanel displays the current timeline frame using a VideoPlayer widget driven by PreviewViewModel.
+/// CompositePreviewPanel displays the current timeline using VideoPlayer for both
+/// single-frame preview and during continuous playback.
 class CompositePreviewPanel extends StatefulWidget {
   const CompositePreviewPanel({super.key});
 
@@ -21,13 +20,12 @@ class CompositePreviewPanel extends StatefulWidget {
 class _CompositePreviewPanelState extends State<CompositePreviewPanel> {
   late final PreviewViewModel _previewViewModel;
   late final EditorViewModel _editorViewModel;
-  late final CompositeVideoService _compositeVideoService;
   late final TimelineNavigationViewModel _navigationViewModel;
+  late final TimelineViewModel _timelineViewModel;
 
-  // Used for direct composite video playback
-  VideoPlayerController? _directCompositeController;
-  String? _currentCompositePath;
-  bool _isGeneratingComposite = false;
+  // Video playback control
+  VideoPlayerController? _videoController;
+  bool _isInitializingController = false;
 
   final String _logTag = 'CompositePreviewPanel';
 
@@ -36,26 +34,36 @@ class _CompositePreviewPanelState extends State<CompositePreviewPanel> {
     super.initState();
     _previewViewModel = di<PreviewViewModel>();
     _editorViewModel = di<EditorViewModel>();
-    _compositeVideoService = di<CompositeVideoService>();
     _navigationViewModel = di<TimelineNavigationViewModel>();
-    
+    _timelineViewModel = di<TimelineViewModel>();
+
     logger.logInfo('CompositePreviewPanel initialized', _logTag);
-    _previewViewModel.addListener(_rebuild);
-    _compositeVideoService.isProcessingNotifier.addListener(_rebuild);
+    
+    // Add listeners
+    _previewViewModel.compositeFramePathNotifier.addListener(_handlePreviewContentChanged);
+    _previewViewModel.isGeneratingFrameNotifier.addListener(_rebuild);
+    _previewViewModel.aspectRatioNotifier.addListener(_rebuild);
+    
     _navigationViewModel.currentFrameNotifier.addListener(_handleTimelinePositionChange);
     _navigationViewModel.isPlayingNotifier.addListener(_handlePlaybackStateChange);
-    _previewViewModel.visibleClipsNotifier.addListener(_handleVisibleClipsChange);
+    _timelineViewModel.clipsNotifier.addListener(_handleClipsChanged);
+    
+    // Initialize content
+    _initializeController();
   }
 
   @override
   void dispose() {
     logger.logInfo('CompositePreviewPanel disposing', _logTag);
-    _previewViewModel.removeListener(_rebuild);
-    _compositeVideoService.isProcessingNotifier.removeListener(_rebuild);
+    _previewViewModel.compositeFramePathNotifier.removeListener(_handlePreviewContentChanged);
+    _previewViewModel.isGeneratingFrameNotifier.removeListener(_rebuild);
+    _previewViewModel.aspectRatioNotifier.removeListener(_rebuild);
+    
     _navigationViewModel.currentFrameNotifier.removeListener(_handleTimelinePositionChange);
     _navigationViewModel.isPlayingNotifier.removeListener(_handlePlaybackStateChange);
-    _previewViewModel.visibleClipsNotifier.removeListener(_handleVisibleClipsChange);
-    _disposeDirectController();
+    _timelineViewModel.clipsNotifier.removeListener(_handleClipsChanged);
+    
+    _disposeVideoController();
     super.dispose();
   }
 
@@ -65,254 +73,195 @@ class _CompositePreviewPanelState extends State<CompositePreviewPanel> {
     }
   }
   
-  void _handleTimelinePositionChange() {
-    final currentClips = _previewViewModel.visibleClipsNotifier.value
-        .where((clip) => clip.type == ClipType.video)
-        .toList();
-        
-    // Check if we have multiple video clips and need to update the composite
-    if (currentClips.length >= 2) {
-      _updateCompositeVideo();
-    } else if (_directCompositeController != null) {
-      // If we no longer have multiple clips, dispose the direct controller
-      // The PreviewViewModel will handle single clip playback
-      _disposeDirectController();
-      setState(() {
-        _currentCompositePath = null;
-      });
+  // Called when a new preview content (video) is available
+  Future<void> _handlePreviewContentChanged() async {
+    final newVideoPath = _previewViewModel.compositeFramePathNotifier.value;
+    
+    if (newVideoPath != null && newVideoPath.isNotEmpty && 
+        (_videoController?.dataSource != newVideoPath)) {
+      // We have a new video path that's different from the current one
+      await _initializeController();
+    } else if (newVideoPath == null && _videoController != null) {
+      // No video available, dispose controller
+      _disposeVideoController();
     }
   }
   
-  void _handleVisibleClipsChange() {
-    _updateCompositeVideo();
+  void _handleTimelinePositionChange() {
+    final isPlaying = _navigationViewModel.isPlaying;
+    if (!isPlaying) {
+      // When scrubbing (not playing), ensure we update our position in the video
+      final frame = _navigationViewModel.currentFrame;
+      logger.logVerbose('Timeline position changed to frame $frame while not playing', _logTag);
+      
+      // The PreviewViewModel handles generating a new video at the current position
+      // We just need to ensure the controller is initialized with the new video when it's ready
+    }
   }
   
   void _handlePlaybackStateChange() {
-    if (_directCompositeController != null) {
-      final isPlaying = _navigationViewModel.isPlayingNotifier.value;
-      logger.logInfo('Timeline playback changed to: ${isPlaying ? "playing" : "paused"}', _logTag);
-      _compositeVideoService.syncPlaybackState(isPlaying, _directCompositeController);
+    final isPlaying = _navigationViewModel.isPlaying;
+    logger.logInfo('Playback state changed: $isPlaying', _logTag);
+    
+    if (_videoController != null && _videoController!.value.isInitialized) {
+      if (isPlaying) {
+        _videoController!.play();
+      } else {
+        _videoController!.pause();
+      }
     }
   }
   
-  Future<void> _updateCompositeVideo() async {
-    // Skip if we're already generating a composite
-    if (_isGeneratingComposite) return;
+  void _handleClipsChanged() {
+    // When clips change, we may need to update our preview
+    // PreviewViewModel will handle regenerating the preview content
+    logger.logVerbose('Clips changed, preview will update as needed', _logTag);
+  }
+  
+  Future<void> _initializeController() async {
+    final videoPath = _previewViewModel.compositeFramePathNotifier.value;
     
-    final activeClips = _previewViewModel.visibleClipsNotifier.value
-        .where((clip) => clip.type == ClipType.video)
-        .toList();
-    
-    // If there are fewer than 2 active video clips, let PreviewViewModel handle it
-    if (activeClips.length < 2) {
-      _disposeDirectController();
-      setState(() {
-        _currentCompositePath = null;
-      });
+    if (videoPath == null || videoPath.isEmpty) {
+      _disposeVideoController();
       return;
     }
     
-    // Otherwise, generate a composite video
-    _isGeneratingComposite = true;
-    setState(() {});
+    if (_isInitializingController) {
+      logger.logWarning('Controller initialization already in progress, skipping', _logTag);
+      return;
+    }
+    
+    _isInitializingController = true;
+    setState(() {}); // Update UI to show loading
     
     try {
-      final currentMs = ClipModel.framesToMs(_navigationViewModel.currentFrameNotifier.value);
-      final containerSize = _previewViewModel.containerSize;
+      // Dispose existing controller
+      _disposeVideoController();
       
-      logger.logInfo('Generating composite video for ${activeClips.length} clips at ${currentMs}ms', _logTag);
+      // Initialize new controller
+      final controller = VideoPlayerController.file(File(videoPath));
+      await controller.initialize();
       
-      // Call the unified method in CompositeVideoService
-      final success = await _compositeVideoService.createCompositeVideo(
-        clips: activeClips,
-        currentTimeMs: currentMs,
-        containerSize: containerSize,
-      );
-
-      if (!success) {
-        logger.logError('CompositeVideoService failed to create composite video', _logTag);
-        _isGeneratingComposite = false;
+      if (mounted) {
+        setState(() {
+          _videoController = controller;
+          _isInitializingController = false;
+          
+          // Start playing if we're supposed to be playing
+          if (_navigationViewModel.isPlaying) {
+            controller.play();
+          }
+        });
+      }
+    } catch (e, stackTrace) {
+      logger.logError('Error initializing video controller: $e', _logTag, stackTrace);
+      _isInitializingController = false;
+      if (mounted) {
         setState(() {});
-        return;
       }
-
-      // Retrieve the path generated by the service
-      final compositePath = _compositeVideoService.getCompositeFilePath();
-
-      if (compositePath == null) {
-        logger.logError('CompositeVideoService succeeded but returned a null path', _logTag);
-        _isGeneratingComposite = false;
-        setState(() {});
-        return;
-      }
-
-      // If the same composite file is already loaded, don't reload
-      if (_currentCompositePath == compositePath && _directCompositeController != null) {
-        _isGeneratingComposite = false;
-        setState(() {});
-        return;
-      }
-
-      // Otherwise, create a new controller with the composite path
-      await _disposeDirectController();
-      _directCompositeController = VideoPlayerController.file(File(compositePath));
-      _currentCompositePath = compositePath;
-
-      await _directCompositeController!.initialize();
-      
-      // Sync with timeline play state
-      if (_navigationViewModel.isPlayingNotifier.value) {
-        await _directCompositeController!.play();
-      } else {
-        await _directCompositeController!.pause();
-      }
-      
-      logger.logInfo('Successfully initialized composite video player with: $compositePath', _logTag);
-    } catch (e, stack) {
-      logger.logError('Error creating direct composite video player: $e', _logTag, stack);
-    } finally {
-      _isGeneratingComposite = false;
-      if (mounted) setState(() {});
     }
   }
   
-  Future<void> _disposeDirectController() async {
-    if (_directCompositeController != null) {
-      final controller = _directCompositeController;
-      _directCompositeController = null;
-      await controller!.dispose();
-      logger.logInfo('Disposed direct composite controller', _logTag);
-    }
+  void _disposeVideoController() {
+    _videoController?.pause();
+    _videoController?.dispose();
+    _videoController = null;
   }
 
   @override
   Widget build(BuildContext context) {
     final previewVm = _previewViewModel;
-    final editorVm = _editorViewModel;
-    final compositeService = _compositeVideoService;
-    final isProcessing = compositeService.isProcessingNotifier.value || _isGeneratingComposite;
-    
-    // Determine which controller to use
-    final VideoPlayerController? activeController = 
-        (_directCompositeController != null) ? _directCompositeController : previewVm.controller;
-    
-    final isControllerInitialized = activeController?.value.isInitialized ?? false;
+    final isGenerating = previewVm.isGeneratingFrameNotifier.value || _isInitializingController;
     final aspectRatio = previewVm.aspectRatioNotifier.value;
-
+    
     logger.logVerbose(
-      'CompositePreviewPanel building... Using direct controller: ${_directCompositeController != null}, '
-      'Initialized: $isControllerInitialized, Processing: $isProcessing',
+      'CompositePreviewPanel building... Generating: $isGenerating',
       _logTag,
     );
 
     return Container(
       color: Colors.grey[160],
-      child: Column(
-        children: [
-          Expanded(
-            child: Center(
-              child: Container(
-                color: Colors.black,
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (mounted && previewVm.containerSize != constraints.biggest) {
-                        previewVm.updateContainerSize(constraints.biggest);
-                        logger.logVerbose('Updated container size: ${constraints.biggest}', _logTag);
-                      }
-                    });
+      child: Center(
+        child: AspectRatio(
+          aspectRatio: aspectRatio,
+          child: Container(
+            color: Colors.black,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                // Update container size in VM if it has changed
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (previewVm.containerSizeNotifier.value?.width != constraints.maxWidth ||
+                      previewVm.containerSizeNotifier.value?.height != constraints.maxHeight) {
+                    logger.logVerbose('Updating container size in VM: ${constraints.maxWidth}x${constraints.maxHeight}', _logTag);
+                    previewVm.containerSizeNotifier.value = Size(constraints.maxWidth, constraints.maxHeight);
                     
-                    return Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        Builder(builder: (context) {
-                          final isInit = activeController?.value.isInitialized ?? false;
-                          final hasError = activeController?.value.hasError ?? false;
-                          
-                          if (activeController != null && isInit) {
-                            // Log size information to help debug layout issues
-                            logger.logInfo(
-                              'Video size: ${activeController.value.size}, AspectRatio: ${activeController.value.aspectRatio}',
-                              _logTag,
-                            );
-                            
-                            // Use a simpler approach without FittedBox to avoid stretching
-                            return AspectRatio(
-                              aspectRatio: activeController.value.aspectRatio,
-                              child: VideoPlayer(activeController),
-                            );
-                          } else if (hasError) {
-                            return Center(
-                              child: Text(
-                                'Error loading video: ${activeController?.value.errorDescription}',
-                                style: FluentTheme.of(context).typography.bodyLarge?.copyWith(color: Colors.red),
-                                textAlign: TextAlign.center,
-                              ),
-                            );
-                          } else if (isProcessing) {
-                            return Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                const ProgressRing(),
-                                Padding(
-                                  padding: const EdgeInsets.all(8.0),
-                                  child: Text(
-                                    'Compositing videos...',
-                                    style: FluentTheme.of(context).typography.bodyLarge?.copyWith(color: Colors.white),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
-                              ],
-                            );
-                          } else if (activeController != null && !isInit) {
-                            return const Center(child: ProgressRing());
-                          } else {
-                            return Center(
-                              child: Text(
-                                'No video at current playback position',
-                                style: FluentTheme.of(context).typography.bodyLarge?.copyWith(color: Colors.white),
-                                textAlign: TextAlign.center,
-                              ),
-                            );
-                          }
-                        }),
+                    // Update preview content when size changes
+                    previewVm.updatePreviewContent();
+                  }
+                });
 
-                        // Add overlay to show number of active clips
-                        Positioned(
-                          top: 10,
-                          right: 10,
-                          child: ValueListenableBuilder<List<ClipModel>>(
-                            valueListenable: previewVm.visibleClipsNotifier,
-                            builder: (context, visibleClips, _) {
-                              if (visibleClips.isEmpty) return const SizedBox.shrink();
-                              
-                              final videoClips = visibleClips.where((c) => c.type == ClipType.video).toList();
-                              final isComposite = videoClips.length >= 2;
-                              
-                              return Container(
-                                padding: const EdgeInsets.all(6),
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withOpacity(0.6),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  '${videoClips.length} video clip${videoClips.length != 1 ? 's' : ''} active'
-                                  '${isComposite ? ' (composite view)' : ''}',
-                                  style: FluentTheme.of(context).typography.caption?.copyWith(color: Colors.white),
-                                ),
-                              );
-                            },
+                return Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // Show video player when available
+                    if (_videoController?.value.isInitialized == true)
+                      VideoPlayer(_videoController!)
+                    else if (isGenerating)
+                      _buildProcessingIndicator(context)
+                    else
+                      _buildPlaceholderWidget(context, 'No preview available'),
+                    
+                    // Show loading overlay during content generation
+                    if (isGenerating) 
+                      Positioned(
+                        top: 10,
+                        left: 10,
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.6),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: ProgressRing(strokeWidth: 2),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Generating preview...',
+                                style: FluentTheme.of(context).typography.caption?.copyWith(color: Colors.white),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                    );
-                  },
-                ),
-              ),
+                      ),
+                  ],
+                );
+              },
             ),
           ),
-        ],
+        ),
       ),
     );
   }
+}
+
+// --- Helper Widgets ---
+
+Widget _buildProcessingIndicator(BuildContext context) {
+  return const Center(child: ProgressRing());
+}
+
+Widget _buildPlaceholderWidget(BuildContext context, String message) {
+  return Center(
+    child: Text(
+      message,
+      style: FluentTheme.of(context).typography.bodyLarge?.copyWith(color: Colors.white),
+      textAlign: TextAlign.center,
+    ),
+  );
 }
