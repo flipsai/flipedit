@@ -9,60 +9,67 @@ import 'package:watch_it/watch_it.dart'; // Import watch_it
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart'; // Import ViewModel
 
 /// PreviewPanel displays the video stream from the Python WebSocket server.
-class PreviewPanel extends StatefulWidget with WatchItStatefulWidgetMixin { // Apply mixin here
+class PreviewPanel extends StatefulWidget with WatchItStatefulWidgetMixin {
+  // Apply mixin here
   const PreviewPanel({super.key});
 
   @override
   _PreviewPanelState createState() => _PreviewPanelState();
 }
 
-class _PreviewPanelState extends State<PreviewPanel> { // Remove mixin from State
+class _PreviewPanelState extends State<PreviewPanel> {
+  // Remove mixin from State
   // WebSocket connection parameters
   final String _wsUrl = 'ws://localhost:8080'; // Default URL
-  
+
   WebSocketChannel? _channel;
-  late TimelineNavigationViewModel _timelineNavViewModel; // Add ViewModel instance
+  late TimelineNavigationViewModel
+  _timelineNavViewModel; // Add ViewModel instance
   ui.Image? _currentFrame;
   bool _isConnected = false;
   String _status = 'Disconnected';
-  
+  StreamSubscription? _streamSubscription; // Add this
+
   // Performance tracking
   int _framesReceived = 0;
   int _fps = 0;
   DateTime _lastFpsUpdate = DateTime.now();
-  
+
   // Controls
   bool _autoConnect = true; // Automatically connect on widget init
   Timer? _fpsTimer;
-  
+
   // Listener for playback state changes
   VoidCallback? _isPlayingListener;
-  
+
   @override
   void initState() {
     super.initState();
-    
-    _timelineNavViewModel = di<TimelineNavigationViewModel>(); // Get ViewModel instance
-    
+
+    _timelineNavViewModel =
+        di<TimelineNavigationViewModel>(); // Get ViewModel instance
+
     // Update FPS counter once per second
     _fpsTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) { // Check if the widget is still mounted
+      if (mounted) {
+        // Check if the widget is still mounted
         setState(() {
           _fps = _framesReceived;
           _framesReceived = 0;
         });
       }
     });
-    
+
     // Auto-connect if enabled
     if (_autoConnect) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) { // Ensure widget is mounted before connecting
+        if (mounted) {
+          // Ensure widget is mounted before connecting
           _connectToWebSocket();
         }
       });
     }
-    
+
     // Add listener for playback state changes
     _isPlayingListener = () {
       final isPlaying = _timelineNavViewModel.isPlayingNotifier.value;
@@ -70,18 +77,36 @@ class _PreviewPanelState extends State<PreviewPanel> { // Remove mixin from Stat
     };
     _timelineNavViewModel.isPlayingNotifier.addListener(_isPlayingListener!);
   }
-  
+
   @override
   void dispose() {
     // Remove listener
     if (_isPlayingListener != null) {
-      _timelineNavViewModel.isPlayingNotifier.removeListener(_isPlayingListener!);
+      _timelineNavViewModel.isPlayingNotifier.removeListener(
+        _isPlayingListener!,
+      );
     }
     _fpsTimer?.cancel(); // Cancel the timer
-    _disconnectWebSocket();
+    _disconnectWebSocket(); // Cleans up on final disposal
     super.dispose();
   }
-  
+
+  // Handle hot reload
+  @override
+  void reassemble() {
+    super.reassemble();
+    debugPrint("Reassembling PreviewPanelState..."); // Add logging
+    // Clean up the old connection and reconnect on hot reload
+    _disconnectWebSocket();
+    if (_autoConnect) {
+      debugPrint(
+        "Auto-connecting WebSocket after reassemble...",
+      ); // Add logging
+      // Connect immediately after cleaning up the old connection
+      _connectToWebSocket();
+    }
+  }
+
   // Method to send play/pause command
   void _sendPlaybackCommand(bool isPlaying) {
     if (_channel != null && _isConnected) {
@@ -95,25 +120,36 @@ class _PreviewPanelState extends State<PreviewPanel> { // Remove mixin from Stat
       }
     }
   }
-  
+
   void _connectToWebSocket() {
+    // Cancel any existing subscription before reconnecting
+    _streamSubscription?.cancel();
+    _streamSubscription = null;
+
     if (_isConnected) {
-      _disconnectWebSocket();
+      _disconnectWebSocket(); // Disconnect might also cancel, but good to be explicit here
     }
-    
+
     if (mounted) {
+      // Good check
       setState(() {
         _status = 'Connecting...';
       });
+    } else {
+      // If not mounted during connect (e.g., called from reassemble before build?), log and exit.
+      debugPrint("Attempted to connect WebSocket while not mounted.");
+      return; // Don't proceed if not mounted
     }
-    
+
     try {
       _channel = WebSocketChannel.connect(Uri.parse(_wsUrl));
-      
+
       // Immediately send current playback state upon connection
       _sendPlaybackCommand(_timelineNavViewModel.isPlayingNotifier.value);
-      
-      _channel!.stream.listen(
+
+      // Store the new subscription
+      _streamSubscription = _channel!.stream.listen(
+        // Assign to _streamSubscription
         (dynamic message) {
           _handleIncomingFrame(message);
         },
@@ -124,6 +160,7 @@ class _PreviewPanelState extends State<PreviewPanel> { // Remove mixin from Stat
               _status = 'Error: $error';
             });
           }
+          _streamSubscription = null; // Clear subscription on error
         },
         onDone: () {
           if (mounted) {
@@ -132,7 +169,8 @@ class _PreviewPanelState extends State<PreviewPanel> { // Remove mixin from Stat
               _status = 'Disconnected';
             });
           }
-          // Attempt to reconnect after a delay if autoConnect is true
+          _streamSubscription = null; // Clear subscription on done
+          // Attempt to reconnect...
           if (_autoConnect) {
             Future.delayed(const Duration(seconds: 5), () {
               if (mounted && !_isConnected) {
@@ -143,7 +181,7 @@ class _PreviewPanelState extends State<PreviewPanel> { // Remove mixin from Stat
         },
         cancelOnError: true, // Close the stream on error
       );
-      
+
       if (mounted) {
         setState(() {
           _isConnected = true;
@@ -156,22 +194,30 @@ class _PreviewPanelState extends State<PreviewPanel> { // Remove mixin from Stat
           _isConnected = false;
           _status = 'Connection Error: $e';
         });
+        _streamSubscription = null; // Ensure null on connection error
       }
     }
   }
-  
+
   void _disconnectWebSocket() {
-    _channel?.sink.close();
-    _channel = null; // Ensure channel is nullified
-    if (mounted) {
-      setState(() {
-        _isConnected = false;
-        _status = 'Disconnected';
-        _currentFrame = null; // Clear frame on disconnect
-      });
-    }
+    debugPrint("Disconnecting WebSocket..."); // Add logging
+    _streamSubscription?.cancel(); // Cancel the subscription first
+    _streamSubscription = null;
+    _channel?.sink.close().catchError((e) {
+      // Catch errors during sink close, especially during hot reload chaos
+      debugPrint("Error closing WebSocket sink: $e");
+    });
+    _channel = null;
+
+    // Update internal state regardless of mounted status, but don't call setState here.
+    // setState should only be called in response to user actions or stream events
+    // during the normal lifecycle, not during teardown like disconnect/reassemble.
+    _isConnected = false;
+    _status = 'Disconnected';
+    _currentFrame = null;
+    debugPrint("WebSocket disconnected."); // Add logging
   }
-  
+
   void _handleIncomingFrame(dynamic message) {
     if (message is String) {
       try {
@@ -187,7 +233,7 @@ class _PreviewPanelState extends State<PreviewPanel> { // Remove mixin from Stat
       _processImageBytes(bytes);
     }
   }
-  
+
   void _processImageBytes(Uint8List bytes) {
     // Use decodeImageFromList for better performance and error handling
     ui.decodeImageFromList(bytes, (ui.Image result) {
@@ -199,7 +245,7 @@ class _PreviewPanelState extends State<PreviewPanel> { // Remove mixin from Stat
       }
     });
   }
-  
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -212,31 +258,29 @@ class _PreviewPanelState extends State<PreviewPanel> { // Remove mixin from Stat
             color: _isConnected ? Colors.green.lighter : Colors.red.lighter,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('Preview Stream: $_status'),
-                Text('FPS: $_fps'),
-              ],
+              children: [Text('Preview Stream: $_status'), Text('FPS: $_fps')],
             ),
           ),
-          
+
           // Video display
           Expanded(
             child: Container(
               color: Colors.black,
               child: Center(
-                child: _currentFrame != null
-                    ? VideoFrameWidget(image: _currentFrame!)
-                    : Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const ProgressRing(),
-                          const SizedBox(height: 10),
-                          Text(
-                            _status,
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                        ],
-                      ),
+                child:
+                    _currentFrame != null
+                        ? VideoFrameWidget(image: _currentFrame!)
+                        : Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const ProgressRing(),
+                            const SizedBox(height: 10),
+                            Text(
+                              _status,
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                          ],
+                        ),
               ),
             ),
           ),
@@ -249,9 +293,9 @@ class _PreviewPanelState extends State<PreviewPanel> { // Remove mixin from Stat
 /// Widget to render the video frame using CustomPainter
 class VideoFrameWidget extends StatelessWidget {
   final ui.Image image;
-  
+
   const VideoFrameWidget({super.key, required this.image});
-  
+
   @override
   Widget build(BuildContext context) {
     return CustomPaint(
@@ -264,18 +308,18 @@ class VideoFrameWidget extends StatelessWidget {
 /// CustomPainter to draw the video frame, maintaining aspect ratio
 class VideoFramePainter extends CustomPainter {
   final ui.Image image;
-  
+
   VideoFramePainter(this.image);
-  
+
   @override
   void paint(Canvas canvas, Size size) {
     // Calculate aspect ratios
     final double imageRatio = image.width / image.height;
     final double screenRatio = size.width / size.height;
-    
+
     double drawWidth;
     double drawHeight;
-    
+
     // Determine drawing dimensions to fit the image within the bounds
     if (imageRatio > screenRatio) {
       // Image is wider than the available space
@@ -286,19 +330,24 @@ class VideoFramePainter extends CustomPainter {
       drawHeight = size.height;
       drawWidth = drawHeight * imageRatio;
     }
-    
+
     // Calculate the position to center the image
     final Offset position = Offset(
       (size.width - drawWidth) / 2,
       (size.height - drawHeight) / 2,
     );
-    
+
     // Define the source rectangle (entire image)
-    final Rect sourceRect = Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble());
-    
+    final Rect sourceRect = Rect.fromLTWH(
+      0,
+      0,
+      image.width.toDouble(),
+      image.height.toDouble(),
+    );
+
     // Define the destination rectangle (where to draw on canvas)
     final Rect destRect = position & Size(drawWidth, drawHeight);
-    
+
     // Draw the image
     canvas.drawImageRect(
       image,
@@ -307,7 +356,7 @@ class VideoFramePainter extends CustomPainter {
       Paint(), // Use default Paint settings
     );
   }
-  
+
   @override
   bool shouldRepaint(VideoFramePainter oldDelegate) {
     // Repaint only if the image object itself has changed
