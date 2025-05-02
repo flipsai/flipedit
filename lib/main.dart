@@ -7,11 +7,86 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flipedit/utils/logger.dart';
 import 'package:watch_it/watch_it.dart';
 
+// Define a class to handle window events by implementing WindowListener
+class _MyWindowListener implements WindowListener {
+  @override
+  void onWindowClose() async {
+    // Keep our logic here
+    logInfo('main', 'Window close requested. Shutting down video server...');
+    bool isPreventClose = await windowManager.isPreventClose();
+    if (isPreventClose) {
+      try {
+        final uvManager = di.get<UvManager>();
+        await uvManager.shutdownVideoStreamServer();
+        logInfo('main', 'Video server shutdown complete.');
+      } catch (e) {
+        logError('main', 'Error during video server shutdown: $e');
+      } finally {
+        // Allow the window to close by destroying it
+        await windowManager.destroy();
+      }
+    }
+  }
+
+  // Add empty implementations for all other required methods
+  @override
+  void onWindowBlur() {}
+  @override
+  void onWindowDocked() {}
+  @override
+  void onWindowEnterFullScreen() {}
+  @override
+  void onWindowEvent(String eventName) {}
+  @override
+  void onWindowFocus() {}
+  @override
+  void onWindowLeaveFullScreen() {}
+  @override
+  void onWindowMaximize() {}
+  @override
+  void onWindowMinimize() {}
+  @override
+  void onWindowMove() {}
+  @override
+  void onWindowMoved() {}
+  @override
+  void onWindowResize() {}
+  @override
+  void onWindowResized() {}
+  @override
+  void onWindowRestore() {}
+  @override
+  void onWindowUndocked() {}
+  @override
+  void onWindowUnmaximize() {}
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Ensure window_manager is initialized for desktop platforms
   await windowManager.ensureInitialized();
+
+  // Add the window listener
+  final _MyWindowListener myWindowListener = _MyWindowListener();
+  windowManager.addListener(myWindowListener);
+  // Prevent default close behavior so our listener can handle it
+  await windowManager.setPreventClose(true);
+
+  // Configure window options
+  WindowOptions windowOptions = const WindowOptions(
+    size: Size(1200, 800), // Example size, adjust as needed
+    center: true,
+    backgroundColor: Colors.transparent,
+    skipTaskbar: false,
+    titleBarStyle: TitleBarStyle.normal,
+  );
+
+  // Show the window when ready
+  windowManager.waitUntilReadyToShow(windowOptions, () async {
+    await windowManager.show();
+    await windowManager.focus();
+  });
 
   // Set up dependency injection
   await setupServiceLocator();
