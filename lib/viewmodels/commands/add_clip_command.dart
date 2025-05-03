@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart' as drift;
 import 'package:flipedit/persistence/database/project_database.dart' as project_db;
-import '../timeline_viewmodel.dart';
+import '../timeline_viewmodel.dart'; // Keep for potential interaction logic access? Review later.
+import '../timeline_state_viewmodel.dart'; // Import State VM
 import 'timeline_command.dart';
 import '../../models/clip.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
@@ -19,6 +20,7 @@ class AddClipCommand implements TimelineCommand {
   // Dependencies
   final TimelineLogicService _timelineLogicService = di<TimelineLogicService>();
   final ProjectDatabaseService _databaseService = di<ProjectDatabaseService>();
+  final TimelineStateViewModel _stateViewModel = di<TimelineStateViewModel>(); // Get State VM via DI
 
   // State for undo
   int? _insertedClipId;
@@ -54,8 +56,9 @@ class AddClipCommand implements TimelineCommand {
     );
 
     // 1. Calculate placement using the logic service
+    // Get clips from the State ViewModel
     final placement = _timelineLogicService.prepareClipPlacement(
-      clips: vm.clips, // Pass current clips from ViewModel
+      clips: _stateViewModel.clips,
       clipId: null, // Explicitly null for adding
       trackId: trackId,
       type: clipData.type,
@@ -73,10 +76,13 @@ class AddClipCommand implements TimelineCommand {
     }
 
     // Store state for undo BEFORE making changes
-    final currentClips = vm.clips; // Get a stable list reference
+    // final currentClips = vm.clips; // REMOVED - Use State VM below
+    // Get current clips from State VM for undo state capture
+    final currentClips = _stateViewModel.clips; // Use a single definition
     _originalNeighborStates = (placement['clipUpdates'] as List<Map<String, dynamic>>)
         .map<ClipModel?>((updateMap) {
           try {
+            // Use the captured list from State VM
             return currentClips.firstWhere((c) => c.databaseId == updateMap['id']);
           } catch (_) {
             return null; // Return null if not found
@@ -153,10 +159,11 @@ class AddClipCommand implements TimelineCommand {
         logger.logWarning('[AddClipCommand] Could not find newly inserted clip in optimistic list to update its ID.', _logTag);
     }
 
-    vm.updateClipsAfterPlacement(finalUpdatedClips); // Use the dedicated method in ViewModel
-    logger.logInfo('[AddClipCommand] Updated ViewModel clips directly.', _logTag);
+    // vm.updateClipsAfterPlacement(finalUpdatedClips); // REPLACED - State VM handles its own updates
+    await _stateViewModel.refreshClips(); // Trigger refresh in State VM after DB changes
+    logger.logInfo('[AddClipCommand] Triggered refresh in State ViewModel.', _logTag);
 
-    // 4. Update undo/redo state (after UI update)
+    // 4. Update undo/redo state (after DB changes and state refresh trigger)
     // Get UndoRedoService via DI
     final UndoRedoService undoRedoService = di<UndoRedoService>();
     await undoRedoService.init(); // Use own instance
@@ -199,32 +206,45 @@ class AddClipCommand implements TimelineCommand {
 
        // 3. Restore neighbors that were removed
        for (final removedId in _removedNeighborIds!) {
-           final originalRemovedNeighbor = vm.clips.firstWhere( // Find original state from *before* execute
+           // Find original state from State VM *before* execute (captured earlier)
+           // This assumes _originalNeighborStates includes these? Or need separate capture?
+           // Let's assume _originalNeighborStates captured *all* potentially affected clips.
+           // If not, this needs refinement. For now, find in the captured state.
+           final originalRemovedNeighbor = _originalNeighborStates?.firstWhere(
                (c) => c.databaseId == removedId,
-               orElse: () => throw Exception("Cannot find original state for removed neighbor $removedId") // Should not happen if logic is correct
+               // If not found in originalNeighborStates, maybe it wasn't modified but just deleted?
+               // Fallback to current state VM might be wrong if it was already removed.
+               // Safest is to ensure _originalNeighborStates captures everything needed for undo.
+               orElse: () {
+                  logger.logError("Cannot find original state for removed neighbor $removedId in captured undo state.", _logTag);
+                  throw Exception("Cannot find original state for removed neighbor $removedId");
+               }
            );
+
+           if (originalRemovedNeighbor == null) continue; // Should be caught by orElse, but for safety.
+
            logger.logInfo('[AddClipCommand] Restoring removed neighbor: $removedId', _logTag);
            // Re-insert the removed clip using its original state
            await _databaseService.clipDao!.insertClip(
                originalRemovedNeighbor.toDbCompanion(), // Use the companion converter
                // log: true // DAO methods don't have this parameter
            );
-       }
+       } // End of for loop for restoring removed neighbors
 
 
-      // 4. Refresh ViewModel state
-      await vm.refreshClips();
+      // 4. Refresh ViewModel state after all DB operations
+      await _stateViewModel.refreshClips(); // Refresh the State VM
 
-      // Clear undo state
+      // 5. Clear undo state
       _insertedClipId = null;
       _originalNeighborStates = null;
       _removedNeighborIds = null;
-       logger.logInfo('[AddClipCommand] Undo complete', _logTag);
+      logger.logInfo('[AddClipCommand] Undo complete', _logTag);
 
-    } catch (e, s) {
+    } catch (e, s) { // Catch block belongs inside the undo method
        logger.logError('[AddClipCommand] Error during undo: $e\n$s', _logTag);
        // Consider how to handle undo failure - potentially leave state corrupted
        // or attempt to re-apply original changes?
     }
-  } // End undo
-}
+ } // End undo
+} // End class

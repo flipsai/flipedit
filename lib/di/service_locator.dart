@@ -2,6 +2,8 @@ import 'package:flipedit/comfyui/comfyui_service.dart';
 import 'package:flipedit/persistence/dao/project_metadata_dao.dart';
 import 'package:flipedit/persistence/database/project_metadata_database.dart';
 import 'package:flipedit/services/playback_service.dart';
+import 'package:flipedit/services/preview_service.dart'; // Import PreviewService
+import 'package:flipedit/services/preview_sync_service.dart'; // Import PreviewSyncService
 import 'package:flipedit/services/timeline_logic_service.dart';
 import 'package:flipedit/services/uv_manager.dart';
 import 'package:flipedit/services/layout_service.dart';
@@ -10,7 +12,8 @@ import 'package:flipedit/services/project_metadata_service.dart';
 import 'package:flipedit/viewmodels/app_viewmodel.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
-import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
+import 'package:flipedit/viewmodels/timeline_viewmodel.dart'; // Interaction VM
+import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart'; // State VM
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flipedit/services/undo_redo_service.dart';
@@ -45,6 +48,14 @@ Future<void> setupServiceLocator() async {
   di.registerLazySingleton<UvManager>(() => UvManager());
   di.registerLazySingleton<ComfyUIService>(() => ComfyUIService());
   di.registerLazySingleton<LayoutService>(() => LayoutService());
+  di.registerLazySingleton<PreviewService>(
+    () => PreviewService(),
+    dispose: (service) => service.dispose(), // Register with dispose
+  );
+  di.registerLazySingleton<PreviewSyncService>(
+    () => PreviewSyncService(),
+    dispose: (service) => service.dispose(), // Register with dispose
+  );
 
   // Undo/Redo service for project clips
   di.registerLazySingleton<UndoRedoService>(
@@ -58,21 +69,31 @@ Future<void> setupServiceLocator() async {
   );
   di.registerLazySingleton<EditorViewModel>(() => EditorViewModel());
 
+  // Register the new State ViewModel
+  di.registerLazySingleton<TimelineStateViewModel>(
+    () => TimelineStateViewModel(),
+    dispose: (vm) => vm.dispose(),
+  );
+
+  // Register the Interaction ViewModel (formerly just TimelineViewModel)
   di.registerLazySingleton<TimelineViewModel>(() => TimelineViewModel());
+
+  // Update TimelineNavigationViewModel to use TimelineStateViewModel for data
   di.registerLazySingleton<TimelineNavigationViewModel>(
     () => TimelineNavigationViewModel(
-      // Provide the function to get clips from the TimelineViewModel instance
-      getClips: () => di<TimelineViewModel>().clips,
-      // Pass the clipsNotifier from the TimelineViewModel instance
-      clipsNotifier: di<TimelineViewModel>().clipsNotifier,
+      // Provide the function to get clips from the TimelineStateViewModel instance
+      getClips: () => di<TimelineStateViewModel>().clips,
+      // Pass the clipsNotifier from the TimelineStateViewModel instance
+      clipsNotifier: di<TimelineStateViewModel>().clipsNotifier,
     ),
-    dispose: (vm) => vm.dispose(), // Ensure dispose is called
+    dispose: (vm) => vm.dispose(),
   );
 
   // Register TimelineLogicService
   di.registerLazySingleton<TimelineLogicService>(() => TimelineLogicService());
   di.registerLazySingleton<PreviewViewModel>(
     () => PreviewViewModel(),
+    dispose: (vm) => vm.dispose(), // Add dispose for consistency
   );
 
   di.registerLazySingleton<PlaybackService>(() => PlaybackService(

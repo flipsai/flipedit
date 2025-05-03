@@ -1,6 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
+import 'package:flipedit/viewmodels/timeline_viewmodel.dart'; // Keep for now (actions)
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
+import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart'; // Import State VM
 import 'package:flipedit/views/widgets/timeline/components/time_ruler.dart';
 import 'package:flipedit/views/widgets/timeline/components/timeline_controls.dart';
 import 'package:flipedit/views/widgets/timeline/timeline_track.dart';
@@ -34,13 +35,23 @@ class _TimelineState extends State<Timeline>
   final ScrollController scrollController = ScrollController();
 
   @override
-  late TimelineViewModel timelineViewModel;
+  late TimelineViewModel timelineViewModel; // Keep for now (actions)
 
   @override
   late TimelineNavigationViewModel timelineNavigationViewModel;
 
+  // Add State ViewModel instance
+  late TimelineStateViewModel _timelineStateViewModel;
+
+  // Implement getter required by TimelineInteractionLogicMixin
+  @override
+  TimelineStateViewModel get timelineStateViewModel => _timelineStateViewModel;
+
   // Store the listener function to remove it in dispose
   VoidCallback? _scrollRequestListener;
+  
+  // Add a listener for ensuring playhead follows video position
+  VoidCallback? _currentFrameListener;
 
   @override
   double trackLabelWidth = 120.0;
@@ -64,10 +75,11 @@ class _TimelineState extends State<Timeline>
   @override
   void initState() {
     super.initState();
-    timelineViewModel = di<TimelineViewModel>();
+    timelineViewModel = di<TimelineViewModel>(); // Keep for now
     timelineNavigationViewModel = di<TimelineNavigationViewModel>();
-
-    // Setup physics controllers (needed by TimelinePlayheadLogicMixin)
+    _timelineStateViewModel = di<TimelineStateViewModel>(); // Initialize State VM instance
+ 
+     // Setup physics controllers (needed by TimelinePlayheadLogicMixin)
     playheadPhysicsController = AnimationController(
       vsync: this, // Provided by TickerProviderStateMixin
       duration: const Duration(milliseconds: 800),
@@ -94,6 +106,16 @@ class _TimelineState extends State<Timeline>
 
     timelineNavigationViewModel.navigationService.scrollToFrameRequestNotifier
         .addListener(_scrollRequestListener!);
+        
+    // Add listener to keep the visualFramePositionNotifier in sync with currentFrameNotifier
+    _currentFrameListener = () {
+      final currentFrame = timelineNavigationViewModel.currentFrameNotifier.value;
+      // Update the visual frame position if it's different
+      if (visualFramePositionNotifier.value != currentFrame) {
+        visualFramePositionNotifier.value = currentFrame;
+      }
+    };
+    timelineNavigationViewModel.currentFrameNotifier.addListener(_currentFrameListener!);
   }
 
   @override
@@ -101,6 +123,10 @@ class _TimelineState extends State<Timeline>
     if (_scrollRequestListener != null) {
       timelineNavigationViewModel.navigationService.scrollToFrameRequestNotifier
           .removeListener(_scrollRequestListener!);
+    }
+
+    if (_currentFrameListener != null) {
+      timelineNavigationViewModel.currentFrameNotifier.removeListener(_currentFrameListener!);
     }
 
     disposePlayheadLogic();
@@ -120,9 +146,9 @@ class _TimelineState extends State<Timeline>
     final theme = FluentTheme.of(context);
 
     // Watch properties from ViewModels
-    final clips = watchValue((TimelineViewModel vm) => vm.clipsNotifier);
+    final clips = watchValue((TimelineStateViewModel vm) => vm.clipsNotifier); // Watch State VM
     final tracks = watchValue(
-      (TimelineViewModel vm) => vm.tracksNotifierForView,
+      (TimelineStateViewModel vm) => vm.tracksNotifierForView, // Watch State VM
     );
 
     final zoom = watchValue(
@@ -181,7 +207,7 @@ class _TimelineState extends State<Timeline>
                         scrollDirection: Axis.horizontal,
                         controller: scrollController,
                         physics:
-                            timelineViewModel.hasContent
+                            _timelineStateViewModel.hasContent // Use State VM instance
                                 ? const ClampingScrollPhysics()
                                 : const NeverScrollableScrollPhysics(),
                         child: SizedBox(

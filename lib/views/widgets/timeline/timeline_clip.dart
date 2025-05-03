@@ -481,7 +481,7 @@ class _TimelineClipState extends State<TimelineClip> {
       previewEndFrame: _previewEndFrame,
       direction: direction,
       finalPixelDelta: finalPixelDelta,
-      timelineVm: di<TimelineViewModel>(),
+      clipsNotifier: di<TimelineViewModel>().clipsNotifier,
       clip: widget.clip,
       zoom: di<TimelineNavigationViewModel>().zoomNotifier.value,
       runCommand: (cmd) => di<TimelineViewModel>().runCommand(cmd),

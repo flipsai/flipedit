@@ -288,21 +288,42 @@ class ClipModel {
   }
 
   static const double _defaultFrameRate = 30.0;
+  
+  // Define a constant for the frame duration in milliseconds
+  static const double _msPerFrame = 1000.0 / _defaultFrameRate; // 33.33... ms per frame at 30fps
 
   static int msToFrames(int ms) {
-    return (ms * _defaultFrameRate / 1000).round();
+    // Use floor division for more consistent frame alignment
+    // This ensures we never jump ahead to the next frame prematurely
+    return (ms / _msPerFrame).floor();
   }
 
   static int framesToMs(int frames) {
-    // Use exact multiplication and division to ensure consistent frame boundaries
-    return (frames * 1000.0 / _defaultFrameRate).round();
+    // Use exact multiplication to ensure consistent frame boundaries
+    // This gives us precisely 33.33... ms per frame
+    return (frames * _msPerFrame).round();
   }
 
   // Helper method to ensure a time value is aligned to frame boundaries
   static int alignToFrameBoundary(int ms) {
-    // Convert to frames and back to ms to force alignment
+    // First, convert to frames (rounds down to nearest frame)
     final int frames = msToFrames(ms);
+    // Then convert back to milliseconds (gives exact frame boundary time)
     return framesToMs(frames);
+  }
+  
+  // Helper to get the next frame boundary after a given time
+  static int nextFrameBoundary(int ms) {
+    // Convert to frames, add 1, then convert back to ms
+    final int frames = msToFrames(ms);
+    return framesToMs(frames + 1);
+  }
+  
+  // Helper to get the previous frame boundary before a given time
+  static int previousFrameBoundary(int ms) {
+    // Convert to frames, subtract 1, then convert back to ms
+    final int frames = msToFrames(ms);
+    return framesToMs(frames - 1 < 0 ? 0 : frames - 1);
   }
 
   int get startFrame => msToFrames(startTimeOnTrackMs);
@@ -311,4 +332,22 @@ class ClipModel {
 
   int get startFrameInSource => msToFrames(startTimeInSourceMs);
   int get endFrameInSource => msToFrames(endTimeInSourceMs);
+  Map<String, dynamic> toJson() {
+    // Select fields relevant for the preview server
+    return {
+      'databaseId': databaseId,
+      'trackId': trackId,
+      'name': name,
+      'type': type.toString().split('.').last, // Send enum name as string
+      'sourcePath': sourcePath,
+      'sourceDurationMs': sourceDurationMs,
+      'startTimeInSourceMs': startTimeInSourceMs,
+      'endTimeInSourceMs': endTimeInSourceMs,
+      'startTimeOnTrackMs': startTimeOnTrackMs,
+      'endTimeOnTrackMs': endTimeOnTrackMs,
+      // Effects are likely not needed for basic preview, metadata might be?
+      // Add metadata if the preview server uses it, otherwise omit.
+      'metadata': metadata,
+    };
+  }
 }

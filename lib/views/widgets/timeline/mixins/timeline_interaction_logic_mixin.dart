@@ -1,7 +1,8 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
-import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
+import 'package:flipedit/viewmodels/timeline_viewmodel.dart'; // Interaction VM
+import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart'; // State VM
 import 'package:flipedit/views/widgets/timeline/timeline.dart';
 import 'dart:developer' as developer;
 import 'dart:math' as math;
@@ -11,7 +12,8 @@ import 'package:watch_it/watch_it.dart'; // For di
 mixin TimelineInteractionLogicMixin on State<Timeline> {
 
   // --- Expected State/Getters from Main Class ---
-  TimelineViewModel get timelineViewModel;
+  TimelineViewModel get timelineViewModel; // For interactions
+  TimelineStateViewModel get timelineStateViewModel; // For state access
   TimelineNavigationViewModel get timelineNavigationViewModel;
   ScrollController get scrollController;
   double get trackLabelWidth;
@@ -86,10 +88,11 @@ mixin TimelineInteractionLogicMixin on State<Timeline> {
           name: 'Timeline',
         );
 
-        // Refresh clips for the new track and select the first one
-        timelineViewModel.refreshClips().then((_) {
+        // Refresh clips using the State ViewModel
+        timelineStateViewModel.refreshClips().then((_) {
           if (!mounted) return;
-          final clipsOnTrack = timelineViewModel.clips
+          // Access clips from the State ViewModel
+          final clipsOnTrack = timelineStateViewModel.clips
               .where((c) => c.trackId == firstTrack.id)
               .toList();
           if (clipsOnTrack.isNotEmpty) {

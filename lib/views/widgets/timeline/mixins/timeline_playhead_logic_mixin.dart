@@ -151,6 +151,11 @@ mixin TimelinePlayheadLogicMixin on State<Timeline> implements TickerProvider {
   // --- Drag Handlers ---
 
   void handlePlayheadDragStart(DragStartDetails details) {
+    // Make sure playback is stopped when user starts dragging the playhead
+    if (timelineNavigationViewModel.isPlaying) {
+      timelineNavigationViewModel.stopPlayback();
+    }
+    
     timelineViewModel.isPlayheadDragging = true;
     playheadPhysicsController.stop();
     scrubSnapController.stop();
@@ -162,7 +167,6 @@ mixin TimelinePlayheadLogicMixin on State<Timeline> implements TickerProvider {
 
   void handlePlayheadDragUpdate(DragUpdateDetails details) {
     if (!mounted) return;
-
 
     final RenderBox? timelineRenderBox =
         this.context.findRenderObject() as RenderBox?;
@@ -186,16 +190,30 @@ mixin TimelinePlayheadLogicMixin on State<Timeline> implements TickerProvider {
             trackLabelWidth +
             scrollOffsetX)
         .clamp(0.0, double.infinity);
+    
+    // Get the exact frame position without rounding first for more precise calculations
+    final double exactFramePosition = pointerRelX / pxPerFrame;
+    
+    // Only then round to get the final frame number
     final int maxAllowedFrame =
         timelineNavigationViewModel.totalFrames > 0
             ? timelineNavigationViewModel.totalFrames - 1
             : 0;
-    final int newFrame = (pointerRelX / pxPerFrame).round().clamp(
+    final int newFrame = exactFramePosition.round().clamp(
       0,
       maxAllowedFrame,
     );
 
     if (newFrame != currentFramePosition) {
+      // For debugging potential frame synchronization issues
+      if ((newFrame - currentFramePosition).abs() > 2) {
+        developer.log(
+          'Significant frame jump: $currentFramePosition → $newFrame '
+          '(pointer: ${exactFramePosition.toStringAsFixed(2)})', 
+          name: 'Timeline.playhead'
+        );
+      }
+      
       currentFramePosition = newFrame;
       visualFramePositionNotifier.value = newFrame;
       timelineNavigationViewModel.currentFrame = newFrame;

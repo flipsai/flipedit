@@ -212,3 +212,27 @@ await playerService._mediaStatusMonitor.waitForPreparedStatus();
 - **Observability:** Use of `ValueNotifier` for reactive UI updates.
 
 ---
+
+## Preview Panel
+
+The preview panel allows you to visualize the timeline videos with configurable position and size. Selected clips in the timeline appear in the preview panel with the following features:
+
+- **Position Control**: Set the X and Y coordinates for each clip in the preview panel
+- **Size Control**: Adjust width and height of each clip in the preview
+- **Presets**: Quick buttons for common aspect ratios (16:9, 1:1, 3:4, 4:3)
+- **Flip Control**: Horizontal and vertical flipping options
+- **Centering**: Center a clip in the preview panel with a single click
+
+When a clip is selected in the timeline, it will be highlighted in the preview panel with handles for visual identification. The transform controls appear in the Inspector panel.
+
+### Starting the Preview Server
+
+The preview rendering is powered by a Python WebSocket server. To start the preview server:
+
+```
+python3 assets/video_stream_server.py
+```
+
+The server must be running for the preview panel to display video content.
+
+## Features

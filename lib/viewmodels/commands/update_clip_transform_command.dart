@@ -3,10 +3,11 @@ import 'package:fluent_ui/fluent_ui.dart'; // For Rect
 import 'package:flutter_box_transform/flutter_box_transform.dart'; // For Flip
 
 import 'package:flipedit/services/project_database_service.dart';
-// import 'package:flipedit/services/undo_redo_service.dart'; // Not needed directly
-import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
+import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart'; // Import State VM
+// import 'package:flipedit/viewmodels/timeline_viewmodel.dart'; // No longer needed?
 import 'package:flipedit/utils/logger.dart' as logger;
 import 'timeline_command.dart'; // Import the base class
+import 'package:watch_it/watch_it.dart'; // Import for di
 
 
 /// Command to update the preview transform (Rect and Flip) of a clip.
@@ -20,12 +21,12 @@ class UpdateClipTransformCommand extends TimelineCommand { // Extend TimelineCom
 
   // Dependencies needed by this command
   final ProjectDatabaseService projectDatabaseService;
-  final TimelineViewModel timelineViewModel; // Add TimelineViewModel field
+  // final TimelineViewModel timelineViewModel; // REMOVED
+  final TimelineStateViewModel _stateViewModel = di<TimelineStateViewModel>(); // Inject State VM
 
   UpdateClipTransformCommand({
-    // Remove vm parameter
-    required this.timelineViewModel, // Add timelineViewModel param
-    required this.projectDatabaseService, // Add projectDatabaseService param
+    // required this.timelineViewModel, // REMOVED
+    required this.projectDatabaseService, // Keep projectDatabaseService param
     required this.clipId,
     required this.newRect,
     required this.newFlip,
@@ -42,7 +43,8 @@ class UpdateClipTransformCommand extends TimelineCommand { // Extend TimelineCom
   Future<void> execute() async {
     logger.logInfo('Executing UpdateClipTransformCommand for clip $clipId', 'Command');
     await _updateTransform(newRect, newFlip);
-    await timelineViewModel.refreshClips(); // Use timelineViewModel field
+    // await timelineViewModel.refreshClips(); // REPLACED
+    await _stateViewModel.refreshClips(); // Refresh State VM
   }
 
   // Method called by TimelineViewModel.undo/redo (if it uses command objects for that)
@@ -53,12 +55,14 @@ class UpdateClipTransformCommand extends TimelineCommand { // Extend TimelineCom
   @override // Add override since it's defined in TimelineCommand
   Future<void> undo() async {
      logger.logInfo('Undoing UpdateClipTransformCommand for clip $clipId (via command object)', 'Command');
-    await _updateTransform(oldRect, oldFlip);
-    await timelineViewModel.refreshClips(); // Use timelineViewModel field
-  }
+   await _updateTransform(oldRect, oldFlip);
+   // await timelineViewModel.refreshClips(); // REPLACED
+   await _stateViewModel.refreshClips(); // Refresh State VM
+ }
 
   Future<void> _updateTransform(Rect rectToApply, Flip flipToApply) async {
-    final clip = timelineViewModel.clips.firstWhere((c) => c.databaseId == clipId, orElse: () { // Use timelineViewModel field
+    // Access clips from State VM
+    final clip = _stateViewModel.clips.firstWhere((c) => c.databaseId == clipId, orElse: () {
        logger.logError('Clip $clipId not found during transform update.', 'Command');
        // Return a dummy clip or throw? For safety, return null and handle below.
        // This requires ClipModel? return type, let's adjust the logic.
