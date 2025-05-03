@@ -98,28 +98,21 @@ class UvManager {
         return null;
       }
 
-      // Get paths to video assets
-      final videoPath1 = 'assets/sample_video_1.mp4';
-      final videoPath2 = 'assets/sample_video_2.mp4';
-
       logInfo(
         _logTag,
         'Running Python video stream server script: $scriptPath',
       );
 
       // Attempt to kill any existing process on the target port before starting
-      await _killProcessOnPort(8080); // Assuming default port 8080
+      await _killProcessOnPort(8080);
 
       // Run the script in a separate process without waiting for it to finish
       // since it's a long-running server
       final process = await startPythonScript(defaultEnvName, scriptPath, [
-        '--video1',
-        videoPath1,
-        '--video2',
-        videoPath2,
+        // Use the arguments defined in video_stream_server.py
         '--host',
-        'localhost',
-        '--port',
+        '0.0.0.0',
+        '--ws-port',
         '8080',
       ]);
 

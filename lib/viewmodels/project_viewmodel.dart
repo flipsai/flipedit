@@ -10,6 +10,7 @@ import 'package:flipedit/utils/logger.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:watch_it/watch_it.dart';
+import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart';
 
 import 'commands/import_media_command.dart';
 import 'commands/create_project_command.dart';
@@ -351,6 +352,57 @@ class ProjectViewModel {
   // Method to set search term
   void setSearchTerm(String term) {
     _searchTermNotifier.value = term;
+  }
+
+  /// Delete an asset from the project by its database ID
+  Future<bool> deleteAssetCommand(int assetId) async {
+    try {
+      // Get a reference to TimelineStateViewModel for refreshing clips
+      TimelineStateViewModel? timelineStateViewModel;
+      try {
+        timelineStateViewModel = di<TimelineStateViewModel>();
+      } catch (e) {
+        // TimelineStateViewModel might not be registered yet if we're not in the editor
+        logInfo(_logTag, "TimelineStateViewModel not available, timeline refresh will be skipped");
+      }
+      
+      // First, get the asset to find its source path
+      final assets = projectAssets;
+      model.ProjectAsset? asset;
+      
+      // Find the asset with the given ID
+      for (final a in assets) {
+        if (a.databaseId == assetId) {
+          asset = a;
+          break;
+        }
+      }
+      
+      if (asset == null) {
+        logError(_logTag, "Asset with ID $assetId not found");
+        return false;
+      }
+      
+      // Delete all clips that use this asset's source path
+      final sourcePath = asset.sourcePath;
+      final clipsDeleted = await _databaseService.deleteClipsBySourcePath(sourcePath);
+      logInfo(_logTag, "Deleted $clipsDeleted clips using asset with ID $assetId");
+      
+      // Now delete the asset itself
+      final success = await _databaseService.deleteAsset(assetId);
+      
+      // Force the timeline to refresh its clips state
+      if (success && clipsDeleted > 0 && timelineStateViewModel != null) {
+        // This ensures the timeline UI updates immediately
+        await timelineStateViewModel.refreshClips();
+        logInfo(_logTag, "Refreshed timeline clips after deleting media");
+      }
+      
+      return success;
+    } catch (e) {
+      logError(_logTag, "Error deleting asset: $e");
+      return false;
+    }
   }
 
   void setExportFormat(String? format) {

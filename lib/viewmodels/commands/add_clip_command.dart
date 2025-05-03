@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:ui';
 import 'package:drift/drift.dart' as drift;
 import 'package:flipedit/persistence/database/project_database.dart'
     as project_db;
@@ -5,9 +7,11 @@ import '../timeline_viewmodel.dart';
 import '../timeline_state_viewmodel.dart';
 import 'timeline_command.dart';
 import '../../models/clip.dart';
+import '../../models/enums/clip_type.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
 import '../../services/timeline_logic_service.dart';
 import '../../services/project_database_service.dart';
+import '../../services/media_duration_service.dart';
 import 'package:watch_it/watch_it.dart';
 import '../../services/undo_redo_service.dart';
 
@@ -20,6 +24,7 @@ class AddClipCommand implements TimelineCommand {
   final TimelineLogicService _timelineLogicService = di<TimelineLogicService>();
   final ProjectDatabaseService _databaseService = di<ProjectDatabaseService>();
   final TimelineStateViewModel _stateViewModel = di<TimelineStateViewModel>();
+  final MediaDurationService _mediaDurationService = di<MediaDurationService>();
 
   int? _insertedClipId;
   List<ClipModel>? _originalNeighborStates;
@@ -34,6 +39,124 @@ class AddClipCommand implements TimelineCommand {
     required this.startTimeOnTrackMs,
   });
 
+  /// Validates the clip source duration and updates it if necessary
+  Future<ClipModel> _validateClipSourceDuration(ClipModel clip) async {
+    // Only check for video and audio clips
+    if (clip.type != ClipType.video && clip.type != ClipType.audio) {
+      return clip; // No validation needed for other types
+    }
+
+    logger.logInfo(
+      '[AddClipCommand] Validating source duration for: ${clip.sourcePath}',
+      _logTag,
+    );
+    
+    // Get duration from the Python server
+    final actualDurationMs = await _mediaDurationService.getMediaDurationMs(clip.sourcePath);
+    
+    // If duration is significantly different (over 100ms), update it
+    if (actualDurationMs > 0 && 
+        (clip.sourceDurationMs == 0 || 
+        (clip.sourceDurationMs - actualDurationMs).abs() > 100)) {
+      
+      logger.logInfo(
+        '[AddClipCommand] Updating source duration from ${clip.sourceDurationMs}ms to ${actualDurationMs}ms',
+        _logTag,
+      );
+      
+      // Create a copy with the updated duration
+      return clip.copyWith(
+        sourceDurationMs: actualDurationMs,
+        // If clip is using full duration, update the endTimeInSourceMs as well
+        endTimeInSourceMs: clip.endTimeInSourceMs >= clip.sourceDurationMs ? 
+          actualDurationMs : 
+          clip.endTimeInSourceMs,
+      );
+    }
+    
+    return clip; // No changes needed
+  }
+  
+  /// Sets up default preview rectangle based on media dimensions
+  Future<ClipModel> _setupPreviewRect(ClipModel clip) async {
+    // If the clip already has a previewRect, don't override it
+    if (clip.metadata.containsKey('previewRect')) {
+      logger.logInfo(
+        '[AddClipCommand] Clip already has previewRect, skipping auto-detection',
+        _logTag,
+      );
+      return clip;
+    }
+
+    logger.logInfo(
+      '[AddClipCommand] Auto-detecting dimensions for: ${clip.sourcePath}',
+      _logTag,
+    );
+    
+    try {
+      // Get media info from Python server
+      final mediaInfo = await _mediaDurationService.getMediaInfo(clip.sourcePath);
+      
+      if (mediaInfo.width > 0 && mediaInfo.height > 0) {
+        // Default preview rect values with detected dimensions
+        int previewWidth = mediaInfo.width;
+        int previewHeight = mediaInfo.height;
+        
+        // Maintain aspect ratio but limit max size for very large media
+        const int maxDimension = 640; // Max width or height
+        
+        if (previewWidth > maxDimension || previewHeight > maxDimension) {
+          final aspectRatio = previewWidth / previewHeight;
+          
+          if (previewWidth > previewHeight) {
+            previewWidth = maxDimension;
+            previewHeight = (maxDimension / aspectRatio).round();
+          } else {
+            previewHeight = maxDimension;
+            previewWidth = (maxDimension * aspectRatio).round();
+          }
+        }
+        
+        // Canvas/preview area dimensions
+        const canvasWidth = 1280.0;
+        const canvasHeight = 720.0;
+        
+        // Calculate position to center the clip on the canvas
+        final left = (canvasWidth - previewWidth) / 2;
+        final top = (canvasHeight - previewHeight) / 2;
+        
+        // Create previewRect metadata
+        final previewRect = {
+          'left': left,
+          'top': top,
+          'width': previewWidth.toDouble(),
+          'height': previewHeight.toDouble(),
+        };
+        
+        // Create updated metadata
+        final updatedMetadata = Map<String, dynamic>.from(clip.metadata);
+        updatedMetadata['previewRect'] = previewRect;
+        
+        logger.logInfo(
+          '[AddClipCommand] Created preview rect: ${previewWidth}x${previewHeight} at position (${left.round()},${top.round()})',
+          _logTag,
+        );
+        
+        // Return clip with updated metadata
+        return clip.copyWith(
+          metadata: updatedMetadata,
+        );
+      }
+    } catch (e) {
+      logger.logError(
+        '[AddClipCommand] Error detecting media dimensions: $e',
+        _logTag,
+      );
+    }
+    
+    return clip; // Return original clip if dimensions detection fails
+  }
+
   @override
   Future<void> execute() async {
     if (_databaseService.clipDao == null) {
@@ -41,12 +164,18 @@ class AddClipCommand implements TimelineCommand {
       return;
     }
 
+    // Step 1: Validate and potentially update the clip source duration
+    var processedClipData = await _validateClipSourceDuration(clipData);
+    
+    // Step 2: Set up preview rectangle based on media dimensions
+    processedClipData = await _setupPreviewRect(processedClipData);
+
     final initialEndTimeOnTrackMs =
-        startTimeOnTrackMs + clipData.durationInSourceMs;
-    final sourceDurationMs = clipData.sourceDurationMs;
+        startTimeOnTrackMs + processedClipData.durationInSourceMs;
+    final sourceDurationMs = processedClipData.sourceDurationMs;
 
     logger.logInfo(
-      '[AddClipCommand] Preparing placement: track=$trackId, startTrack=$startTimeOnTrackMs, endTrack=$initialEndTimeOnTrackMs, startSource=${clipData.startTimeInSourceMs}, endSource=${clipData.endTimeInSourceMs}, sourceDuration=$sourceDurationMs',
+      '[AddClipCommand] Preparing placement: track=$trackId, startTrack=$startTimeOnTrackMs, endTrack=$initialEndTimeOnTrackMs, startSource=${processedClipData.startTimeInSourceMs}, endSource=${processedClipData.endTimeInSourceMs}, sourceDuration=$sourceDurationMs',
       _logTag,
     );
 
@@ -54,13 +183,13 @@ class AddClipCommand implements TimelineCommand {
       clips: _stateViewModel.clips,
       clipId: null,
       trackId: trackId,
-      type: clipData.type,
-      sourcePath: clipData.sourcePath,
+      type: processedClipData.type,
+      sourcePath: processedClipData.sourcePath,
       sourceDurationMs: sourceDurationMs,
       startTimeOnTrackMs: startTimeOnTrackMs,
       endTimeOnTrackMs: initialEndTimeOnTrackMs,
-      startTimeInSourceMs: clipData.startTimeInSourceMs,
-      endTimeInSourceMs: clipData.endTimeInSourceMs,
+      startTimeInSourceMs: processedClipData.startTimeInSourceMs,
+      endTimeInSourceMs: processedClipData.endTimeInSourceMs,
     );
 
     if (!placement['success']) {
@@ -121,9 +250,9 @@ class AddClipCommand implements TimelineCommand {
     _insertedClipId = await _databaseService.clipDao!.insertClip(
       project_db.ClipsCompanion(
         trackId: drift.Value(trackId),
-        name: drift.Value(clipData.name),
-        type: drift.Value(clipData.type.name),
-        sourcePath: drift.Value(clipData.sourcePath),
+        name: drift.Value(processedClipData.name),
+        type: drift.Value(processedClipData.type.name),
+        sourcePath: drift.Value(processedClipData.sourcePath),
         sourceDurationMs: drift.Value(newClipDataMap['sourceDurationMs']),
         startTimeOnTrackMs: drift.Value(newClipDataMap['startTimeOnTrackMs']),
         endTimeOnTrackMs: drift.Value(newClipDataMap['endTimeOnTrackMs']),
@@ -131,6 +260,11 @@ class AddClipCommand implements TimelineCommand {
         endTimeInSourceMs: drift.Value(newClipDataMap['endTimeInSourceMs']),
         createdAt: drift.Value(DateTime.now()),
         updatedAt: drift.Value(DateTime.now()),
+        metadataJson: drift.Value(
+          processedClipData.metadata.isNotEmpty
+              ? jsonEncode(processedClipData.metadata)
+              : null,
+        ),
       ),
     );
     logger.logInfo(
@@ -145,7 +279,7 @@ class AddClipCommand implements TimelineCommand {
     final newClipIndex = finalUpdatedClips.indexWhere(
       (clip) =>
           clip.databaseId == null &&
-          clip.sourcePath == clipData.sourcePath &&
+          clip.sourcePath == processedClipData.sourcePath &&
           clip.startTimeOnTrackMs == newClipDataMap['startTimeOnTrackMs'],
     );
 

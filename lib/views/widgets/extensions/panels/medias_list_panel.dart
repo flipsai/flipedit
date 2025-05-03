@@ -13,6 +13,9 @@ const _logTag = 'ClipsListPanel';
 /// Panel for displaying project assets in the media tab
 class MediasListPanel extends StatelessWidget with WatchItMixin {
   final String selectedExtension;
+  
+  // Track tap position for context menu
+  static Offset _tapPosition = Offset.zero;
 
   const MediasListPanel({super.key, required this.selectedExtension});
 
@@ -119,6 +122,8 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
   // Update method to accept model.ProjectAsset
   Widget _buildClipListItem(BuildContext context, model.ProjectAsset asset) {
     final theme = FluentTheme.of(context);
+    final projectVm = di<ProjectViewModel>();
+    
     // Use durationMs from model.ProjectAsset
     final String durationString =
         asset.type == ClipType.image
@@ -142,6 +147,35 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
       startTimeOnTrackMs: 0, // Temporary value for drag data
       endTimeOnTrackMs:
           sourceDuration, // Required: Temporary value matching source duration
+    );
+
+    // Create the item widget content
+    final itemContent = Container(
+      margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+      decoration: BoxDecoration(
+        color: theme.resources.layerFillColorDefault,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: GestureDetector(
+        onSecondaryTapDown: (details) {
+          _storePosition(details);
+        },
+        onSecondaryTap: asset.databaseId != null ? () {
+          _showMediaContextMenu(context, asset);
+        } : null,
+        child: ListTile(
+          title: Text(asset.name, style: theme.typography.bodyStrong),
+          subtitle: Text(durationString, style: theme.typography.caption),
+          leading: Icon(_getIconForClipType(asset.type)),
+          onPressed: () {
+            // TODO: Define behavior when an asset in the media list is clicked
+            // Maybe select it for properties view?
+            // For now, let's not link it to EditorViewModel's selectedClipId
+            // as that refers to a Clip *instance* on the timeline.
+            logInfo(_logTag, "Selected project asset: ${asset.name}");
+          },
+        ),
+      ),
     );
 
     return Draggable<ClipModel>(
@@ -213,26 +247,110 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
           ),
         ),
       ),
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
-        decoration: BoxDecoration(
-          color: theme.resources.layerFillColorDefault,
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: ListTile(
-          title: Text(asset.name, style: theme.typography.bodyStrong),
-          subtitle: Text(durationString, style: theme.typography.caption),
-          leading: Icon(_getIconForClipType(asset.type)),
-          onPressed: () {
-            // TODO: Define behavior when an asset in the media list is clicked
-            // Maybe select it for properties view?
-            // For now, let's not link it to EditorViewModel's selectedClipId
-            // as that refers to a Clip *instance* on the timeline.
-            logInfo(_logTag, "Selected project asset: ${asset.name}");
+      child: itemContent,
+    );
+  }
+
+  void _showMediaContextMenu(BuildContext context, model.ProjectAsset asset) {
+    final theme = FluentTheme.of(context);
+    
+    // Get the current position of the mouse cursor
+    final RenderBox overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final position = material.RelativeRect.fromRect(
+      _tapPosition & const Size(1, 1),
+      Offset.zero & overlay.size,
+    );
+    
+    material.showMenu(
+      context: context,
+      position: position,
+      items: [
+        material.PopupMenuItem(
+          child: Row(
+            children: [
+              Icon(FluentIcons.delete, 
+                color: theme.resources.textFillColorPrimary,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Delete',
+                style: TextStyle(color: theme.resources.textFillColorPrimary),
+              ),
+            ],
+          ),
+          onTap: () async {
+            // Show confirmation dialog
+            Future.delayed(const Duration(milliseconds: 50), () async {
+              await showDialog(
+                context: context,
+                builder: (context) => ContentDialog(
+                  title: const Text('Delete Media'),
+                  content: Text('Are you sure you want to delete "${asset.name}"?\n\nThis will also remove any clips using this media from the timeline.'),
+                  actions: [
+                    Button(
+                      child: const Text('Cancel'),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                    FilledButton(
+                      style: ButtonStyle(
+                        backgroundColor: ButtonState.resolveWith(
+                          (states) => Colors.red,
+                        ),
+                      ),
+                      child: const Text('Delete'),
+                      onPressed: () async {
+                        Navigator.pop(context);
+                        if (asset.databaseId != null) {
+                          // Delete the asset using the project service
+                          final projectVm = di<ProjectViewModel>();
+                          final success = await projectVm.deleteAssetCommand(asset.databaseId!);
+                          if (success) {
+                            _showNotification(
+                              context, 
+                              'Media and associated timeline clips have been deleted',
+                              severity: InfoBarSeverity.success,
+                            );
+                          } else {
+                            _showNotification(
+                              context,
+                              'Failed to delete media',
+                              severity: InfoBarSeverity.error,
+                            );
+                          }
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              );
+            });
           },
         ),
-      ),
+      ],
     );
+  }
+
+  void _showNotification(
+    BuildContext context,
+    String message, {
+    InfoBarSeverity severity = InfoBarSeverity.info,
+  }) {
+    displayInfoBar(
+      context,
+      builder: (context, close) {
+        return InfoBar(
+          title: Text(message),
+          severity: severity,
+          onClose: close,
+        );
+      },
+    );
+  }
+
+  // Update the tap position when the user right-clicks
+  void _storePosition(TapDownDetails details) {
+    _tapPosition = details.globalPosition;
   }
 
   IconData _getIconForClipType(ClipType type) {

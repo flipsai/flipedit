@@ -14,7 +14,8 @@ class PreviewSyncService {
       di<ProjectDatabaseService>();
   WebSocketChannel? _channel;
   bool _isConnected = false;
-  final String _serverUrl = 'ws://localhost:8765';
+  bool _isConnecting = false; // Add flag to track connection attempts
+  final String _serverUrl = 'ws://localhost:8080';
   final String _logTag = 'PreviewSyncService';
 
   PreviewSyncService() {
@@ -22,8 +23,10 @@ class PreviewSyncService {
   }
 
   void _connect() async {
-    if (_isConnected && _channel != null) return;
+    // Prevent concurrent connection attempts
+    if ((_isConnected && _channel != null) || _isConnecting) return;
 
+    _isConnecting = true; // Set flag before attempting connection
     try {
       logInfo('Attempting to connect to preview server: $_serverUrl', _logTag);
       final socket = await WebSocket.connect(_serverUrl);
@@ -40,17 +43,21 @@ class PreviewSyncService {
           logWarning('Disconnected from preview server.', _logTag);
           _isConnected = false;
           _channel = null;
+          _isConnecting = false; // Reset flag on disconnect
         },
         onError: (error) {
           logError('Preview server connection error', error, null, _logTag);
           _isConnected = false;
           _channel = null;
+          _isConnecting = false; // Reset flag on error
         },
       );
     } catch (e, s) {
       logError('Failed to connect to preview server', e, s, _logTag);
       _isConnected = false;
       _channel = null;
+    } finally {
+      _isConnecting = false; // Ensure flag is reset even if connect throws early
     }
   }
 

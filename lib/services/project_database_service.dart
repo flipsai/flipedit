@@ -247,6 +247,48 @@ class ProjectDatabaseService {
     }
   }
 
+  /// Delete all clips that use a specific source path
+  Future<int> deleteClipsBySourcePath(String sourcePath) async {
+    if (_clipDao == null) {
+      logError(_logTag, "Cannot delete clips: No project loaded");
+      return 0;
+    }
+    
+    try {
+      // Get the clips first to log information
+      final clips = await _clipDao!.getClipsBySourcePath(sourcePath);
+      if (clips.isNotEmpty) {
+        logInfo(_logTag, "Found ${clips.length} clips using source path: $sourcePath");
+      } else {
+        logInfo(_logTag, "No clips found using source path: $sourcePath");
+        return 0;
+      }
+      
+      // Delete the clips
+      final deletedCount = await _clipDao!.deleteClipsBySourcePath(sourcePath);
+      logInfo(_logTag, "Deleted $deletedCount clips using source path: $sourcePath");
+      
+      // After clips are deleted, refresh the track notifier to update the UI
+      // This ensures the timeline display reflects the removed clips
+      if (deletedCount > 0 && _trackDao != null) {
+        // Manually refresh the tracks to trigger UI updates
+        final updatedTracks = await _trackDao!.getAllTracks();
+        tracksNotifier.value = updatedTracks;
+        logInfo(_logTag, "Refreshed tracks notifier after deleting clips for source: $sourcePath");
+        
+        // Optionally, emit a change notification to force timeline refresh
+        // In a well-architected reactive system, the above track refresh should be sufficient
+        // but we'll add this to ensure all views are properly updated
+        tracksNotifier.notifyListeners();
+      }
+      
+      return deletedCount;
+    } catch (e) {
+      logError(_logTag, "Error deleting clips by source path: $e");
+      return 0;
+    }
+  }
+
   /// Delete a track by ID and its associated clips
   Future<bool> deleteTrack(int trackId) async {
     if (_trackDao == null || _clipDao == null || currentDatabase == null) {

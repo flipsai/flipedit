@@ -255,4 +255,16 @@ class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase>
     logInfo(_logTag, "Deleting all clips for track ID: $trackId");
     return (delete(clips)..where((c) => c.trackId.equals(trackId))).go();
   }
+
+  // Delete all clips with a specific source path
+  Future<int> deleteClipsBySourcePath(String sourcePath) {
+    logInfo(_logTag, "Deleting all clips with source path: $sourcePath");
+    return (delete(clips)..where((c) => c.sourcePath.equals(sourcePath))).go();
+  }
+
+  // Get all clips with a specific source path
+  Future<List<Clip>> getClipsBySourcePath(String sourcePath) {
+    logInfo(_logTag, "Getting clips with source path: $sourcePath");
+    return (select(clips)..where((c) => c.sourcePath.equals(sourcePath))).get();
+  }
 }

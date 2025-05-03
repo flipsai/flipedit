@@ -9,6 +9,10 @@ import os
 import sys
 import signal
 import logging
+import http.server
+import urllib.parse
+import threading
+import argparse
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
@@ -21,6 +25,22 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger('video_stream_server')
+
+# Parse command-line arguments
+def parse_args():
+    parser = argparse.ArgumentParser(description="FlipEdit Video Stream Server")
+    parser.add_argument('--ws-port', type=int, default=8080, help='WebSocket server port')
+    parser.add_argument('--http-port', type=int, default=8081, help='HTTP server port')
+    parser.add_argument('--host', type=str, default='0.0.0.0', help='Host to bind to')
+    parser.add_argument('--debug', action='store_true', help='Enable debug logging')
+    return parser.parse_args()
+
+# Configure logger based on arguments
+def configure_logging(args):
+    if args.debug:
+        logger.setLevel(logging.DEBUG)
+        logger.debug("Debug logging enabled")
+    return logger
 
 class VideoStreamServer:
     def __init__(self, port: int = 8080):
@@ -521,10 +541,185 @@ class VideoStreamServer:
             cap.release()
         self.video_cache.clear()
 
+    @staticmethod
+    def get_media_duration(file_path):
+        """Get the duration of a media file in milliseconds using OpenCV."""
+        try:
+            if not os.path.exists(file_path):
+                logger.error(f"File does not exist: {file_path}")
+                return 0
+                
+            cap = cv2.VideoCapture(file_path)
+            if not cap.isOpened():
+                logger.error(f"Failed to open file with OpenCV: {file_path}")
+                return 0
+                
+            # Get frame count and fps
+            frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            
+            # Calculate duration in milliseconds
+            if fps > 0:
+                duration_ms = int((frame_count / fps) * 1000)
+            else:
+                logger.warning(f"Invalid FPS ({fps}) for {file_path}, using frame count as duration")
+                duration_ms = frame_count * 33  # Assume ~30fps (33ms per frame)
+            
+            # Release the capture when done
+            cap.release()
+            
+            logger.info(f"Media duration for {os.path.basename(file_path)}: {duration_ms}ms ({frame_count} frames at {fps} fps)")
+            return duration_ms
+        except Exception as e:
+            logger.error(f"Error getting media duration: {e}")
+            return 0
+            
+    @staticmethod
+    def get_media_info(file_path):
+        """Get both duration and dimensions of a media file using OpenCV."""
+        try:
+            if not os.path.exists(file_path):
+                logger.error(f"File does not exist: {file_path}")
+                return {"duration_ms": 0, "width": 0, "height": 0}
+                
+            cap = cv2.VideoCapture(file_path)
+            if not cap.isOpened():
+                logger.error(f"Failed to open file with OpenCV: {file_path}")
+                return {"duration_ms": 0, "width": 0, "height": 0}
+                
+            # Get frame count and fps for duration
+            frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            
+            # Get dimensions
+            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            
+            # Calculate duration in milliseconds
+            if fps > 0:
+                duration_ms = int((frame_count / fps) * 1000)
+            else:
+                logger.warning(f"Invalid FPS ({fps}) for {file_path}, using frame count as duration")
+                duration_ms = frame_count * 33  # Assume ~30fps (33ms per frame)
+            
+            # Read first frame for image files (which may report 0 for frame count and fps)
+            if frame_count == 0 and fps == 0:
+                ret, frame = cap.read()
+                if ret and frame is not None:
+                    height, width = frame.shape[:2]
+                    # For images, set a default duration
+                    duration_ms = 5000  # 5 seconds
+            
+            # Release the capture when done
+            cap.release()
+            
+            logger.info(f"Media info for {os.path.basename(file_path)}: {width}x{height}, {duration_ms}ms")
+            return {
+                "duration_ms": duration_ms,
+                "width": width,
+                "height": height
+            }
+        except Exception as e:
+            logger.error(f"Error getting media info: {e}")
+            return {"duration_ms": 0, "width": 0, "height": 0}
+
+# HTTP server for handling API requests
+class HTTPHandler(http.server.BaseHTTPRequestHandler):
+    """HTTP request handler for the API endpoints."""
+    
+    def do_GET(self):
+        """Handle GET requests."""
+        try:
+            # Parse the URL
+            parsed_url = urllib.parse.urlparse(self.path)
+            path = parsed_url.path
+            
+            # Handle media duration endpoint
+            if path.startswith('/api/duration'):
+                query_params = urllib.parse.parse_qs(parsed_url.query)
+                
+                # Check if path parameter is provided
+                if 'path' not in query_params:
+                    self._send_error(400, "Missing 'path' parameter")
+                    return
+                
+                file_path = query_params['path'][0]
+                logger.info(f"Getting duration for: {file_path}")
+                
+                # Get media duration
+                duration = VideoStreamServer.get_media_duration(file_path)
+                
+                # Return duration as JSON
+                response = json.dumps({"duration_ms": duration})
+                self._send_response(200, response)
+            # Handle media info endpoint (both duration and dimensions)
+            elif path.startswith('/api/mediainfo'):
+                query_params = urllib.parse.parse_qs(parsed_url.query)
+                
+                # Check if path parameter is provided
+                if 'path' not in query_params:
+                    self._send_error(400, "Missing 'path' parameter")
+                    return
+                
+                file_path = query_params['path'][0]
+                logger.info(f"Getting media info for: {file_path}")
+                
+                # Get media info
+                media_info = VideoStreamServer.get_media_info(file_path)
+                
+                # Return media info as JSON
+                response = json.dumps(media_info)
+                self._send_response(200, response)
+            else:
+                self._send_error(404, "Endpoint not found")
+        except Exception as e:
+            logger.error(f"Error handling HTTP request: {e}")
+            self._send_error(500, f"Internal server error: {str(e)}")
+    
+    def _send_response(self, status_code, message):
+        """Send a JSON response."""
+        self.send_response(status_code)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Access-Control-Allow-Origin', '*')  # CORS header for cross-origin requests
+        self.end_headers()
+        self.wfile.write(message.encode('utf-8'))
+    
+    def _send_error(self, status_code, message):
+        """Send an error response."""
+        response = json.dumps({"error": message})
+        self._send_response(status_code, response)
+
+
+async def run_http_server(host="0.0.0.0", port=8081):
+    """Run an HTTP server for API endpoints."""
+    # Create and start the HTTP server in a separate thread
+    server = http.server.HTTPServer((host, port), HTTPHandler)
+    logger.info(f"Starting HTTP API server on http://{host}:{port}")
+    
+    # Run the server in a separate thread
+    server_thread = threading.Thread(target=server.serve_forever)
+    server_thread.daemon = True  # Thread will exit when main thread exits
+    server_thread.start()
+    
+    # Return the server instance so it can be shut down if needed
+    return server
+
 
 async def main():
+    # Parse command-line arguments
+    args = parse_args()
+    configure_logging(args)
+    
+    # Log startup configuration
+    logger.info(f"Starting FlipEdit Video Stream Server")
+    logger.info(f"WebSocket server on port {args.ws_port}")
+    logger.info(f"HTTP API server on port {args.http_port}")
+    
     # Create and run the server
-    server = VideoStreamServer()
+    server = VideoStreamServer(port=args.ws_port)
+    
+    # Start the HTTP server for API endpoints
+    http_server = await run_http_server(host=args.host, port=args.http_port)
     
     # Handle signals
     loop = asyncio.get_running_loop()
@@ -533,6 +728,9 @@ async def main():
     
     # Run the server
     await server.run()
+    
+    # Shutdown HTTP server when WebSocket server is done
+    http_server.shutdown()
 
 if __name__ == "__main__":
     asyncio.run(main())

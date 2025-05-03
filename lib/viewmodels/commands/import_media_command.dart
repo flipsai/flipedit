@@ -4,16 +4,19 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/services/project_database_service.dart';
+import 'package:flipedit/services/media_duration_service.dart';
 import 'package:flipedit/utils/logger.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
 import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
+import 'package:watch_it/watch_it.dart';
 
 const _logTag = 'ImportMediaCommand';
 
 class ImportMediaCommand {
   final ProjectViewModel _projectViewModel;
   final ProjectDatabaseService _databaseService;
+  final MediaDurationService _mediaDurationService = di<MediaDurationService>();
 
   ImportMediaCommand(this._projectViewModel, this._databaseService);
 
@@ -96,10 +99,32 @@ class ImportMediaCommand {
       // Determine asset type
       final assetType = _getAssetTypeFromExtension(extension);
 
-      // Get media metadata
+      // Default media metadata
       int durationMs = 0;
       int? width;
       int? height;
+      
+      // For video and audio, get media info from Python server
+      if (assetType == ClipType.video || assetType == ClipType.audio) {
+        logInfo(_logTag, "Getting media info via Python server: $filePath");
+        final mediaInfo = await _mediaDurationService.getMediaInfo(filePath);
+        
+        durationMs = mediaInfo.durationMs;
+        width = mediaInfo.width > 0 ? mediaInfo.width : null;
+        height = mediaInfo.height > 0 ? mediaInfo.height : null;
+        
+        logInfo(_logTag, "Media info returned: duration=${durationMs}ms, dimensions=${width}x${height}");
+      } else if (assetType == ClipType.image) {
+        // For images, set a default duration and get dimensions
+        logInfo(_logTag, "Getting dimensions for image: $filePath");
+        final mediaInfo = await _mediaDurationService.getMediaInfo(filePath);
+        
+        durationMs = 5000; // 5 seconds default for images
+        width = mediaInfo.width > 0 ? mediaInfo.width : null;
+        height = mediaInfo.height > 0 ? mediaInfo.height : null;
+        
+        logInfo(_logTag, "Image info: default duration=${durationMs}ms, dimensions=${width}x${height}");
+      }
 
       // Import asset using the database service
       logInfo(_logTag, "Calling databaseService.importAsset for: $filePath");

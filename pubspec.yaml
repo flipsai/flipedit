@@ -90,9 +90,9 @@ flutter:
   uses-material-design: true
   # To add assets to your application, add an assets section, like this:
   assets:
-    - assets/sample_video_1.mp4
-    - assets/sample_video_2.mp4
-    - assets/video_stream_server.py # Add Python script to assets
+    # - assets/sample_video_1.mp4
+    # - assets/sample_video_2.mp4
+    - assets/video_stream_server.py
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
   # For details regarding adding assets from package dependencies, see

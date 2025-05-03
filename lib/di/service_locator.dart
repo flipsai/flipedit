@@ -9,6 +9,7 @@ import 'package:flipedit/services/uv_manager.dart';
 import 'package:flipedit/services/layout_service.dart';
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/services/project_metadata_service.dart';
+import 'package:flipedit/services/media_duration_service.dart'; // Import MediaDurationService
 import 'package:flipedit/viewmodels/app_viewmodel.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
@@ -95,6 +96,7 @@ Future<void> setupServiceLocator() async {
     dispose: (vm) => vm.dispose(), // Add dispose for consistency
   );
 
+  di.registerLazySingleton<MediaDurationService>(() => MediaDurationService());
   di.registerLazySingleton<PlaybackService>(
     () => PlaybackService(
       getCurrentFrame: () => 0,
