@@ -8,6 +8,7 @@ import 'common_test_setup.dart';
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:watch_it/watch_it.dart';
+
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -29,7 +30,9 @@ void main() {
     if (testTempDir != null) await commonTearDown(testTempDir!.path);
   });
 
-  testWidgets('Import media via panel button shows Draggable<ClipModel>', (WidgetTester tester) async {
+  testWidgets('Import media via panel button shows Draggable<ClipModel>', (
+    WidgetTester tester,
+  ) async {
     await tester.pumpWidget(FlipEditApp());
     await tester.pumpAndSettle(const Duration(seconds: 5));
 
@@ -55,7 +58,11 @@ void main() {
 
     // Verify that the imported asset appears in the media list
     final tileFinder = find.widgetWithText(ListTile, importedFileName);
-    expect(tileFinder, findsOneWidget, reason: 'Expected media list tile for "$importedFileName" in MediasListPanel.');
+    expect(
+      tileFinder,
+      findsOneWidget,
+      reason:
+          'Expected media list tile for "$importedFileName" in MediasListPanel.',
+    );
   });
-
 }

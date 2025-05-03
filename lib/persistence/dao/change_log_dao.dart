@@ -5,7 +5,8 @@ import 'package:flipedit/persistence/tables/change_logs.dart';
 part 'change_log_dao.g.dart';
 
 @DriftAccessor(tables: [ChangeLogs])
-class ChangeLogDao extends DatabaseAccessor<ProjectDatabase> with _$ChangeLogDaoMixin {
+class ChangeLogDao extends DatabaseAccessor<ProjectDatabase>
+    with _$ChangeLogDaoMixin {
   ChangeLogDao(super.db);
 
   Future<int> insertChange(ChangeLogsCompanion entry) {

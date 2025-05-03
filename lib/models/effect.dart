@@ -8,7 +8,7 @@ class Effect {
   final List<Effect> childEffects; // For composable effects
   final int startFrame; // Relative to the clip's start
   final int durationFrames;
-  
+
   Effect({
     required this.id,
     required this.name,
@@ -18,7 +18,7 @@ class Effect {
     required this.startFrame,
     required this.durationFrames,
   });
-  
+
   Effect copyWith({
     String? id,
     String? name,
@@ -38,7 +38,7 @@ class Effect {
       durationFrames: durationFrames ?? this.durationFrames,
     );
   }
-  
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -50,7 +50,7 @@ class Effect {
       'durationFrames': durationFrames,
     };
   }
-  
+
   factory Effect.fromJson(Map<String, dynamic> json) {
     return Effect(
       id: json['id'],
@@ -60,9 +60,11 @@ class Effect {
         orElse: () => EffectType.filter,
       ),
       parameters: json['parameters'] ?? {},
-      childEffects: (json['childEffects'] as List?)
-          ?.map((effectJson) => Effect.fromJson(effectJson))
-          .toList() ?? [],
+      childEffects:
+          (json['childEffects'] as List?)
+              ?.map((effectJson) => Effect.fromJson(effectJson))
+              .toList() ??
+          [],
       startFrame: json['startFrame'],
       durationFrames: json['durationFrames'],
     );

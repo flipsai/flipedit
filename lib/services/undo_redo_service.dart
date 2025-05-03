@@ -17,9 +17,8 @@ class UndoRedoService {
   final ValueNotifier<bool> canRedo = ValueNotifier(false);
 
   UndoRedoService({required ProjectDatabaseService projectDatabaseService})
-      : _projectDatabaseService = projectDatabaseService;
+    : _projectDatabaseService = projectDatabaseService;
 
-  /// Load all existing logs into undo stack (most recent last)
   Future<void> init() async {
     final logs = await changeLogDao.getAllLogs();
     _undoStack.clear();
@@ -68,7 +67,11 @@ class UndoRedoService {
     }
   }
 
-  Future<void> _applyAction(String action, String id, Map<String, dynamic> data) async {
+  Future<void> _applyAction(
+    String action,
+    String id,
+    Map<String, dynamic> data,
+  ) async {
     if (action == 'insert') {
       final comp = _companionFromJson(data);
       await clipDao?.insertClip(comp);
@@ -90,18 +93,19 @@ class UndoRedoService {
       startTimeInSourceMs: Value(json['startTimeInSourceMs'] as int),
       endTimeInSourceMs: Value(json['endTimeInSourceMs'] as int),
       startTimeOnTrackMs: Value(json['startTimeOnTrackMs'] as int),
-      metadataJson: json['metadataJson'] != null
-          ? Value(json['metadataJson'] as String)
-          : const Value.absent(),
+      metadataJson:
+          json['metadataJson'] != null
+              ? Value(json['metadataJson'] as String)
+              : const Value.absent(),
       createdAt: Value(
         json['createdAt'] is int
-          ? DateTime.fromMillisecondsSinceEpoch(json['createdAt'] as int)
-          : DateTime.parse(json['createdAt'] as String)
+            ? DateTime.fromMillisecondsSinceEpoch(json['createdAt'] as int)
+            : DateTime.parse(json['createdAt'] as String),
       ),
       updatedAt: Value(
         json['updatedAt'] is int
-          ? DateTime.fromMillisecondsSinceEpoch(json['updatedAt'] as int)
-          : DateTime.parse(json['updatedAt'] as String)
+            ? DateTime.fromMillisecondsSinceEpoch(json['updatedAt'] as int)
+            : DateTime.parse(json['updatedAt'] as String),
       ),
     );
   }

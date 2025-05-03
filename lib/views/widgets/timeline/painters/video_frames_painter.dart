@@ -8,10 +8,11 @@ class VideoFramesPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (size.width <= 0 || size.height <= 0) return;
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1
-      ..style = PaintingStyle.stroke;
+    final paint =
+        Paint()
+          ..color = color
+          ..strokeWidth = 1
+          ..style = PaintingStyle.stroke;
     final cellWidth = size.width / 4;
     final cellHeight = size.height / 3;
     for (int i = 1; i < 4; i++) {

@@ -3,20 +3,19 @@ import 'dart:io';
 
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
-import 'package:watch_it/watch_it.dart'; // Import for di
+import 'package:watch_it/watch_it.dart';
 
-// Import the database entity Clip directly
 import '../persistence/database/project_database.dart' show Clip, Track;
 import '../services/project_database_service.dart';
-import '../utils/logger.dart'; // Import logger functions directly
+import '../utils/logger.dart';
 
 class PreviewSyncService {
-  // Use 'di' from watch_it
-  final ProjectDatabaseService _projectDatabaseService = di<ProjectDatabaseService>();
+  final ProjectDatabaseService _projectDatabaseService =
+      di<ProjectDatabaseService>();
   WebSocketChannel? _channel;
   bool _isConnected = false;
-  final String _serverUrl = 'ws://localhost:8765'; // TODO: Make configurable
-  final String _logTag = 'PreviewSyncService'; // Add log tag
+  final String _serverUrl = 'ws://localhost:8765';
+  final String _logTag = 'PreviewSyncService';
 
   PreviewSyncService() {
     _connect();
@@ -26,7 +25,6 @@ class PreviewSyncService {
     if (_isConnected && _channel != null) return;
 
     try {
-      // Use logger functions directly with tag
       logInfo('Attempting to connect to preview server: $_serverUrl', _logTag);
       final socket = await WebSocket.connect(_serverUrl);
       _channel = IOWebSocketChannel(socket);
@@ -42,62 +40,54 @@ class PreviewSyncService {
           logWarning('Disconnected from preview server.', _logTag);
           _isConnected = false;
           _channel = null;
-          // Optional: Implement reconnection logic
-          // Future.delayed(Duration(seconds: 5), _connect);
         },
         onError: (error) {
           logError('Preview server connection error', error, null, _logTag);
           _isConnected = false;
           _channel = null;
-          // Optional: Implement reconnection logic
-          // Future.delayed(Duration(seconds: 5), _connect);
         },
       );
     } catch (e, s) {
       logError('Failed to connect to preview server', e, s, _logTag);
       _isConnected = false;
       _channel = null;
-      // Optional: Implement reconnection logic
-      // Future.delayed(Duration(seconds: 5), _connect);
     }
   }
 
   Future<void> sendClipsToPreviewServer() async {
     if (!_isConnected || _channel == null) {
-      logWarning('Cannot send clips to preview server: Not connected.', _logTag);
+      logWarning(
+        'Cannot send clips to preview server: Not connected.',
+        _logTag,
+      );
       _connect(); // Attempt to reconnect
       return;
     }
 
     final clipDao = _projectDatabaseService.clipDao;
     if (clipDao == null) {
-      logError('Cannot send clips: ClipDAO is not available.', null, null, _logTag);
+      logError(
+        'Cannot send clips: ClipDAO is not available.',
+        null,
+        null,
+        _logTag,
+      );
       return;
     }
 
     try {
       final List<Track> tracks = _projectDatabaseService.tracksNotifier.value;
-      // Use the correct Clip type from persistence
       final List<Clip> allDbClips = [];
 
       for (final track in tracks) {
-        // Ensure track.id is not null before fetching clips
-        if (track.id != null) {
-           final trackClips = await clipDao.getClipsForTrack(track.id);
-           allDbClips.addAll(trackClips);
-        } else {
-            logWarning('Skipping track with null ID during clip sync.', _logTag);
-        }
-      }
+        final trackClips = await clipDao.getClipsForTrack(track.id);
+        allDbClips.addAll(trackClips);
+            }
 
-      // Use the Clip class from persistence which has toJson
       final List<Map<String, dynamic>> clipData =
-          allDbClips.map((clip) => clip.toJson()).toList(); // toJson should work now
+          allDbClips.map((clip) => clip.toJson()).toList();
 
-      final message = jsonEncode({
-        'type': 'sync_clips',
-        'payload': clipData,
-      });
+      final message = jsonEncode({'type': 'sync_clips', 'payload': clipData});
 
       _channel!.sink.add(message);
       logInfo('Sent ${allDbClips.length} clips to preview server.', _logTag);

@@ -5,12 +5,11 @@ import 'package:flipedit/views/widgets/extensions/extension_sidebar.dart';
 import 'package:docking/docking.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/views/widgets/common/resizable_divider.dart';
-import 'package:flutter/services.dart'; // Import for keyboard services
-import 'package:flipedit/viewmodels/timeline_viewmodel.dart'; // Import TimelineViewModel
-import 'package:flipedit/utils/logger.dart'; // Import logger
+import 'package:flutter/services.dart';
+import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
+import 'package:flipedit/utils/logger.dart';
 import 'package:flipedit/viewmodels/commands/remove_clip_command.dart';
 
-// Convert EditorScreen to StatelessWidget as state is moved down
 class EditorScreen extends StatelessWidget with WatchItMixin {
   const EditorScreen({super.key});
 
@@ -22,12 +21,10 @@ class EditorScreen extends StatelessWidget with WatchItMixin {
       padding: EdgeInsets.zero,
       content: Row(
         children: [
-          // Left sidebar with extensions (VS Code's activity bar)
           const ExtensionSidebar(),
 
           const _ConditionalExtensionPanel(),
 
-          // Main content area with docking panels
           Expanded(
             child: MultiSplitViewTheme(
               data: MultiSplitViewThemeData(
@@ -43,18 +40,17 @@ class EditorScreen extends StatelessWidget with WatchItMixin {
               ),
               child: TabbedViewTheme(
                 data: TabbedViewThemeData.dark(),
-                child:
-                    // Wrap Docking with Focus and KeyboardListener
-                    Focus(
-                      autofocus: true, // Request focus automatically
-                      onKeyEvent: _handleKeyEvent,
-                      child: layout != null
+                child: Focus(
+                  autofocus: true,
+                  onKeyEvent: _handleKeyEvent,
+                  child:
+                      layout != null
                           ? Docking(
-                              layout: layout,
-                              onItemClose: _handlePanelClosed,
-                            )
+                            layout: layout,
+                            onItemClose: _handlePanelClosed,
+                          )
                           : const Center(child: ProgressRing()),
-                    ),
+                ),
               ),
             ),
           ),
@@ -64,7 +60,6 @@ class EditorScreen extends StatelessWidget with WatchItMixin {
   }
 
   void _handlePanelClosed(DockingItem item) {
-    // Update the view model based on which panel was closed
     if (item.id == 'inspector') {
       di<EditorViewModel>().markInspectorClosed();
     } else if (item.id == 'timeline') {
@@ -72,10 +67,12 @@ class EditorScreen extends StatelessWidget with WatchItMixin {
     }
   }
 
-  // Handle keyboard events for deletion
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
-    logDebug('Key event received: ${event.runtimeType}, LogicalKey: ${event.logicalKey}', 'EditorScreen'); // Log all key events
-    logDebug('Focus hasPrimaryFocus: ${node.hasPrimaryFocus}', 'EditorScreen'); // Log focus status
+    logDebug(
+      'Key event received: ${event.runtimeType}, LogicalKey: ${event.logicalKey}',
+      'EditorScreen',
+    );
+    logDebug('Focus hasPrimaryFocus: ${node.hasPrimaryFocus}', 'EditorScreen');
 
     // Check for both Delete and Backspace keys
     final isDeleteKey =
@@ -83,25 +80,25 @@ class EditorScreen extends StatelessWidget with WatchItMixin {
         event.logicalKey == LogicalKeyboardKey.backspace;
 
     if (event is KeyDownEvent && isDeleteKey) {
-      logInfo('Delete/Backspace key pressed', 'EditorScreen'); // Log delete/backspace press
+      logInfo('Delete/Backspace key pressed', 'EditorScreen');
       final editorVm = di<EditorViewModel>();
       final timelineVm = di<TimelineViewModel>();
       final selectedIdString = editorVm.selectedClipId;
-      logDebug('Selected Clip ID: $selectedIdString', 'EditorScreen'); // Log selected ID
+      logDebug('Selected Clip ID: $selectedIdString', 'EditorScreen');
 
       if (selectedIdString != null && selectedIdString.isNotEmpty) {
         final clipId = int.tryParse(selectedIdString);
-        logDebug('Parsed Clip ID: $clipId', 'EditorScreen'); // Log parsed ID
+        logDebug('Parsed Clip ID: $clipId', 'EditorScreen');
         if (clipId != null) {
-          logInfo('Running RemoveClipCommand for ID: $clipId', 'EditorScreen'); // Log command run
+          logInfo('Running RemoveClipCommand for ID: $clipId', 'EditorScreen');
           final cmd = RemoveClipCommand(vm: timelineVm, clipId: clipId);
           timelineVm.runCommand(cmd);
           editorVm.selectedClipId = null; // Deselect after deletion
-          return KeyEventResult.handled; // Mark event as handled
+          return KeyEventResult.handled;
         }
       }
     }
-    return KeyEventResult.ignored; // Ignore other keys
+    return KeyEventResult.ignored;
   }
 }
 
@@ -115,11 +112,10 @@ class _ConditionalExtensionPanel extends StatefulWidget {
 
 class _ConditionalExtensionPanelState
     extends State<_ConditionalExtensionPanel> {
-  double _extensionPanelWidth = 250.0; // Initial width
-  final double _minExtensionPanelWidth = 150.0; // Minimum width
-  final double _maxExtensionPanelWidth = 500.0; // Maximum width
+  double _extensionPanelWidth = 250.0;
+  final double _minExtensionPanelWidth = 150.0;
+  final double _maxExtensionPanelWidth = 500.0;
 
-  // Callback function to update the width
   void _updateWidth(double dx) {
     setState(() {
       _extensionPanelWidth = (_extensionPanelWidth + dx).clamp(
@@ -131,7 +127,6 @@ class _ConditionalExtensionPanelState
 
   @override
   Widget build(BuildContext context) {
-    // Pass the current width and the update function to the internal widget
     return _ExtensionPanelInternal(
       width: _extensionPanelWidth,
       onResize: _updateWidth,
@@ -147,30 +142,24 @@ class _ExtensionPanelInternal extends StatelessWidget with WatchItMixin {
 
   @override
   Widget build(BuildContext context) {
-    // Watch the value here using the mixin
     final selectedExtension = watchValue(
       (EditorViewModel vm) => vm.selectedExtensionNotifier,
     );
 
-    // Return the panel and divider row only if an extension is selected
     if (selectedExtension.isNotEmpty) {
       return Row(
-        mainAxisSize:
-            MainAxisSize.min, // Important to prevent Row taking extra space
+        mainAxisSize: MainAxisSize.min,
         children: [
           SizedBox(
-            width: width, // Use width passed from parent stateful widget
+            width: width,
             child: ExtensionPanelContainer(
               selectedExtension: selectedExtension,
             ),
           ),
-          ResizableDivider(
-            onDragUpdate: onResize, // Use callback passed from parent
-          ),
+          ResizableDivider(onDragUpdate: onResize),
         ],
       );
     } else {
-      // Return an empty container when no extension is selected
       return const SizedBox.shrink();
     }
   }

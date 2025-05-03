@@ -3,7 +3,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flipedit/utils/logger.dart';
 
 class LayoutService {
-  // Add a tag for logging within this class
   String get _logTag => runtimeType.toString();
 
   static const String _visibilityStateKey = 'editor_panel_visibility';
@@ -26,7 +25,9 @@ class LayoutService {
       final jsonState = prefs.getString(_visibilityStateKey);
       if (jsonState != null && jsonState.isNotEmpty) {
         final Map<String, dynamic> decodedMap = jsonDecode(jsonState);
-        final visibilityState = decodedMap.map((key, value) => MapEntry(key, value as bool));
+        final visibilityState = decodedMap.map(
+          (key, value) => MapEntry(key, value as bool),
+        );
         logDebug(_logTag, 'Panel visibility state loaded: $visibilityState');
         return visibilityState;
       } else {
@@ -54,7 +55,10 @@ class LayoutService {
       final prefs = await SharedPreferences.getInstance();
       final layoutString = prefs.getString(_layoutStringKey);
       if (layoutString != null && layoutString.isNotEmpty) {
-        logDebug(_logTag, 'Layout string loaded. Length: ${layoutString.length}');
+        logDebug(
+          _logTag,
+          'Layout string loaded. Length: ${layoutString.length}',
+        );
         return layoutString;
       } else {
         logDebug(_logTag, 'No saved layout string found.');
@@ -65,4 +69,4 @@ class LayoutService {
       return null;
     }
   }
-} 
+}

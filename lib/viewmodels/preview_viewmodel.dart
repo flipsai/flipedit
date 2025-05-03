@@ -10,54 +10,48 @@ import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/utils/logger.dart';
 
 class PreviewViewModel extends ChangeNotifier implements Disposable {
-  // --- Injected Dependencies ---
   late final PreviewService _previewService;
   late final TimelineNavigationViewModel _timelineNavViewModel;
   late final TimelineViewModel _timelineViewModel;
 
-  // --- Internal State ---
   Timer? _seekDebounceTimer;
   int _lastSentFrame = -1;
   VoidCallback? _isPlayingListener;
   VoidCallback? _currentFrameListener;
   VoidCallback? _clipsListener;
-  final Duration _seekDebounceDuration = const Duration(milliseconds: 50); // Debounce delay
+  final Duration _seekDebounceDuration = const Duration(milliseconds: 50);
 
-  // --- Exposed State (from PreviewService) ---
-  ValueListenable<ui.Image?> get currentFrameNotifier => _previewService.currentFrameNotifier;
-  ValueListenable<bool> get isConnectedNotifier => _previewService.isConnectedNotifier;
+  ValueListenable<ui.Image?> get currentFrameNotifier =>
+      _previewService.currentFrameNotifier;
+  ValueListenable<bool> get isConnectedNotifier =>
+      _previewService.isConnectedNotifier;
   ValueListenable<String> get statusNotifier => _previewService.statusNotifier;
   ValueListenable<int> get fpsNotifier => _previewService.fpsNotifier;
 
   PreviewViewModel() {
     logDebug('PreviewViewModel initializing...');
-    // Get dependencies from DI
     _previewService = di<PreviewService>();
     _timelineNavViewModel = di<TimelineNavigationViewModel>();
     _timelineViewModel = di<TimelineViewModel>();
 
-    // --- Setup Listeners ---
-
-    // Listen to TimelineNavigationViewModel for playback and frame changes
     _isPlayingListener = _onIsPlayingChanged;
     _timelineNavViewModel.isPlayingNotifier.addListener(_isPlayingListener!);
 
     _currentFrameListener = _onCurrentFrameChanged;
-    _timelineNavViewModel.currentFrameNotifier.addListener(_currentFrameListener!);
+    _timelineNavViewModel.currentFrameNotifier.addListener(
+      _currentFrameListener!,
+    );
 
-    // Listen to TimelineViewModel for clip changes
     _clipsListener = _onClipsChanged;
     _timelineViewModel.clipsNotifier.addListener(_clipsListener!);
 
     // --- Initial Actions ---
-    // Connect the preview service automatically
     _previewService.connect().then((_) {
-       // After connection attempt, send initial state
-       if (_previewService.isConnectedNotifier.value) {
-           _onIsPlayingChanged(); // Send initial playback state
-           _onClipsChanged(); // Send initial clips data
-           _onCurrentFrameChanged(); // Send initial frame (debounced)
-       }
+      if (_previewService.isConnectedNotifier.value) {
+        _onIsPlayingChanged(); // Send initial playback state
+        _onClipsChanged(); // Send initial clips data
+        _onCurrentFrameChanged(); // Send initial frame (debounced)
+      }
     });
 
     logDebug('PreviewViewModel initialized.');
@@ -65,40 +59,42 @@ class PreviewViewModel extends ChangeNotifier implements Disposable {
 
   void _onIsPlayingChanged() {
     final isPlaying = _timelineNavViewModel.isPlayingNotifier.value;
-    logVerbose('PreviewViewModel: Playback state changed: $isPlaying. Sending command.');
+    logVerbose(
+      'PreviewViewModel: Playback state changed: $isPlaying. Sending command.',
+    );
     _previewService.sendPlaybackCommand(isPlaying);
-    // If starting playback, cancel any pending seek command
     if (isPlaying) {
       _seekDebounceTimer?.cancel();
-      _lastSentFrame = -1; // Reset last sent frame when playing starts
+      _lastSentFrame = -1;
     }
   }
 
   void _onCurrentFrameChanged() {
-    // Only send seek commands when not playing
     if (!_timelineNavViewModel.isPlayingNotifier.value) {
       final currentFrame = _timelineNavViewModel.currentFrameNotifier.value;
       // Debounce seek commands
       if (currentFrame != _lastSentFrame) {
-         _seekDebounceTimer?.cancel();
-         _seekDebounceTimer = Timer(_seekDebounceDuration, () {
-           if (!_timelineNavViewModel.isPlayingNotifier.value) { // Double check playing state
-             logVerbose('PreviewViewModel: Debounced seek to frame: $currentFrame');
-             _previewService.sendSeekCommand(currentFrame);
-             _lastSentFrame = currentFrame;
-           }
-         });
+        _seekDebounceTimer?.cancel();
+        _seekDebounceTimer = Timer(_seekDebounceDuration, () {
+          if (!_timelineNavViewModel.isPlayingNotifier.value) {
+            logVerbose(
+              'PreviewViewModel: Debounced seek to frame: $currentFrame',
+            );
+            _previewService.sendSeekCommand(currentFrame);
+            _lastSentFrame = currentFrame;
+          }
+        });
       }
     } else {
-       // If playing, ensure any lingering debounce timer is cancelled.
-       _seekDebounceTimer?.cancel();
+      _seekDebounceTimer?.cancel();
     }
   }
 
   void _onClipsChanged() {
     final clips = _timelineViewModel.clipsNotifier.value;
-    logVerbose('PreviewViewModel: Clips changed. Sending ${clips.length} clips.');
-    // Pass the List<ClipModel?> directly
+    logVerbose(
+      'PreviewViewModel: Clips changed. Sending ${clips.length} clips.',
+    );
     _previewService.sendClipsData(clips);
   }
 
@@ -107,10 +103,14 @@ class PreviewViewModel extends ChangeNotifier implements Disposable {
     logDebug('PreviewViewModel disposing...');
     // Remove listeners
     if (_isPlayingListener != null) {
-      _timelineNavViewModel.isPlayingNotifier.removeListener(_isPlayingListener!);
+      _timelineNavViewModel.isPlayingNotifier.removeListener(
+        _isPlayingListener!,
+      );
     }
     if (_currentFrameListener != null) {
-      _timelineNavViewModel.currentFrameNotifier.removeListener(_currentFrameListener!);
+      _timelineNavViewModel.currentFrameNotifier.removeListener(
+        _currentFrameListener!,
+      );
     }
     if (_clipsListener != null) {
       _timelineViewModel.clipsNotifier.removeListener(_clipsListener!);
@@ -122,15 +122,14 @@ class PreviewViewModel extends ChangeNotifier implements Disposable {
     // Dispose service (important!) - Let DI handle singleton disposal if needed,
     // but if this VM specifically manages the service lifecycle, dispose here.
     // Assuming PreviewService is intended to live with the Preview feature:
-    // _previewService.dispose(); // Let DI manage singleton lifecycle
+    // _previewService.dispose();
 
     super.dispose();
     logDebug('PreviewViewModel disposed.');
   }
 
-  // --- Explicitly implement Disposable ---
   @override
   FutureOr onDispose() {
-     dispose();
+    dispose();
   }
 }

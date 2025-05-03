@@ -74,4 +74,4 @@ class GeneratePanel extends StatelessWidget with WatchItMixin {
       ),
     );
   }
-} 
+}

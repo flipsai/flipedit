@@ -42,8 +42,8 @@ class _ResizeClipHandleState extends State<ResizeClipHandle> {
           widget.onDragStart();
         },
         onHorizontalDragUpdate: (details) {
-           _accumulatedPixelDelta += details.primaryDelta ?? 0;
-           widget.onDragUpdate(_accumulatedPixelDelta);
+          _accumulatedPixelDelta += details.primaryDelta ?? 0;
+          widget.onDragUpdate(_accumulatedPixelDelta);
         },
         onHorizontalDragEnd: (details) {
           widget.onDragEnd(_accumulatedPixelDelta);
@@ -60,12 +60,24 @@ class _ResizeClipHandleState extends State<ResizeClipHandle> {
               bottomRight: !isLeft ? const Radius.circular(3) : Radius.zero,
             ),
             border: Border(
-              left: isLeft ? BorderSide.none : BorderSide(color: Colors.black.withOpacity(0.2), width: 0.5),
-              right: !isLeft ? BorderSide.none : BorderSide(color: Colors.black.withOpacity(0.2), width: 0.5),
+              left:
+                  isLeft
+                      ? BorderSide.none
+                      : BorderSide(
+                        color: Colors.black.withOpacity(0.2),
+                        width: 0.5,
+                      ),
+              right:
+                  !isLeft
+                      ? BorderSide.none
+                      : BorderSide(
+                        color: Colors.black.withOpacity(0.2),
+                        width: 0.5,
+                      ),
             ),
           ),
         ),
       ),
     );
   }
-} 
+}

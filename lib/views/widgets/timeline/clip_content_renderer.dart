@@ -23,9 +23,10 @@ class ClipContentRenderer extends StatelessWidget {
     final contentColor = contrastColor.withAlpha(200);
     final contentBackgroundColor = clipColor.withAlpha(170);
     final fileName = clip.sourcePath.split('/').last;
-    final fileNameNoExt = fileName.contains('.')
-        ? fileName.substring(0, fileName.lastIndexOf('.'))
-        : fileName;
+    final fileNameNoExt =
+        fileName.contains('.')
+            ? fileName.substring(0, fileName.lastIndexOf('.'))
+            : fileName;
     const double fixedClipHeight = 65.0;
 
     switch (clip.type) {
@@ -44,7 +45,7 @@ class ClipContentRenderer extends StatelessWidget {
                     end: Alignment.bottomRight,
                     colors: [
                       clipColor.withAlpha(170),
-                      clipColor.withAlpha(140)
+                      clipColor.withAlpha(140),
                     ],
                   ),
                 ),
@@ -65,7 +66,7 @@ class ClipContentRenderer extends StatelessWidget {
                           fileNameNoExt,
                           style: theme.typography.caption?.copyWith(
                             color: contentColor,
-                            fontSize: 8
+                            fontSize: 8,
                           ),
                           overflow: TextOverflow.ellipsis,
                           maxLines: 1,
@@ -79,4 +80,4 @@ class ClipContentRenderer extends StatelessWidget {
         );
     }
   }
-} 
+}

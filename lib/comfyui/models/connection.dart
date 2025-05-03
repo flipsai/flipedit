@@ -4,14 +4,14 @@ class Connection {
   final String fromOutputName;
   final String toNodeId;
   final String toInputName;
-  
+
   Connection({
     required this.fromNodeId,
     required this.fromOutputName,
     required this.toNodeId,
     required this.toInputName,
   });
-  
+
   /// Create a new connection from JSON
   factory Connection.fromJson(Map<String, dynamic> json) {
     return Connection(
@@ -21,7 +21,7 @@ class Connection {
       toInputName: json['to_input'] ?? '',
     );
   }
-  
+
   /// Convert connection to JSON for ComfyUI
   Map<String, dynamic> toJson() {
     return {

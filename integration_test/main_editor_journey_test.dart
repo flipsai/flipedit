@@ -6,7 +6,6 @@ import 'package:flipedit/views/widgets/inspector/inspector_panel.dart'; // For I
 import 'package:flipedit/views/widgets/preview/preview_panel.dart'; // For PreviewPanel finder
 import 'package:watch_it/watch_it.dart'; // For di
 
-
 import 'package:flipedit/app.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/views/widgets/timeline/timeline.dart'; // Needed for timelineFinder
@@ -42,7 +41,9 @@ void main() {
   });
 
   // --- Main Editor Journey Test ---
-  testWidgets('Main Editor Journey: Create, Import, Drag to Timeline', (WidgetTester tester) async {
+  testWidgets('Main Editor Journey: Create, Import, Drag to Timeline', (
+    WidgetTester tester,
+  ) async {
     print('--- Starting Test: Main Editor Journey ---');
 
     // --- 1. Setup App ---
@@ -54,7 +55,10 @@ void main() {
     print('App pumped and settled.');
 
     // --- 2. Create and Load Project ---
-    final projectId = await createAndLoadProject(tester, 'Main Journey Project');
+    final projectId = await createAndLoadProject(
+      tester,
+      'Main Journey Project',
+    );
     // Basic verification that project ID is valid is done within the helper
 
     // --- 2b. Test View Menu Toggles ---
@@ -79,7 +83,9 @@ void main() {
       panelName: 'Timeline',
       isVisibleGetter: () => editorVm.isTimelineVisible,
       viewMenuButtonFinder: viewMenuButtonFinder,
-      panelWidgetFinder: find.byType(Timeline), // Timeline finder already used below
+      panelWidgetFinder: find.byType(
+        Timeline,
+      ), // Timeline finder already used below
     );
 
     // Test Preview Toggle
@@ -93,26 +99,33 @@ void main() {
     );
     print('--- View Menu Toggles Tested ---');
 
-
     // --- 3. Import Media ---
     const testVideoFile = 'journey_video.mp4';
     const testVideoPath = '/fake/path/$testVideoFile'; // Use a fake path
-    await importTestMedia(tester,
-        fileName: testVideoFile,
-        filePath: testVideoPath,
-        type: ClipType.video,
-        durationMs: 5000 // 5 seconds duration
-        );
+    await importTestMedia(
+      tester,
+      fileName: testVideoFile,
+      filePath: testVideoPath,
+      type: ClipType.video,
+      durationMs: 5000, // 5 seconds duration
+    );
     // Verification that import succeeded (e.g., asset exists) is implicitly
     // checked by the next step trying to find the draggable.
 
     // --- 4. Verify Media Appears in Panel ---
-    final draggableFinder = await findMediaPanelDraggable(tester, testVideoFile);
+    final draggableFinder = await findMediaPanelDraggable(
+      tester,
+      testVideoFile,
+    );
     // Expectation is handled within the helper function
 
     // --- 5. Drag Media to Timeline ---
     final timelineFinder = find.byType(Timeline);
-    expect(timelineFinder, findsOneWidget, reason: 'Expected to find the Timeline widget.');
+    expect(
+      timelineFinder,
+      findsOneWidget,
+      reason: 'Expected to find the Timeline widget.',
+    );
     // Use the helper to perform the drag and drop
     await dragMediaToTimeline(
       tester,

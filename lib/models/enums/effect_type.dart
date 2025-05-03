@@ -6,7 +6,7 @@ enum EffectType {
   filter,
   transition,
   text;
-  
+
   // Return the display name of the effect type
   String get displayName {
     switch (this) {

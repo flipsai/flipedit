@@ -17,57 +17,77 @@ import 'package:flipedit/viewmodels/commands/timeline_command.dart';
 class MockTimelineViewModel extends Mock implements TimelineViewModel {
   // Override noSuchMethod with the correct signature
   @override
-  dynamic noSuchMethod(Invocation invocation, {Object? returnValue, Object? returnValueForMissingStub}) {
+  dynamic noSuchMethod(
+    Invocation invocation, {
+    Object? returnValue,
+    Object? returnValueForMissingStub,
+  }) {
     // Check if the method being called is runCommand
     if (invocation.memberName == Symbol('runCommand') && invocation.isMethod) {
-       // Ensure there's at least one argument and it's a TimelineCommand
-       if (invocation.positionalArguments.isNotEmpty && invocation.positionalArguments[0] is TimelineCommand) {
-          return Future<void>.value(); // Return a completed Future for runCommand
-       }
+      // Ensure there's at least one argument and it's a TimelineCommand
+      if (invocation.positionalArguments.isNotEmpty &&
+          invocation.positionalArguments[0] is TimelineCommand) {
+        return Future<void>.value(); // Return a completed Future for runCommand
+      }
     }
     // Delegate other calls to the standard Mockito handling
     // Pass the optional parameters along to super
-    return super.noSuchMethod(invocation, returnValue: returnValue, returnValueForMissingStub: returnValueForMissingStub);
+    return super.noSuchMethod(
+      invocation,
+      returnValue: returnValue,
+      returnValueForMissingStub: returnValueForMissingStub,
+    );
   }
 }
-class MockTimelineNavigationViewModel extends Mock implements TimelineNavigationViewModel {} // Added mock
-class MockProjectDatabaseService extends Mock implements ProjectDatabaseService {}
+
+class MockTimelineNavigationViewModel extends Mock
+    implements TimelineNavigationViewModel {} // Added mock
+
+class MockProjectDatabaseService extends Mock
+    implements ProjectDatabaseService {}
+
 class MockEditorViewModel extends Mock implements EditorViewModel {}
+
 class MockValueNotifier<T> extends Mock implements ValueNotifier<T> {}
 
 void main() {
   late MockTimelineViewModel mockTimelineViewModel;
-  late MockTimelineNavigationViewModel mockTimelineNavigationViewModel; // Added mock instance
+  late MockTimelineNavigationViewModel
+  mockTimelineNavigationViewModel; // Added mock instance
   late MockProjectDatabaseService mockProjectDatabaseService;
   late MockEditorViewModel mockEditorViewModel;
   late ClipModel testClip;
   late ValueNotifier<double> testZoomNotifier; // Still needed for nav mock
-  late ValueNotifier<String?> testSelectedClipIdNotifier; // For EditorViewModel mock
+  late ValueNotifier<String?>
+  testSelectedClipIdNotifier; // For EditorViewModel mock
 
   setUp(() {
-   // 1. Reset DI first
+    // 1. Reset DI first
     di.reset();
 
-   // 2. Create mocks
+    // 2. Create mocks
     mockTimelineViewModel = MockTimelineViewModel();
-    mockTimelineNavigationViewModel = MockTimelineNavigationViewModel(); // Create nav mock
+    mockTimelineNavigationViewModel =
+        MockTimelineNavigationViewModel(); // Create nav mock
     mockProjectDatabaseService = MockProjectDatabaseService();
     mockEditorViewModel = MockEditorViewModel();
 
-   // 3. Initialize real Notifiers needed by mocks
+    // 3. Initialize real Notifiers needed by mocks
     testZoomNotifier = ValueNotifier<double>(1.0);
     testSelectedClipIdNotifier = ValueNotifier<String?>(null);
 
-   // Note: Initializing the notifiers twice was redundant and removed.
-   // The previous lines already initialize them.
- 
+    // Note: Initializing the notifiers twice was redundant and removed.
+    // The previous lines already initialize them.
+
     // Create test clip
     // Define source and track times for the test clip
     const sourceStartMs = 0;
     const sourceEndMs = 1000;
     const trackStartMs = 0;
     const sourceDuration = sourceEndMs - sourceStartMs;
-    const trackEndMs = trackStartMs + sourceDuration; // Initial track end matches source duration
+    const trackEndMs =
+        trackStartMs +
+        sourceDuration; // Initial track end matches source duration
 
     testClip = ClipModel(
       databaseId: 1,
@@ -83,21 +103,27 @@ void main() {
       effects: [], // Keep existing optional fields
       metadata: {}, // Keep existing optional fields
     );
-  
+
     // 4. Stub properties BEFORE registering mocks
-   // 4. Stub properties BEFORE registering mocks
-   // Correctly stub ValueNotifier properties by returning the pre-initialized notifiers
+    // 4. Stub properties BEFORE registering mocks
+    // Correctly stub ValueNotifier properties by returning the pre-initialized notifiers
     // Stub TimelineNavigationViewModel properties
-    when(mockTimelineNavigationViewModel.zoomNotifier).thenReturn(testZoomNotifier);
+    when(
+      mockTimelineNavigationViewModel.zoomNotifier,
+    ).thenReturn(testZoomNotifier);
     // Stub EditorViewModel properties
-    when(mockEditorViewModel.selectedClipIdNotifier).thenReturn(testSelectedClipIdNotifier);
+    when(
+      mockEditorViewModel.selectedClipIdNotifier,
+    ).thenReturn(testSelectedClipIdNotifier);
     // Stub TimelineViewModel properties (if any needed for TimelineClip)
     // e.g., when(mockTimelineViewModel.selectedClipIdNotifier).thenReturn(...);
     // For now, TimelineClip primarily gets data via constructor & di
 
-      // 5. Register mocks AFTER stubbing
+    // 5. Register mocks AFTER stubbing
     di.registerSingleton<TimelineViewModel>(mockTimelineViewModel);
-    di.registerSingleton<TimelineNavigationViewModel>(mockTimelineNavigationViewModel); // Register nav mock
+    di.registerSingleton<TimelineNavigationViewModel>(
+      mockTimelineNavigationViewModel,
+    ); // Register nav mock
     di.registerSingleton<ProjectDatabaseService>(mockProjectDatabaseService);
     di.registerSingleton<EditorViewModel>(mockEditorViewModel);
   });
@@ -107,28 +133,23 @@ void main() {
   });
 
   group('TimelineClip Widget', () {
-    testWidgets('should render TimelineClip widget correctly', (WidgetTester tester) async {
+    testWidgets('should render TimelineClip widget correctly', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(
-        FluentApp(
-          home: TimelineClip(
-            clip: testClip,
-            trackId: 1,
-          ),
-        ),
+        FluentApp(home: TimelineClip(clip: testClip, trackId: 1)),
       );
 
       expect(find.byType(TimelineClip), findsOneWidget);
       expect(find.text('Test Clip'), findsOneWidget);
     });
 
-    testWidgets('should render with isDragging state', (WidgetTester tester) async {
+    testWidgets('should render with isDragging state', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(
         FluentApp(
-          home: TimelineClip(
-            clip: testClip,
-            trackId: 1,
-            isDragging: true,
-          ),
+          home: TimelineClip(clip: testClip, trackId: 1, isDragging: true),
         ),
       );
 

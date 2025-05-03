@@ -7,17 +7,15 @@ class _PlayheadPainter extends CustomPainter {
   double triangleHeight = 10.0;
   double triangleWidth = 10.0;
 
-  _PlayheadPainter({
-    required this.color,
-    this.triangleWidth = 10.0,
-  });
+  _PlayheadPainter({required this.color, this.triangleWidth = 10.0});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = strokeWidth
-      ..style = PaintingStyle.fill; // Use fill for the triangle
+    final paint =
+        Paint()
+          ..color = color
+          ..strokeWidth = strokeWidth
+          ..style = PaintingStyle.fill; // Use fill for the triangle
 
     // --- Draw Triangle ---
     final path = Path();

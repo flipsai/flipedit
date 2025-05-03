@@ -11,7 +11,6 @@ import 'package:watch_it/watch_it.dart';
 class _MyWindowListener implements WindowListener {
   @override
   void onWindowClose() async {
-    // Keep our logic here
     logInfo('main', 'Window close requested. Shutting down video server...');
     bool isPreventClose = await windowManager.isPreventClose();
     if (isPreventClose) {

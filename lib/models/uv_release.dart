@@ -10,4 +10,4 @@ class UvRelease {
     required this.platform,
     required this.fileName,
   });
-} 
+}

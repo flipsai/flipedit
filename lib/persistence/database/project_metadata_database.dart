@@ -12,10 +12,7 @@ import 'package:flipedit/persistence/dao/project_metadata_dao.dart'
 
 part 'project_metadata_database.g.dart';
 
-@DriftDatabase(
-  tables: [ProjectMetadataTable],
-  daos: [ProjectMetadataDao],
-)
+@DriftDatabase(tables: [ProjectMetadataTable], daos: [ProjectMetadataDao])
 class ProjectMetadataDatabase extends _$ProjectMetadataDatabase {
   ProjectMetadataDatabase() : super(_openConnection());
 
@@ -38,7 +35,9 @@ class ProjectMetadataDatabase extends _$ProjectMetadataDatabase {
 LazyDatabase _openConnection() {
   return LazyDatabase(() async {
     final dbFolder = await getApplicationDocumentsDirectory();
-    final file = File(p.join(dbFolder.path, 'flipedit_projects_metadata.sqlite'));
+    final file = File(
+      p.join(dbFolder.path, 'flipedit_projects_metadata.sqlite'),
+    );
     return NativeDatabase.createInBackground(file, logStatements: true);
   });
-} 
+}

@@ -6,11 +6,10 @@ import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart'; // State VM
 import 'package:flipedit/views/widgets/timeline/timeline.dart';
 import 'dart:developer' as developer;
 import 'dart:math' as math;
-import 'package:watch_it/watch_it.dart'; // For di
+// For di
 
 // Mixin to handle user interactions like drag/drop, reordering, and resizing
 mixin TimelineInteractionLogicMixin on State<Timeline> {
-
   // --- Expected State/Getters from Main Class ---
   TimelineViewModel get timelineViewModel; // For interactions
   TimelineStateViewModel get timelineStateViewModel; // For state access
@@ -37,7 +36,11 @@ mixin TimelineInteractionLogicMixin on State<Timeline> {
     return accept;
   }
 
-  Future<void> handleTimelineAreaAccept(ClipModel draggedClip, DragTargetDetails<ClipModel> details, BuildContext context) async {
+  Future<void> handleTimelineAreaAccept(
+    ClipModel draggedClip,
+    DragTargetDetails<ClipModel> details,
+    BuildContext context,
+  ) async {
     developer.log(
       'TimelineInteraction: onAccept: Drop accepted (tracks were empty)',
       name: 'Timeline',
@@ -46,7 +49,8 @@ mixin TimelineInteractionLogicMixin on State<Timeline> {
     final RenderBox? renderBox = context.findRenderObject() as RenderBox?;
     if (renderBox == null || !mounted) return;
 
-    final scrollOffsetX = scrollController.hasClients ? scrollController.offset : 0.0;
+    final scrollOffsetX =
+        scrollController.hasClients ? scrollController.offset : 0.0;
     final zoom = timelineNavigationViewModel.zoom;
 
     // Calculate drop position relative to the scrollable track area
@@ -61,7 +65,8 @@ mixin TimelineInteractionLogicMixin on State<Timeline> {
     final int calculatedFramePosition =
         (positionInScrollable / (_framePixelWidth * zoom)).floor();
     final int framePosition = math.max(0, calculatedFramePosition);
-    final double framePositionMs = framePosition * (1000 / 30); // Assuming 30 FPS
+    final double framePositionMs =
+        framePosition * (1000 / 30); // Assuming 30 FPS
 
     developer.log(
       '📏 Drop Position (Timeline Area): local=$dropOffsetInContext, scroll=$scrollOffsetX, frame=$framePosition, ms=$framePositionMs',
@@ -78,7 +83,7 @@ mixin TimelineInteractionLogicMixin on State<Timeline> {
     // This might require awaiting the VM update or using Future.delayed
     // Consider moving this logic to the ViewModel or using a callback
     Future.delayed(const Duration(milliseconds: 100), () {
-       if (!mounted) return; // Check if widget is still mounted
+      if (!mounted) return; // Check if widget is still mounted
       final updatedTracks = timelineViewModel.tracksNotifierForView.value;
       if (updatedTracks.isNotEmpty) {
         final firstTrack = updatedTracks.first;
@@ -92,9 +97,10 @@ mixin TimelineInteractionLogicMixin on State<Timeline> {
         timelineStateViewModel.refreshClips().then((_) {
           if (!mounted) return;
           // Access clips from the State ViewModel
-          final clipsOnTrack = timelineStateViewModel.clips
-              .where((c) => c.trackId == firstTrack.id)
-              .toList();
+          final clipsOnTrack =
+              timelineStateViewModel.clips
+                  .where((c) => c.trackId == firstTrack.id)
+                  .toList();
           if (clipsOnTrack.isNotEmpty) {
             timelineViewModel.selectedClipId = clipsOnTrack.first.databaseId;
             developer.log(
@@ -114,9 +120,16 @@ mixin TimelineInteractionLogicMixin on State<Timeline> {
 
   // --- Track Reordering ---
 
-  Future<void> handleTrackReorder(int oldIndex, int newIndex, int trackCount) async {
-    if (oldIndex < 0 || oldIndex >= trackCount || newIndex < 0 || newIndex > trackCount) {
-       developer.log(
+  Future<void> handleTrackReorder(
+    int oldIndex,
+    int newIndex,
+    int trackCount,
+  ) async {
+    if (oldIndex < 0 ||
+        oldIndex >= trackCount ||
+        newIndex < 0 ||
+        newIndex > trackCount) {
+      developer.log(
         'TimelineInteraction: Invalid track reorder indices: $oldIndex -> $newIndex (count: $trackCount)',
         name: 'Timeline',
         level: 1000, // Warning level
@@ -127,7 +140,7 @@ mixin TimelineInteractionLogicMixin on State<Timeline> {
     // Adjust index if moving downwards
     int adjustedNewIndex = newIndex;
     if (oldIndex < newIndex) {
-       adjustedNewIndex -= 1;
+      adjustedNewIndex -= 1;
     }
 
     developer.log(
@@ -138,7 +151,7 @@ mixin TimelineInteractionLogicMixin on State<Timeline> {
     if (oldIndex != adjustedNewIndex) {
       try {
         await timelineViewModel.reorderTracks(oldIndex, adjustedNewIndex);
-         developer.log(
+        developer.log(
           'TimelineInteraction: Track reordering successful: $oldIndex -> $adjustedNewIndex',
           name: 'Timeline',
         );
@@ -157,10 +170,9 @@ mixin TimelineInteractionLogicMixin on State<Timeline> {
   // --- Track Label Resizing ---
 
   void handleTrackLabelResize(DragUpdateDetails details) {
-     // Calculate new width based on drag delta, constrained between min/max
+    // Calculate new width based on drag delta, constrained between min/max
     final newWidth = (trackLabelWidth + details.delta.dx).clamp(50.0, 400.0);
     // Call the setter provided by the main state to update the value
     setTrackLabelWidth(newWidth);
   }
-
-} 
+}

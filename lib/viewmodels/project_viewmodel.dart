@@ -6,17 +6,17 @@ import 'package:flipedit/persistence/database/project_metadata_database.dart';
 import 'package:flipedit/services/project_metadata_service.dart';
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/services/undo_redo_service.dart';
-import 'package:flipedit/utils/logger.dart'; // Import logger
+import 'package:flipedit/utils/logger.dart';
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // Import shared_preferences
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:watch_it/watch_it.dart';
 
-import 'commands/import_media_command.dart'; // Import the new command
-import 'commands/create_project_command.dart'; // Import CreateProjectCommand
-import 'commands/load_project_command.dart'; // Import LoadProjectCommand
+import 'commands/import_media_command.dart';
+import 'commands/create_project_command.dart';
+import 'commands/load_project_command.dart';
 
-const _lastProjectIdKey = 'last_opened_project_id'; // Key for SharedPreferences
-const _logTag = 'ProjectViewModel'; // Add log tag for consistency
+const _lastProjectIdKey = 'last_opened_project_id';
+const _logTag = 'ProjectViewModel';
 
 class ProjectViewModel {
   final ProjectMetadataService _metadataService = di<ProjectMetadataService>();
@@ -31,24 +31,21 @@ class ProjectViewModel {
 
   late final ValueNotifier<ProjectMetadata?> currentProjectNotifier;
   late final ValueNotifier<bool> isProjectLoadedNotifier;
-  // Use the notifier from ProjectDatabaseService for tracks
   late final ValueNotifier<List<Track>> tracksNotifier;
-  // Use the notifier from ProjectDatabaseService for assets
   late final ValueNotifier<List<model.ProjectAsset>> projectAssetsNotifier;
 
-  ProjectViewModel({required SharedPreferences prefs}) : _prefs = prefs { 
+  ProjectViewModel({required SharedPreferences prefs}) : _prefs = prefs {
     currentProjectNotifier = _metadataService.currentProjectMetadataNotifier;
     isProjectLoadedNotifier = ValueNotifier(
       currentProjectNotifier.value != null,
     );
-    
+
     // Use tracks from the database service
     tracksNotifier = _databaseService.tracksNotifier;
-    
+
     // Use assets from the database service
     projectAssetsNotifier = _databaseService.assetsNotifier;
 
-    // Listen to the service's project notifier to update the load status
     currentProjectNotifier.addListener(_onProjectChanged);
 
     // Initialize commands
@@ -62,7 +59,6 @@ class ProjectViewModel {
     );
   }
 
-  // Listener for when the project in metadata service changes
   void _onProjectChanged() {
     final projectLoaded = currentProjectNotifier.value != null;
     // Only update and notify if the value actually changed
@@ -73,19 +69,15 @@ class ProjectViewModel {
 
   ProjectMetadata? get currentProject => currentProjectNotifier.value;
   bool get isProjectLoaded => isProjectLoadedNotifier.value;
-  // Getter for tracks from database service
   List<Track> get tracks => tracksNotifier.value;
-  // Getter for assets from database service
   List<model.ProjectAsset> get projectAssets => projectAssetsNotifier.value;
 
   Future<int> createNewProject(String name) async {
-    // Delegate to command
     return await createProjectCommand.execute(name: name);
   }
 
   Future<List<ProjectMetadata>> getAllProjects() async {
     try {
-      // Use metadata service to get all projects
       return await _metadataService.watchAllProjectsMetadata().first;
     } catch (e) {
       debugPrint('Error getting projects: $e');
@@ -94,26 +86,33 @@ class ProjectViewModel {
   }
 
   Future<void> loadProject(int projectId) async {
-    // Delegate to command
     await loadProjectCommand.execute(projectId);
   }
 
-  // New command to load the last opened project
   Future<void> loadLastOpenedProjectCommand() async {
     final lastProjectId = _prefs.getInt(_lastProjectIdKey);
     if (lastProjectId != null) {
       try {
         // Attempt to load the project using the stored ID
         await loadProject(lastProjectId);
-        logInfo("ProjectViewModel", "Successfully loaded last project ID: $lastProjectId");
+        logInfo(
+          "ProjectViewModel",
+          "Successfully loaded last project ID: $lastProjectId",
+        );
       } catch (e) {
         // Handle cases where the last project might have been deleted or is otherwise inaccessible
-        logError("ProjectViewModel", "Failed to load last project ID $lastProjectId: $e");
+        logError(
+          "ProjectViewModel",
+          "Failed to load last project ID $lastProjectId: $e",
+        );
         // Optionally clear the invalid ID
         await _prefs.remove(_lastProjectIdKey);
       }
     } else {
-      logInfo("ProjectViewModel", "No last project ID found in SharedPreferences.");
+      logInfo(
+        "ProjectViewModel",
+        "No last project ID found in SharedPreferences.",
+      );
     }
   }
 
@@ -121,26 +120,35 @@ class ProjectViewModel {
     await _databaseService.addTrack(type: type);
   }
 
-  // Public method to initiate media import, delegates to the command
   Future<bool> importMedia(BuildContext context) async {
-    // Delegate directly to the command's execute method
     return await importMediaCommand.execute(context);
   }
 
-  // UI integrated method for importing media with loading overlay and notifications
   Future<void> importMediaWithUI(BuildContext context) async {
     final loadingOverlay = _showLoadingOverlay(context, 'Selecting file...');
     try {
       final importSuccess = await importMedia(context);
       loadingOverlay.remove();
       if (importSuccess) {
-        _showNotification(context, 'Media imported successfully', severity: InfoBarSeverity.success);
+        _showNotification(
+          context,
+          'Media imported successfully',
+          severity: InfoBarSeverity.success,
+        );
       } else {
-        _showNotification(context, 'Failed to import media or cancelled', severity: InfoBarSeverity.warning);
+        _showNotification(
+          context,
+          'Failed to import media or cancelled',
+          severity: InfoBarSeverity.warning,
+        );
       }
     } catch (e) {
       loadingOverlay.remove();
-      _showNotification(context, 'Error importing media: ${e.toString()}', severity: InfoBarSeverity.error);
+      _showNotification(
+        context,
+        'Error importing media: ${e.toString()}',
+        severity: InfoBarSeverity.error,
+      );
       logError(_logTag, "Unexpected error in import flow: $e");
     }
   }
@@ -150,28 +158,29 @@ class ProjectViewModel {
     final projectNameController = TextEditingController();
     await showDialog<String>(
       context: context,
-      builder: (context) => ContentDialog(
-        title: const Text('New Project'),
-        content: SizedBox(
-          height: 50,
-          child: TextBox(
-            controller: projectNameController,
-            placeholder: 'Enter project name',
+      builder:
+          (context) => ContentDialog(
+            title: const Text('New Project'),
+            content: SizedBox(
+              height: 50,
+              child: TextBox(
+                controller: projectNameController,
+                placeholder: 'Enter project name',
+              ),
+            ),
+            actions: [
+              Button(
+                child: const Text('Cancel'),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+              FilledButton(
+                child: const Text('Create'),
+                onPressed: () {
+                  Navigator.of(context).pop(projectNameController.text);
+                },
+              ),
+            ],
           ),
-        ),
-        actions: [
-          Button(
-            child: const Text('Cancel'),
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-          FilledButton(
-            child: const Text('Create'),
-            onPressed: () {
-              Navigator.of(context).pop(projectNameController.text);
-            },
-          ),
-        ],
-      ),
     ).then((projectName) async {
       if (projectName != null && projectName.trim().isNotEmpty) {
         try {
@@ -181,11 +190,19 @@ class ProjectViewModel {
           logInfo(_logTag, "Loaded newly created project ID: $newProjectId");
         } catch (e) {
           logError(_logTag, "Error creating or loading project: $e");
-          _showNotification(context, 'Error creating project: ${e.toString()}', severity: InfoBarSeverity.error);
+          _showNotification(
+            context,
+            'Error creating project: ${e.toString()}',
+            severity: InfoBarSeverity.error,
+          );
         }
       } else if (projectName != null) {
         logWarning(_logTag, "Project name cannot be empty.");
-        _showNotification(context, 'Project name cannot be empty', severity: InfoBarSeverity.warning);
+        _showNotification(
+          context,
+          'Project name cannot be empty',
+          severity: InfoBarSeverity.warning,
+        );
       }
     });
   }
@@ -197,23 +214,28 @@ class ProjectViewModel {
       projects = await getAllProjects();
     } catch (e) {
       logError(_logTag, "Error fetching projects: $e");
-      _showNotification(context, 'Error fetching projects: ${e.toString()}', severity: InfoBarSeverity.error);
+      _showNotification(
+        context,
+        'Error fetching projects: ${e.toString()}',
+        severity: InfoBarSeverity.error,
+      );
       return;
     }
 
     if (projects.isEmpty) {
       await showDialog(
         context: context,
-        builder: (context) => ContentDialog(
-          title: const Text('Open Project'),
-          content: const Text('No projects found. Create one first?'),
-          actions: [
-            Button(
-              child: const Text('OK'),
-              onPressed: () => Navigator.of(context).pop(),
+        builder:
+            (context) => ContentDialog(
+              title: const Text('Open Project'),
+              content: const Text('No projects found. Create one first?'),
+              actions: [
+                Button(
+                  child: const Text('OK'),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
             ),
-          ],
-        ),
       );
       return;
     }
@@ -254,67 +276,78 @@ class ProjectViewModel {
         logInfo(_logTag, "Attempting to load project ID: $selectedProjectId");
         loadProject(selectedProjectId).catchError((e) {
           logError(_logTag, "Error loading project $selectedProjectId: $e");
-          _showNotification(context, 'Error loading project: ${e.toString()}', severity: InfoBarSeverity.error);
+          _showNotification(
+            context,
+            'Error loading project: ${e.toString()}',
+            severity: InfoBarSeverity.error,
+          );
         });
       }
     });
   }
 
-  // Helper method to show loading overlay
   OverlayEntry _showLoadingOverlay(BuildContext context, String message) {
     final overlay = Overlay.of(context);
     final entry = OverlayEntry(
-      builder: (context) => Center(
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: FluentTheme.of(context).resources.subtleFillColorSecondary,
-            borderRadius: BorderRadius.circular(8),
+      builder:
+          (context) => Center(
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color:
+                    FluentTheme.of(context).resources.subtleFillColorSecondary,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const ProgressRing(),
+                  const SizedBox(height: 16),
+                  Text(message),
+                ],
+              ),
+            ),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const ProgressRing(),
-              const SizedBox(height: 16),
-              Text(message),
-            ],
-          ),
-        ),
-      ),
     );
     overlay.insert(entry);
     return entry;
   }
 
-  // Helper method to show notification
   void _showNotification(
     BuildContext context,
-    String message,
-    {InfoBarSeverity severity = InfoBarSeverity.info}
-  ) {
-    displayInfoBar(context, builder: (context, close) {
-      return InfoBar(
-        title: Text(message),
-        severity: severity,
-        onClose: close,
-      );
-    });
+    String message, {
+    InfoBarSeverity severity = InfoBarSeverity.info,
+  }) {
+    displayInfoBar(
+      context,
+      builder: (context, close) {
+        return InfoBar(
+          title: Text(message),
+          severity: severity,
+          onClose: close,
+        );
+      },
+    );
   }
 
-  // Export related fields and methods
-  final ValueNotifier<String?> _exportFormatNotifier = ValueNotifier<String?>(null);
-  final ValueNotifier<String?> _exportResolutionNotifier = ValueNotifier<String?>(null);
-  final ValueNotifier<String> _exportPathNotifier = ValueNotifier<String>('Select output folder...');
-  
-  // Public getters for export notifiers
+  final ValueNotifier<String?> _exportFormatNotifier = ValueNotifier<String?>(
+    null,
+  );
+  final ValueNotifier<String?> _exportResolutionNotifier =
+      ValueNotifier<String?>(null);
+  final ValueNotifier<String> _exportPathNotifier = ValueNotifier<String>(
+    'Select output folder...',
+  );
+
   ValueNotifier<String?> get exportFormatNotifier => _exportFormatNotifier;
-  ValueNotifier<String?> get exportResolutionNotifier => _exportResolutionNotifier;
+  ValueNotifier<String?> get exportResolutionNotifier =>
+      _exportResolutionNotifier;
   ValueNotifier<String> get exportPathNotifier => _exportPathNotifier;
-  
+
   // Search term notifier for media list panel
   final ValueNotifier<String> _searchTermNotifier = ValueNotifier<String>('');
   ValueNotifier<String> get searchTermNotifier => _searchTermNotifier;
-  
+
   // Method to set search term
   void setSearchTerm(String term) {
     _searchTermNotifier.value = term;
@@ -336,11 +369,20 @@ class ProjectViewModel {
 
   void exportProject(BuildContext context) {
     // Placeholder for export logic
-    if (_exportFormatNotifier.value != null && _exportResolutionNotifier.value != null) {
-      _showNotification(context, 'Exporting project...', severity: InfoBarSeverity.info);
+    if (_exportFormatNotifier.value != null &&
+        _exportResolutionNotifier.value != null) {
+      _showNotification(
+        context,
+        'Exporting project...',
+        severity: InfoBarSeverity.info,
+      );
       // Implement actual export logic here
     } else {
-      _showNotification(context, 'Please select format and resolution', severity: InfoBarSeverity.warning);
+      _showNotification(
+        context,
+        'Please select format and resolution',
+        severity: InfoBarSeverity.warning,
+      );
     }
   }
 

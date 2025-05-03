@@ -20,28 +20,32 @@ class TimeRuler extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
-    
+
     // Get access to the database service directly
     final databaseService = di<ProjectDatabaseService>();
-    
+
     // Simple direct check for tracks - this happens on every build
     final hasTracks = databaseService.tracksNotifier.value.isNotEmpty;
     final isEmpty = !hasTracks;
-    
+
     // Log the current state
-    logger.logInfo('TimeRuler', 'Building TimeRuler - hasTracks: $hasTracks, isEmpty: $isEmpty');
-    
+    logger.logInfo(
+      'TimeRuler',
+      'Building TimeRuler - hasTracks: $hasTracks, isEmpty: $isEmpty',
+    );
+
     // Return the entire widget based on this simple check
     return Container(
       height: 25,
       width: availableWidth,
       color: theme.resources.subtleFillColorSecondary,
-      child: isEmpty 
-        ? _buildEmptyState(theme)  // Show empty state when no tracks
-        : _buildRuler(theme)       // Show ruler when tracks exist
+      child:
+          isEmpty
+              ? _buildEmptyState(theme) // Show empty state when no tracks
+              : _buildRuler(theme), // Show ruler when tracks exist
     );
   }
-  
+
   /// Build the empty state message
   Widget _buildEmptyState(FluentThemeData theme) {
     return Container(
@@ -59,21 +63,25 @@ class TimeRuler extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(FluentIcons.clock, size: 14, color: theme.resources.textFillColorDisabled),
+            Icon(
+              FluentIcons.clock,
+              size: 14,
+              color: theme.resources.textFillColorDisabled,
+            ),
             const SizedBox(width: 8),
             Text(
               'Empty timeline - drag media to begin',
               style: theme.typography.caption?.copyWith(
                 color: theme.resources.textFillColorDisabled,
-                fontSize: 12
-              )
+                fontSize: 12,
+              ),
             ),
           ],
         ),
       ),
     );
   }
-  
+
   /// Build the ruler with time markings
   Widget _buildRuler(FluentThemeData theme) {
     return CustomPaint(
@@ -107,8 +115,14 @@ class TimeRulerPainter extends CustomPainter {
     required this.minorTickColor,
     required this.textColor,
     required this.textStyle,
-  }) : majorTickPaint = Paint()..color = majorTickColor..strokeWidth = 1.0,
-       minorTickPaint = Paint()..color = minorTickColor..strokeWidth = 1.0,
+  }) : majorTickPaint =
+           Paint()
+             ..color = majorTickColor
+             ..strokeWidth = 1.0,
+       minorTickPaint =
+           Paint()
+             ..color = minorTickColor
+             ..strokeWidth = 1.0,
        textPainter = TextPainter(
          textAlign: TextAlign.left,
          textDirection: TextDirection.ltr,
@@ -150,9 +164,10 @@ class TimeRulerPainter extends CustomPainter {
       );
 
       if (isMajorTick && textStyle != null) {
-        String label = (secondsPerMinorTick < 1 && second.truncateToDouble() != second)
-            ? second.toStringAsFixed(1)
-            : second.toStringAsFixed(0);
+        String label =
+            (secondsPerMinorTick < 1 && second.truncateToDouble() != second)
+                ? second.toStringAsFixed(1)
+                : second.toStringAsFixed(0);
 
         textPainter.text = TextSpan(
           text: label,

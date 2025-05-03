@@ -47,7 +47,8 @@ class _RollEditHandleState extends State<RollEditHandle> {
       },
       onHorizontalDragUpdate: (details) async {
         final pixelsPerFrame = 5.0 * widget.zoom;
-        final frameDelta = ((details.globalPosition.dx - _startX) / pixelsPerFrame).round();
+        final frameDelta =
+            ((details.globalPosition.dx - _startX) / pixelsPerFrame).round();
         final newBoundary = _startFrame + frameDelta;
 
         // Removed direct command creation and execution
@@ -80,7 +81,11 @@ class _RollEditHandleState extends State<RollEditHandle> {
           ),
           margin: const EdgeInsets.symmetric(vertical: 8),
           child: Center(
-            child: Icon(FluentIcons.a_a_d_logo, size: 14, color: theme.accentColor.darker),
+            child: Icon(
+              FluentIcons.a_a_d_logo,
+              size: 14,
+              color: theme.accentColor.darker,
+            ),
           ),
         ),
       ),

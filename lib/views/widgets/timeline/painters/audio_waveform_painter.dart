@@ -12,10 +12,11 @@ class AudioWaveformPainter extends CustomPainter {
     if (size.width <= 0 || size.height <= 0) {
       return;
     }
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1.5
-      ..style = PaintingStyle.stroke;
+    final paint =
+        Paint()
+          ..color = color
+          ..strokeWidth = 1.5
+          ..style = PaintingStyle.stroke;
     final path = Path();
     final random = math.Random(seed);
     final waveHeight = size.height * 0.6;

@@ -7,13 +7,11 @@ import 'package:flipedit/utils/logger.dart';
 import 'package:web_socket_channel/io.dart'; // Import for IOWebSocketChannel
 
 class UvManager {
-  // Add a tag for logging within this class
   String get _logTag => runtimeType.toString();
 
   late String _uvPath;
   late String _appDataDir;
 
-  // Add getter for _uvPath
   String get uvPath => _uvPath;
 
   Future<void> initialize() async {
@@ -65,8 +63,6 @@ class UvManager {
     }
   }
 
-  /// Runs the main Python script that's included in the app assets
-  /// Runs the main Python script that's included in the app assets
   Future<ProcessResult?> runMainPythonScript() async {
     try {
       const defaultEnvName = 'flipedit_default';
@@ -358,7 +354,6 @@ class UvManager {
   Future<void> shutdownVideoStreamServer() async {
     logInfo(_logTag, 'Attempting to shut down video stream server...');
     try {
-      // Import the necessary package
       final channel = IOWebSocketChannel.connect(
         Uri.parse('ws://localhost:8080'),
       );
@@ -381,12 +376,9 @@ class UvManager {
         'Error shutting down video stream server via WebSocket: $e',
         stackTrace,
       );
-      // Decide how to handle the error, e.g., maybe the server was already stopped.
-      // For now, just log it.
     }
   }
 
-  /// Attempts to find and kill a process using the specified port.
   Future<void> _killProcessOnPort(int port) async {
     logInfo(
       _logTag,
@@ -466,7 +458,6 @@ class UvManager {
       }
 
       if (killed) {
-        // Add a small delay to allow the OS to release the port fully
         await Future.delayed(const Duration(milliseconds: 500));
         logInfo(_logTag, 'Waited briefly after killing process.');
       }
@@ -476,7 +467,6 @@ class UvManager {
         'Error checking/killing process on port $port: $e',
         stackTrace,
       );
-      // Continue execution, the server start might still succeed or fail gracefully
     }
   }
 }

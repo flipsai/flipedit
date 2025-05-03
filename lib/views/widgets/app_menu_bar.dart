@@ -71,7 +71,10 @@ class _PlatformAppMenuBarState extends State<PlatformAppMenuBar> {
                 ),
                 PlatformMenuItem(
                   label: 'Import Media...',
-                  onSelected: isProjectLoaded ? () => _handleImportMedia(context) : null,
+                  onSelected:
+                      isProjectLoaded
+                          ? () => _handleImportMedia(context)
+                          : null,
                 ),
               ],
             ),
@@ -93,11 +96,13 @@ class _PlatformAppMenuBarState extends State<PlatformAppMenuBar> {
               menus: [
                 PlatformMenuItem(
                   label: 'Add Video Track',
-                  onSelected: isProjectLoaded ? () => _handleAddVideoTrack() : null,
+                  onSelected:
+                      isProjectLoaded ? () => _handleAddVideoTrack() : null,
                 ),
                 PlatformMenuItem(
                   label: 'Add Audio Track',
-                  onSelected: isProjectLoaded ? () => _handleAddAudioTrack() : null,
+                  onSelected:
+                      isProjectLoaded ? () => _handleAddAudioTrack() : null,
                 ),
               ],
             ),
@@ -195,8 +200,11 @@ class _FluentAppMenuBarState extends State<FluentAppMenuBar> {
                   ),
                   MenuFlyoutItem(
                     text: const Text('Import Media...'),
-                    onPressed: isProjectLoaded ? () => _handleImportMedia(context) : null,
-                  )
+                    onPressed:
+                        isProjectLoaded
+                            ? () => _handleImportMedia(context)
+                            : null,
+                  ),
                 ],
               );
             },
@@ -224,11 +232,13 @@ class _FluentAppMenuBarState extends State<FluentAppMenuBar> {
                 items: [
                   MenuFlyoutItem(
                     text: const Text('Add Video Track'),
-                    onPressed: isProjectLoaded ? () => _handleAddVideoTrack() : null,
+                    onPressed:
+                        isProjectLoaded ? () => _handleAddVideoTrack() : null,
                   ),
                   MenuFlyoutItem(
                     text: const Text('Add Audio Track'),
-                    onPressed: isProjectLoaded ? () => _handleAddAudioTrack() : null,
+                    onPressed:
+                        isProjectLoaded ? () => _handleAddAudioTrack() : null,
                   ),
                 ],
               );
@@ -248,23 +258,26 @@ class _FluentAppMenuBarState extends State<FluentAppMenuBar> {
                         title: const Text('View'),
                         items: [
                           MenuFlyoutItem(
-                            leading: isInspectorVisible
-                                ? const Icon(FluentIcons.check_mark)
-                                : null,
+                            leading:
+                                isInspectorVisible
+                                    ? const Icon(FluentIcons.check_mark)
+                                    : null,
                             text: const Text('Inspector'),
                             onPressed: () => widget.editorVm.toggleInspector(),
                           ),
                           MenuFlyoutItem(
-                            leading: isTimelineVisible
-                                ? const Icon(FluentIcons.check_mark)
-                                : null,
+                            leading:
+                                isTimelineVisible
+                                    ? const Icon(FluentIcons.check_mark)
+                                    : null,
                             text: const Text('Timeline'),
                             onPressed: () => widget.editorVm.toggleTimeline(),
                           ),
                           MenuFlyoutItem(
-                            leading: isPreviewVisible
-                                ? const Icon(FluentIcons.check_mark)
-                                : null,
+                            leading:
+                                isPreviewVisible
+                                    ? const Icon(FluentIcons.check_mark)
+                                    : null,
                             text: const Text('Preview'),
                             onPressed: () => widget.editorVm.togglePreview(),
                           ),
@@ -281,4 +294,3 @@ class _FluentAppMenuBarState extends State<FluentAppMenuBar> {
     );
   }
 }
-

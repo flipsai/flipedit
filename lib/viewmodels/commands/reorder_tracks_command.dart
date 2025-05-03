@@ -19,15 +19,21 @@ class ReorderTracksCommand extends TimelineCommand {
 
   @override
   Future<void> execute() async {
-    logger.logInfo('Executing ReorderTracksCommand: $oldIndex -> $newIndex', runtimeType.toString());
+    logger.logInfo(
+      'Executing ReorderTracksCommand: $oldIndex -> $newIndex',
+      runtimeType.toString(),
+    );
     final currentTracks = List<Track>.from(originalTracks);
 
-    if (oldIndex < 0 || oldIndex >= currentTracks.length ||
-        newIndex < 0 || newIndex >= currentTracks.length ||
+    if (oldIndex < 0 ||
+        oldIndex >= currentTracks.length ||
+        newIndex < 0 ||
+        newIndex >= currentTracks.length ||
         oldIndex == newIndex) {
       logger.logWarning(
-          'Invalid indices for ReorderTracksCommand based on original list. Aborting. Indices: $oldIndex -> $newIndex, Count: ${currentTracks.length}',
-          runtimeType.toString());
+        'Invalid indices for ReorderTracksCommand based on original list. Aborting. Indices: $oldIndex -> $newIndex, Count: ${currentTracks.length}',
+        runtimeType.toString(),
+      );
       return;
     }
 
@@ -38,34 +44,56 @@ class ReorderTracksCommand extends TimelineCommand {
     reorderedTracks.insert(newIndex, trackToMove);
 
     try {
-      final success = await vm.projectDatabaseService.updateTrackOrder(reorderedTracks);
+      final success = await vm.projectDatabaseService.updateTrackOrder(
+        reorderedTracks,
+      );
       if (!success) {
-         logger.logError('Failed to update track order in DB.', runtimeType.toString());
+        logger.logError(
+          'Failed to update track order in DB.',
+          runtimeType.toString(),
+        );
         _originalOrderForUndo = null;
       }
     } catch (e) {
-       logger.logError('Error executing ReorderTracksCommand: $e', runtimeType.toString());
-       _originalOrderForUndo = null;
-       rethrow;
+      logger.logError(
+        'Error executing ReorderTracksCommand: $e',
+        runtimeType.toString(),
+      );
+      _originalOrderForUndo = null;
+      rethrow;
     }
   }
 
   @override
   Future<void> undo() async {
     if (_originalOrderForUndo == null) {
-      logger.logWarning('Cannot undo ReorderTracksCommand: original order not available.', runtimeType.toString());
+      logger.logWarning(
+        'Cannot undo ReorderTracksCommand: original order not available.',
+        runtimeType.toString(),
+      );
       return;
     }
-    logger.logInfo('Undoing ReorderTracksCommand to restore original order', runtimeType.toString());
+    logger.logInfo(
+      'Undoing ReorderTracksCommand to restore original order',
+      runtimeType.toString(),
+    );
 
     try {
-      final success = await vm.projectDatabaseService.updateTrackOrder(_originalOrderForUndo!);
-       if (!success) {
-         logger.logError('Failed to undo track reorder in DB.', runtimeType.toString());
+      final success = await vm.projectDatabaseService.updateTrackOrder(
+        _originalOrderForUndo!,
+      );
+      if (!success) {
+        logger.logError(
+          'Failed to undo track reorder in DB.',
+          runtimeType.toString(),
+        );
       }
     } catch (e) {
-      logger.logError('Error undoing ReorderTracksCommand: $e', runtimeType.toString());
-       rethrow;
+      logger.logError(
+        'Error undoing ReorderTracksCommand: $e',
+        runtimeType.toString(),
+      );
+      rethrow;
     }
   }
 }

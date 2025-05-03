@@ -19,7 +19,8 @@ Future<void> _testPanelToggle({
   required WidgetTester tester,
   required EditorViewModel editorVm,
   required String panelName,
-  required ValueGetter<bool> isVisibleGetter, // Function to get current visibility state from ViewModel
+  required ValueGetter<bool>
+  isVisibleGetter, // Function to get current visibility state from ViewModel
   required Finder viewMenuButtonFinder,
   required Finder panelWidgetFinder, // Renamed from panelTabFinder
 }) async {
@@ -27,8 +28,12 @@ Future<void> _testPanelToggle({
   // Helper to get the finder for the LAST Text widget matching the text
   Finder findLastTextWidget(String text) {
     final finder = find.text(text);
-    expect(finder, findsWidgets,
-        reason: 'Scoped [$panelName]: Should find at least one Text widget "$text"');
+    expect(
+      finder,
+      findsWidgets,
+      reason:
+          'Scoped [$panelName]: Should find at least one Text widget "$text"',
+    );
     return finder.last;
   }
 
@@ -37,19 +42,23 @@ Future<void> _testPanelToggle({
     final lastTextFinder = findLastTextWidget(itemText);
     final itemFinder = find.ancestor(
       of: lastTextFinder,
-      matching: find.byType(FlyoutListTile)
+      matching: find.byType(FlyoutListTile),
     );
-    expect(itemFinder, findsOneWidget,
-        reason: 'Scoped [$panelName]: Should find the FlyoutListTile ancestor for the last "$itemText"');
+    expect(
+      itemFinder,
+      findsOneWidget,
+      reason:
+          'Scoped [$panelName]: Should find the FlyoutListTile ancestor for the last "$itemText"',
+    );
     final checkmarkFinder = find.descendant(
-        of: itemFinder,
-        matching: find.byIcon(FluentIcons.check_mark),
-        matchRoot: true,
+      of: itemFinder,
+      matching: find.byIcon(FluentIcons.check_mark),
+      matchRoot: true,
     );
     return tester.any(checkmarkFinder);
   }
 
-   // Helper to tap a MenuFlyoutItem by tapping the LAST Text descendant found.
+  // Helper to tap a MenuFlyoutItem by tapping the LAST Text descendant found.
   Future<void> tapFlyoutItemByTextScoped(String text) async {
     final lastTextFinder = findLastTextWidget(text);
     await tester.tap(lastTextFinder);
@@ -62,8 +71,12 @@ Future<void> _testPanelToggle({
   print('Initial $panelName Visible: $initialVisible');
 
   // Initial UI Check:
-  expect(panelWidgetFinder, initialVisible ? findsOneWidget : findsNothing,
-      reason: '[$panelName] Initial Panel Widget visibility should match state ($initialVisible)');
+  expect(
+    panelWidgetFinder,
+    initialVisible ? findsOneWidget : findsNothing,
+    reason:
+        '[$panelName] Initial Panel Widget visibility should match state ($initialVisible)',
+  );
 
   // --- First Toggle --- (e.g., Visible -> Hidden or Hidden -> Visible)
   print('Toggling $panelName via menu...');
@@ -71,28 +84,46 @@ Future<void> _testPanelToggle({
   await tester.pumpAndSettle();
 
   // Check initial checkmark in menu
-  expect(hasCheckmarkScoped(panelName), initialVisible,
-      reason: '[$panelName] Menu checkmark should match initial state ($initialVisible)');
+  expect(
+    hasCheckmarkScoped(panelName),
+    initialVisible,
+    reason:
+        '[$panelName] Menu checkmark should match initial state ($initialVisible)',
+  );
 
   // Tap menu item to toggle
   await tapFlyoutItemByTextScoped(panelName);
 
   // Check ViewModel state toggled
   bool toggledVisible = !initialVisible;
-  expect(isVisibleGetter(), toggledVisible,
-      reason: '[$panelName] ViewModel state should have toggled to $toggledVisible');
+  expect(
+    isVisibleGetter(),
+    toggledVisible,
+    reason:
+        '[$panelName] ViewModel state should have toggled to $toggledVisible',
+  );
   print('$panelName ViewModel Visible after toggle: ${isVisibleGetter()}');
 
   // Check UI Panel Widget visibility AFTER toggle
-  expect(panelWidgetFinder, toggledVisible ? findsOneWidget : findsNothing,
-      reason: '[$panelName] Panel Widget visibility should be updated after toggle ($toggledVisible)');
-  print('$panelName Panel Widget found after toggle: ${tester.any(panelWidgetFinder)}');
+  expect(
+    panelWidgetFinder,
+    toggledVisible ? findsOneWidget : findsNothing,
+    reason:
+        '[$panelName] Panel Widget visibility should be updated after toggle ($toggledVisible)',
+  );
+  print(
+    '$panelName Panel Widget found after toggle: ${tester.any(panelWidgetFinder)}',
+  );
 
   // Check Menu checkmark visibility AFTER toggle
   await tester.tap(viewMenuButtonFinder); // Re-open menu
   await tester.pumpAndSettle();
-  expect(hasCheckmarkScoped(panelName), toggledVisible,
-      reason: '[$panelName] Menu checkmark should be updated after toggle ($toggledVisible)');
+  expect(
+    hasCheckmarkScoped(panelName),
+    toggledVisible,
+    reason:
+        '[$panelName] Menu checkmark should be updated after toggle ($toggledVisible)',
+  );
 
   // --- Second Toggle --- (Back to initial state)
   print('Toggling $panelName back via menu...');
@@ -100,20 +131,32 @@ Future<void> _testPanelToggle({
   await tapFlyoutItemByTextScoped(panelName);
 
   // Check ViewModel state reverted
-  expect(isVisibleGetter(), initialVisible,
-      reason: '[$panelName] ViewModel state should revert to $initialVisible');
+  expect(
+    isVisibleGetter(),
+    initialVisible,
+    reason: '[$panelName] ViewModel state should revert to $initialVisible',
+  );
   print('$panelName ViewModel Visible after revert: ${isVisibleGetter()}');
 
   // Check UI Panel Widget visibility AFTER revert
-  expect(panelWidgetFinder, initialVisible ? findsOneWidget : findsNothing,
-      reason: '[$panelName] Panel Widget visibility should revert ($initialVisible)');
-   print('$panelName Panel Widget found after revert: ${tester.any(panelWidgetFinder)}');
+  expect(
+    panelWidgetFinder,
+    initialVisible ? findsOneWidget : findsNothing,
+    reason:
+        '[$panelName] Panel Widget visibility should revert ($initialVisible)',
+  );
+  print(
+    '$panelName Panel Widget found after revert: ${tester.any(panelWidgetFinder)}',
+  );
 
   // Check Menu checkmark visibility AFTER revert
   await tester.tap(viewMenuButtonFinder); // Re-open menu
   await tester.pumpAndSettle();
-  expect(hasCheckmarkScoped(panelName), initialVisible,
-      reason: '[$panelName] Menu checkmark should revert ($initialVisible)');
+  expect(
+    hasCheckmarkScoped(panelName),
+    initialVisible,
+    reason: '[$panelName] Menu checkmark should revert ($initialVisible)',
+  );
 
   // Close the menu explicitly before finishing
   await tester.tap(viewMenuButtonFinder);
@@ -121,7 +164,6 @@ Future<void> _testPanelToggle({
   print('$panelName toggle test complete.');
   print('--- Test Passed: $panelName toggle ---');
 }
-
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -145,7 +187,9 @@ void main() {
 
   // --- Test Setup Function ---
   // Common setup steps performed at the beginning of each testWidgets block
-  Future<({EditorViewModel editorVm, Finder viewMenuButtonFinder})> setupTest(WidgetTester tester) async {
+  Future<({EditorViewModel editorVm, Finder viewMenuButtonFinder})> setupTest(
+    WidgetTester tester,
+  ) async {
     print('Pumping FlipEditApp...');
     await tester.pumpWidget(FlipEditApp());
     // Increase settle time slightly if needed for initialization
@@ -162,56 +206,65 @@ void main() {
     }
 
     final viewMenuButtonFinder = find.widgetWithText(DropDownButton, 'View');
-    expect(viewMenuButtonFinder, findsOneWidget,
-        reason: 'Should find the "View" DropDownButton in setup');
+    expect(
+      viewMenuButtonFinder,
+      findsOneWidget,
+      reason: 'Should find the "View" DropDownButton in setup',
+    );
 
     return (editorVm: editorVm, viewMenuButtonFinder: viewMenuButtonFinder);
   }
 
   // --- Individual Test Cases ---
 
-  testWidgets('View menu toggles Inspector visibility and updates checkmark/panel',
-      (WidgetTester tester) async {
-    print('\n=== Running Test: Inspector Toggle ===');
-    final setup = await setupTest(tester);
-    await _testPanelToggle(
-      tester: tester,
-      editorVm: setup.editorVm,
-      panelName: 'Inspector',
-      isVisibleGetter: () => setup.editorVm.isInspectorVisible,
-      viewMenuButtonFinder: setup.viewMenuButtonFinder,
-      panelWidgetFinder: find.byType(InspectorPanel),
-    );
-    print('=== Finished Test: Inspector Toggle ===\n');
-  });
+  testWidgets(
+    'View menu toggles Inspector visibility and updates checkmark/panel',
+    (WidgetTester tester) async {
+      print('\n=== Running Test: Inspector Toggle ===');
+      final setup = await setupTest(tester);
+      await _testPanelToggle(
+        tester: tester,
+        editorVm: setup.editorVm,
+        panelName: 'Inspector',
+        isVisibleGetter: () => setup.editorVm.isInspectorVisible,
+        viewMenuButtonFinder: setup.viewMenuButtonFinder,
+        panelWidgetFinder: find.byType(InspectorPanel),
+      );
+      print('=== Finished Test: Inspector Toggle ===\n');
+    },
+  );
 
-  testWidgets('View menu toggles Timeline visibility and updates checkmark/panel',
-      (WidgetTester tester) async {
-    print('\n=== Running Test: Timeline Toggle ===');
-    final setup = await setupTest(tester);
-    await _testPanelToggle(
-      tester: tester,
-      editorVm: setup.editorVm,
-      panelName: 'Timeline',
-      isVisibleGetter: () => setup.editorVm.isTimelineVisible,
-      viewMenuButtonFinder: setup.viewMenuButtonFinder,
-      panelWidgetFinder: find.byType(Timeline),
-    );
-    print('=== Finished Test: Timeline Toggle ===\n');
-  });
+  testWidgets(
+    'View menu toggles Timeline visibility and updates checkmark/panel',
+    (WidgetTester tester) async {
+      print('\n=== Running Test: Timeline Toggle ===');
+      final setup = await setupTest(tester);
+      await _testPanelToggle(
+        tester: tester,
+        editorVm: setup.editorVm,
+        panelName: 'Timeline',
+        isVisibleGetter: () => setup.editorVm.isTimelineVisible,
+        viewMenuButtonFinder: setup.viewMenuButtonFinder,
+        panelWidgetFinder: find.byType(Timeline),
+      );
+      print('=== Finished Test: Timeline Toggle ===\n');
+    },
+  );
 
-  testWidgets('View menu toggles Preview visibility and updates checkmark/panel',
-      (WidgetTester tester) async {
-    print('\n=== Running Test: Preview Toggle ===');
-    final setup = await setupTest(tester);
-    await _testPanelToggle(
-      tester: tester,
-      editorVm: setup.editorVm,
-      panelName: 'Preview',
-      isVisibleGetter: () => setup.editorVm.isPreviewVisible,
-      viewMenuButtonFinder: setup.viewMenuButtonFinder,
-      panelWidgetFinder: find.byType(PreviewPanel),
-    );
-    print('=== Finished Test: Preview Toggle ===\n');
-  });
-} 
+  testWidgets(
+    'View menu toggles Preview visibility and updates checkmark/panel',
+    (WidgetTester tester) async {
+      print('\n=== Running Test: Preview Toggle ===');
+      final setup = await setupTest(tester);
+      await _testPanelToggle(
+        tester: tester,
+        editorVm: setup.editorVm,
+        panelName: 'Preview',
+        isVisibleGetter: () => setup.editorVm.isPreviewVisible,
+        viewMenuButtonFinder: setup.viewMenuButtonFinder,
+        panelWidgetFinder: find.byType(PreviewPanel),
+      );
+      print('=== Finished Test: Preview Toggle ===\n');
+    },
+  );
+}

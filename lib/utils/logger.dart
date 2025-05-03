@@ -1,13 +1,7 @@
 import 'dart:developer' as developer;
 
 /// Log levels for different severity of messages
-enum LogLevel {
-  verbose,
-  debug,
-  info,
-  warning,
-  error,
-}
+enum LogLevel { verbose, debug, info, warning, error }
 
 /// Current minimum log level to display
 LogLevel _currentLevel = LogLevel.info;
@@ -46,7 +40,12 @@ void logWarning(String message, [String tag = '']) {
 }
 
 /// Log an error message
-void logError(String message, [Object? error, StackTrace? stackTrace, String tag = '']) {
+void logError(
+  String message, [
+  Object? error,
+  StackTrace? stackTrace,
+  String tag = '',
+]) {
   if (_currentLevel.index <= LogLevel.error.index) {
     _log('E', tag, message);
     if (error != null) {

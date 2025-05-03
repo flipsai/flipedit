@@ -67,4 +67,4 @@ class BackgroundRemovalPanel extends StatelessWidget with WatchItMixin {
       ),
     );
   }
-} 
+}

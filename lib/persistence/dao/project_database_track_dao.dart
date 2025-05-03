@@ -5,16 +5,15 @@ import 'package:flipedit/persistence/tables/tracks.dart';
 part 'project_database_track_dao.g.dart';
 
 @DriftAccessor(tables: [Tracks])
-class ProjectDatabaseTrackDao extends DatabaseAccessor<ProjectDatabase> with _$ProjectDatabaseTrackDaoMixin {
+class ProjectDatabaseTrackDao extends DatabaseAccessor<ProjectDatabase>
+    with _$ProjectDatabaseTrackDaoMixin {
   ProjectDatabaseTrackDao(super.db);
 
   // Watch all tracks, ordered by their order value
   Stream<List<Track>> watchAllTracks() {
-    return (select(tracks)
-          ..orderBy([
-            (t) => OrderingTerm(expression: t.order, mode: OrderingMode.asc),
-          ]))
-        .watch();
+    return (select(tracks)..orderBy([
+      (t) => OrderingTerm(expression: t.order, mode: OrderingMode.asc),
+    ])).watch();
   }
 
   // Insert a new track
@@ -34,11 +33,15 @@ class ProjectDatabaseTrackDao extends DatabaseAccessor<ProjectDatabase> with _$P
   Future<int> updateTrack(TracksCompanion track) {
     // Use update().write() to only update the fields present in the companion
     // Ensure the companion has the primary key (id) set for the where clause
-    if (track.id == const Value.absent()) { // Use Value directly from drift import
-      throw ArgumentError('Track ID must be provided in the companion for update');
+    if (track.id == const Value.absent()) {
+      // Use Value directly from drift import
+      throw ArgumentError(
+        'Track ID must be provided in the companion for update',
+      );
     }
-    return (update(tracks)..where((t) => t.id.equals(track.id.value)))
-           .write(track); // Returns Future<int>
+    return (update(tracks)..where(
+      (t) => t.id.equals(track.id.value),
+    )).write(track); // Returns Future<int>
   }
 
   // Delete a track by ID
@@ -48,11 +51,9 @@ class ProjectDatabaseTrackDao extends DatabaseAccessor<ProjectDatabase> with _$P
 
   // Get all tracks as a Future, ordered by their order value
   Future<List<Track>> getAllTracks() {
-    return (select(tracks)
-          ..orderBy([
-            (t) => OrderingTerm(expression: t.order, mode: OrderingMode.asc),
-          ]))
-        .get();
+    return (select(tracks)..orderBy([
+      (t) => OrderingTerm(expression: t.order, mode: OrderingMode.asc),
+    ])).get();
   }
 
   // Update the order of multiple tracks using a batch operation for efficiency
@@ -61,10 +62,10 @@ class ProjectDatabaseTrackDao extends DatabaseAccessor<ProjectDatabase> with _$P
       // Construct the update operations within the batch
       for (int i = 0; i < reorderedTracks.length; i++) {
         final track = reorderedTracks[i];
-        
+
         // Log the planned update for debugging
         print('Planning update in batch: Track ${track.id} to order $i');
-        
+
         // Use batch.update to stage the update operation
         batch.update(
           tracks, // Specify the table
@@ -77,11 +78,11 @@ class ProjectDatabaseTrackDao extends DatabaseAccessor<ProjectDatabase> with _$P
           where: (t) => t.id.equals(track.id),
         );
       }
-      
+
       print('All track updates planned in batch. Executing batch...');
       // The batch is automatically executed when the callback completes.
     });
-    
+
     // Optional: Verification after batch execution
     try {
       final updatedTracks = await getAllTracks(); // Use existing getter

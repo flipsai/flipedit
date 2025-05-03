@@ -35,7 +35,8 @@ class _TimelineTrackState extends State<TimelineTrack> {
     super.initState();
     _timelineViewModel = di<TimelineViewModel>(); // Keep for now
     _timelineNavigationViewModel = di<TimelineNavigationViewModel>();
-    _timelineStateViewModel = di<TimelineStateViewModel>(); // Initialize State VM
+    _timelineStateViewModel =
+        di<TimelineStateViewModel>(); // Initialize State VM
 
     // Force a refresh of clips when mounted
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -58,11 +59,17 @@ class _TimelineTrackState extends State<TimelineTrack> {
 
   @override
   Widget build(BuildContext context) {
-    final double zoom = watchValue((TimelineNavigationViewModel vm) => vm.zoomNotifier);
-    final clips = watchValue((TimelineStateViewModel vm) => vm.clipsNotifier) // Watch State VM
-        .where((clip) => clip.trackId == widget.track.id)
-        .toList();
-    final selectedTrackId = watchValue((TimelineStateViewModel vm) => vm.selectedTrackIdNotifier); // Watch State VM
+    final double zoom = watchValue(
+      (TimelineNavigationViewModel vm) => vm.zoomNotifier,
+    );
+    final clips =
+        watchValue(
+          (TimelineStateViewModel vm) => vm.clipsNotifier,
+        ) // Watch State VM
+        .where((clip) => clip.trackId == widget.track.id).toList();
+    final selectedTrackId = watchValue(
+      (TimelineStateViewModel vm) => vm.selectedTrackIdNotifier,
+    ); // Watch State VM
     final isSelected = selectedTrackId == widget.track.id;
 
     const trackHeight = 65.0;

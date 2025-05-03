@@ -49,7 +49,7 @@ class _TimelineState extends State<Timeline>
 
   // Store the listener function to remove it in dispose
   VoidCallback? _scrollRequestListener;
-  
+
   // Add a listener for ensuring playhead follows video position
   VoidCallback? _currentFrameListener;
 
@@ -77,9 +77,10 @@ class _TimelineState extends State<Timeline>
     super.initState();
     timelineViewModel = di<TimelineViewModel>(); // Keep for now
     timelineNavigationViewModel = di<TimelineNavigationViewModel>();
-    _timelineStateViewModel = di<TimelineStateViewModel>(); // Initialize State VM instance
- 
-     // Setup physics controllers (needed by TimelinePlayheadLogicMixin)
+    _timelineStateViewModel =
+        di<TimelineStateViewModel>(); // Initialize State VM instance
+
+    // Setup physics controllers (needed by TimelinePlayheadLogicMixin)
     playheadPhysicsController = AnimationController(
       vsync: this, // Provided by TickerProviderStateMixin
       duration: const Duration(milliseconds: 800),
@@ -106,16 +107,19 @@ class _TimelineState extends State<Timeline>
 
     timelineNavigationViewModel.navigationService.scrollToFrameRequestNotifier
         .addListener(_scrollRequestListener!);
-        
+
     // Add listener to keep the visualFramePositionNotifier in sync with currentFrameNotifier
     _currentFrameListener = () {
-      final currentFrame = timelineNavigationViewModel.currentFrameNotifier.value;
+      final currentFrame =
+          timelineNavigationViewModel.currentFrameNotifier.value;
       // Update the visual frame position if it's different
       if (visualFramePositionNotifier.value != currentFrame) {
         visualFramePositionNotifier.value = currentFrame;
       }
     };
-    timelineNavigationViewModel.currentFrameNotifier.addListener(_currentFrameListener!);
+    timelineNavigationViewModel.currentFrameNotifier.addListener(
+      _currentFrameListener!,
+    );
   }
 
   @override
@@ -126,7 +130,9 @@ class _TimelineState extends State<Timeline>
     }
 
     if (_currentFrameListener != null) {
-      timelineNavigationViewModel.currentFrameNotifier.removeListener(_currentFrameListener!);
+      timelineNavigationViewModel.currentFrameNotifier.removeListener(
+        _currentFrameListener!,
+      );
     }
 
     disposePlayheadLogic();
@@ -146,7 +152,9 @@ class _TimelineState extends State<Timeline>
     final theme = FluentTheme.of(context);
 
     // Watch properties from ViewModels
-    final clips = watchValue((TimelineStateViewModel vm) => vm.clipsNotifier); // Watch State VM
+    final clips = watchValue(
+      (TimelineStateViewModel vm) => vm.clipsNotifier,
+    ); // Watch State VM
     final tracks = watchValue(
       (TimelineStateViewModel vm) => vm.tracksNotifierForView, // Watch State VM
     );
@@ -207,7 +215,8 @@ class _TimelineState extends State<Timeline>
                         scrollDirection: Axis.horizontal,
                         controller: scrollController,
                         physics:
-                            _timelineStateViewModel.hasContent // Use State VM instance
+                            _timelineStateViewModel
+                                    .hasContent // Use State VM instance
                                 ? const ClampingScrollPhysics()
                                 : const NeverScrollableScrollPhysics(),
                         child: SizedBox(

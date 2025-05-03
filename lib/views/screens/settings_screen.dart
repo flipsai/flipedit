@@ -15,34 +15,34 @@ class SettingsScreen extends StatefulWidget with WatchItStatefulWidgetMixin {
 class _SettingsScreenState extends State<SettingsScreen> {
   final UvManager _uvManager = di<UvManager>();
   final ComfyUIService _comfyUIService = di<ComfyUIService>();
-  
+
   List<String> _availableVenvs = [];
   String? _selectedVenv;
   final _comfyPathController = TextEditingController();
-  
+
   @override
   void initState() {
     super.initState();
     _initializeSettings();
   }
-  
+
   Future<void> _initializeSettings() async {
     await _refreshVenvs();
-    
+
     // Set initial values
     _comfyPathController.text = _comfyUIService.comfyUIPath ?? '';
-    
+
     if (_comfyUIService.selectedPythonEnv.isNotEmpty) {
       setState(() {
         _selectedVenv = _comfyUIService.selectedPythonEnv;
       });
     }
   }
-  
+
   Future<void> _refreshVenvs() async {
     try {
       final venvs = await _uvManager.listVenvs();
-      
+
       setState(() {
         _availableVenvs = venvs;
         if (_selectedVenv != null && !venvs.contains(_selectedVenv)) {
@@ -53,95 +53,105 @@ class _SettingsScreenState extends State<SettingsScreen> {
       logError(runtimeType.toString(), "Error refreshing environments: $e");
     }
   }
-  
+
   Future<void> _selectComfyUIPath() async {
     // In a real app, this would show a folder picker
     // For now, we'll just use a default path
     final appDir = await getApplicationSupportDirectory();
     final comfyPath = '${appDir.path}/comfyui';
-    
+
     setState(() {
       _comfyPathController.text = comfyPath;
     });
-    
+
     _comfyUIService.setComfyUIPath(comfyPath);
   }
-  
+
   Future<void> _installComfyUI() async {
     if (_selectedVenv == null || _selectedVenv!.isEmpty) {
       showDialog(
         context: context,
-        builder: (context) => ContentDialog(
-          title: const Text('Error'),
-          content: const Text('Please select a Python environment first.'),
-          actions: [
-            Button(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('OK'),
+        builder:
+            (context) => ContentDialog(
+              title: const Text('Error'),
+              content: const Text('Please select a Python environment first.'),
+              actions: [
+                Button(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('OK'),
+                ),
+              ],
             ),
-          ],
-        ),
       );
       return;
     }
-    
+
     if (_comfyPathController.text.isEmpty) {
       showDialog(
         context: context,
-        builder: (context) => ContentDialog(
-          title: const Text('Error'),
-          content: const Text('Please select a ComfyUI installation path.'),
-          actions: [
-            Button(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('OK'),
+        builder:
+            (context) => ContentDialog(
+              title: const Text('Error'),
+              content: const Text('Please select a ComfyUI installation path.'),
+              actions: [
+                Button(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('OK'),
+                ),
+              ],
             ),
-          ],
-        ),
       );
       return;
     }
-    
+
     showDialog(
       context: context,
-      builder: (context) => ContentDialog(
-        title: const Text('Installing ComfyUI'),
-        content: const Text('This may take several minutes. Please wait...'),
-        actions: [],
-      ),
+      builder:
+          (context) => ContentDialog(
+            title: const Text('Installing ComfyUI'),
+            content: const Text(
+              'This may take several minutes. Please wait...',
+            ),
+            actions: [],
+          ),
     );
-    
-    final result = await _comfyUIService.installComfyUI(_comfyPathController.text);
-    
+
+    final result = await _comfyUIService.installComfyUI(
+      _comfyPathController.text,
+    );
+
     if (!mounted) return;
     Navigator.of(context).pop(); // Close progress dialog
-    
+
     showDialog(
       context: context,
-      builder: (context) => ContentDialog(
-        title: Text(result ? 'Success' : 'Error'),
-        content: Text(result 
-            ? 'ComfyUI installed successfully.' 
-            : 'Failed to install ComfyUI: ${_comfyUIService.status}'),
-        actions: [
-          Button(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
+      builder:
+          (context) => ContentDialog(
+            title: Text(result ? 'Success' : 'Error'),
+            content: Text(
+              result
+                  ? 'ComfyUI installed successfully.'
+                  : 'Failed to install ComfyUI: ${_comfyUIService.status}',
+            ),
+            actions: [
+              Button(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
-  
+
   @override
   Widget build(BuildContext context) {
     final comfyStatus = watchValue((ComfyUIService s) => s.statusNotifier);
-    final isComfyRunning = watchValue((ComfyUIService s) => s.isRunningNotifier);
-    
+    final isComfyRunning = watchValue(
+      (ComfyUIService s) => s.isRunningNotifier,
+    );
+
     return ScaffoldPage(
-      header: const PageHeader(
-        title: Text('Settings'),
-      ),
+      header: const PageHeader(title: Text('Settings')),
       content: Center(
         child: Container(
           constraints: const BoxConstraints(maxWidth: 800),
@@ -157,10 +167,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     children: [
                       const Text(
                         'ComfyUI Integration',
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: 20),
-                      
+
                       // Python Environment selection
                       InfoLabel(
                         label: 'Python Environment',
@@ -169,20 +182,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             Expanded(
                               child: ComboBox<String>(
                                 value: _selectedVenv,
-                                placeholder: const Text('Select Python Environment'),
-                                items: _availableVenvs.map((String venv) {
-                                  return ComboBoxItem<String>(
-                                    value: venv,
-                                    child: Text(venv),
-                                  );
-                                }).toList(),
+                                placeholder: const Text(
+                                  'Select Python Environment',
+                                ),
+                                items:
+                                    _availableVenvs.map((String venv) {
+                                      return ComboBoxItem<String>(
+                                        value: venv,
+                                        child: Text(venv),
+                                      );
+                                    }).toList(),
                                 onChanged: (String? newValue) {
                                   setState(() {
                                     _selectedVenv = newValue;
                                   });
-                                  
+
                                   if (newValue != null) {
-                                    _comfyUIService.setPythonEnvironment(newValue);
+                                    _comfyUIService.setPythonEnvironment(
+                                      newValue,
+                                    );
                                   }
                                 },
                               ),
@@ -196,7 +214,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                       ),
                       const SizedBox(height: 20),
-                      
+
                       // ComfyUI path
                       InfoLabel(
                         label: 'ComfyUI Path',
@@ -218,7 +236,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                       ),
                       const SizedBox(height: 20),
-                      
+
                       // Install/Start/Stop buttons
                       Row(
                         children: [
@@ -228,30 +246,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                           const SizedBox(width: 10),
                           Button(
-                            onPressed: isComfyRunning 
-                                ? () => _comfyUIService.stopComfyUI() 
-                                : () => _comfyUIService.startComfyUI(),
-                            child: Text(isComfyRunning ? 'Stop ComfyUI' : 'Start ComfyUI'),
+                            onPressed:
+                                isComfyRunning
+                                    ? () => _comfyUIService.stopComfyUI()
+                                    : () => _comfyUIService.startComfyUI(),
+                            child: Text(
+                              isComfyRunning ? 'Stop ComfyUI' : 'Start ComfyUI',
+                            ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 20),
-                      
+
                       // Status
                       InfoBar(
                         title: const Text('Status'),
                         content: Text(comfyStatus),
-                        severity: isComfyRunning 
-                            ? InfoBarSeverity.success 
-                            : InfoBarSeverity.info,
+                        severity:
+                            isComfyRunning
+                                ? InfoBarSeverity.success
+                                : InfoBarSeverity.info,
                       ),
                     ],
                   ),
                 ),
               ),
-              
+
               const SizedBox(height: 20),
-              
+
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
@@ -260,21 +282,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     children: [
                       const Text(
                         'Application Settings',
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: 20),
-                      
+
                       // Theme toggle
                       ToggleSwitch(
-                        checked: FluentTheme.of(context).brightness == Brightness.dark,
+                        checked:
+                            FluentTheme.of(context).brightness ==
+                            Brightness.dark,
                         content: const Text('Dark Theme'),
                         onChanged: (value) {
                           // In a real app, this would update the app theme
                         },
                       ),
-                      
+
                       const SizedBox(height: 10),
-                      
+
                       // Auto-save toggle
                       ToggleSwitch(
                         checked: true,

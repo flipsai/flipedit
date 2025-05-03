@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
 
-// Placeholder for TimelineNavigationService - will be properly typed later
 typedef GetCurrentFrame = int Function();
 typedef SetCurrentFrame = void Function(int frame);
 typedef GetTotalFrames = int Function();
@@ -16,10 +15,8 @@ class PlaybackService extends ChangeNotifier {
   bool get isPlaying => isPlayingNotifier.value;
 
   Timer? _playbackTimer;
-  // TODO: Get FPS from project settings/config
   final int _fps = 30;
-  
-  // Add a timestamp to track when frames were updated
+
   DateTime? _lastFrameUpdateTime;
 
   // Dependencies (will be injected)
@@ -33,11 +30,10 @@ class PlaybackService extends ChangeNotifier {
     required SetCurrentFrame setCurrentFrame,
     required GetTotalFrames getTotalFrames,
     required GetDefaultEmptyDurationFrames getDefaultEmptyDurationFrames,
-  })  : _getCurrentFrame = getCurrentFrame,
-        _setCurrentFrame = setCurrentFrame,
-        _getTotalFrames = getTotalFrames,
-        _getDefaultEmptyDurationFrames = getDefaultEmptyDurationFrames;
-
+  }) : _getCurrentFrame = getCurrentFrame,
+       _setCurrentFrame = setCurrentFrame,
+       _getTotalFrames = getTotalFrames,
+       _getDefaultEmptyDurationFrames = getDefaultEmptyDurationFrames;
 
   /// Starts playback from the current frame position
   Future<void> startPlayback() async {
@@ -46,49 +42,56 @@ class PlaybackService extends ChangeNotifier {
     final currentFrame = _getCurrentFrame();
     isPlayingNotifier.value = true;
     logger.logInfo('▶️ Starting playback from frame $currentFrame', _logTag);
-    
+
     // Initialize the frame update timestamp
     _lastFrameUpdateTime = DateTime.now();
 
     // Start a timer that advances the frame at the specified FPS
     _playbackTimer?.cancel();
-    _playbackTimer = Timer.periodic(Duration(milliseconds: (1000 / _fps).round()), (timer) {
-      final now = DateTime.now();
-      
-      // Calculate ideal frame based on elapsed time since playback started
-      // This helps avoid frame drift due to timer inaccuracies
-      if (_lastFrameUpdateTime != null) {
-        final elapsedMs = now.difference(_lastFrameUpdateTime!).inMilliseconds;
-        final idealFramesToAdvance = (elapsedMs * _fps / 1000).floor();
-        
-        // Only update if at least one frame should have elapsed
-        if (idealFramesToAdvance > 0) {
-          // Advance to next frame
-          final frameNow = _getCurrentFrame();
-          final nextFrame = frameNow + idealFramesToAdvance;
-          final totalFrames = _getTotalFrames();
-          // Use full duration including empty canvas buffer
-          final int maxAllowedFrame = totalFrames > 0 ? totalFrames - 1 : _getDefaultEmptyDurationFrames();
+    _playbackTimer = Timer.periodic(
+      Duration(milliseconds: (1000 / _fps).round()),
+      (timer) {
+        final now = DateTime.now();
 
-          if (nextFrame > maxAllowedFrame) {
-            // Stop at the safe end of the timeline
-            stopPlayback();
-            // Ensure frame is exactly at the end
-            if (frameNow != maxAllowedFrame) {
-               _setCurrentFrame(maxAllowedFrame);
+        // Calculate ideal frame based on elapsed time since playback started
+        // This helps avoid frame drift due to timer inaccuracies
+        if (_lastFrameUpdateTime != null) {
+          final elapsedMs =
+              now.difference(_lastFrameUpdateTime!).inMilliseconds;
+          final idealFramesToAdvance = (elapsedMs * _fps / 1000).floor();
+
+          // Only update if at least one frame should have elapsed
+          if (idealFramesToAdvance > 0) {
+            // Advance to next frame
+            final frameNow = _getCurrentFrame();
+            final nextFrame = frameNow + idealFramesToAdvance;
+            final totalFrames = _getTotalFrames();
+            // Use full duration including empty canvas buffer
+            final int maxAllowedFrame =
+                totalFrames > 0
+                    ? totalFrames - 1
+                    : _getDefaultEmptyDurationFrames();
+
+            if (nextFrame > maxAllowedFrame) {
+              // Stop at the safe end of the timeline
+              stopPlayback();
+              // Ensure frame is exactly at the end
+              if (frameNow != maxAllowedFrame) {
+                _setCurrentFrame(maxAllowedFrame);
+              }
+            } else {
+              // Update current frame
+              _setCurrentFrame(nextFrame);
+              // Update the timestamp
+              _lastFrameUpdateTime = now;
             }
-          } else {
-            // Update current frame
-            _setCurrentFrame(nextFrame);
-            // Update the timestamp
-            _lastFrameUpdateTime = now;
           }
+        } else {
+          // If timestamp is null, initialize it
+          _lastFrameUpdateTime = now;
         }
-      } else {
-        // If timestamp is null, initialize it
-        _lastFrameUpdateTime = now;
-      }
-    });
+      },
+    );
     notifyListeners();
   }
 
@@ -100,7 +103,7 @@ class PlaybackService extends ChangeNotifier {
     // Cancel the playback timer
     _playbackTimer?.cancel();
     _playbackTimer = null;
-    
+
     // Reset the timestamp
     _lastFrameUpdateTime = null;
 

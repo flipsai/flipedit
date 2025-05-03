@@ -4,7 +4,7 @@ enum ClipType {
   image,
   text,
   effect;
-  
+
   // Return the display name of the clip type
   String get displayName {
     switch (this) {

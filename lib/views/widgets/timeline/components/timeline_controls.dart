@@ -17,28 +17,48 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
     final controlsContentColor = theme.resources.textFillColorPrimary;
-    final timelineViewModel = di<TimelineViewModel>(); // Still needed for edit mode
-    final timelineNavigationViewModel = di<TimelineNavigationViewModel>(); // Inject Navigation VM
-    final editorViewModel = di<EditorViewModel>(); // Still needed for snapping/aspect lock
+    final timelineViewModel =
+        di<TimelineViewModel>(); // Still needed for edit mode
+    final timelineNavigationViewModel =
+        di<TimelineNavigationViewModel>(); // Inject Navigation VM
+    final editorViewModel =
+        di<EditorViewModel>(); // Still needed for snapping/aspect lock
 
     // Watch navigation/playback values from TimelineNavigationViewModel
-    final isPlaying = watchValue((TimelineNavigationViewModel vm) => vm.isPlayingNotifier);
-    final totalFrames = watchValue((TimelineNavigationViewModel vm) => vm.totalFramesNotifier);
-    final zoom = watchValue((TimelineNavigationViewModel vm) => vm.zoomNotifier);
-    final isPlayheadLocked = watchValue((TimelineNavigationViewModel vm) => vm.isPlayheadLockedNotifier);
+    final isPlaying = watchValue(
+      (TimelineNavigationViewModel vm) => vm.isPlayingNotifier,
+    );
+    final totalFrames = watchValue(
+      (TimelineNavigationViewModel vm) => vm.totalFramesNotifier,
+    );
+    final zoom = watchValue(
+      (TimelineNavigationViewModel vm) => vm.zoomNotifier,
+    );
+    final isPlayheadLocked = watchValue(
+      (TimelineNavigationViewModel vm) => vm.isPlayheadLockedNotifier,
+    );
 
     // Watch snapping and aspect ratio lock states from EditorViewModel (remains the same)
-    final snappingEnabled = watchValue((EditorViewModel vm) => vm.snappingEnabledNotifier);
-    final aspectRatioLocked = watchValue((EditorViewModel vm) => vm.aspectRatioLockedNotifier);
+    final snappingEnabled = watchValue(
+      (EditorViewModel vm) => vm.snappingEnabledNotifier,
+    );
+    final aspectRatioLocked = watchValue(
+      (EditorViewModel vm) => vm.aspectRatioLockedNotifier,
+    );
 
     // Edit mode toolbar
-    final currentMode = watchValue((TimelineViewModel vm) => vm.currentEditMode);
+    final currentMode = watchValue(
+      (TimelineViewModel vm) => vm.currentEditMode,
+    );
     final modeButtons = <Widget>[
       Tooltip(
         message: 'Select',
         child: Container(
           decoration: BoxDecoration(
-            color: currentMode == EditMode.select ? theme.accentColor.lightest : Colors.transparent,
+            color:
+                currentMode == EditMode.select
+                    ? theme.accentColor.lightest
+                    : Colors.transparent,
             borderRadius: BorderRadius.circular(4),
           ),
           child: IconButton(
@@ -62,29 +82,41 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
           Tooltip(
             message: 'Zoom Out',
             child: IconButton(
-              icon: Icon(HugeIcons.strokeRoundedMinusSign, size: 16, color: controlsContentColor),
+              icon: Icon(
+                HugeIcons.strokeRoundedMinusSign,
+                size: 16,
+                color: controlsContentColor,
+              ),
               // Use navigation VM for zoom setter
-              onPressed: zoom > 0.2
-                  ? () => timelineNavigationViewModel.zoom = zoom / 1.2
-                  : null,
+              onPressed:
+                  zoom > 0.2
+                      ? () => timelineNavigationViewModel.zoom = zoom / 1.2
+                      : null,
             ),
           ),
           Tooltip(
             message: 'Zoom Level',
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8.0),
-              child: Text('${(zoom * 100).toStringAsFixed(0)}%', // Use watched zoom
-                  style: theme.typography.caption?.copyWith(fontSize: 10)),
+              child: Text(
+                '${(zoom * 100).toStringAsFixed(0)}%', // Use watched zoom
+                style: theme.typography.caption?.copyWith(fontSize: 10),
+              ),
             ),
           ),
           Tooltip(
             message: 'Zoom In',
             child: IconButton(
-              icon: Icon(HugeIcons.strokeRoundedAdd01, size: 16, color: controlsContentColor),
+              icon: Icon(
+                HugeIcons.strokeRoundedAdd01,
+                size: 16,
+                color: controlsContentColor,
+              ),
               // Use navigation VM for zoom setter
-              onPressed: zoom < 5.0
-                  ? () => timelineNavigationViewModel.zoom = zoom * 1.2
-                  : null,
+              onPressed:
+                  zoom < 5.0
+                      ? () => timelineNavigationViewModel.zoom = zoom * 1.2
+                      : null,
             ),
           ),
 
@@ -93,7 +125,11 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
           Tooltip(
             message: 'Go to Start',
             child: IconButton(
-              icon: Icon(HugeIcons.strokeRoundedBackward01, size: 16, color: controlsContentColor),
+              icon: Icon(
+                HugeIcons.strokeRoundedBackward01,
+                size: 16,
+                color: controlsContentColor,
+              ),
               // Use navigation VM for currentFrame setter
               onPressed: () => timelineNavigationViewModel.currentFrame = 0,
             ),
@@ -102,7 +138,9 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
             message: isPlaying ? 'Pause' : 'Play', // Use watched isPlaying
             child: IconButton(
               icon: Icon(
-                isPlaying ? HugeIcons.strokeRoundedPause : HugeIcons.strokeRoundedPlay, // Use watched isPlaying
+                isPlaying
+                    ? HugeIcons.strokeRoundedPause
+                    : HugeIcons.strokeRoundedPlay, // Use watched isPlaying
                 size: 16,
                 color: controlsContentColor,
               ),
@@ -113,22 +151,36 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
           Tooltip(
             message: 'Go to End',
             child: IconButton(
-              icon: Icon(HugeIcons.strokeRoundedForward01, size: 16, color: controlsContentColor),
+              icon: Icon(
+                HugeIcons.strokeRoundedForward01,
+                size: 16,
+                color: controlsContentColor,
+              ),
               // Use navigation VM for currentFrame setter
-              onPressed: () => timelineNavigationViewModel.currentFrame = totalFrames,
+              onPressed:
+                  () => timelineNavigationViewModel.currentFrame = totalFrames,
             ),
           ),
 
-          Tooltip( // Add Tooltip for Lock Playhead
-            message: isPlayheadLocked ? 'Unlock Playhead Scroll' : 'Lock Playhead Scroll',
+          Tooltip(
+            // Add Tooltip for Lock Playhead
+            message:
+                isPlayheadLocked
+                    ? 'Unlock Playhead Scroll'
+                    : 'Lock Playhead Scroll',
             child: Container(
               decoration: BoxDecoration(
-                color: isPlayheadLocked ? theme.accentColor.lightest : Colors.transparent,
+                color:
+                    isPlayheadLocked
+                        ? theme.accentColor.lightest
+                        : Colors.transparent,
                 borderRadius: BorderRadius.circular(4),
               ),
               child: IconButton(
                 icon: Icon(
-                  isPlayheadLocked ? FluentIcons.lock : FluentIcons.unlock, // Use FluentIcons
+                  isPlayheadLocked
+                      ? FluentIcons.lock
+                      : FluentIcons.unlock, // Use FluentIcons
                   size: 16,
                   color: controlsContentColor,
                 ),
@@ -136,7 +188,9 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
                 onPressed: timelineNavigationViewModel.togglePlayheadLock,
                 style: ButtonStyle(
                   padding: WidgetStateProperty.all(const EdgeInsets.all(4)),
-                  foregroundColor: WidgetStateProperty.all(controlsContentColor),
+                  foregroundColor: WidgetStateProperty.all(
+                    controlsContentColor,
+                  ),
                 ),
               ),
             ),
@@ -152,7 +206,10 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
             message: 'Enable Snapping',
             child: Container(
               decoration: BoxDecoration(
-                color: snappingEnabled ? theme.accentColor.lightest : Colors.transparent, // Use watched state
+                color:
+                    snappingEnabled
+                        ? theme.accentColor.lightest
+                        : Colors.transparent, // Use watched state
                 borderRadius: BorderRadius.circular(4),
               ),
               child: IconButton(
@@ -161,32 +218,48 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
                   size: 16,
                   color: controlsContentColor,
                 ),
-                onPressed: editorViewModel.toggleSnapping, // Call ViewModel method
+                onPressed:
+                    editorViewModel.toggleSnapping, // Call ViewModel method
                 style: ButtonStyle(
                   padding: WidgetStateProperty.all(const EdgeInsets.all(4)),
-                  foregroundColor: WidgetStateProperty.all(controlsContentColor),
+                  foregroundColor: WidgetStateProperty.all(
+                    controlsContentColor,
+                  ),
                 ),
               ),
             ),
           ),
 
           Tooltip(
-            message: aspectRatioLocked ? 'Unlock Aspect Ratio (Aspect Ratio Locked)' : 'Lock Aspect Ratio', // Use watched state for message
+            message:
+                aspectRatioLocked
+                    ? 'Unlock Aspect Ratio (Aspect Ratio Locked)'
+                    : 'Lock Aspect Ratio', // Use watched state for message
             child: Container(
               decoration: BoxDecoration(
-                color: aspectRatioLocked ? theme.accentColor.lightest : Colors.transparent, // Use watched state
+                color:
+                    aspectRatioLocked
+                        ? theme.accentColor.lightest
+                        : Colors.transparent, // Use watched state
                 borderRadius: BorderRadius.circular(4),
               ),
               child: IconButton(
                 icon: Icon(
-                  aspectRatioLocked ? HugeIcons.strokeRoundedTouchLocked01 : HugeIcons.strokeRoundedTouch01, // Use suggested touch icons
+                  aspectRatioLocked
+                      ? HugeIcons.strokeRoundedTouchLocked01
+                      : HugeIcons
+                          .strokeRoundedTouch01, // Use suggested touch icons
                   size: 16,
                   color: controlsContentColor,
                 ),
-                onPressed: editorViewModel.toggleAspectRatioLock, // Call ViewModel method
+                onPressed:
+                    editorViewModel
+                        .toggleAspectRatioLock, // Call ViewModel method
                 style: ButtonStyle(
                   padding: WidgetStateProperty.all(const EdgeInsets.all(4)),
-                  foregroundColor: WidgetStateProperty.all(controlsContentColor),
+                  foregroundColor: WidgetStateProperty.all(
+                    controlsContentColor,
+                  ),
                 ),
               ),
             ),
@@ -225,12 +298,12 @@ class _TimecodeDisplay extends StatelessWidget with WatchItMixin {
         ),
       );
     }
-    
+
     final position = value.position;
     final duration = value.duration;
     final positionString = _formatDuration(position);
     final durationString = _formatDuration(duration);
-    
+
     return Text(
       '$positionString / $durationString',
       style: theme.typography.caption?.copyWith(
@@ -245,7 +318,9 @@ class _TimecodeDisplay extends StatelessWidget with WatchItMixin {
     String twoDigitMinutes = twoDigits(d.inMinutes.remainder(60));
     String twoDigitSeconds = twoDigits(d.inSeconds.remainder(60));
     // Ensure milliseconds are padded to 3 digits for consistency
-    String threeDigitMilliseconds = (d.inMilliseconds.remainder(1000)).toString().padLeft(3, "0");
+    String threeDigitMilliseconds = (d.inMilliseconds.remainder(
+      1000,
+    )).toString().padLeft(3, "0");
     return '$twoDigitMinutes:$twoDigitSeconds.$threeDigitMilliseconds';
   }
 }

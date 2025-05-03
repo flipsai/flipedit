@@ -14,8 +14,8 @@ class TrackBackgroundPainter extends CustomPainter {
     required this.lineColor,
     required this.faintLineColor,
     required this.textColor,
-  })  : linePaint = Paint()..strokeWidth = 1.0,
-        faintLinePaint = Paint()..strokeWidth = 0.5 {
+  }) : linePaint = Paint()..strokeWidth = 1.0,
+       faintLinePaint = Paint()..strokeWidth = 0.5 {
     linePaint.color = lineColor;
     faintLinePaint.color = faintLineColor;
   }

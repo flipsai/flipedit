@@ -45,9 +45,7 @@ mixin TimelinePlayheadLogicMixin on State<Timeline> implements TickerProvider {
     _ensurePlayheadVisibleCallback = ensurePlayheadVisible;
     // Sync initial frame position
     currentFramePosition = timelineNavigationViewModel.currentFrame;
-    visualFramePositionNotifier = ValueNotifier<int>(
-      currentFramePosition,
-    );
+    visualFramePositionNotifier = ValueNotifier<int>(currentFramePosition);
 
     // Add listeners (controllers are created in the main State's initState)
     playheadPhysicsController.addListener(handlePlayheadPhysics);
@@ -135,9 +133,7 @@ mixin TimelinePlayheadLogicMixin on State<Timeline> implements TickerProvider {
     if (interpolatedFrame != currentFramePosition) {
       currentFramePosition = interpolatedFrame;
       visualFramePositionNotifier.value = interpolatedFrame;
-      setState(
-        () {},
-      );
+      setState(() {});
     }
 
     // When animation completes, ensure final state matches VM
@@ -155,7 +151,7 @@ mixin TimelinePlayheadLogicMixin on State<Timeline> implements TickerProvider {
     if (timelineNavigationViewModel.isPlaying) {
       timelineNavigationViewModel.stopPlayback();
     }
-    
+
     timelineViewModel.isPlayheadDragging = true;
     playheadPhysicsController.stop();
     scrubSnapController.stop();
@@ -169,7 +165,7 @@ mixin TimelinePlayheadLogicMixin on State<Timeline> implements TickerProvider {
     if (!mounted) return;
 
     final RenderBox? timelineRenderBox =
-        this.context.findRenderObject() as RenderBox?;
+        context.findRenderObject() as RenderBox?;
     // Also check if scrollController has clients, needed for scrollOffsetX
     final bool hasScrollClients = scrollController.hasClients;
     if (timelineRenderBox == null || !scrollController.hasClients) return;
@@ -190,30 +186,27 @@ mixin TimelinePlayheadLogicMixin on State<Timeline> implements TickerProvider {
             trackLabelWidth +
             scrollOffsetX)
         .clamp(0.0, double.infinity);
-    
+
     // Get the exact frame position without rounding first for more precise calculations
     final double exactFramePosition = pointerRelX / pxPerFrame;
-    
+
     // Only then round to get the final frame number
     final int maxAllowedFrame =
         timelineNavigationViewModel.totalFrames > 0
             ? timelineNavigationViewModel.totalFrames - 1
             : 0;
-    final int newFrame = exactFramePosition.round().clamp(
-      0,
-      maxAllowedFrame,
-    );
+    final int newFrame = exactFramePosition.round().clamp(0, maxAllowedFrame);
 
     if (newFrame != currentFramePosition) {
       // For debugging potential frame synchronization issues
       if ((newFrame - currentFramePosition).abs() > 2) {
         developer.log(
           'Significant frame jump: $currentFramePosition → $newFrame '
-          '(pointer: ${exactFramePosition.toStringAsFixed(2)})', 
-          name: 'Timeline.playhead'
+          '(pointer: ${exactFramePosition.toStringAsFixed(2)})',
+          name: 'Timeline.playhead',
         );
       }
-      
+
       currentFramePosition = newFrame;
       visualFramePositionNotifier.value = newFrame;
       timelineNavigationViewModel.currentFrame = newFrame;

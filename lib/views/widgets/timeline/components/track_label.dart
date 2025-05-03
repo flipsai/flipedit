@@ -9,11 +9,7 @@ class TrackLabel extends StatefulWidget with WatchItStatefulWidgetMixin {
   final Track track;
   final VoidCallback? onDelete;
 
-  const TrackLabel({
-    super.key,
-    required this.track,
-    this.onDelete,
-  });
+  const TrackLabel({super.key, required this.track, this.onDelete});
 
   @override
   State<TrackLabel> createState() => _TrackLabelState();
@@ -67,7 +63,10 @@ class _TrackLabelState extends State<TrackLabel> {
       });
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _focusNode.requestFocus();
-        _textController.selection = TextSelection(baseOffset: 0, extentOffset: _textController.text.length);
+        _textController.selection = TextSelection(
+          baseOffset: 0,
+          extentOffset: _textController.text.length,
+        );
       });
     }
   }
@@ -89,56 +88,58 @@ class _TrackLabelState extends State<TrackLabel> {
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
-    final icon = widget.track.type == 'video' ? FluentIcons.video : FluentIcons.music_in_collection;
+    final icon =
+        widget.track.type == 'video'
+            ? FluentIcons.video
+            : FluentIcons.music_in_collection;
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTapDown: (details) {
         if (_isEditing && !_focusNode.hasFocus) {
-           _submitNameChange();
+          _submitNameChange();
         }
       },
       onDoubleTap: _startEditing,
       child: Container(
         height: 60,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        margin: const EdgeInsets.only(
-          bottom: 4,
-          left: 4,
-          right: 4,
-        ),
+        margin: const EdgeInsets.only(bottom: 4, left: 4, right: 4),
         decoration: BoxDecoration(
           color: theme.resources.subtleFillColorTertiary,
           borderRadius: BorderRadius.circular(4),
-          border: _isEditing
-              ? Border.all(color: theme.accentColor, width: 1.5)
-              : null,
+          border:
+              _isEditing
+                  ? Border.all(color: theme.accentColor, width: 1.5)
+                  : null,
         ),
         child: Row(
           children: [
-            Icon(
-              icon,
-              size: 16,
-              color: theme.resources.textFillColorSecondary,
-            ),
+            Icon(icon, size: 16, color: theme.resources.textFillColorSecondary),
             const SizedBox(width: 8),
             Expanded(
-              child: _isEditing
-                  ? TextBox(
-                      controller: _textController,
-                      focusNode: _focusNode,
-                      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
-                      style: theme.typography.body,
-                      decoration: WidgetStateProperty.all(const BoxDecoration(border: null)),
-                      onSubmitted: (_) => _submitNameChange(),
-                    )
-                  : Text(
-                      widget.track.name,
-                      style: theme.typography.body?.copyWith(
-                        color: theme.resources.textFillColorPrimary,
+              child:
+                  _isEditing
+                      ? TextBox(
+                        controller: _textController,
+                        focusNode: _focusNode,
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 4,
+                          horizontal: 6,
+                        ),
+                        style: theme.typography.body,
+                        decoration: WidgetStateProperty.all(
+                          const BoxDecoration(border: null),
+                        ),
+                        onSubmitted: (_) => _submitNameChange(),
+                      )
+                      : Text(
+                        widget.track.name,
+                        style: theme.typography.body?.copyWith(
+                          color: theme.resources.textFillColorPrimary,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
             ),
             if (widget.onDelete != null)
               SizedBox(
@@ -147,7 +148,9 @@ class _TrackLabelState extends State<TrackLabel> {
                 child: IconButton(
                   icon: const Icon(FluentIcons.delete, size: 12),
                   onPressed: widget.onDelete,
-                  style: ButtonStyle(padding: WidgetStateProperty.all(EdgeInsets.zero)),
+                  style: ButtonStyle(
+                    padding: WidgetStateProperty.all(EdgeInsets.zero),
+                  ),
                 ),
               ),
           ],
@@ -155,4 +158,4 @@ class _TrackLabelState extends State<TrackLabel> {
       ),
     );
   }
-} 
+}

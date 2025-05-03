@@ -25,7 +25,8 @@ mixin TimelineScrollLogicMixin on State<Timeline> {
       return;
     }
 
-    const double framePixelWidth = 5.0; // Assuming constant, could be passed if dynamic
+    const double framePixelWidth =
+        5.0; // Assuming constant, could be passed if dynamic
     final double scrollableViewportWidth = viewportWidth - trackLabelWidth;
     if (scrollableViewportWidth <= 0) return;
 
@@ -38,7 +39,6 @@ mixin TimelineScrollLogicMixin on State<Timeline> {
     // Temporarily calculate directly if VM method isn't easily available here
     final double zoom = timelineNavigationViewModel.zoom;
     final double unclampedTargetOffset = frame * zoom * framePixelWidth;
-
 
     final double maxOffset = scrollController.position.maxScrollExtent;
     final double targetOffset = unclampedTargetOffset.clamp(0.0, maxOffset);
@@ -64,43 +64,52 @@ mixin TimelineScrollLogicMixin on State<Timeline> {
     // Calculate visible range
     final double scrollOffset = scrollController.offset;
     final double visibleStart = scrollOffset; // Adjusted: Offset is the start
-    final double visibleEnd = scrollOffset + viewportWidth - trackLabelWidth; // Adjusted: Viewport relative to scrollable area
-
+    final double visibleEnd =
+        scrollOffset +
+        viewportWidth -
+        trackLabelWidth; // Adjusted: Viewport relative to scrollable area
 
     // Calculate absolute playhead position within the scrollable content (excluding label)
     final double absolutePlayheadPosition = playheadPosition;
 
     // Check if playhead is out of view relative to the scrollable area
     const double scrollMargin = 60.0; // Margin before triggering scroll
-    final double playheadLeftEdgeInView = absolutePlayheadPosition - scrollOffset;
-    final double playheadRightEdgeInView = absolutePlayheadPosition - scrollOffset;
-
+    final double playheadLeftEdgeInView =
+        absolutePlayheadPosition - scrollOffset;
+    final double playheadRightEdgeInView =
+        absolutePlayheadPosition - scrollOffset;
 
     if (playheadLeftEdgeInView < scrollMargin) {
-       // Playhead near left edge, scroll left
+      // Playhead near left edge, scroll left
       final double targetOffset = math.max(
         0.0,
-        absolutePlayheadPosition - scrollMargin * 1.5, // Scroll a bit past the margin
+        absolutePlayheadPosition -
+            scrollMargin * 1.5, // Scroll a bit past the margin
       );
-      if ((targetOffset - scrollOffset).abs() > 5.0) { // Avoid tiny adjustments
+      if ((targetOffset - scrollOffset).abs() > 5.0) {
+        // Avoid tiny adjustments
         scrollController.animateTo(
           targetOffset,
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeOutCubic,
         );
       }
-    } else if (playheadRightEdgeInView > (viewportWidth - trackLabelWidth - scrollMargin)) {
+    } else if (playheadRightEdgeInView >
+        (viewportWidth - trackLabelWidth - scrollMargin)) {
       // Playhead near right edge, scroll right
-       final double targetOffset = (absolutePlayheadPosition - (viewportWidth - trackLabelWidth) + scrollMargin * 1.5)
+      final double targetOffset = (absolutePlayheadPosition -
+              (viewportWidth - trackLabelWidth) +
+              scrollMargin * 1.5)
           .clamp(0.0, scrollController.position.maxScrollExtent);
 
-       if ((targetOffset - scrollOffset).abs() > 5.0) { // Avoid tiny adjustments
-         scrollController.animateTo(
+      if ((targetOffset - scrollOffset).abs() > 5.0) {
+        // Avoid tiny adjustments
+        scrollController.animateTo(
           targetOffset,
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeOutCubic,
         );
-       }
+      }
     }
   }
-} 
+}

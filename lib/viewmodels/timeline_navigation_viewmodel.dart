@@ -4,41 +4,36 @@ import 'package:flipedit/services/playback_service.dart';
 import 'package:flipedit/services/timeline_navigation_service.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
 
-/// ViewModel responsible for managing timeline navigation state (zoom, scroll, playhead)
-/// and playback control. It delegates the core logic to the respective services.
 class TimelineNavigationViewModel extends ChangeNotifier {
   final String _logTag = 'TimelineNavigationViewModel';
 
-  // --- Injected Services ---
-  // Make clipsNotifier required for proper initialization
   final ValueNotifier<List<ClipModel>> _clipsNotifier;
   late final TimelineNavigationService _navigationService;
   late final PlaybackService _playbackService;
 
-  // Internal listener reference
   VoidCallback? _clipsListener;
 
-  // --- Constructor ---
   TimelineNavigationViewModel({
-    required List<ClipModel> Function() getClips, // Function to get current clips
-    required ValueNotifier<List<ClipModel>> clipsNotifier, // Inject the notifier
-  }) : _clipsNotifier = clipsNotifier { // Store the injected notifier
+    required List<ClipModel> Function() getClips,
+    required ValueNotifier<List<ClipModel>> clipsNotifier,
+  }) : _clipsNotifier = clipsNotifier {
+    // Store the injected notifier
     logger.logInfo('Initializing TimelineNavigationViewModel', _logTag);
 
     // Instantiate services and wire dependencies
     _navigationService = TimelineNavigationService(
       getClips: getClips,
-      getIsPlaying: () => isPlaying, // Provide function using local getter
+      getIsPlaying: () => isPlaying,
     );
 
     _playbackService = PlaybackService(
       getCurrentFrame: _navigationService.getCurrentFrameValue,
       setCurrentFrame: _navigationService.setCurrentFrameValue,
       getTotalFrames: _navigationService.getTotalFramesValue,
-      getDefaultEmptyDurationFrames: _navigationService.getDefaultEmptyDurationFramesValue,
+      getDefaultEmptyDurationFrames:
+          _navigationService.getDefaultEmptyDurationFramesValue,
     );
 
-    // Listen to changes in the underlying services and notify listeners of this ViewModel
     _navigationService.zoomNotifier.addListener(notifyListeners);
     _navigationService.currentFrameNotifier.addListener(notifyListeners);
     _navigationService.totalFramesNotifier.addListener(notifyListeners);
@@ -46,27 +41,28 @@ class TimelineNavigationViewModel extends ChangeNotifier {
     _navigationService.isPlayheadLockedNotifier.addListener(notifyListeners);
     _playbackService.isPlayingNotifier.addListener(notifyListeners);
 
-    // Listen to clip changes to trigger recalculation
     _clipsListener = () {
-      recalculateTotalFrames(); // Call the existing method
+      recalculateTotalFrames();
     };
     _clipsNotifier.addListener(_clipsListener!);
   }
 
-  // --- Delegated State Notifiers (Exposed for View Binding) ---
   ValueNotifier<double> get zoomNotifier => _navigationService.zoomNotifier;
-  ValueNotifier<int> get currentFrameNotifier => _navigationService.currentFrameNotifier;
-  ValueNotifier<int> get totalFramesNotifier => _navigationService.totalFramesNotifier;
-  ValueNotifier<int> get timelineEndNotifier => _navigationService.timelineEndNotifier;
-  ValueNotifier<bool> get isPlayingNotifier => _playbackService.isPlayingNotifier;
-  ValueNotifier<bool> get isPlayheadLockedNotifier => _navigationService.isPlayheadLockedNotifier;
+  ValueNotifier<int> get currentFrameNotifier =>
+      _navigationService.currentFrameNotifier;
+  ValueNotifier<int> get totalFramesNotifier =>
+      _navigationService.totalFramesNotifier;
+  ValueNotifier<int> get timelineEndNotifier =>
+      _navigationService.timelineEndNotifier;
+  ValueNotifier<bool> get isPlayingNotifier =>
+      _playbackService.isPlayingNotifier;
+  ValueNotifier<bool> get isPlayheadLockedNotifier =>
+      _navigationService.isPlayheadLockedNotifier;
 
-  // --- Delegated Getters/Setters (Direct access to service properties) ---
   double get zoom => _navigationService.zoom;
   set zoom(double value) {
     if (_navigationService.zoom != value) {
       _navigationService.zoom = value;
-      // Listener on zoomNotifier will call notifyListeners
     }
   }
 
@@ -74,7 +70,6 @@ class TimelineNavigationViewModel extends ChangeNotifier {
   set currentFrame(int value) {
     if (_navigationService.currentFrame != value) {
       _navigationService.currentFrame = value;
-      // Listener on currentFrameNotifier will call notifyListeners
     }
   }
 
@@ -87,45 +82,36 @@ class TimelineNavigationViewModel extends ChangeNotifier {
 
   /// Starts playback from the current frame position.
   Future<void> startPlayback() async {
-    if (isPlaying) return; // Already playing
+    if (isPlaying) return;
     await _playbackService.startPlayback();
-    _navigationService.recalculateAndUpdateTotalFrames(); // Ensure nav state is aware
-    // Listener on isPlayingNotifier will call notifyListeners
+    _navigationService.recalculateAndUpdateTotalFrames();
   }
 
   /// Stops playback.
   void stopPlayback() {
-    if (!isPlaying) return; // Not playing
+    if (!isPlaying) return;
     _playbackService.stopPlayback();
-    _navigationService.recalculateAndUpdateTotalFrames(); // Ensure nav state is aware
-     // Listener on isPlayingNotifier will call notifyListeners
+    _navigationService.recalculateAndUpdateTotalFrames();
   }
 
   /// Toggles the playback state.
   void togglePlayPause() {
     _playbackService.togglePlayPause();
-    _navigationService.recalculateAndUpdateTotalFrames(); // Ensure nav state is aware
-     // Listener on isPlayingNotifier will call notifyListeners
+    _navigationService.recalculateAndUpdateTotalFrames();
   }
 
   /// Toggles the playhead lock state.
   void togglePlayheadLock() {
     _navigationService.togglePlayheadLock();
-    // Listener on isPlayheadLockedNotifier will call notifyListeners
   }
 
-   /// Forces recalculation of total frames in the navigation service.
-   /// Typically called when clips change significantly.
-   void recalculateTotalFrames() {
-      _navigationService.recalculateAndUpdateTotalFrames();
-   }
+  void recalculateTotalFrames() {
+    _navigationService.recalculateAndUpdateTotalFrames();
+  }
 
   // --- Expose Navigation Service ---
-  // Expose navigation service for direct access if needed by Commands or specialized View logic
-  // Use cautiously, prefer methods on this ViewModel.
   TimelineNavigationService get navigationService => _navigationService;
 
-  // --- Dispose ---
   @override
   void dispose() {
     logger.logInfo('Disposing TimelineNavigationViewModel', _logTag);

@@ -7,7 +7,8 @@ import 'package:flipedit/persistence/change_log_mixin.dart';
 part 'project_database_clip_dao.g.dart';
 
 @DriftAccessor(tables: [Clips])
-class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase> with _$ProjectDatabaseClipDaoMixin, ChangeLogMixin {
+class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase>
+    with _$ProjectDatabaseClipDaoMixin, ChangeLogMixin {
   ProjectDatabaseClipDao(super.db);
 
   String get _logTag => 'ProjectDatabaseClipDao';
@@ -18,7 +19,10 @@ class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase> with _$Pr
     return (select(clips)
           ..where((c) => c.trackId.equals(trackId))
           ..orderBy([
-            (c) => OrderingTerm(expression: c.startTimeOnTrackMs, mode: OrderingMode.asc),
+            (c) => OrderingTerm(
+              expression: c.startTimeOnTrackMs,
+              mode: OrderingMode.asc,
+            ),
           ]))
         .watch();
   }
@@ -29,7 +33,10 @@ class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase> with _$Pr
     return (select(clips)
           ..where((c) => c.trackId.equals(trackId))
           ..orderBy([
-            (c) => OrderingTerm(expression: c.startTimeOnTrackMs, mode: OrderingMode.asc),
+            (c) => OrderingTerm(
+              expression: c.startTimeOnTrackMs,
+              mode: OrderingMode.asc,
+            ),
           ]))
         .get();
   }
@@ -71,13 +78,12 @@ class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase> with _$Pr
         startTimeInSourceMs: clip.startTimeInSourceMs.value,
         endTimeInSourceMs: clip.endTimeInSourceMs.value,
         startTimeOnTrackMs: clip.startTimeOnTrackMs.value,
-        metadataJson: clip.metadataJson.present ? clip.metadataJson.value : null,
-        createdAt: clip.createdAt.present
-            ? clip.createdAt.value
-            : DateTime.now(),
-        updatedAt: clip.updatedAt.present
-            ? clip.updatedAt.value
-            : DateTime.now(),
+        metadataJson:
+            clip.metadataJson.present ? clip.metadataJson.value : null,
+        createdAt:
+            clip.createdAt.present ? clip.createdAt.value : DateTime.now(),
+        updatedAt:
+            clip.updatedAt.present ? clip.updatedAt.value : DateTime.now(),
       );
       await logChange(
         tableName: 'clips',
@@ -91,11 +97,18 @@ class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase> with _$Pr
   }
 
   // Update only specific fields of a clip
-  Future<bool> updateClipFields(int clipId, Map<String, dynamic> fields, {bool log = true}) async {
+  Future<bool> updateClipFields(
+    int clipId,
+    Map<String, dynamic> fields, {
+    bool log = true,
+  }) async {
     if (log) {
-      logInfo(_logTag, "Updating specific fields for clip ID: $clipId - Fields: ${fields.keys.join(', ')}");
+      logInfo(
+        _logTag,
+        "Updating specific fields for clip ID: $clipId - Fields: ${fields.keys.join(', ')}",
+      );
     }
-    
+
     try {
       final oldRow = await getClipById(clipId);
       if (oldRow == null) {
@@ -104,7 +117,7 @@ class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase> with _$Pr
         }
         return false;
       }
-      
+
       final companion = ClipsCompanion(
         id: Value(clipId),
         trackId: Value(oldRow.trackId),
@@ -114,13 +127,21 @@ class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase> with _$Pr
         startTimeInSourceMs: Value(oldRow.startTimeInSourceMs),
         endTimeInSourceMs: Value(oldRow.endTimeInSourceMs),
         startTimeOnTrackMs: Value(oldRow.startTimeOnTrackMs),
-        metadataJson: oldRow.metadataJson == null ? const Value.absent() : Value(oldRow.metadataJson!),
-        createdAt: oldRow.createdAt != null ? Value(oldRow.createdAt) : Value(DateTime.now()),
-        updatedAt: Value(DateTime.now()), // Always update the updatedAt timestamp
+        metadataJson:
+            oldRow.metadataJson == null
+                ? const Value.absent()
+                : Value(oldRow.metadataJson!),
+        createdAt:
+            oldRow.createdAt != null
+                ? Value(oldRow.createdAt)
+                : Value(DateTime.now()),
+        updatedAt: Value(
+          DateTime.now(),
+        ), // Always update the updatedAt timestamp
       );
-      
+
       final updatedCompanion = _applyFieldUpdates(companion, fields);
-      
+
       final success = await update(clips).replace(updatedCompanion);
       if (success && log) {
         final newRow = Clip(
@@ -132,13 +153,18 @@ class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase> with _$Pr
           startTimeInSourceMs: updatedCompanion.startTimeInSourceMs.value,
           endTimeInSourceMs: updatedCompanion.endTimeInSourceMs.value,
           startTimeOnTrackMs: updatedCompanion.startTimeOnTrackMs.value,
-          metadataJson: updatedCompanion.metadataJson.present ? updatedCompanion.metadataJson.value : null,
-          createdAt: updatedCompanion.createdAt.present
-              ? updatedCompanion.createdAt.value
-              : DateTime.now(),
-          updatedAt: updatedCompanion.updatedAt.present
-              ? updatedCompanion.updatedAt.value
-              : DateTime.now(),
+          metadataJson:
+              updatedCompanion.metadataJson.present
+                  ? updatedCompanion.metadataJson.value
+                  : null,
+          createdAt:
+              updatedCompanion.createdAt.present
+                  ? updatedCompanion.createdAt.value
+                  : DateTime.now(),
+          updatedAt:
+              updatedCompanion.updatedAt.present
+                  ? updatedCompanion.updatedAt.value
+                  : DateTime.now(),
         );
         await logChange(
           tableName: 'clips',
@@ -156,17 +182,20 @@ class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase> with _$Pr
       return false;
     }
   }
-  
+
   // Helper to apply field updates to a companion
-  ClipsCompanion _applyFieldUpdates(ClipsCompanion base, Map<String, dynamic> updates) {
+  ClipsCompanion _applyFieldUpdates(
+    ClipsCompanion base,
+    Map<String, dynamic> updates,
+  ) {
     // Create a new companion with the same values as the base
     var result = base;
-    
+
     // Apply each update by field name
     for (final entry in updates.entries) {
       final field = entry.key;
       final value = entry.value;
-      
+
       switch (field) {
         case 'trackId':
           result = result.copyWith(trackId: Value(value as int));
@@ -192,12 +221,15 @@ class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase> with _$Pr
         case 'metadataJson':
           final metadataValue = value as String?;
           result = result.copyWith(
-            metadataJson: metadataValue == null ? const Value.absent() : Value(metadataValue)
+            metadataJson:
+                metadataValue == null
+                    ? const Value.absent()
+                    : Value(metadataValue),
           );
           break;
       }
     }
-    
+
     return result;
   }
 
@@ -223,4 +255,4 @@ class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase> with _$Pr
     logInfo(_logTag, "Deleting all clips for track ID: $trackId");
     return (delete(clips)..where((c) => c.trackId.equals(trackId))).go();
   }
-} 
+}

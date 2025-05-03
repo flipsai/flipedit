@@ -1,92 +1,91 @@
-// lib/viewmodels/commands/update_clip_transform_command.dart
-import 'package:fluent_ui/fluent_ui.dart'; // For Rect
-import 'package:flutter_box_transform/flutter_box_transform.dart'; // For Flip
+import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter_box_transform/flutter_box_transform.dart';
 
 import 'package:flipedit/services/project_database_service.dart';
-import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart'; // Import State VM
-// import 'package:flipedit/viewmodels/timeline_viewmodel.dart'; // No longer needed?
+import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
-import 'timeline_command.dart'; // Import the base class
-import 'package:watch_it/watch_it.dart'; // Import for di
+import 'timeline_command.dart';
+import 'package:watch_it/watch_it.dart';
 
-
-/// Command to update the preview transform (Rect and Flip) of a clip.
-/// Changes are logged automatically by the DAO via ChangeLogMixin.
-class UpdateClipTransformCommand extends TimelineCommand { // Extend TimelineCommand
+class UpdateClipTransformCommand extends TimelineCommand {
   final int clipId;
   final Rect newRect;
   final Flip newFlip;
   final Rect oldRect;
   final Flip oldFlip;
 
-  // Dependencies needed by this command
   final ProjectDatabaseService projectDatabaseService;
-  // final TimelineViewModel timelineViewModel; // REMOVED
-  final TimelineStateViewModel _stateViewModel = di<TimelineStateViewModel>(); // Inject State VM
+  final TimelineStateViewModel _stateViewModel = di<TimelineStateViewModel>();
 
   UpdateClipTransformCommand({
-    // required this.timelineViewModel, // REMOVED
-    required this.projectDatabaseService, // Keep projectDatabaseService param
+    required this.projectDatabaseService,
     required this.clipId,
     required this.newRect,
     required this.newFlip,
     required this.oldRect,
     required this.oldFlip,
-  }) { // Removed super call
-          logger.logInfo('UpdateClipTransformCommand created for clip $clipId', 'Command');
-        }
-
-  // String get actionDescription => 'Update Clip Transform'; // Optional: Keep if needed by TimelineViewModel
-
-
-  @override // Add override since it's defined in TimelineCommand
-  Future<void> execute() async {
-    logger.logInfo('Executing UpdateClipTransformCommand for clip $clipId', 'Command');
-    await _updateTransform(newRect, newFlip);
-    // await timelineViewModel.refreshClips(); // REPLACED
-    await _stateViewModel.refreshClips(); // Refresh State VM
+  }) {
+    logger.logInfo(
+      'UpdateClipTransformCommand created for clip $clipId',
+      'Command',
+    );
   }
 
-  // Method called by TimelineViewModel.undo/redo (if it uses command objects for that)
-  // OR called by UndoRedoService logic if it were command-based.
-  // Since UndoRedoService uses DB logs, this method might only be needed
-  // if TimelineViewModel keeps its own command stack for some reason.
-  // Let's keep it for now, assuming TimelineViewModel might use it.
-  @override // Add override since it's defined in TimelineCommand
+  @override
+  Future<void> execute() async {
+    logger.logInfo(
+      'Executing UpdateClipTransformCommand for clip $clipId',
+      'Command',
+    );
+    await _updateTransform(newRect, newFlip);
+    await _stateViewModel.refreshClips();
+  }
+
+  @override
   Future<void> undo() async {
-     logger.logInfo('Undoing UpdateClipTransformCommand for clip $clipId (via command object)', 'Command');
-   await _updateTransform(oldRect, oldFlip);
-   // await timelineViewModel.refreshClips(); // REPLACED
-   await _stateViewModel.refreshClips(); // Refresh State VM
- }
+    logger.logInfo(
+      'Undoing UpdateClipTransformCommand for clip $clipId (via command object)',
+      'Command',
+    );
+    await _updateTransform(oldRect, oldFlip);
+    await _stateViewModel.refreshClips();
+  }
 
   Future<void> _updateTransform(Rect rectToApply, Flip flipToApply) async {
-    // Access clips from State VM
-    final clip = _stateViewModel.clips.firstWhere((c) => c.databaseId == clipId, orElse: () {
-       logger.logError('Clip $clipId not found during transform update.', 'Command');
-       // Return a dummy clip or throw? For safety, return null and handle below.
-       // This requires ClipModel? return type, let's adjust the logic.
-       // For now, assume it's found for simplicity.
-       throw StateError('Clip $clipId not found');
-    });
+    final clip = _stateViewModel.clips.firstWhere(
+      (c) => c.databaseId == clipId,
+      orElse: () {
+        logger.logError(
+          'Clip $clipId not found during transform update.',
+          'Command',
+        );
+        throw StateError('Clip $clipId not found');
+      },
+    );
 
-
-    // Create the updated clip model with new metadata
     final updatedClip = clip
         .copyWithPreviewRect(rectToApply)
         .copyWithPreviewFlip(flipToApply);
 
     try {
-       // Use the clipDao from the service to update the clip
       if (projectDatabaseService.clipDao == null) {
-        throw StateError('ClipDao is not initialized in ProjectDatabaseService.');
+        throw StateError(
+          'ClipDao is not initialized in ProjectDatabaseService.',
+        );
       }
-      await projectDatabaseService.clipDao!.updateClip(updatedClip.toDbCompanion());
-       logger.logInfo('Clip $clipId transform updated in DB: Rect=$rectToApply, Flip=$flipToApply', 'Command');
+      await projectDatabaseService.clipDao!.updateClip(
+        updatedClip.toDbCompanion(),
+      );
+      logger.logInfo(
+        'Clip $clipId transform updated in DB: Rect=$rectToApply, Flip=$flipToApply',
+        'Command',
+      );
     } catch (e) {
-       logger.logError('Failed to update clip $clipId transform in DB: $e', 'Command');
-       // Rethrow or handle? Rethrowing might be better for UndoRedoService.
-       rethrow;
+      logger.logError(
+        'Failed to update clip $clipId transform in DB: $e',
+        'Command',
+      );
+      rethrow;
     }
   }
 }

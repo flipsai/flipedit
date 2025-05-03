@@ -14,16 +14,17 @@ const _logTag = 'ClipsListPanel';
 class MediasListPanel extends StatelessWidget with WatchItMixin {
   final String selectedExtension;
 
-  const MediasListPanel({
-    super.key,
-    required this.selectedExtension,
-  });
+  const MediasListPanel({super.key, required this.selectedExtension});
 
   @override
   Widget build(BuildContext context) {
     // Watch ProjectViewModel for project assets and search term
-    final assets = watchValue((ProjectViewModel vm) => vm.projectAssetsNotifier);
-    final searchTerm = watchValue((ProjectViewModel vm) => vm.searchTermNotifier);
+    final assets = watchValue(
+      (ProjectViewModel vm) => vm.projectAssetsNotifier,
+    );
+    final searchTerm = watchValue(
+      (ProjectViewModel vm) => vm.searchTermNotifier,
+    );
     final projectVm = di<ProjectViewModel>();
 
     // Create a new controller each build, initialized with current search term
@@ -40,60 +41,70 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
               padding: EdgeInsets.only(left: 8.0),
               child: Icon(FluentIcons.search),
             ),
-            suffix: searchTerm.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(FluentIcons.clear),
-                    onPressed: () {
-                      searchController.clear();
-                      projectVm.setSearchTerm('');
-                    },
-                  )
-                : null,
+            suffix:
+                searchTerm.isNotEmpty
+                    ? IconButton(
+                      icon: const Icon(FluentIcons.clear),
+                      onPressed: () {
+                        searchController.clear();
+                        projectVm.setSearchTerm('');
+                      },
+                    )
+                    : null,
             onChanged: (value) {
               projectVm.setSearchTerm(value);
             },
           ),
         ),
         Expanded(
-          child: assets.isEmpty 
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text('No media imported yet'),
-                      const SizedBox(height: 10),
-                      Button(
-                        child: const Text('Import Media'),
-                        onPressed: () async {
-                          await projectVm.importMediaWithUI(context);
-                        },
-                      ),
-                    ],
-                  ),
-                )
-              : _buildClipsList(context, assets, searchTerm),
+          child:
+              assets.isEmpty
+                  ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text('No media imported yet'),
+                        const SizedBox(height: 10),
+                        Button(
+                          child: const Text('Import Media'),
+                          onPressed: () async {
+                            await projectVm.importMediaWithUI(context);
+                          },
+                        ),
+                      ],
+                    ),
+                  )
+                  : _buildClipsList(context, assets, searchTerm),
         ),
       ],
     );
   }
-  
 
   // Update method to accept List<model.ProjectAsset>
   Widget _buildClipsList(
-      BuildContext context, List<model.ProjectAsset> assets, String searchTerm) {
+    BuildContext context,
+    List<model.ProjectAsset> assets,
+    String searchTerm,
+  ) {
     if (assets.isEmpty) {
       return const Center(child: Text('No media imported yet'));
     }
-    final filteredAssets = assets
-        .where((asset) =>
-            asset.name.toLowerCase().contains(searchTerm.toLowerCase()))
-        .toList();
+    final filteredAssets =
+        assets
+            .where(
+              (asset) =>
+                  asset.name.toLowerCase().contains(searchTerm.toLowerCase()),
+            )
+            .toList();
 
     if (filteredAssets.isEmpty) {
       return Center(
-          child: Text(searchTerm.isEmpty
+        child: Text(
+          searchTerm.isEmpty
               ? 'No items found'
-              : 'No matches found for "$searchTerm"'));
+              : 'No matches found for "$searchTerm"',
+        ),
+      );
     }
     return ListView.builder(
       itemCount: filteredAssets.length,
@@ -109,9 +120,10 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
   Widget _buildClipListItem(BuildContext context, model.ProjectAsset asset) {
     final theme = FluentTheme.of(context);
     // Use durationMs from model.ProjectAsset
-    final String durationString = asset.type == ClipType.image
-        ? 'Image'
-        : '${(asset.durationMs / 1000).toStringAsFixed(1)}s'; // Convert ms to s
+    final String durationString =
+        asset.type == ClipType.image
+            ? 'Image'
+            : '${(asset.durationMs / 1000).toStringAsFixed(1)}s'; // Convert ms to s
 
     // Create a ClipModel *only* for dragging, representing the intent to add
     // This ClipModel won't have a trackId or startTimeOnTrackMs yet.
@@ -128,7 +140,8 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
       startTimeInSourceMs: 0, // Start from beginning by default
       endTimeInSourceMs: sourceDuration, // Use full asset duration
       startTimeOnTrackMs: 0, // Temporary value for drag data
-      endTimeOnTrackMs: sourceDuration, // Required: Temporary value matching source duration
+      endTimeOnTrackMs:
+          sourceDuration, // Required: Temporary value matching source duration
     );
 
     return Draggable<ClipModel>(
@@ -137,18 +150,33 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
       dragAnchorStrategy: pointerDragAnchorStrategy,
       // Add onDragStarted callback to debug drag events
       onDragStarted: () {
-        developer.log('🟢 Drag started for asset: ${asset.name}', name: 'MediasListPanel');
+        developer.log(
+          '🟢 Drag started for asset: ${asset.name}',
+          name: 'MediasListPanel',
+        );
       },
       // Add onDragEnd callback to debug drag events
       onDragEnd: (details) {
-        developer.log('🛑 Drag ended with velocity: ${details.velocity}', name: 'MediasListPanel');
-        developer.log('🛑 Was it accepted: ${details.wasAccepted}', name: 'MediasListPanel');
+        developer.log(
+          '🛑 Drag ended with velocity: ${details.velocity}',
+          name: 'MediasListPanel',
+        );
+        developer.log(
+          '🛑 Was it accepted: ${details.wasAccepted}',
+          name: 'MediasListPanel',
+        );
       },
       onDragCompleted: () {
-        developer.log('✅ Drag completed successfully for: ${asset.name}', name: 'MediasListPanel');
+        developer.log(
+          '✅ Drag completed successfully for: ${asset.name}',
+          name: 'MediasListPanel',
+        );
       },
       onDraggableCanceled: (velocity, offset) {
-        developer.log('❌ Drag canceled at offset: $offset', name: 'MediasListPanel');
+        developer.log(
+          '❌ Drag canceled at offset: $offset',
+          name: 'MediasListPanel',
+        );
       },
       maxSimultaneousDrags: 1,
       affinity: Axis.horizontal,
@@ -171,9 +199,18 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
         color: theme.resources.subtleFillColorSecondary,
         margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
         child: ListTile(
-          title: Text(asset.name, style: TextStyle(color: theme.resources.textFillColorDisabled)),
-          subtitle: Text(durationString, style: TextStyle(color: theme.resources.textFillColorDisabled)),
-          leading: Icon(_getIconForClipType(asset.type), color: theme.resources.textFillColorDisabled),
+          title: Text(
+            asset.name,
+            style: TextStyle(color: theme.resources.textFillColorDisabled),
+          ),
+          subtitle: Text(
+            durationString,
+            style: TextStyle(color: theme.resources.textFillColorDisabled),
+          ),
+          leading: Icon(
+            _getIconForClipType(asset.type),
+            color: theme.resources.textFillColorDisabled,
+          ),
         ),
       ),
       child: Container(
@@ -213,4 +250,4 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
         return FluentIcons.settings;
     }
   }
-} 
+}

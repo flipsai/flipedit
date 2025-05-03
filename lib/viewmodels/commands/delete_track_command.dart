@@ -10,21 +10,26 @@ class DeleteTrackCommand extends TimelineCommand {
 
   @override
   Future<void> execute() async {
-    logger.logInfo('Executing DeleteTrackCommand for track $trackId', runtimeType.toString());
+    logger.logInfo(
+      'Executing DeleteTrackCommand for track $trackId',
+      runtimeType.toString(),
+    );
     try {
-      // Access the service through the passed ViewModel instance
       await vm.projectDatabaseService.deleteTrack(trackId);
-      // Refreshing is handled by ViewModel listeners on ProjectDatabaseService changes
     } catch (e) {
-      logger.logError('Error executing DeleteTrackCommand for track $trackId: $e', runtimeType.toString());
-      // Re-throw or handle as needed
+      logger.logError(
+        'Error executing DeleteTrackCommand for track $trackId: $e',
+        runtimeType.toString(),
+      );
       rethrow;
     }
   }
 
   @override
   Future<void> undo() async {
-    logger.logWarning('Undo for DeleteTrackCommand not implemented yet.', runtimeType.toString());
-    // TODO: Implement undo logic (e.g., restore track and its clips)
+    logger.logWarning(
+      'Undo for DeleteTrackCommand not implemented yet.',
+      runtimeType.toString(),
+    );
   }
 }

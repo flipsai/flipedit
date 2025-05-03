@@ -1,39 +1,37 @@
 import 'package:drift/drift.dart' as drift;
-import 'package:flipedit/persistence/database/project_database.dart' as project_db;
-import '../timeline_viewmodel.dart'; // Keep for potential interaction logic access? Review later.
-import '../timeline_state_viewmodel.dart'; // Import State VM
+import 'package:flipedit/persistence/database/project_database.dart'
+    as project_db;
+import '../timeline_viewmodel.dart';
+import '../timeline_state_viewmodel.dart';
 import 'timeline_command.dart';
 import '../../models/clip.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
 import '../../services/timeline_logic_service.dart';
-import '../../services/project_database_service.dart'; // Import the service
+import '../../services/project_database_service.dart';
 import 'package:watch_it/watch_it.dart';
-import '../../services/undo_redo_service.dart'; // ADDED Import for UndoRedoService
+import '../../services/undo_redo_service.dart';
 
-/// Command to add a clip to the timeline at a specific position.
 class AddClipCommand implements TimelineCommand {
   final TimelineViewModel vm;
-  final ClipModel clipData; // Should contain initial source times, path, type etc.
+  final ClipModel clipData;
   final int trackId;
-  final int startTimeOnTrackMs; // The desired start time on the track
+  final int startTimeOnTrackMs;
 
-  // Dependencies
   final TimelineLogicService _timelineLogicService = di<TimelineLogicService>();
   final ProjectDatabaseService _databaseService = di<ProjectDatabaseService>();
-  final TimelineStateViewModel _stateViewModel = di<TimelineStateViewModel>(); // Get State VM via DI
+  final TimelineStateViewModel _stateViewModel = di<TimelineStateViewModel>();
 
-  // State for undo
   int? _insertedClipId;
-  List<ClipModel>? _originalNeighborStates; // To restore neighbors changed by placement
-  List<int>? _removedNeighborIds; // To restore neighbors removed by placement
+  List<ClipModel>? _originalNeighborStates;
+  List<int>? _removedNeighborIds;
 
   static const _logTag = "AddClipCommand";
 
   AddClipCommand({
     required this.vm,
-    required this.clipData, // Contains source path, type, source times, source duration
+    required this.clipData,
     required this.trackId,
-    required this.startTimeOnTrackMs, // The desired start time on the track
+    required this.startTimeOnTrackMs,
   });
 
   @override
@@ -43,11 +41,8 @@ class AddClipCommand implements TimelineCommand {
       return;
     }
 
-    // --- Prepare Clip Data for Placement ---
-    // Calculate initial end time on track based on the source segment duration
-    final initialEndTimeOnTrackMs = startTimeOnTrackMs + clipData.durationInSourceMs;
-    // Use source duration from the clipData (assuming it was populated correctly during import)
-    // TODO: Ensure clipData.sourceDurationMs is reliable.
+    final initialEndTimeOnTrackMs =
+        startTimeOnTrackMs + clipData.durationInSourceMs;
     final sourceDurationMs = clipData.sourceDurationMs;
 
     logger.logInfo(
@@ -55,19 +50,17 @@ class AddClipCommand implements TimelineCommand {
       _logTag,
     );
 
-    // 1. Calculate placement using the logic service
-    // Get clips from the State ViewModel
     final placement = _timelineLogicService.prepareClipPlacement(
       clips: _stateViewModel.clips,
-      clipId: null, // Explicitly null for adding
+      clipId: null,
       trackId: trackId,
       type: clipData.type,
       sourcePath: clipData.sourcePath,
-      sourceDurationMs: sourceDurationMs,     // Pass source duration
-      startTimeOnTrackMs: startTimeOnTrackMs, // Pass desired track start
-      endTimeOnTrackMs: initialEndTimeOnTrackMs, // Pass calculated track end
-      startTimeInSourceMs: clipData.startTimeInSourceMs, // Pass initial source start
-      endTimeInSourceMs: clipData.endTimeInSourceMs,     // Pass initial source end (will be clamped)
+      sourceDurationMs: sourceDurationMs,
+      startTimeOnTrackMs: startTimeOnTrackMs,
+      endTimeOnTrackMs: initialEndTimeOnTrackMs,
+      startTimeInSourceMs: clipData.startTimeInSourceMs,
+      endTimeInSourceMs: clipData.endTimeInSourceMs,
     );
 
     if (!placement['success']) {
@@ -75,176 +68,184 @@ class AddClipCommand implements TimelineCommand {
       return;
     }
 
-    // Store state for undo BEFORE making changes
-    // final currentClips = vm.clips; // REMOVED - Use State VM below
-    // Get current clips from State VM for undo state capture
-    final currentClips = _stateViewModel.clips; // Use a single definition
-    _originalNeighborStates = (placement['clipUpdates'] as List<Map<String, dynamic>>)
-        .map<ClipModel?>((updateMap) {
-          try {
-            // Use the captured list from State VM
-            return currentClips.firstWhere((c) => c.databaseId == updateMap['id']);
-          } catch (_) {
-            return null; // Return null if not found
-          }
-        })
-        .where((c) => c != null) // Filter out nulls
-        .map((c) => c!.copyWith()) // Create deep copies for non-null clips
-        .toList();
-    _removedNeighborIds = List<int>.from(placement['clipsToRemove'] as List<int>); // Store IDs of removed clips
+    final currentClips = _stateViewModel.clips;
+    _originalNeighborStates =
+        (placement['clipUpdates'] as List<Map<String, dynamic>>)
+            .map<ClipModel?>((updateMap) {
+              try {
+                return currentClips.firstWhere(
+                  (c) => c.databaseId == updateMap['id'],
+                );
+              } catch (_) {
+                return null;
+              }
+            })
+            .where((c) => c != null)
+            .map((c) => c!.copyWith())
+            .toList();
+    _removedNeighborIds = List<int>.from(
+      placement['clipsToRemove'] as List<int>,
+    );
 
-    // --- LOGGING: Show planned DB changes ---
-    logger.logInfo('[AddClipCommand] Planned Neighbor Updates: ${placement['clipUpdates']}', _logTag);
-    logger.logInfo('[AddClipCommand] Planned Neighbor Removals: ${placement['clipsToRemove']}', _logTag);
-    // --------------------------------------
-
-
-    // 2. Handle persistence operations
     logger.logInfo(
-        '[AddClipCommand] Applying DB changes: updates=${placement['clipUpdates'].length}, removals=${placement['clipsToRemove'].length}',
-        _logTag);
+      '[AddClipCommand] Planned Neighbor Updates: ${placement['clipUpdates']}',
+      _logTag,
+    );
+    logger.logInfo(
+      '[AddClipCommand] Planned Neighbor Removals: ${placement['clipsToRemove']}',
+      _logTag,
+    );
 
-    // 2.1 Apply updates to overlapping clips
+    logger.logInfo(
+      '[AddClipCommand] Applying DB changes: updates=${placement['clipUpdates'].length}, removals=${placement['clipsToRemove'].length}',
+      _logTag,
+    );
+
     for (final update in placement['clipUpdates']) {
       await _databaseService.clipDao!.updateClipFields(
         update['id'],
         update['fields'],
-        // log: true, // DAO methods don't have this parameter
       );
     }
 
-    // 2.2 Remove fully overlapped clips
-    for (final id in _removedNeighborIds!) { // Use stored list
-      await _databaseService.clipDao!.deleteClip(id); // log: true removed
+    for (final id in _removedNeighborIds!) {
+      await _databaseService.clipDao!.deleteClip(id);
     }
 
-    // 2.3 Insert the new clip using the final calculated placement data
-    final newClipDataMap = placement['newClipData'] as Map<String, dynamic>; // Defined here
-    logger.logInfo('[AddClipCommand] Inserting new clip: $newClipDataMap', _logTag);
+    final newClipDataMap = placement['newClipData'] as Map<String, dynamic>;
+    logger.logInfo(
+      '[AddClipCommand] Inserting new clip: $newClipDataMap',
+      _logTag,
+    );
 
     _insertedClipId = await _databaseService.clipDao!.insertClip(
       project_db.ClipsCompanion(
         trackId: drift.Value(trackId),
-        name: drift.Value(clipData.name), // Use name from clipData
+        name: drift.Value(clipData.name),
         type: drift.Value(clipData.type.name),
         sourcePath: drift.Value(clipData.sourcePath),
-        sourceDurationMs: drift.Value(newClipDataMap['sourceDurationMs']), // Store source duration
+        sourceDurationMs: drift.Value(newClipDataMap['sourceDurationMs']),
         startTimeOnTrackMs: drift.Value(newClipDataMap['startTimeOnTrackMs']),
-        endTimeOnTrackMs: drift.Value(newClipDataMap['endTimeOnTrackMs']), // Store track end time
+        endTimeOnTrackMs: drift.Value(newClipDataMap['endTimeOnTrackMs']),
         startTimeInSourceMs: drift.Value(newClipDataMap['startTimeInSourceMs']),
         endTimeInSourceMs: drift.Value(newClipDataMap['endTimeInSourceMs']),
-        // metadataJson: clipData.metadata.isNotEmpty ? drift.Value(jsonEncode(clipData.metadata)) : const drift.Value.absent(), // TODO: Handle metadata
         createdAt: drift.Value(DateTime.now()),
         updatedAt: drift.Value(DateTime.now()),
       ),
     );
-    logger.logInfo('[AddClipCommand] Inserted new clip with ID: $_insertedClipId', _logTag);
+    logger.logInfo(
+      '[AddClipCommand] Inserted new clip with ID: $_insertedClipId',
+      _logTag,
+    );
 
+    List<ClipModel> finalUpdatedClips = List<ClipModel>.from(
+      placement['updatedClips'],
+    );
 
-    // 3. Update ViewModel state DIRECTLY with the calculated list
-    // await vm.refreshClips(); // REPLACED
-    List<ClipModel> finalUpdatedClips = List<ClipModel>.from(placement['updatedClips']); // Make mutable copy
-    // final newClipDataMap = placement['newClipData'] as Map<String, dynamic>; // REMOVED Redundant definition
-
-    // Find the newly added clip (which has databaseId: null) in the optimistic list
-    final newClipIndex = finalUpdatedClips.indexWhere((clip) => clip.databaseId == null && clip.sourcePath == clipData.sourcePath && clip.startTimeOnTrackMs == newClipDataMap['startTimeOnTrackMs']);
+    final newClipIndex = finalUpdatedClips.indexWhere(
+      (clip) =>
+          clip.databaseId == null &&
+          clip.sourcePath == clipData.sourcePath &&
+          clip.startTimeOnTrackMs == newClipDataMap['startTimeOnTrackMs'],
+    );
 
     if (newClipIndex != -1 && _insertedClipId != null) {
-       // Update the clip in the list with its actual databaseId
-       // Use drift.Value() wrapper for nullable ID in copyWith if required by the model
-       final newClipWithId = finalUpdatedClips[newClipIndex].copyWith(databaseId: drift.Value(_insertedClipId));
-       finalUpdatedClips[newClipIndex] = newClipWithId;
-       logger.logInfo('[AddClipCommand] Updated new clip ID in optimistic list: $_insertedClipId', _logTag);
+      final newClipWithId = finalUpdatedClips[newClipIndex].copyWith(
+        databaseId: drift.Value(_insertedClipId),
+      );
+      finalUpdatedClips[newClipIndex] = newClipWithId;
+      logger.logInfo(
+        '[AddClipCommand] Updated new clip ID in optimistic list: $_insertedClipId',
+        _logTag,
+      );
     } else {
-        logger.logWarning('[AddClipCommand] Could not find newly inserted clip in optimistic list to update its ID.', _logTag);
+      logger.logWarning(
+        '[AddClipCommand] Could not find newly inserted clip in optimistic list to update its ID.',
+        _logTag,
+      );
     }
 
-    // vm.updateClipsAfterPlacement(finalUpdatedClips); // REPLACED - State VM handles its own updates
-    await _stateViewModel.refreshClips(); // Trigger refresh in State VM after DB changes
-    logger.logInfo('[AddClipCommand] Triggered refresh in State ViewModel.', _logTag);
+    await _stateViewModel.refreshClips();
+    logger.logInfo(
+      '[AddClipCommand] Triggered refresh in State ViewModel.',
+      _logTag,
+    );
 
-    // 4. Update undo/redo state (after DB changes and state refresh trigger)
-    // Get UndoRedoService via DI
     final UndoRedoService undoRedoService = di<UndoRedoService>();
-    await undoRedoService.init(); // Use own instance
-
-  } // End execute
+    await undoRedoService.init();
+  }
 
   @override
   Future<void> undo() async {
-     logger.logInfo('[AddClipCommand] Undoing add clip: $_insertedClipId', _logTag);
-    if (_insertedClipId == null || _originalNeighborStates == null || _removedNeighborIds == null) {
+    logger.logInfo(
+      '[AddClipCommand] Undoing add clip: $_insertedClipId',
+      _logTag,
+    );
+    if (_insertedClipId == null ||
+        _originalNeighborStates == null ||
+        _removedNeighborIds == null) {
       logger.logError('Cannot undo AddClipCommand: Missing state', _logTag);
       return;
     }
-     if (_databaseService.clipDao == null) {
-       logger.logError('Cannot undo AddClipCommand: Clip DAO not initialized', _logTag);
-       return;
-     }
+    if (_databaseService.clipDao == null) {
+      logger.logError(
+        'Cannot undo AddClipCommand: Clip DAO not initialized',
+        _logTag,
+      );
+      return;
+    }
 
     try {
-      // 1. Remove the inserted clip
-      await _databaseService.clipDao!.deleteClip(_insertedClipId!); // log: true removed
+      await _databaseService.clipDao!.deleteClip(_insertedClipId!);
 
-      // 2. Restore neighbors that were updated (trimmed)
       for (final originalNeighbor in _originalNeighborStates!) {
-         logger.logInfo('[AddClipCommand] Restoring updated neighbor: ${originalNeighbor.databaseId}', _logTag);
-         // Use updateClipFields to restore all relevant fields
-        await _databaseService.clipDao!.updateClipFields(
-          originalNeighbor.databaseId!,
-           {
-             'trackId': originalNeighbor.trackId, // Just in case track changed (though unlikely for add)
-             'startTimeOnTrackMs': originalNeighbor.startTimeOnTrackMs,
-             'endTimeOnTrackMs': originalNeighbor.endTimeOnTrackMs,
-             'startTimeInSourceMs': originalNeighbor.startTimeInSourceMs,
-             'endTimeInSourceMs': originalNeighbor.endTimeInSourceMs,
-             // We assume sourceDurationMs doesn't change
-           },
-          // log: true, // DAO methods don't have this parameter
-       );
-     }
+        logger.logInfo(
+          '[AddClipCommand] Restoring updated neighbor: ${originalNeighbor.databaseId}',
+          _logTag,
+        );
+        await _databaseService.clipDao!
+            .updateClipFields(originalNeighbor.databaseId!, {
+              'trackId': originalNeighbor.trackId,
+              'startTimeOnTrackMs': originalNeighbor.startTimeOnTrackMs,
+              'endTimeOnTrackMs': originalNeighbor.endTimeOnTrackMs,
+              'startTimeInSourceMs': originalNeighbor.startTimeInSourceMs,
+              'endTimeInSourceMs': originalNeighbor.endTimeInSourceMs,
+            });
+      }
 
-       // 3. Restore neighbors that were removed
-       for (final removedId in _removedNeighborIds!) {
-           // Find original state from State VM *before* execute (captured earlier)
-           // This assumes _originalNeighborStates includes these? Or need separate capture?
-           // Let's assume _originalNeighborStates captured *all* potentially affected clips.
-           // If not, this needs refinement. For now, find in the captured state.
-           final originalRemovedNeighbor = _originalNeighborStates?.firstWhere(
-               (c) => c.databaseId == removedId,
-               // If not found in originalNeighborStates, maybe it wasn't modified but just deleted?
-               // Fallback to current state VM might be wrong if it was already removed.
-               // Safest is to ensure _originalNeighborStates captures everything needed for undo.
-               orElse: () {
-                  logger.logError("Cannot find original state for removed neighbor $removedId in captured undo state.", _logTag);
-                  throw Exception("Cannot find original state for removed neighbor $removedId");
-               }
-           );
+      for (final removedId in _removedNeighborIds!) {
+        final originalRemovedNeighbor = _originalNeighborStates?.firstWhere(
+          (c) => c.databaseId == removedId,
+          orElse: () {
+            logger.logError(
+              "Cannot find original state for removed neighbor $removedId in captured undo state.",
+              _logTag,
+            );
+            throw Exception(
+              "Cannot find original state for removed neighbor $removedId",
+            );
+          },
+        );
 
-           if (originalRemovedNeighbor == null) continue; // Should be caught by orElse, but for safety.
+        if (originalRemovedNeighbor == null) continue;
 
-           logger.logInfo('[AddClipCommand] Restoring removed neighbor: $removedId', _logTag);
-           // Re-insert the removed clip using its original state
-           await _databaseService.clipDao!.insertClip(
-               originalRemovedNeighbor.toDbCompanion(), // Use the companion converter
-               // log: true // DAO methods don't have this parameter
-           );
-       } // End of for loop for restoring removed neighbors
+        logger.logInfo(
+          '[AddClipCommand] Restoring removed neighbor: $removedId',
+          _logTag,
+        );
+        await _databaseService.clipDao!.insertClip(
+          originalRemovedNeighbor.toDbCompanion(),
+        );
+      }
 
+      await _stateViewModel.refreshClips();
 
-      // 4. Refresh ViewModel state after all DB operations
-      await _stateViewModel.refreshClips(); // Refresh the State VM
-
-      // 5. Clear undo state
       _insertedClipId = null;
       _originalNeighborStates = null;
       _removedNeighborIds = null;
       logger.logInfo('[AddClipCommand] Undo complete', _logTag);
-
-    } catch (e, s) { // Catch block belongs inside the undo method
-       logger.logError('[AddClipCommand] Error during undo: $e\n$s', _logTag);
-       // Consider how to handle undo failure - potentially leave state corrupted
-       // or attempt to re-apply original changes?
+    } catch (e, s) {
+      logger.logError('[AddClipCommand] Error during undo: $e\n$s', _logTag);
     }
- } // End undo
-} // End class
+  }
+}

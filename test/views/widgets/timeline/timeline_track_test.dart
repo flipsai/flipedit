@@ -7,14 +7,21 @@ import 'package:mockito/annotations.dart';
 import 'timeline_track_test.mocks.dart'; // Import generated mocks
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flipedit/services/project_database_service.dart';
-import 'package:flipedit/persistence/database/project_database.dart' as project_db;
+import 'package:flipedit/persistence/database/project_database.dart'
+    as project_db;
 import 'package:watch_it/watch_it.dart';
 
 // Mocks
 @GenerateMocks([TimelineViewModel])
 // Removed manual definition: class MockTimelineViewModel extends Mock implements TimelineViewModel {}
-class MockProjectDatabaseService extends Mock implements ProjectDatabaseService {}
-class MockValueNotifier<T> extends Mock implements ValueNotifier<T> {} // Keep if mocking notifiers, remove if using real ones
+class MockProjectDatabaseService extends Mock
+    implements ProjectDatabaseService {}
+
+class MockValueNotifier<T> extends Mock
+    implements
+        ValueNotifier<
+          T
+        > {} // Keep if mocking notifiers, remove if using real ones
 
 void main() {
   late MockTimelineViewModel mockTimelineViewModel;
@@ -24,12 +31,11 @@ void main() {
   late ValueNotifier<List<ClipModel>> testClipsNotifier; // Use ClipModel
   // Removed testScrollOffsetNotifier as it's not used directly here
 
-
   setUp(() {
-   // 1. Reset DI first
+    // 1. Reset DI first
     di.reset();
-    
-   // 2. Create mocks
+
+    // 2. Create mocks
     mockTimelineViewModel = MockTimelineViewModel();
     mockProjectDatabaseService = MockProjectDatabaseService();
 
@@ -45,16 +51,16 @@ void main() {
       updatedAt: DateTime.now(),
     );
 
-   // 3. Initialize real Notifiers needed by mocks
+    // 3. Initialize real Notifiers needed by mocks
     testZoomNotifier = ValueNotifier<double>(1.0);
     testClipsNotifier = ValueNotifier<List<ClipModel>>([]);
- 
-   // 4. Stub properties BEFORE registering mocks
-   // Correctly stub ValueNotifier properties by returning the pre-initialized notifiers
+
+    // 4. Stub properties BEFORE registering mocks
+    // Correctly stub ValueNotifier properties by returning the pre-initialized notifiers
     when(mockTimelineViewModel.zoomNotifier).thenReturn(testZoomNotifier);
     when(mockTimelineViewModel.clipsNotifier).thenReturn(testClipsNotifier);
- 
-   // 5. Register mocks AFTER stubbing
+
+    // 5. Register mocks AFTER stubbing
     di.registerSingleton<TimelineViewModel>(mockTimelineViewModel);
     di.registerSingleton<ProjectDatabaseService>(mockProjectDatabaseService);
   });
@@ -64,7 +70,9 @@ void main() {
   });
 
   group('TimelineTrack Widget', () {
-    testWidgets('should render TimelineTrack widget correctly', (WidgetTester tester) async {
+    testWidgets('should render TimelineTrack widget correctly', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(
         FluentApp(
           home: TimelineTrack(
@@ -80,7 +88,9 @@ void main() {
       expect(find.text('Test Track'), findsOneWidget);
     });
 
-    testWidgets('should call onDelete when delete action is triggered', (WidgetTester tester) async {
+    testWidgets('should call onDelete when delete action is triggered', (
+      WidgetTester tester,
+    ) async {
       bool deleteCalled = false;
       await tester.pumpWidget(
         FluentApp(

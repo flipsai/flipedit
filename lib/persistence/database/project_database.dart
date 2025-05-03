@@ -18,7 +18,12 @@ part 'project_database.g.dart';
 /// Each project will have its own database file with this schema
 @DriftDatabase(
   tables: [Tracks, Clips, ProjectAssets, ChangeLogs],
-  daos: [ProjectDatabaseTrackDao, ProjectDatabaseClipDao, ProjectDatabaseAssetDao, ChangeLogDao],
+  daos: [
+    ProjectDatabaseTrackDao,
+    ProjectDatabaseClipDao,
+    ProjectDatabaseAssetDao,
+    ChangeLogDao,
+  ],
 )
 class ProjectDatabase extends _$ProjectDatabase {
   ProjectDatabase(String databasePath) : super(_openConnection(databasePath));
@@ -44,7 +49,7 @@ class ProjectDatabase extends _$ProjectDatabase {
       },
     );
   }
-  
+
   // Close the database connection
   Future<void> closeConnection() async {
     logInfo(_logTag, "Closing project database connection");
@@ -75,7 +80,7 @@ LazyDatabase _openConnection(String databasePath) {
         database.execute('pragma journal_mode = WAL;');
         ProjectDatabase._logInfo(
           'ProjectDatabase', // Pass tag explicitly as it's static context
-          'Enabled WAL journal mode for database: $databasePath'
+          'Enabled WAL journal mode for database: $databasePath',
         );
       },
       // Optional: Consider isolateSetup if specific native libs need loading
@@ -91,12 +96,12 @@ class ProjectDatabaseFactory {
   static ProjectDatabaseTrackDao createTrackDao(ProjectDatabase db) {
     return ProjectDatabaseTrackDao(db);
   }
-  
+
   static ProjectDatabaseClipDao createClipDao(ProjectDatabase db) {
     return ProjectDatabaseClipDao(db);
   }
-  
+
   static ProjectDatabaseAssetDao createAssetDao(ProjectDatabase db) {
     return ProjectDatabaseAssetDao(db);
   }
-} 
+}

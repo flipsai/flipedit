@@ -9,15 +9,12 @@ import 'package:flipedit/utils/logger.dart' as logger;
 class ClipContextMenu extends StatelessWidget {
   final ClipModel clip;
 
-  const ClipContextMenu({
-    super.key,
-    required this.clip,
-  });
+  const ClipContextMenu({super.key, required this.clip});
 
   @override
   Widget build(BuildContext context) {
     final timelineVm = di<TimelineViewModel>();
-    
+
     return MenuFlyout(
       items: [
         MenuFlyoutItem(
@@ -26,16 +23,18 @@ class ClipContextMenu extends StatelessWidget {
           onPressed: () {
             Flyout.of(context).close();
             if (clip.databaseId != null) {
-              timelineVm.runCommand(RemoveClipCommand(
-                vm: timelineVm, 
-                clipId: clip.databaseId!
-              ));
+              timelineVm.runCommand(
+                RemoveClipCommand(vm: timelineVm, clipId: clip.databaseId!),
+              );
             } else {
-              logger.logError('[TimelineClip] Attempted to remove clip without databaseId', 'UI');
+              logger.logError(
+                '[TimelineClip] Attempted to remove clip without databaseId',
+                'UI',
+              );
             }
           },
         ),
       ],
     );
   }
-} 
+}

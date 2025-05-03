@@ -18,16 +18,14 @@ class ExtensionPanelContainer extends StatelessWidget with WatchItMixin {
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
-    
+
     return Container(
       width: 300,
       color: theme.resources.controlFillColorDefault,
       child: Column(
         children: [
-          _buildHeader(context), 
-          Expanded(
-            child: _buildContent(context),
-          ),
+          _buildHeader(context),
+          Expanded(child: _buildContent(context)),
         ],
       ),
     );
@@ -81,9 +79,7 @@ class ExtensionPanelContainer extends StatelessWidget with WatchItMixin {
       case 'composition':
       default:
         // For media and composition tabs, show the clips list
-        return MediasListPanel(
-          selectedExtension: selectedExtension,
-        );
+        return MediasListPanel(selectedExtension: selectedExtension);
     }
   }
 

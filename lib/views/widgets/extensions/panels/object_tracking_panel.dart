@@ -80,4 +80,4 @@ class ObjectTrackingPanel extends StatelessWidget with WatchItMixin {
       ),
     );
   }
-} 
+}

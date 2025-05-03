@@ -38,7 +38,6 @@ Future<void> setupServiceLocator() async {
     () => ProjectMetadataDao(di<ProjectMetadataDatabase>()),
   );
 
-  // Services - remove ProjectService and keep only new services
   di.registerLazySingleton<ProjectMetadataService>(
     () => ProjectMetadataService(),
   );
@@ -96,12 +95,12 @@ Future<void> setupServiceLocator() async {
     dispose: (vm) => vm.dispose(), // Add dispose for consistency
   );
 
-  di.registerLazySingleton<PlaybackService>(() => PlaybackService(
-    getCurrentFrame: () => 0,
-    setCurrentFrame: (int frame) {},
-    getTotalFrames: () => 0,
-    getDefaultEmptyDurationFrames: () => 0,
-  ));
+  di.registerLazySingleton<PlaybackService>(
+    () => PlaybackService(
+      getCurrentFrame: () => 0,
+      setCurrentFrame: (int frame) {},
+      getTotalFrames: () => 0,
+      getDefaultEmptyDurationFrames: () => 0,
+    ),
+  );
 }
-
-// Removed misplaced lines

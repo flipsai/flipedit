@@ -9,7 +9,8 @@ import 'package:path/path.dart' as p;
 part 'project_database_asset_dao.g.dart';
 
 @DriftAccessor(tables: [ProjectAssets])
-class ProjectDatabaseAssetDao extends DatabaseAccessor<ProjectDatabase> with _$ProjectDatabaseAssetDaoMixin {
+class ProjectDatabaseAssetDao extends DatabaseAccessor<ProjectDatabase>
+    with _$ProjectDatabaseAssetDaoMixin {
   ProjectDatabaseAssetDao(super.db);
 
   String get _logTag => 'ProjectDatabaseAssetDao';
@@ -17,23 +18,17 @@ class ProjectDatabaseAssetDao extends DatabaseAccessor<ProjectDatabase> with _$P
   // Watch all assets in the project
   Stream<List<model.ProjectAsset>> watchAllAssets() {
     logInfo(_logTag, "Watching all project assets");
-    return (select(projectAssets)
-          ..orderBy([
-            (a) => OrderingTerm(expression: a.name),
-          ]))
-        .watch()
-        .map((rows) => rows.map(_mapToModel).toList());
+    return (select(projectAssets)..orderBy([
+      (a) => OrderingTerm(expression: a.name),
+    ])).watch().map((rows) => rows.map(_mapToModel).toList());
   }
 
   // Get all assets in the project
   Future<List<model.ProjectAsset>> getAllAssets() {
     logInfo(_logTag, "Getting all project assets");
-    return (select(projectAssets)
-          ..orderBy([
-            (a) => OrderingTerm(expression: a.name),
-          ]))
-        .get()
-        .then((rows) => rows.map(_mapToModel).toList());
+    return (select(projectAssets)..orderBy([
+      (a) => OrderingTerm(expression: a.name),
+    ])).get().then((rows) => rows.map(_mapToModel).toList());
   }
 
   // Map database entity to domain model
@@ -78,14 +73,14 @@ class ProjectDatabaseAssetDao extends DatabaseAccessor<ProjectDatabase> with _$P
     double? fileSize,
   }) async {
     logInfo(_logTag, "Importing asset: $filePath");
-    
+
     final fileName = p.basename(filePath);
-    
+
     try {
       // Create the companion object with all fields
       final companion = ProjectAssetsCompanion.insert(
         name: fileName,
-        sourcePath: filePath,  // Now using sourcePath which matches the DB column
+        sourcePath: filePath,
         type: _mapEnumTypeToString(type),
         durationMs: Value(durationMs),
         width: width != null ? Value(width) : const Value.absent(),
@@ -94,7 +89,7 @@ class ProjectDatabaseAssetDao extends DatabaseAccessor<ProjectDatabase> with _$P
         // thumbnailPath: thumbnailPath != null ? Value(thumbnailPath) : const Value.absent(),
         updatedAt: Value(DateTime.now()),
       );
-      
+
       // Let drift handle the insert with proper column mappings
       return await into(projectAssets).insert(companion);
     } catch (e) {
@@ -106,7 +101,9 @@ class ProjectDatabaseAssetDao extends DatabaseAccessor<ProjectDatabase> with _$P
   // Get an asset by ID
   Future<model.ProjectAsset?> getAssetById(int id) async {
     logInfo(_logTag, "Getting asset by ID: $id");
-    final result = await (select(projectAssets)..where((a) => a.id.equals(id))).getSingleOrNull();
+    final result =
+        await (select(projectAssets)
+          ..where((a) => a.id.equals(id))).getSingleOrNull();
     return result != null ? _mapToModel(result) : null;
   }
 
@@ -121,4 +118,4 @@ class ProjectDatabaseAssetDao extends DatabaseAccessor<ProjectDatabase> with _$P
     logInfo(_logTag, "Updating asset ID: ${asset.id.value}");
     return update(projectAssets).replace(asset);
   }
-} 
+}

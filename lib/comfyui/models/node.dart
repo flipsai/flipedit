@@ -7,7 +7,7 @@ class Node {
   final Map<String, dynamic> properties;
   final int posX;
   final int posY;
-  
+
   Node({
     required this.id,
     required this.type,
@@ -17,7 +17,7 @@ class Node {
     this.posX = 0,
     this.posY = 0,
   });
-  
+
   /// Create a new node from JSON
   factory Node.fromJson(String id, Map<String, dynamic> json) {
     return Node(
@@ -30,7 +30,7 @@ class Node {
       posY: json['pos_y'] ?? 0,
     );
   }
-  
+
   /// Convert node to JSON for ComfyUI
   Map<String, dynamic> toJson() {
     return {

@@ -13,13 +13,19 @@ class PreviewPanel extends StatelessWidget with WatchItMixin {
   @override
   Widget build(BuildContext context) {
     // Watch specific values from the PreviewViewModel
-    final isConnected = watchValue((PreviewViewModel vm) => vm.isConnectedNotifier);
+    final isConnected = watchValue(
+      (PreviewViewModel vm) => vm.isConnectedNotifier,
+    );
     final status = watchValue((PreviewViewModel vm) => vm.statusNotifier);
     final fps = watchValue((PreviewViewModel vm) => vm.fpsNotifier);
-    final currentFrame = watchValue((PreviewViewModel vm) => vm.currentFrameNotifier);
+    final currentFrame = watchValue(
+      (PreviewViewModel vm) => vm.currentFrameNotifier,
+    );
 
     // Watch current frame number from TimelineNavigationViewModel
-    final currentFrameNumber = watchValue((TimelineNavigationViewModel vm) => vm.currentFrameNotifier);
+    final currentFrameNumber = watchValue(
+      (TimelineNavigationViewModel vm) => vm.currentFrameNotifier,
+    );
 
     final theme = FluentTheme.of(context);
 
@@ -36,7 +42,9 @@ class PreviewPanel extends StatelessWidget with WatchItMixin {
               children: [
                 Text('Preview: $status'),
                 Text('FPS: $fps'),
-                Text('Frame: $currentFrameNumber'), // Display current frame number
+                Text(
+                  'Frame: $currentFrameNumber',
+                ), // Display current frame number
               ],
             ),
           ),
@@ -45,22 +53,26 @@ class PreviewPanel extends StatelessWidget with WatchItMixin {
           Expanded(
             child: Container(
               color: Colors.black,
-              child: LayoutBuilder( // Keep LayoutBuilder for sizing if needed by painter
+              child: LayoutBuilder(
+                // Keep LayoutBuilder for sizing if needed by painter
                 builder: (context, constraints) {
                   return Center(
-                    child: currentFrame != null
-                        ? VideoFrameWidget(image: currentFrame) // Display frame from VM
-                        : Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const ProgressRing(),
-                              const SizedBox(height: 10),
-                              Text(
-                                status, // Show status from VM when no frame
-                                style: const TextStyle(color: Colors.white),
-                              ),
-                            ],
-                          ),
+                    child:
+                        currentFrame != null
+                            ? VideoFrameWidget(
+                              image: currentFrame,
+                            ) // Display frame from VM
+                            : Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const ProgressRing(),
+                                const SizedBox(height: 10),
+                                Text(
+                                  status, // Show status from VM when no frame
+                                  style: const TextStyle(color: Colors.white),
+                                ),
+                              ],
+                            ),
                   );
                 },
               ),
@@ -81,10 +93,9 @@ class VideoFrameWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox.expand( // Ensure the painter takes available space
-      child: CustomPaint(
-        painter: VideoFramePainter(image: image),
-      ),
+    return SizedBox.expand(
+      // Ensure the painter takes available space
+      child: CustomPaint(painter: VideoFramePainter(image: image)),
     );
   }
 }
@@ -110,14 +121,24 @@ class VideoFramePainter extends CustomPainter {
       final double scale = size.width / image.width;
       final double scaledHeight = image.height * scale;
       final double dy = (size.height - scaledHeight) / 2.0;
-      srcRect = Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble());
+      srcRect = Rect.fromLTWH(
+        0,
+        0,
+        image.width.toDouble(),
+        image.height.toDouble(),
+      );
       dstRect = Rect.fromLTWH(0, dy, size.width, scaledHeight);
     } else {
       // Image is taller than canvas (or same aspect), fit height
       final double scale = size.height / image.height;
       final double scaledWidth = image.width * scale;
       final double dx = (size.width - scaledWidth) / 2.0;
-      srcRect = Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble());
+      srcRect = Rect.fromLTWH(
+        0,
+        0,
+        image.width.toDouble(),
+        image.height.toDouble(),
+      );
       dstRect = Rect.fromLTWH(dx, 0, scaledWidth, size.height);
     }
 

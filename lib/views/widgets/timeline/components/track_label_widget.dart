@@ -93,16 +93,16 @@ class _TrackLabelWidgetState extends State<TrackLabelWidget> {
         width: widget.width,
         padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
         decoration: BoxDecoration(
-          color: widget.isSelected
-              ? theme.accentColor.withOpacity(0.2)
-              : theme.resources.subtleFillColorTertiary,
+          color:
+              widget.isSelected
+                  ? theme.accentColor.withOpacity(0.2)
+                  : theme.resources.subtleFillColorTertiary,
           border: Border(
-            right: BorderSide(
-              color: theme.resources.controlStrokeColorDefault,
-            ),
-            left: widget.isSelected
-                ? BorderSide(color: theme.accentColor, width: 3.0)
-                : BorderSide.none,
+            right: BorderSide(color: theme.resources.controlStrokeColorDefault),
+            left:
+                widget.isSelected
+                    ? BorderSide(color: theme.accentColor, width: 3.0)
+                    : BorderSide.none,
           ),
         ),
         child: Row(
@@ -125,30 +125,33 @@ class _TrackLabelWidgetState extends State<TrackLabelWidget> {
             Expanded(
               child: GestureDetector(
                 onDoubleTap: _enterEditingMode,
-                child: _isEditing
-                    ? TextBox(
-                        controller: _textController,
-                        focusNode: _focusNode,
-                        placeholder: 'Track Name',
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6.0,
-                          vertical: 4.0,
+                child:
+                    _isEditing
+                        ? TextBox(
+                          controller: _textController,
+                          focusNode: _focusNode,
+                          placeholder: 'Track Name',
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6.0,
+                            vertical: 4.0,
+                          ),
+                          style: theme.typography.body,
+                          decoration: WidgetStateProperty.all(
+                            BoxDecoration(
+                              color: theme.resources.controlFillColorDefault,
+                              borderRadius: BorderRadius.circular(4.0),
+                            ),
+                          ),
+                          onSubmitted: (_) => _submitRename(),
+                          inputFormatters: [
+                            LengthLimitingTextInputFormatter(64),
+                          ],
+                        )
+                        : Text(
+                          widget.track.name,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.typography.body,
                         ),
-                        style: theme.typography.body,
-                        decoration: WidgetStateProperty.all(BoxDecoration(
-                          color: theme.resources.controlFillColorDefault,
-                          borderRadius: BorderRadius.circular(4.0),
-                        )),
-                        onSubmitted: (_) => _submitRename(),
-                        inputFormatters: [
-                          LengthLimitingTextInputFormatter(64),
-                        ],
-                      )
-                    : Text(
-                        widget.track.name,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.typography.body,
-                      ),
               ),
             ),
             IconButton(

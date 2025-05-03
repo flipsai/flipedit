@@ -9,13 +9,13 @@
 
 void main() {
   // testWidgets('App can be launched', (WidgetTester tester) async {
-    // Set up dependency injection
-    // setupServiceLocator();
-    
-    // Build our app and trigger a frame.
-    // await tester.pumpWidget(FlipEditApp());
+  // Set up dependency injection
+  // setupServiceLocator();
 
-    // Basic test to ensure the app builds
-    // expect(find.text('FlipEdit'), findsOneWidget);
+  // Build our app and trigger a frame.
+  // await tester.pumpWidget(FlipEditApp());
+
+  // Basic test to ensure the app builds
+  // expect(find.text('FlipEdit'), findsOneWidget);
   // });
 }

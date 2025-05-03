@@ -1,22 +1,16 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'dart:async';
-import 'dart:convert';
-import 'dart:math';
-import 'dart:typed_data';
-import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
-import 'package:flipedit/models/clip.dart' show ClipModel; // Import ClipModel specifically
-import 'package:flipedit/utils/logger.dart'; // Import logger functions
+import 'package:flipedit/models/clip.dart' show ClipModel;
+import 'package:flipedit/utils/logger.dart';
 
 class PreviewService {
-  final String _wsUrl = 'ws://localhost:8080'; // Default URL
+  final String _wsUrl = 'ws://localhost:8080';
 
   WebSocketChannel? _channel;
   StreamSubscription? _streamSubscription;
@@ -30,7 +24,6 @@ class PreviewService {
   int _framesReceived = 0;
   DateTime _lastFpsUpdate = DateTime.now();
 
-  // --- Public Notifiers ---
   final ValueNotifier<ui.Image?> currentFrameNotifier = ValueNotifier(null);
   final ValueNotifier<bool> isConnectedNotifier = ValueNotifier(false);
   final ValueNotifier<String> statusNotifier = ValueNotifier('Disconnected');
@@ -42,36 +35,39 @@ class PreviewService {
       _framesReceived = 0;
       _lastFpsUpdate = DateTime.now();
     });
-    logDebug('PreviewService initialized'); // Use logDebug
+    logDebug('PreviewService initialized');
   }
 
   Future<void> connect() async {
     if (isConnectedNotifier.value) {
-      logDebug('PreviewService: Already connected.'); // Use logDebug
+      logDebug('PreviewService: Already connected.');
       return;
     }
-    logDebug('PreviewService: Attempting to connect...'); // Use logDebug
-    _disconnectWebSocket(isReconnecting: true); // Ensure clean state before connecting
+    logDebug('PreviewService: Attempting to connect...');
+    _disconnectWebSocket(
+      isReconnecting: true,
+    ); // Ensure clean state before connecting
     statusNotifier.value = 'Connecting...';
 
     try {
       _channel = WebSocketChannel.connect(Uri.parse(_wsUrl));
-      isConnectedNotifier.value = true; // Assume connected until proven otherwise by stream events
+      isConnectedNotifier.value =
+          true; // Assume connected until proven otherwise by stream events
       statusNotifier.value = 'Connected';
-      logDebug('PreviewService: WebSocket connected to $_wsUrl'); // Use logDebug
+      logDebug('PreviewService: WebSocket connected to $_wsUrl');
       _reconnectAttempt = 0; // Reset reconnect counter
 
       _streamSubscription = _channel!.stream.listen(
         _handleIncomingMessage,
         onError: (error) {
-          logWarning('PreviewService: WebSocket error: $error'); // Use logWarning
+          logWarning('PreviewService: WebSocket error: $error');
           isConnectedNotifier.value = false;
           statusNotifier.value = 'Error: $error';
           _streamSubscription = null;
           _scheduleReconnect();
         },
         onDone: () {
-          logDebug('PreviewService: WebSocket connection closed'); // Use logDebug
+          logDebug('PreviewService: WebSocket connection closed');
           isConnectedNotifier.value = false;
           statusNotifier.value = 'Disconnected';
           _streamSubscription = null;
@@ -79,8 +75,9 @@ class PreviewService {
         },
         cancelOnError: true,
       );
-    } catch (e, s) { // Catch stack trace for logError
-      logError('PreviewService: WebSocket connection error: $e', e, s); // Use logError
+    } catch (e, s) {
+      // Catch stack trace for logError
+      logError('PreviewService: WebSocket connection error: $e', e, s);
       isConnectedNotifier.value = false;
       statusNotifier.value = 'Connection Error';
       _streamSubscription = null; // Ensure null on connection error
@@ -89,7 +86,7 @@ class PreviewService {
   }
 
   void disconnect() {
-    logDebug('PreviewService: Disconnecting...'); // Use logDebug
+    logDebug('PreviewService: Disconnecting...');
     _disconnectWebSocket();
   }
 
@@ -101,7 +98,9 @@ class PreviewService {
 
     if (_channel != null) {
       _channel!.sink.close().catchError((e) {
-        logWarning('PreviewService: Error closing WebSocket sink: $e'); // Use logWarning
+        logWarning(
+          'PreviewService: Error closing WebSocket sink: $e',
+        ); // Use logWarning
       });
       _channel = null;
     }
@@ -113,12 +112,14 @@ class PreviewService {
       currentFrameNotifier.value = null;
       _reconnectAttempt = 0; // Reset attempts if manually disconnected
     }
-    logDebug('PreviewService: WebSocket disconnected.'); // Use logDebug
+    logDebug('PreviewService: WebSocket disconnected.');
   }
 
   void _scheduleReconnect() {
     if (_reconnectAttempt >= _maxReconnectAttempts) {
-      logWarning('PreviewService: Maximum reconnection attempts reached.'); // Use logWarning
+      logWarning(
+        'PreviewService: Maximum reconnection attempts reached.',
+      ); // Use logWarning
       statusNotifier.value = 'Disconnected (Max Retries)';
       return;
     }
@@ -126,17 +127,24 @@ class PreviewService {
     _reconnectTimer?.cancel(); // Cancel existing timer
 
     // Exponential backoff with jitter
-    final baseDelay = _initialReconnectDelay.inMilliseconds * pow(2, _reconnectAttempt);
+    final baseDelay =
+        _initialReconnectDelay.inMilliseconds * pow(2, _reconnectAttempt);
     final jitter = (baseDelay * 0.2 * (Random().nextDouble() - 0.5)).toInt();
-    final delay = Duration(milliseconds: (baseDelay + jitter).toInt().clamp(0, 60000)); // Clamp max delay
+    final delay = Duration(
+      milliseconds: (baseDelay + jitter).toInt().clamp(0, 60000),
+    ); // Clamp max delay
 
-    logDebug('PreviewService: Scheduling reconnect attempt ${_reconnectAttempt + 1} in ${delay.inMilliseconds}ms'); // Use logDebug
+    logDebug(
+      'PreviewService: Scheduling reconnect attempt ${_reconnectAttempt + 1} in ${delay.inMilliseconds}ms',
+    ); // Use logDebug
     statusNotifier.value = 'Reconnecting in ${delay.inSeconds}s...';
 
     _reconnectTimer = Timer(delay, () {
       if (!isConnectedNotifier.value) {
         _reconnectAttempt++;
-        logDebug('PreviewService: Attempting reconnection #$_reconnectAttempt'); // Use logDebug
+        logDebug(
+          'PreviewService: Attempting reconnection #$_reconnectAttempt',
+        ); // Use logDebug
         connect(); // Attempt to reconnect
       }
     });
@@ -154,31 +162,30 @@ class PreviewService {
           _processImageBytes(bytes);
         }
       } catch (e) {
-        logWarning('PreviewService: Error decoding string message: $e'); // Use logWarning
+        logWarning(
+          'PreviewService: Error decoding string message: $e',
+        ); // Use logWarning
       }
     } else if (message is List<int>) {
       // Handle binary frame data
       final Uint8List bytes = Uint8List.fromList(message);
       _processImageBytes(bytes);
     } else {
-      logWarning('PreviewService: Received unexpected message type: ${message.runtimeType}'); // Use logWarning
+      logWarning(
+        'PreviewService: Received unexpected message type: ${message.runtimeType}',
+      ); // Use logWarning
     }
   }
 
-   void _handleStateMessage(String jsonMessage) {
+  void _handleStateMessage(String jsonMessage) {
     try {
-      logVerbose('PreviewService: Received JSON state: $jsonMessage'); // Use logVerbose
-      // Currently, we don't need to react to server state updates here.
-      // The ViewModel drives the state based on user actions.
-      // This could be used for synchronization checks in the future if needed.
-      // final Map<String, dynamic> state = json.decode(jsonMessage);
-      // if (state.containsKey('type') && state['type'] == 'state') {
-      //   final bool isPlaying = state['playing'] as bool;
-      //   final int frame = state['frame'] as int;
-      //   logVerbose('PreviewService: Server state: playing=$isPlaying, frame=$frame'); // Use logVerbose
-      // }
+      logVerbose(
+        'PreviewService: Received JSON state: $jsonMessage',
+      ); // Use logVerbose
     } catch (e) {
-      logWarning('PreviewService: Error parsing state message: $e'); // Use logWarning
+      logWarning(
+        'PreviewService: Error parsing state message: $e',
+      ); // Use logWarning
     }
   }
 
@@ -191,27 +198,33 @@ class PreviewService {
         _framesReceived++;
       });
     } catch (e) {
-       logWarning('PreviewService: Error decoding image bytes: $e'); // Use logWarning
-       // Optionally clear the frame or show an error indicator
-       currentFrameNotifier.value?.dispose();
-       currentFrameNotifier.value = null;
+      logWarning(
+        'PreviewService: Error decoding image bytes: $e',
+      ); // Use logWarning
+      // Optionally clear the frame or show an error indicator
+      currentFrameNotifier.value?.dispose();
+      currentFrameNotifier.value = null;
     }
   }
 
   void _sendCommand(String command) {
     if (_channel != null && isConnectedNotifier.value) {
-      logVerbose('PreviewService: Sending command: $command'); // Use logVerbose
+      logVerbose('PreviewService: Sending command: $command');
       try {
         _channel!.sink.add(command);
       } catch (e) {
-        logWarning('PreviewService: Error sending command "$command": $e'); // Use logWarning
+        logWarning(
+          'PreviewService: Error sending command "$command": $e',
+        ); // Use logWarning
         // Consider attempting to reconnect or notifying ViewModel of send failure
         isConnectedNotifier.value = false;
         statusNotifier.value = 'Send Error';
-         _scheduleReconnect();
+        _scheduleReconnect();
       }
     } else {
-      logWarning('PreviewService: Cannot send command "$command", not connected.'); // Use logWarning
+      logWarning(
+        'PreviewService: Cannot send command "$command", not connected.',
+      ); // Use logWarning
     }
   }
 
@@ -225,25 +238,33 @@ class PreviewService {
     _sendCommand(command);
   }
 
-  // Use ClipModel instead of Clip
-  void sendClipsData(List<ClipModel?> clips) { // Allow nullable ClipModels
-     if (_channel != null && isConnectedNotifier.value) {
-        try {
-            // Filter out null clips, cast to ClipModel, and then map to JSON
-            final nonNullClips = clips.whereType<ClipModel>().toList(); // Filters non-null and casts to ClipModel
-            final clipsJson = nonNullClips.map((clip) => clip.toJson()).toList(); // Call toJson on ClipModel
-            final message = json.encode({'type': 'clips', 'data': clipsJson});
-            logVerbose('PreviewService: Sending clips data (${clipsJson.length} non-null clips)'); // Use logVerbose
-            _channel!.sink.add(message);
-        } catch (e, s) { // Catch stack trace
-            logError('PreviewService: Error encoding or sending clips data: $e', e, s); // Use logError
-             isConnectedNotifier.value = false;
-             statusNotifier.value = 'Send Error (Clips)';
-             _scheduleReconnect();
-        }
-     } else {
-       logWarning('PreviewService: Cannot send clips data, not connected.'); // Use logWarning
-     }
+  void sendClipsData(List<ClipModel?> clips) {
+    if (_channel != null && isConnectedNotifier.value) {
+      try {
+        // Filter out null clips, cast to ClipModel, and then map to JSON
+        final nonNullClips = clips.whereType<ClipModel>().toList();
+        final clipsJson = nonNullClips.map((clip) => clip.toJson()).toList();
+        final message = json.encode({'type': 'clips', 'data': clipsJson});
+        logVerbose(
+          'PreviewService: Sending clips data (${clipsJson.length} non-null clips)',
+        ); // Use logVerbose
+        _channel!.sink.add(message);
+      } catch (e, s) {
+        // Catch stack trace
+        logError(
+          'PreviewService: Error encoding or sending clips data: $e',
+          e,
+          s,
+        ); // Use logError
+        isConnectedNotifier.value = false;
+        statusNotifier.value = 'Send Error (Clips)';
+        _scheduleReconnect();
+      }
+    } else {
+      logWarning(
+        'PreviewService: Cannot send clips data, not connected.',
+      ); // Use logWarning
+    }
   }
 
   void dispose() {

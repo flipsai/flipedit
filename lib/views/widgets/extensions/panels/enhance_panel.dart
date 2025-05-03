@@ -67,4 +67,4 @@ class EnhancePanel extends StatelessWidget with WatchItMixin {
       ),
     );
   }
-} 
+}

@@ -41,22 +41,36 @@ class TimelineClipResizeService {
     required ValueNotifier<List<ClipModel>> clipsNotifier,
     required ClipModel clip,
     required double zoom,
-    required Future<void> Function(ResizeClipCommand) runCommand, // Correct type hint
+    required Future<void> Function(ResizeClipCommand) runCommand,
   }) async {
-    if (resizingDirection == null || previewStartFrame == null || previewEndFrame == null) return;
+    if (resizingDirection == null ||
+        previewStartFrame == null ||
+        previewEndFrame == null) {
+      return;
+    }
     final double pxPerFrame = (zoom > 0 ? 5.0 * zoom : 5.0);
     if (pxPerFrame <= 0) {
-      logger.logWarning('pxPerFrame is zero or negative, cannot commit resize.', 'TimelineClipResizeService');
+      logger.logWarning(
+        'pxPerFrame is zero or negative, cannot commit resize.',
+        'TimelineClipResizeService',
+      );
       return;
     }
     int minFrameDuration = 1;
     int frameDelta = (finalPixelDelta / pxPerFrame).round();
-    int originalBoundaryFrame = direction == 'left' ? previewStartFrame : previewEndFrame;
+    int originalBoundaryFrame =
+        direction == 'left' ? previewStartFrame : previewEndFrame;
     int newBoundaryFrame;
     if (direction == 'left') {
-      newBoundaryFrame = (originalBoundaryFrame + frameDelta).clamp(0, previewEndFrame - minFrameDuration);
+      newBoundaryFrame = (originalBoundaryFrame + frameDelta).clamp(
+        0,
+        previewEndFrame - minFrameDuration,
+      );
     } else {
-      newBoundaryFrame = (originalBoundaryFrame + frameDelta).clamp(previewStartFrame + minFrameDuration, previewStartFrame + 1000000);
+      newBoundaryFrame = (originalBoundaryFrame + frameDelta).clamp(
+        previewStartFrame + minFrameDuration,
+        previewStartFrame + 1000000,
+      );
     }
     bool boundaryChanged = newBoundaryFrame != originalBoundaryFrame;
     if (boundaryChanged) {
@@ -67,11 +81,12 @@ class TimelineClipResizeService {
         clipsNotifier: clipsNotifier,
       );
       try {
-        // Await the command execution to ensure the view model state is updated
-        // before this service method returns.
         await runCommand(command);
       } catch (e) {
-        logger.logError('Error executing ResizeClipCommand: $e', 'TimelineClipResizeService');
+        logger.logError(
+          'Error executing ResizeClipCommand: $e',
+          'TimelineClipResizeService',
+        );
       }
     }
   }

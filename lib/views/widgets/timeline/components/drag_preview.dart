@@ -24,7 +24,10 @@ class DragPreview extends StatelessWidget {
     // Use the same track height constant
     const trackHeight = 65.0;
 
-    developer.log('DragPreview build - frame: $frameAtDropPosition, ms: $timeAtDropPositionMs, candidates: ${candidateData.length}', name: 'DragPreview');
+    developer.log(
+      'DragPreview build - frame: $frameAtDropPosition, ms: $timeAtDropPositionMs, candidates: ${candidateData.length}',
+      name: 'DragPreview',
+    );
 
     if (candidateData.isEmpty) {
       return const SizedBox.shrink();
@@ -39,7 +42,8 @@ class DragPreview extends StatelessWidget {
     final previewWidth = draggedClip.durationFrames * zoom * 5.0;
 
     // Use the passed milliseconds for display
-    final formattedTime = '${(timeAtDropPositionMs / 1000).toStringAsFixed(2)}s';
+    final formattedTime =
+        '${(timeAtDropPositionMs / 1000).toStringAsFixed(2)}s';
 
     return Stack(
       clipBehavior: fw.Clip.none,

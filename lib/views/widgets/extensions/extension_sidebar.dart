@@ -9,8 +9,10 @@ class ExtensionSidebar extends StatelessWidget with WatchItMixin {
   @override
   Widget build(BuildContext context) {
     // Use watch_it's data binding to observe the selectedExtension property
-    final selectedExtension = watchValue((EditorViewModel vm) => vm.selectedExtensionNotifier);
-    
+    final selectedExtension = watchValue(
+      (EditorViewModel vm) => vm.selectedExtensionNotifier,
+    );
+
     return Container(
       width: 48,
       color: const Color(0xFF2C2C2C),
@@ -80,7 +82,7 @@ class ExtensionSidebar extends StatelessWidget with WatchItMixin {
               ],
             ),
           ),
-          
+
           // Bottom section with settings and export
           _buildExtensionButton(
             context: context,
@@ -126,9 +128,12 @@ class ExtensionSidebar extends StatelessWidget with WatchItMixin {
         },
         style: ButtonStyle(
           padding: WidgetStateProperty.all(const EdgeInsets.all(12)),
-          backgroundColor: isSelected 
-              ? WidgetStateProperty.all(const Color(0xFF3373F2).withAlpha(51))
-              : WidgetStateProperty.all(Colors.transparent),
+          backgroundColor:
+              isSelected
+                  ? WidgetStateProperty.all(
+                    const Color(0xFF3373F2).withAlpha(51),
+                  )
+                  : WidgetStateProperty.all(Colors.transparent),
         ),
       ),
     );

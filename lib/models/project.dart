@@ -8,7 +8,7 @@ class Project {
   final DateTime lastModifiedAt;
   final List<ClipModel> clips;
   final Map<String, dynamic> settings;
-  
+
   Project({
     required this.id,
     required this.name,
@@ -18,7 +18,7 @@ class Project {
     this.clips = const [],
     this.settings = const {},
   });
-  
+
   Project copyWith({
     String? id,
     String? name,
@@ -38,7 +38,7 @@ class Project {
       settings: settings ?? this.settings,
     );
   }
-  
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -49,7 +49,7 @@ class Project {
       'settings': settings,
     };
   }
-  
+
   factory Project.fromJson(Map<String, dynamic> json) {
     return Project(
       id: json['id'],

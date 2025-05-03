@@ -30,9 +30,18 @@ class ExportPanel extends StatelessWidget with WatchItMixin {
                   placeholder: const Text('Select format'),
                   isExpanded: true,
                   items: const [
-                    ComboBoxItem<String>(value: 'mp4', child: Text('MP4 (H.264)')),
-                    ComboBoxItem<String>(value: 'mov', child: Text('MOV (ProRes)')),
-                    ComboBoxItem<String>(value: 'webm', child: Text('WebM (VP9)')),
+                    ComboBoxItem<String>(
+                      value: 'mp4',
+                      child: Text('MP4 (H.264)'),
+                    ),
+                    ComboBoxItem<String>(
+                      value: 'mov',
+                      child: Text('MOV (ProRes)'),
+                    ),
+                    ComboBoxItem<String>(
+                      value: 'webm',
+                      child: Text('WebM (VP9)'),
+                    ),
                     ComboBoxItem<String>(value: 'gif', child: Text('GIF')),
                   ],
                   onChanged: (value) {
@@ -65,7 +74,10 @@ class ExportPanel extends StatelessWidget with WatchItMixin {
                       value: '4k',
                       child: Text('4K (3840x2160)'),
                     ),
-                    ComboBoxItem<String>(value: 'custom', child: Text('Custom...')),
+                    ComboBoxItem<String>(
+                      value: 'custom',
+                      child: Text('Custom...'),
+                    ),
                   ],
                   onChanged: (value) {
                     projectVm.setExportResolution(value);
@@ -83,10 +95,7 @@ class ExportPanel extends StatelessWidget with WatchItMixin {
                   child: ValueListenableBuilder<String>(
                     valueListenable: projectVm.exportPathNotifier,
                     builder: (context, path, _) {
-                      return TextBox(
-                        placeholder: path,
-                        readOnly: true,
-                      );
+                      return TextBox(placeholder: path, readOnly: true);
                     },
                   ),
                 ),
