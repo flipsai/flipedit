@@ -1,6 +1,7 @@
 import 'package:flipedit/comfyui/comfyui_service.dart';
 import 'package:flipedit/persistence/dao/project_metadata_dao.dart';
 import 'package:flipedit/persistence/database/project_metadata_database.dart';
+import 'package:flipedit/services/canvas_dimensions_service.dart';
 import 'package:flipedit/services/playback_service.dart';
 import 'package:flipedit/services/preview_service.dart'; // Import PreviewService
 import 'package:flipedit/services/preview_sync_service.dart'; // Import PreviewSyncService
@@ -55,6 +56,12 @@ Future<void> setupServiceLocator() async {
   di.registerLazySingleton<PreviewSyncService>(
     () => PreviewSyncService(),
     dispose: (service) => service.dispose(), // Register with dispose
+  );
+  
+  // Register canvas dimensions service
+  di.registerLazySingleton<CanvasDimensionsService>(
+    () => CanvasDimensionsService(),
+    dispose: (service) => service.dispose(),
   );
 
   // Undo/Redo service for project clips

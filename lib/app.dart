@@ -1,6 +1,8 @@
 import 'dart:io' show Platform;
 import 'package:fluent_ui/fluent_ui.dart' as fluent;
 import 'package:flutter/widgets.dart';
+import 'package:flipedit/utils/global_context.dart';
+import 'package:flipedit/utils/logger.dart' as logger;
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
@@ -11,9 +13,15 @@ import 'package:window_manager/window_manager.dart';
 
 class FlipEditApp extends fluent.StatelessWidget with WatchItMixin {
   FlipEditApp({super.key});
+  
+  final _logTag = 'FlipEditApp';
 
   @override
   fluent.Widget build(fluent.BuildContext context) {
+    // Set global context immediately in build method
+    GlobalContext.setContext(context);
+    logger.logInfo('Global context set in build method', _logTag);
+    
     final editorVm = di<EditorViewModel>();
     final projectVm = di<ProjectViewModel>();
     final timelineVm = di<TimelineViewModel>();
@@ -29,6 +37,10 @@ class FlipEditApp extends fluent.StatelessWidget with WatchItMixin {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       windowManager.setTitle(windowTitle);
+      
+      // Ensure global context is still valid
+      GlobalContext.setContext(context);
+      logger.logInfo('Global context refreshed in post-frame callback', _logTag);
     });
 
     Widget homeWidget;
@@ -71,6 +83,12 @@ class FlipEditApp extends fluent.StatelessWidget with WatchItMixin {
       ),
       themeMode: fluent.ThemeMode.system,
       home: homeWidget,
+      builder: (context, child) {
+        // Update global context whenever it changes
+        GlobalContext.setContext(context);
+        logger.logInfo('Global context set in app builder', _logTag);
+        return child ?? const SizedBox.shrink();
+      },
     );
   }
 }

@@ -5,6 +5,7 @@ import '../models/clip.dart';
 import '../persistence/database/project_database.dart' show Track;
 import '../services/project_database_service.dart';
 import '../services/preview_sync_service.dart';
+import '../services/canvas_dimensions_service.dart';
 import '../utils/logger.dart' as logger;
 
 class TimelineStateViewModel extends ChangeNotifier {
@@ -13,6 +14,8 @@ class TimelineStateViewModel extends ChangeNotifier {
   final ProjectDatabaseService _projectDatabaseService =
       di<ProjectDatabaseService>();
   final PreviewSyncService _previewSyncService = di<PreviewSyncService>();
+  final CanvasDimensionsService _canvasDimensionsService = 
+      di<CanvasDimensionsService>();
 
   final ValueNotifier<List<ClipModel>> clipsNotifier =
       ValueNotifier<List<ClipModel>>([]);
@@ -68,6 +71,8 @@ class TimelineStateViewModel extends ChangeNotifier {
         _logTag,
       );
       clipsNotifier.value = []; // Clear clips if DB is gone
+      // Update canvas dimensions service about empty timeline
+      _canvasDimensionsService.updateHasClipsState(0);
       return;
     }
     logger.logInfo(
@@ -82,6 +87,9 @@ class TimelineStateViewModel extends ChangeNotifier {
 
     if (!listEquals(clipsNotifier.value, allClips)) {
       clipsNotifier.value = allClips;
+      // Update canvas dimensions service about clip count
+      _canvasDimensionsService.updateHasClipsState(allClips.length);
+      
       _previewSyncService.sendClipsToPreviewServer(); // Sync after update
       logger.logDebug(
         'Clips list updated in ViewModel (${allClips.length} clips). Notifier triggered.',

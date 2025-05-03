@@ -11,6 +11,20 @@ class FrameGenerator:
     def __init__(self):
         # Video cache to reuse video capture objects
         self.video_cache: Dict[str, cv2.VideoCapture] = {}
+        
+        # Canvas dimensions (defaults, will be updated by app)
+        self.canvas_width = 1280
+        self.canvas_height = 720
+    
+    def update_canvas_dimensions(self, width: int, height: int):
+        """Update the canvas dimensions used for rendering."""
+        if width <= 0 or height <= 0:
+            logger.warning(f"Invalid canvas dimensions: {width}x{height}")
+            return
+            
+        logger.info(f"Updating canvas dimensions to {width}x{height}")
+        self.canvas_width = width
+        self.canvas_height = height
     
     def get_frame(self, frame_index: int, current_videos: List[Dict], total_frames: int) -> Optional[bytes]:
         """Get a composite frame at the specified index."""
@@ -18,8 +32,8 @@ class FrameGenerator:
         if not current_videos:
             return self._create_blank_frame(frame_index)
         
-        # Create a black background frame
-        composite_frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+        # Create a black background frame with current canvas dimensions
+        composite_frame = np.zeros((self.canvas_height, self.canvas_width, 3), dtype=np.uint8)
         
         # Flag to check if we actually rendered any videos
         videos_rendered = False
@@ -104,8 +118,13 @@ class FrameGenerator:
         metadata = video_info.get('metadata', {})
         preview_rect_data = metadata.get('previewRect') # Get the previewRect dictionary
 
-        # Define default rect values
-        default_rect = {'left': 0.0, 'top': 0.0, 'width': 1280.0, 'height': 720.0} # Default to full frame
+        # Define default rect values using current canvas dimensions
+        default_rect = {
+            'left': 0.0, 
+            'top': 0.0, 
+            'width': float(self.canvas_width), 
+            'height': float(self.canvas_height)
+        }
 
         if isinstance(preview_rect_data, dict):
              # Use values from previewRect_data, falling back to defaults if keys are missing
@@ -139,14 +158,18 @@ class FrameGenerator:
 
     def _create_blank_frame(self, frame_index):
         """Create a blank frame with instructional text"""
-        # Create a black frame
-        blank_frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+        # Create a black frame with current canvas dimensions
+        blank_frame = np.zeros((self.canvas_height, self.canvas_width, 3), dtype=np.uint8)
+        
+        # Calculate center positions
+        center_x = self.canvas_width // 2
+        center_y = self.canvas_height // 2
         
         # Add text to the frame
         cv2.putText(
             blank_frame, 
             "No videos in timeline", 
-            (480, 360), 
+            (center_x - 150, center_y), 
             cv2.FONT_HERSHEY_SIMPLEX, 
             1, 
             (255, 255, 255), 
@@ -157,7 +180,7 @@ class FrameGenerator:
         cv2.putText(
             blank_frame, 
             "Drag media to timeline to add clips", 
-            (450, 400), 
+            (center_x - 180, center_y + 40), 
             cv2.FONT_HERSHEY_SIMPLEX, 
             0.7, 
             (200, 200, 200), 
@@ -180,11 +203,15 @@ class FrameGenerator:
 
     def _add_no_visible_clips_message(self, frame, frame_index):
         """Add message indicating that no clips are visible at current frame"""
+        # Calculate center positions
+        center_x = self.canvas_width // 2
+        center_y = self.canvas_height // 2
+        
         # Add text explaining the issue
         cv2.putText(
             frame, 
             "No clips visible at current frame", 
-            (400, 360), 
+            (center_x - 200, center_y), 
             cv2.FONT_HERSHEY_SIMPLEX, 
             1, 
             (255, 255, 255), 
@@ -193,7 +220,7 @@ class FrameGenerator:
         cv2.putText(
             frame, 
             f"Current frame: {frame_index}", 
-            (500, 400), 
+            (center_x - 100, center_y + 40), 
             cv2.FONT_HERSHEY_SIMPLEX, 
             0.7, 
             (200, 200, 200), 

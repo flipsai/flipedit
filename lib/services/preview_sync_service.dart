@@ -61,6 +61,25 @@ class PreviewSyncService {
     }
   }
 
+  /// Send an arbitrary message to the preview server
+  void sendMessage(String message) {
+    if (!_isConnected || _channel == null) {
+      logWarning(
+        'Cannot send message to preview server: Not connected.',
+        _logTag,
+      );
+      _connect(); // Attempt to reconnect
+      return;
+    }
+
+    try {
+      _channel!.sink.add(message);
+      logVerbose('Sent message to preview server: $message', _logTag);
+    } catch (e, s) {
+      logError('Error sending message to preview server', e, s, _logTag);
+    }
+  }
+
   Future<void> sendClipsToPreviewServer() async {
     if (!_isConnected || _channel == null) {
       logWarning(
@@ -89,7 +108,7 @@ class PreviewSyncService {
       for (final track in tracks) {
         final trackClips = await clipDao.getClipsForTrack(track.id);
         allDbClips.addAll(trackClips);
-            }
+      }
 
       final List<Map<String, dynamic>> clipData =
           allDbClips.map((clip) => clip.toJson()).toList();

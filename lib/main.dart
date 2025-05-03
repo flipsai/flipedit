@@ -5,6 +5,7 @@ import 'package:flipedit/services/uv_manager.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flipedit/utils/logger.dart';
+import 'package:flipedit/utils/global_context.dart';
 import 'package:watch_it/watch_it.dart';
 
 // Define a class to handle window events by implementing WindowListener
@@ -112,5 +113,43 @@ Future<void> main() async {
 
   // debugRepaintRainbowEnabled = true;
 
-  runApp(FlipEditApp());
+  // Create a global navigator key to access BuildContext
+  final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+  
+  // Create a wrapper FluentApp to ensure global context is accessible early
+  final app = FluentApp(
+    navigatorKey: navigatorKey,
+    // Apply theme to match the main app
+    theme: FluentThemeData(
+      accentColor: Colors.blue,
+      brightness: Brightness.light,
+      visualDensity: VisualDensity.standard,
+      focusTheme: FocusThemeData(glowFactor: 4.0),
+    ),
+    darkTheme: FluentThemeData(
+      accentColor: Colors.blue,
+      brightness: Brightness.dark,
+      visualDensity: VisualDensity.standard,
+      focusTheme: FocusThemeData(glowFactor: 4.0),
+    ),
+    themeMode: ThemeMode.system,
+    home: Builder(
+      builder: (context) {
+        // Set global context as early as possible in the app lifecycle
+        GlobalContext.setContext(context);
+        logInfo('main', 'Global context initialized in wrapper app');
+        return FlipEditApp();
+      },
+    ),
+  );
+
+  runApp(app);
+  
+  // Ensure GlobalContext is set after first frame
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (navigatorKey.currentContext != null) {
+      GlobalContext.setContext(navigatorKey.currentContext!);
+      logInfo('main', 'Global context refreshed after first frame');
+    }
+  });
 }
