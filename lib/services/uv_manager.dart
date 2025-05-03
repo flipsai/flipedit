@@ -90,7 +90,7 @@ class UvManager {
       }
 
       // Get the path to the video_stream_server.py script in assets directory
-      final scriptPath = 'assets/video_stream_server.py';
+      final scriptPath = 'assets/main.py';
       final scriptFile = File(scriptPath);
 
       if (!await scriptFile.exists()) {

@@ -102,21 +102,6 @@ class AddClipCommand implements TimelineCommand {
         int previewWidth = mediaInfo.width;
         int previewHeight = mediaInfo.height;
         
-        // Maintain aspect ratio but limit max size for very large media
-        const int maxDimension = 640; // Max width or height
-        
-        if (previewWidth > maxDimension || previewHeight > maxDimension) {
-          final aspectRatio = previewWidth / previewHeight;
-          
-          if (previewWidth > previewHeight) {
-            previewWidth = maxDimension;
-            previewHeight = (maxDimension / aspectRatio).round();
-          } else {
-            previewHeight = maxDimension;
-            previewWidth = (maxDimension * aspectRatio).round();
-          }
-        }
-        
         // Canvas/preview area dimensions
         const canvasWidth = 1280.0;
         const canvasHeight = 720.0;
