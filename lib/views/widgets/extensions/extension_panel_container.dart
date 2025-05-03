@@ -75,6 +75,8 @@ class ExtensionPanelContainer extends StatelessWidget with WatchItMixin {
         return const EnhancePanel();
       case 'export':
         return const ExportPanel();
+      case 'settings':
+        return const ProjectSettingsPanel();
       case 'media':
       case 'composition':
       default:

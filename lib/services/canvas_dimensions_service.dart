@@ -4,15 +4,22 @@ import 'package:watch_it/watch_it.dart';
 import '../utils/logger.dart' as logger;
 import '../utils/constants.dart';
 import '../services/preview_sync_service.dart';
+import '../services/project_database_service.dart';
+import 'package:drift/drift.dart' show Value;
+import 'package:flipedit/persistence/database/project_database.dart';
 
 /// Service for managing canvas dimensions settings
 class CanvasDimensionsService {
   final String _logTag = 'CanvasDimensionsService';
   final PreviewSyncService _previewSyncService = di<PreviewSyncService>();
+  final ProjectDatabaseService _databaseService = di<ProjectDatabaseService>();
+
+  // Key for storing dimensions in project metadata
+  static const String _projectDimensionsKey = 'canvas_dimensions';
 
   // Default canvas dimensions from constants - use the AppConstants values
-  static const double _defaultPreviewWidth = 1280.0;  // Preview size
-  static const double _defaultPreviewHeight = 720.0;  // Preview size
+  static const int _defaultVideoWidth = AppConstants.defaultVideoWidth;
+  static const int _defaultVideoHeight = AppConstants.defaultVideoHeight;
 
   // Notifiers for canvas dimensions
   final ValueNotifier<double> canvasWidthNotifier;
@@ -26,22 +33,28 @@ class CanvasDimensionsService {
   
   CanvasDimensionsService() : 
     // Initialize with default video dimensions from AppConstants
-    canvasWidthNotifier = ValueNotifier<double>(_defaultPreviewWidth),
-    canvasHeightNotifier = ValueNotifier<double>(_defaultPreviewHeight) {
+    canvasWidthNotifier = ValueNotifier<double>(_defaultVideoWidth.toDouble()),
+    canvasHeightNotifier = ValueNotifier<double>(_defaultVideoHeight.toDouble()) {
     logger.logInfo('CanvasDimensionsService initialized with dimensions: ' +
         '${canvasWidthNotifier.value} x ${canvasHeightNotifier.value}, ' +
         'default video size: ${AppConstants.defaultVideoWidth} x ${AppConstants.defaultVideoHeight}', 
         _logTag);
     
-    // Send initial dimensions to the preview server
-    // Use a small delay to ensure preview service is ready
+    // Immediately sync to preview server
+    _syncDimensionsToPreviewServer();
+    
+    // Try to load saved dimensions from project
+    loadDimensionsFromProject();
+    
+    // Send initial dimensions to the preview server again after a delay
+    // to ensure preview service is ready
     Future.delayed(const Duration(seconds: 2), () {
       _syncDimensionsToPreviewServer();
     });
     
     // Listen for changes to dimensions
-    canvasWidthNotifier.addListener(_syncDimensionsToPreviewServer);
-    canvasHeightNotifier.addListener(_syncDimensionsToPreviewServer);
+    canvasWidthNotifier.addListener(_handleDimensionsChanged);
+    canvasHeightNotifier.addListener(_handleDimensionsChanged);
   }
   
   double get canvasWidth => canvasWidthNotifier.value;
@@ -110,6 +123,12 @@ class CanvasDimensionsService {
     hasClips = clipCount > 0;
   }
   
+  // Handler called when dimensions change
+  void _handleDimensionsChanged() {
+    _syncDimensionsToPreviewServer();
+    _saveDimensionsToProject();
+  }
+  
   // Send canvas dimensions to the preview server
   void _syncDimensionsToPreviewServer() {
     try {
@@ -128,10 +147,113 @@ class CanvasDimensionsService {
     }
   }
   
+  // Save canvas dimensions to project metadata
+  Future<void> _saveDimensionsToProject() async {
+    try {
+      if (_databaseService.trackDao == null) {
+        logger.logWarning('Cannot save dimensions: No project loaded', _logTag);
+        return;
+      }
+      
+      // Get the first track for metadata storage
+      // We use the first track as a metadata container since there's no dedicated settings table
+      final tracks = _databaseService.tracksNotifier.value;
+      if (tracks.isEmpty) {
+        // No tracks to save to yet
+        logger.logWarning('Cannot save dimensions: No tracks available', _logTag);
+        return;
+      }
+      
+      final firstTrack = tracks.first;
+      Map<String, dynamic> metadata = {};
+      
+      // Parse existing metadata if available
+      if (firstTrack.metadataJson != null && firstTrack.metadataJson!.isNotEmpty) {
+        try {
+          metadata = jsonDecode(firstTrack.metadataJson!) as Map<String, dynamic>;
+        } catch (e) {
+          logger.logError('Error parsing track metadata: $e', _logTag);
+          metadata = {};
+        }
+      }
+      
+      // Add or update dimensions in metadata
+      metadata[_projectDimensionsKey] = {
+        'width': canvasWidth,
+        'height': canvasHeight,
+      };
+      
+      // Save updated metadata
+      await _databaseService.trackDao!.updateTrack(
+        TracksCompanion(
+          id: Value(firstTrack.id),
+          metadataJson: Value(jsonEncode(metadata)),
+          updatedAt: Value(DateTime.now())
+        )
+      );
+      
+      logger.logInfo('Saved canvas dimensions (${canvasWidth.toInt()}x${canvasHeight.toInt()}) to project metadata', _logTag);
+    } catch (e) {
+      logger.logError('Error saving canvas dimensions to project: $e', _logTag);
+    }
+  }
+  
+  // Load canvas dimensions from project metadata
+  Future<void> loadDimensionsFromProject() async {
+    try {
+      if (_databaseService.trackDao == null) {
+        logger.logWarning('Cannot load dimensions: No project loaded', _logTag);
+        return;
+      }
+      
+      // Get the first track for metadata retrieval
+      final tracks = _databaseService.tracksNotifier.value;
+      if (tracks.isEmpty) {
+        logger.logWarning('Cannot load dimensions: No tracks available', _logTag);
+        return;
+      }
+      
+      final firstTrack = tracks.first;
+      if (firstTrack.metadataJson == null || firstTrack.metadataJson!.isEmpty) {
+        logger.logInfo('No metadata found on track, using default dimensions', _logTag);
+        return;
+      }
+      
+      // Parse metadata
+      try {
+        final metadata = jsonDecode(firstTrack.metadataJson!) as Map<String, dynamic>;
+        final dimensionsData = metadata[_projectDimensionsKey];
+        
+        if (dimensionsData != null && dimensionsData is Map<String, dynamic>) {
+          final width = dimensionsData['width'];
+          final height = dimensionsData['height'];
+          
+          if (width != null && height != null) {
+            // Update dimensions without triggering save (to prevent circular call)
+            canvasWidthNotifier.value = width.toDouble();
+            canvasHeightNotifier.value = height.toDouble();
+            
+            logger.logInfo('Loaded canvas dimensions from project: ${width}x${height}', _logTag);
+            
+            // Force sync to preview server
+            _syncDimensionsToPreviewServer();
+            return;
+          }
+        }
+      } catch (e) {
+        logger.logError('Error parsing dimensions from metadata: $e', _logTag);
+      }
+      
+      logger.logInfo('No saved dimensions found in project, using defaults', _logTag);
+    } catch (e) {
+      logger.logError('Error loading canvas dimensions from project: $e', _logTag);
+    }
+  }
+  
   // Clean up resources
   void dispose() {
-    canvasWidthNotifier.removeListener(_syncDimensionsToPreviewServer);
-    canvasHeightNotifier.removeListener(_syncDimensionsToPreviewServer);
+    canvasWidthNotifier.removeListener(_handleDimensionsChanged);
+    canvasHeightNotifier.removeListener(_handleDimensionsChanged);
     canvasWidthNotifier.dispose();
     canvasHeightNotifier.dispose();
     hasClipsNotifier.dispose();

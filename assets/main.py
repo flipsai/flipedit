@@ -41,7 +41,8 @@ class MainServer:
             stop_playback_callback=self.playback_controller.stop_playback,
             seek_callback=self.handle_seek,
             get_frame_callback=self.get_frame_for_seek,
-            send_state_callback=self.send_state_update_to_client
+            send_state_callback=self.send_state_update_to_client,
+            update_canvas_dimensions_callback=self.frame_generator.update_canvas_dimensions
         )
         
         # Pass the message handling callback to the WebSocketServer

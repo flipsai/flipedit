@@ -14,7 +14,8 @@ class MessageHandler:
         stop_playback_callback: Callable[[], None],
         seek_callback: Callable[[int], int],
         get_frame_callback: Callable[[int], Optional[bytes]],
-        send_state_callback: Callable[[Any, bool], None]
+        send_state_callback: Callable[[Any, bool], None],
+        update_canvas_dimensions_callback: Callable[[int, int], None] = None  # Add new callback
     ):
         """
         Initialize the message handler with callback functions
@@ -26,6 +27,7 @@ class MessageHandler:
             seek_callback: Function to seek to a specific frame
             get_frame_callback: Function to get a frame at a specific index
             send_state_callback: Function to send playback state to a client
+            update_canvas_dimensions_callback: Function to update canvas dimensions
         """
         self.update_timeline = update_timeline_callback
         self.start_playback = start_playback_callback
@@ -33,6 +35,7 @@ class MessageHandler:
         self.seek = seek_callback
         self.get_frame = get_frame_callback
         self.send_state_update = send_state_callback
+        self.update_canvas_dimensions = update_canvas_dimensions_callback
     
     async def handle_message(self, websocket, message: str):
         """Handle incoming messages from clients."""
@@ -70,6 +73,31 @@ class MessageHandler:
                     
                 except ValueError:
                     logger.error(f"Invalid frame number in seek command: {message}")
+            
+            # Add handler for canvas_dimensions messages
+            elif message.startswith('{"type":"canvas_dimensions"'):
+                try:
+                    data = json.loads(message)
+                    if data.get('type') == 'canvas_dimensions' and self.update_canvas_dimensions:
+                        payload = data.get('payload', {})
+                        width = payload.get('width')
+                        height = payload.get('height')
+                        if width and height:
+                            logger.info(f"Received canvas dimensions: {width}x{height}")
+                            self.update_canvas_dimensions(width, height)
+                            
+                            # Force a frame refresh by seeking to the current frame
+                            current_frame = self.seek(self.seek(0))  # Get current frame index
+                            frame_bytes = self.get_frame(current_frame)
+                            if frame_bytes and websocket:
+                                # Send the refreshed frame with updated dimensions
+                                encoded_frame = base64.b64encode(frame_bytes).decode('utf-8')
+                                await websocket.send(encoded_frame)
+                                logger.info(f"Refreshed frame with new dimensions: {width}x{height}")
+                        else:
+                            logger.warning(f"Invalid canvas dimensions in message: {payload}")
+                except json.JSONDecodeError as e:
+                    logger.error(f"Invalid JSON in canvas_dimensions message: {e}")
                     
             elif message.startswith('{"type":"clips"'): # Check for the new JSON format
                 try:
@@ -87,6 +115,24 @@ class MessageHandler:
                     logger.error(f"Invalid JSON received: {message[:200]}... Error: {e}")
                 except Exception as e:
                     logger.error(f"Error processing 'clips' message: {e}")
+                    
+            # Handle sync_clips message type (similar to clips)
+            elif message.startswith('{"type":"sync_clips"'):
+                try:
+                    data = json.loads(message)
+                    if data.get('type') == 'sync_clips':
+                        video_data = data.get('payload', [])
+                        logger.info(f"Received 'sync_clips' message with {len(video_data)} clips.")
+                        # Log the received raw data (truncated)
+                        truncated_data = str(video_data)[:500]
+                        logger.debug(f"Raw sync_clips data received (truncated): {truncated_data}")
+                        self.update_timeline(video_data)
+                    else:
+                        logger.warning(f"Received unexpected message format: {data.get('type')}")
+                except json.JSONDecodeError as e:
+                    logger.error(f"Invalid JSON in sync_clips message: {e}")
+                except Exception as e:
+                    logger.error(f"Error processing 'sync_clips' message: {e}")
                     
             elif message.startswith("videos:"): # Keep old format for compatibility
                 # Format: videos:<json_data> - This path might be deprecated now

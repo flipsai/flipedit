@@ -82,16 +82,32 @@ class FrameGenerator:
                 # Process the frame (resize, transform, position)
                 processed_frame, x, y, width, height = self._process_frame(frame, video_info)
                 
-                # Check if the area is within the composite frame
-                if (x >= 0 and y >= 0 and 
-                    x + width <= composite_frame.shape[1] and 
-                    y + height <= composite_frame.shape[0]):
+                # Check if the frame is at least partially within the canvas
+                if width <= 0 or height <= 0:
+                    logger.warning(f"Invalid frame dimensions: {width}x{height}, skipping")
+                    continue
+                
+                # Clip the bounds to ensure they fit within the canvas
+                visible_x = max(0, x)
+                visible_y = max(0, y)
+                visible_width = min(width - (visible_x - x), self.canvas_width - visible_x)
+                visible_height = min(height - (visible_y - y), self.canvas_height - visible_y)
+                
+                # Only attempt to composite if we have some visible portion
+                if visible_width > 0 and visible_height > 0:
+                    # Calculate source and target areas for the visible portion
+                    source_x = visible_x - x if x < 0 else 0
+                    source_y = visible_y - y if y < 0 else 0
                     
-                    # Place the frame on the composite image
-                    composite_frame[y:y+height, x:x+width] = processed_frame
-                    videos_rendered = True
+                    try:
+                        # Copy only the visible portion to the composite frame
+                        composite_frame[visible_y:visible_y+visible_height, visible_x:visible_x+visible_width] = \
+                            processed_frame[source_y:source_y+visible_height, source_x:source_x+visible_width]
+                        videos_rendered = True
+                    except Exception as e:
+                        logger.error(f"Error compositing frame: {e}, dims={visible_x},{visible_y},{visible_width},{visible_height}")
                 else:
-                    logger.warning(f"Frame position outside bounds: {x},{y},{width},{height}")
+                    logger.warning(f"Frame entirely outside bounds: {x},{y},{width},{height}")
         
         # Add debug frame number to all frames
         cv2.putText(
@@ -119,31 +135,57 @@ class FrameGenerator:
         preview_rect_data = metadata.get('previewRect') # Get the previewRect dictionary
 
         # Define default rect values using current canvas dimensions
+        # Default to centered position with original dimensions or canvas dimensions (whichever is smaller)
+        frame_height, frame_width = frame.shape[:2]  # Get original frame dimensions
+        
+        # Calculate default width and height to fit within canvas while maintaining aspect ratio
+        if frame_width > self.canvas_width or frame_height > self.canvas_height:
+            # Scale down to fit canvas
+            width_ratio = self.canvas_width / frame_width
+            height_ratio = self.canvas_height / frame_height
+            scale_ratio = min(width_ratio, height_ratio)
+            default_width = int(frame_width * scale_ratio)
+            default_height = int(frame_height * scale_ratio)
+        else:
+            # Use original dimensions
+            default_width = frame_width
+            default_height = frame_height
+        
+        # Center the frame on canvas
+        default_left = (self.canvas_width - default_width) / 2
+        default_top = (self.canvas_height - default_height) / 2
+        
         default_rect = {
-            'left': 0.0, 
-            'top': 0.0, 
-            'width': float(self.canvas_width), 
-            'height': float(self.canvas_height)
+            'left': default_left, 
+            'top': default_top, 
+            'width': float(default_width), 
+            'height': float(default_height)
         }
 
         if isinstance(preview_rect_data, dict):
-             # Use values from previewRect_data, falling back to defaults if keys are missing
-             x = int(preview_rect_data.get('left', default_rect['left']))
-             y = int(preview_rect_data.get('top', default_rect['top']))
-             # Ensure width/height are positive, default to reasonable values if not
-             width = max(1, int(preview_rect_data.get('width', default_rect['width'])))
-             height = max(1, int(preview_rect_data.get('height', default_rect['height'])))
-             logger.debug(f"Using previewRect from metadata: x={x}, y={y}, w={width}, h={height}")
+            # Use values from previewRect_data, falling back to defaults if keys are missing
+            x = int(preview_rect_data.get('left', default_rect['left']))
+            y = int(preview_rect_data.get('top', default_rect['top']))
+            # Ensure width/height are positive, default to reasonable values if not
+            width = max(1, int(preview_rect_data.get('width', default_rect['width'])))
+            height = max(1, int(preview_rect_data.get('height', default_rect['height'])))
+            logger.debug(f"Using previewRect from metadata: x={x}, y={y}, w={width}, h={height}")
         else:
-             # Use all default values if previewRect is missing or not a dict
-             x = int(default_rect['left'])
-             y = int(default_rect['top'])
-             width = int(default_rect['width'])
-             height = int(default_rect['height'])
-             logger.debug("Using default previewRect (metadata missing or invalid)")
+            # Use all default values if previewRect is missing or not a dict
+            x = int(default_rect['left'])
+            y = int(default_rect['top'])
+            width = int(default_rect['width'])
+            height = int(default_rect['height'])
+            logger.debug(f"Using default previewRect (centered): x={x}, y={y}, w={width}, h={height}")
         
         # Resize the frame
-        resized_frame = cv2.resize(frame, (width, height))
+        try:
+            resized_frame = cv2.resize(frame, (width, height))
+        except Exception as e:
+            logger.error(f"Error resizing frame to {width}x{height}: {e}")
+            # Fall back to original frame if resize fails
+            resized_frame = frame
+            width, height = frame.shape[1], frame.shape[0]
         
         # Apply flip if needed (using previewFlip from metadata)
         flip_int = metadata.get('previewFlip', 0) # Default to 0 (no flip)
