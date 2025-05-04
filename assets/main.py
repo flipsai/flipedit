@@ -18,10 +18,18 @@ import db_access
 # Global logger instance
 logger: Optional[logging.Logger] = None
 
+# Global instance for access from other modules
+_global_timeline_manager = None
+
+def get_timeline_manager():
+    """Access the timeline manager singleton from other modules"""
+    global _global_timeline_manager
+    return _global_timeline_manager
+
 class MainServer:
     def __init__(self, args):
         """Initialize the main server coordinating all components."""
-        global logger
+        global logger, _global_timeline_manager
         logger = config.configure_logging(args)
         
         self.args = args
@@ -38,6 +46,7 @@ class MainServer:
         
         # Initialize components
         self.timeline_manager = timeline_manager.TimelineManager()
+        _global_timeline_manager = self.timeline_manager 
         self.frame_generator = frame_generator.FrameGenerator()
         
         # Pass callbacks to the PlaybackController

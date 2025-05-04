@@ -106,7 +106,29 @@ class MessageHandler:
             elif message == "refresh_from_db":
                 if self.refresh_timeline_from_db:
                     logger.info("Received refresh_from_db command")
+                    # Refresh timeline data from database
                     self.refresh_timeline_from_db()
+                    
+                    # Log clip info after database refresh
+                    # Get access to the timeline manager from main.py
+                    from main import get_timeline_manager
+                    try:
+                        timeline_manager = get_timeline_manager()
+                        if timeline_manager:
+                            timeline_state = timeline_manager.get_timeline_state()
+                            if timeline_state and "videos" in timeline_state:
+                                clips = timeline_state["videos"]
+                                logger.info(f"WS refresh_from_db: Processing {len(clips)} clips after database refresh")
+                                for i, video in enumerate(clips):
+                                    start_ms = video.get('startTimeOnTrackMs')
+                                    end_ms = video.get('endTimeOnTrackMs')
+                                    src_start = video.get('startTimeInSourceMs')
+                                    src_end = video.get('endTimeInSourceMs')
+                                    logger.info(f"WS refresh_from_db: Clip[{i}] track time: {start_ms}-{end_ms}ms, source time: {src_start}-{src_end}ms")
+                    except ImportError:
+                        logger.warning("Could not import get_timeline_manager - debug info limited")
+                    except Exception as e:
+                        logger.warning(f"Error accessing timeline data for debug: {e}")
                     
                     # Force a frame refresh by seeking to the current frame
                     current_frame = self.seek(self.seek(0))  # Get current frame index

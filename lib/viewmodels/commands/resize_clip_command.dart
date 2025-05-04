@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'timeline_command.dart';
 import '../../models/clip.dart';
@@ -6,6 +7,8 @@ import 'package:collection/collection.dart';
 import '../../services/timeline_logic_service.dart';
 import '../../services/project_database_service.dart';
 import '../../services/preview_sync_service.dart';
+import '../../services/preview_http_service.dart';
+import '../../viewmodels/timeline_navigation_viewmodel.dart';
 import 'package:watch_it/watch_it.dart';
 
 class ResizeClipCommand implements TimelineCommand {
@@ -16,6 +19,8 @@ class ResizeClipCommand implements TimelineCommand {
       di<ProjectDatabaseService>();
   final TimelineLogicService _timelineLogicService = di<TimelineLogicService>();
   final PreviewSyncService _previewSyncService = di<PreviewSyncService>();
+  final PreviewHttpService _previewHttpService = di<PreviewHttpService>();
+  final TimelineNavigationViewModel _navigationViewModel = di<TimelineNavigationViewModel>();
   final ValueNotifier<List<ClipModel>> clipsNotifier;
 
   ClipModel? _originalClipState;
@@ -254,6 +259,61 @@ class ResizeClipCommand implements TimelineCommand {
         '[ResizeClipCommand] Sent refresh_from_db command to preview server',
         _logTag,
       );
+      
+      // Log current frame before refresh
+      final currentFrame = _navigationViewModel.currentFrameNotifier.value;
+      logger.logInfo(
+        '[ResizeClipCommand] Current timeline frame before refresh: $currentFrame',
+        _logTag,
+      );
+      
+      // Directly trigger a frame refresh via HTTP
+      bool refreshSuccessful = false;
+      for (int attempt = 1; attempt <= 5 && !refreshSuccessful; attempt++) {
+        try {
+          logger.logInfo(
+            '[ResizeClipCommand] Initiating HTTP frame refresh (attempt $attempt)',
+            _logTag,
+          );
+          
+          // Get debug timeline info first to check if database was properly updated
+          if (attempt == 1) {
+            try {
+              await _previewHttpService.getTimelineDebugInfo();
+            } catch (e) {
+              logger.logWarning('[ResizeClipCommand] Failed to get debug info: $e', _logTag);
+            }
+          }
+          
+          await _previewHttpService.fetchAndUpdateFrame();
+          logger.logInfo(
+            '[ResizeClipCommand] HTTP frame refresh completed successfully',
+            _logTag,
+          );
+          refreshSuccessful = true;
+        } catch (e) {
+          logger.logWarning(
+            '[ResizeClipCommand] Attempt $attempt failed to refresh frame via HTTP API: $e',
+            _logTag,
+          );
+          
+          if (attempt < 5) {
+            final delay = attempt * 250;
+            logger.logInfo(
+              '[ResizeClipCommand] Waiting ${delay}ms before next attempt...',
+              _logTag,
+            );
+            await Future.delayed(Duration(milliseconds: delay));
+          }
+        }
+      }
+      
+      if (!refreshSuccessful) {
+        logger.logError(
+          '[ResizeClipCommand] All HTTP frame refresh attempts failed',
+          _logTag,
+        );
+      }
     } catch (e) {
       logger.logError(
         '[ResizeClipCommand] Error executing resize for clip $clipId: $e',
@@ -336,6 +396,61 @@ class ResizeClipCommand implements TimelineCommand {
         '[ResizeClipCommand] Sent refresh_from_db command to preview server after undo',
         _logTag,
       );
+
+      // Log current frame before refresh
+      final currentFrame = _navigationViewModel.currentFrameNotifier.value;
+      logger.logInfo(
+        '[ResizeClipCommand] Current timeline frame before undo refresh: $currentFrame',
+        _logTag,
+      );
+      
+      // Directly trigger a frame refresh via HTTP after undo
+      bool refreshSuccessful = false;
+      for (int attempt = 1; attempt <= 5 && !refreshSuccessful; attempt++) { // Increased attempts
+        try {
+          logger.logInfo(
+            '[ResizeClipCommand] Initiating HTTP frame refresh after undo (attempt $attempt)',
+            _logTag,
+          );
+          
+          // Get debug timeline info first to check if database was properly updated
+          if (attempt == 1) {
+            try {
+              await _previewHttpService.getTimelineDebugInfo();
+            } catch (e) {
+              logger.logWarning('[ResizeClipCommand] Failed to get debug info: $e', _logTag);
+            }
+          }
+          
+          await _previewHttpService.fetchAndUpdateFrame();
+          logger.logInfo(
+            '[ResizeClipCommand] HTTP frame refresh after undo completed successfully',
+            _logTag,
+          );
+          refreshSuccessful = true;
+        } catch (e) {
+          logger.logWarning(
+            '[ResizeClipCommand] Attempt $attempt failed to refresh frame via HTTP API after undo: $e',
+            _logTag,
+          );
+          
+          if (attempt < 5) {
+            final delay = attempt * 250;
+            logger.logInfo(
+              '[ResizeClipCommand] Waiting ${delay}ms before next attempt after undo...',
+              _logTag,
+            );
+            await Future.delayed(Duration(milliseconds: delay));
+          }
+        }
+      }
+      
+      if (!refreshSuccessful) {
+        logger.logError(
+          '[ResizeClipCommand] All HTTP frame refresh attempts failed after undo',
+          _logTag,
+        );
+      }
 
       _originalClipState = null;
       _neighborUpdatesForUndo = null;
