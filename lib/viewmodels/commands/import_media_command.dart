@@ -5,6 +5,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/services/media_duration_service.dart';
+import 'package:flipedit/services/canvas_dimensions_service.dart'; // Added import
+import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart'; // Added import
+import 'package:flipedit/views/dialogs/canvas_dimensions_dialog.dart'; // Added import
 import 'package:flipedit/utils/logger.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
 import 'package:flutter/widgets.dart';
@@ -13,16 +16,24 @@ import 'package:watch_it/watch_it.dart';
 
 const _logTag = 'ImportMediaCommand';
 
-class ImportMediaCommand {
-  final ProjectViewModel _projectViewModel;
-  final ProjectDatabaseService _databaseService;
-  final MediaDurationService _mediaDurationService = di<MediaDurationService>();
+  class ImportMediaCommand {
+    final ProjectViewModel _projectViewModel;
+    final ProjectDatabaseService _databaseService;
+    final MediaDurationService _mediaDurationService = di<MediaDurationService>();
+    final CanvasDimensionsService _canvasDimensionsService = di<CanvasDimensionsService>(); // Added injection
+    final TimelineStateViewModel _stateViewModel = di<TimelineStateViewModel>(); // Added injection
 
-  ImportMediaCommand(this._projectViewModel, this._databaseService);
+    /// Creates an ImportMediaCommand.
+    ///
+    /// [projectViewModel] - The current project ViewModel (must be loaded).
+    /// [databaseService] - The service for asset import and persistence.
+    ImportMediaCommand(this._projectViewModel, this._databaseService);
 
-  /// Opens a file picker and imports the selected media file.
-  /// Returns true if import was successful, false otherwise (including cancellation).
-  Future<bool> execute(BuildContext context) async {
+    /// Opens a file picker, optionally prompts for canvas dimensions, and imports the selected media file.
+    ///
+    /// Returns `true` if import was successful, `false` otherwise (including cancellation or error).
+
+    Future<bool> execute(BuildContext context) async {
     // Check if a project is loaded using the injected ViewModel
     if (!_projectViewModel.isProjectLoaded) {
       logWarning(_logTag, "Cannot import media: No project loaded.");
@@ -43,7 +54,38 @@ class ImportMediaCommand {
 
         if (filePath != null) {
           try {
-            logInfo(_logTag, "Importing file via command: $filePath");
+            // Check if we need to prompt for canvas dimensions BEFORE importing
+            // This logic was moved from AddClipCommand
+            final isFirstClip = _stateViewModel.clips.isEmpty;
+            final shouldPrompt = _canvasDimensionsService.shouldPromptForDimensions || isFirstClip;
+
+            if (shouldPrompt) {
+              logInfo(_logTag, "Checking media dimensions for potential canvas size prompt: $filePath");
+              try {
+                final mediaInfo = await _mediaDurationService.getMediaInfo(filePath);
+                if (mediaInfo.width > 0 && mediaInfo.height > 0) {
+                  logInfo(_logTag, "First clip or prompt needed. Showing dimensions dialog.");
+                  final useClipDimensions = await CanvasDimensionsDialog.show(
+                    context,
+                    mediaInfo.width,
+                    mediaInfo.height
+                  );
+                  logInfo(_logTag, "Canvas dimensions dialog result: $useClipDimensions");
+                  if (useClipDimensions == true) {
+                    _canvasDimensionsService.updateCanvasDimensions(
+                        mediaInfo.width.toDouble(), mediaInfo.height.toDouble());
+                    logInfo(_logTag, "Canvas dimensions updated to ${mediaInfo.width}x${mediaInfo.height}");
+                  }
+                  _canvasDimensionsService.markUserPrompted();
+                } else {
+                    logWarning(_logTag, "Could not get valid dimensions for prompt check for $filePath");
+                }
+              } catch (dimError) {
+                 logError(_logTag, "Error getting media dimensions for prompt check: $dimError");
+              }
+            }
+
+            logInfo(_logTag, "Proceeding to import file as asset: $filePath");
             // Call the internal asset import logic
             final assetId = await _importAsset(filePath);
 

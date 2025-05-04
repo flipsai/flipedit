@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:ui';
 import 'package:drift/drift.dart' as drift;
 import 'package:flipedit/persistence/database/project_database.dart'
     as project_db;
@@ -13,12 +12,10 @@ import '../../services/timeline_logic_service.dart';
 import '../../services/project_database_service.dart';
 import '../../services/media_duration_service.dart';
 import '../../services/canvas_dimensions_service.dart';
-import '../../views/dialogs/canvas_dimensions_dialog.dart';
 import 'package:watch_it/watch_it.dart';
 import '../../services/undo_redo_service.dart';
 import '../../services/preview_http_service.dart';
 import '../../viewmodels/timeline_navigation_viewmodel.dart';
-import '../../utils/global_context.dart';
 
 class AddClipCommand implements TimelineCommand {
   final TimelineViewModel vm;
@@ -85,8 +82,8 @@ class AddClipCommand implements TimelineCommand {
     return clip; // No changes needed
   }
   
-  /// Sets up default preview rectangle based on media dimensions
-  Future<ClipModel> _setupPreviewRect(ClipModel clip, {bool forcePrompt = false}) async {
+  /// Sets up default preview rectangle based on current canvas dimensions and media dimensions
+  Future<ClipModel> _setupPreviewRect(ClipModel clip) async {
     // If the clip already has a previewRect, don't override it
     if (clip.metadata.containsKey('previewRect')) {
       logger.logInfo(
@@ -114,77 +111,6 @@ class AddClipCommand implements TimelineCommand {
         double canvasWidth = _canvasDimensionsService.canvasWidth;
         double canvasHeight = _canvasDimensionsService.canvasHeight;
         
-        // Check current clip count to determine if this is the first clip
-        final currentClipCount = _stateViewModel.clips.length;
-        logger.logInfo(
-          '[AddClipCommand] Current clip count: $currentClipCount, hasClips: ${_canvasDimensionsService.hasClips}',
-          _logTag,
-        );
-        
-        // Force check if we should show the dimensions prompt
-        final shouldPrompt = _canvasDimensionsService.shouldPromptForDimensions || currentClipCount == 0 || forcePrompt;
-        logger.logInfo(
-          '[AddClipCommand] Should prompt for dimensions: $shouldPrompt',
-          _logTag,
-        );
-        
-        // If this is the first clip being added, ask the user about dimensions
-        if (shouldPrompt) {
-          logger.logInfo(
-            '[AddClipCommand] First clip detected. Showing dimensions prompt.',
-            _logTag,
-          );
-          
-          // Get BuildContext from global context utility
-          if (GlobalContext.context != null) {
-            final context = GlobalContext.context!;
-            
-            // Show the dialog and wait for user response
-            logger.logInfo(
-              '[AddClipCommand] Showing dialog with clip dimensions: ${mediaInfo.width}x${mediaInfo.height}',
-              _logTag,
-            );
-            
-            final useClipDimensions = await CanvasDimensionsDialog.show(
-              context, 
-              mediaInfo.width, 
-              mediaInfo.height
-            );
-            
-            logger.logInfo(
-              '[AddClipCommand] Dialog result: $useClipDimensions',
-              _logTag,
-            );
-            
-            // If user chose to use clip dimensions for canvas
-            if (useClipDimensions == true) {
-              canvasWidth = mediaInfo.width.toDouble();
-              canvasHeight = mediaInfo.height.toDouble();
-              logger.logInfo(
-                '[AddClipCommand] User chose to use clip dimensions (${canvasWidth}x${canvasHeight}) for canvas',
-                _logTag,
-              );
-              
-              // Update the canvas dimensions in the service
-              _canvasDimensionsService.updateCanvasDimensions(canvasWidth, canvasHeight);
-            } else {
-              logger.logInfo(
-                '[AddClipCommand] User chose to keep current canvas dimensions',
-                _logTag,
-              );
-            }
-            
-            // Mark that we've prompted the user in this session
-            _canvasDimensionsService.markUserPrompted();
-          } else {
-            logger.logWarning(
-              '[AddClipCommand] Could not show dimensions dialog: No global context available',
-              _logTag,
-            );
-          }
-        }
-        
-        // Calculate position to center the clip on the canvas
         final left = (canvasWidth - previewWidth) / 2;
         final top = (canvasHeight - previewHeight) / 2;
         
@@ -236,8 +162,8 @@ class AddClipCommand implements TimelineCommand {
     // Step 1: Validate and potentially update the clip source duration
     var processedClipData = await _validateClipSourceDuration(clipData);
     
-    // Step 2: Set up preview rectangle based on media dimensions
-    processedClipData = await _setupPreviewRect(processedClipData, forcePrompt: isFirstClip);
+    // Step 2: Set up preview rectangle based on media dimensions and current canvas size
+    processedClipData = await _setupPreviewRect(processedClipData);
 
     final initialEndTimeOnTrackMs =
         startTimeOnTrackMs + processedClipData.durationInSourceMs;
