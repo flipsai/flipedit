@@ -5,9 +5,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/services/media_duration_service.dart';
-import 'package:flipedit/services/canvas_dimensions_service.dart'; // Added import
-import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart'; // Added import
-import 'package:flipedit/views/dialogs/canvas_dimensions_dialog.dart'; // Added import
+import 'package:flipedit/services/canvas_dimensions_service.dart'; 
+import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart'; 
+import 'package:flipedit/views/dialogs/canvas_dimensions_dialog.dart'; 
 import 'package:flipedit/utils/logger.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
 import 'package:flutter/widgets.dart';
@@ -20,8 +20,8 @@ const _logTag = 'ImportMediaCommand';
     final ProjectViewModel _projectViewModel;
     final ProjectDatabaseService _databaseService;
     final MediaDurationService _mediaDurationService = di<MediaDurationService>();
-    final CanvasDimensionsService _canvasDimensionsService = di<CanvasDimensionsService>(); // Added injection
-    final TimelineStateViewModel _stateViewModel = di<TimelineStateViewModel>(); // Added injection
+    final CanvasDimensionsService _canvasDimensionsService = di<CanvasDimensionsService>(); 
+    final TimelineStateViewModel _stateViewModel = di<TimelineStateViewModel>(); 
 
     /// Creates an ImportMediaCommand.
     ///
