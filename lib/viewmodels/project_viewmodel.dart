@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flipedit/models/project_asset.dart' as model;
 import 'package:flipedit/persistence/database/project_database.dart';
 import 'package:flipedit/persistence/database/project_metadata_database.dart';
+import 'package:flipedit/services/preview_http_service.dart'; // Added import
 import 'package:flipedit/services/project_metadata_service.dart';
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/services/undo_redo_service.dart';
@@ -11,6 +12,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart';
+import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart'; // Added import
 
 import 'commands/import_media_command.dart';
 import 'commands/create_project_command.dart';
@@ -24,6 +26,7 @@ class ProjectViewModel {
   final ProjectDatabaseService _databaseService = di<ProjectDatabaseService>();
   final SharedPreferences _prefs;
   final UndoRedoService _undoRedoService = di<UndoRedoService>();
+  final TimelineNavigationViewModel _timelineNavViewModel = di<TimelineNavigationViewModel>(); // Added injection
 
   // Commands
   late final ImportMediaCommand importMediaCommand;
@@ -88,6 +91,20 @@ class ProjectViewModel {
 
   Future<void> loadProject(int projectId) async {
     await loadProjectCommand.execute(projectId);
+    const int initialFrameIndex = 0;
+    try {
+      final previewHttpService = di<PreviewHttpService>();
+      // Pass the desired frame index
+      await previewHttpService.fetchAndUpdateFrame(initialFrameIndex);
+      logInfo('Initial frame ($initialFrameIndex) fetched via HTTP after loading project $projectId', _logTag);
+      
+      // Explicitly set the timeline navigation to the initial frame to ensure consistency
+      _timelineNavViewModel.currentFrame = initialFrameIndex;
+      logInfo('Set TimelineNavigationViewModel currentFrame to $initialFrameIndex', _logTag);
+
+    } catch (e, stackTrace) {
+      logError('Failed to fetch initial frame $initialFrameIndex for project $projectId', e, stackTrace, _logTag);
+    }
   }
 
   Future<void> loadLastOpenedProjectCommand() async {

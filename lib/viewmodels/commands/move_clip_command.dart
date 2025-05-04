@@ -157,7 +157,10 @@ class MoveClipCommand implements TimelineCommand {
       // Fetch frame if paused
       if (!_timelineNavViewModel.isPlayingNotifier.value) {
         logger.logDebug('[MoveClipCommand] Timeline paused, fetching frame via HTTP...', _logTag);
-        await _previewHttpService.fetchAndUpdateFrame();
+        // Pass the current frame from the navigation view model
+        final frameToRefresh = _timelineNavViewModel.currentFrame;
+        logger.logDebug('[MoveClipCommand] Attempting to refresh frame $frameToRefresh via HTTP', _logTag);
+        await _previewHttpService.fetchAndUpdateFrame(frameToRefresh);
       }
 
       logger.logInfo(
@@ -229,7 +232,10 @@ class MoveClipCommand implements TimelineCommand {
       // Fetch frame if paused
       if (!_timelineNavViewModel.isPlayingNotifier.value) {
         logger.logDebug('[MoveClipCommand][Undo] Timeline paused, fetching frame via HTTP...', _logTag);
-        await _previewHttpService.fetchAndUpdateFrame();
+        // Pass the current frame from the navigation view model
+        final frameToRefresh = _timelineNavViewModel.currentFrame;
+        logger.logDebug('[MoveClipCommand][Undo] Attempting to refresh frame $frameToRefresh via HTTP', _logTag);
+        await _previewHttpService.fetchAndUpdateFrame(frameToRefresh);
       }
 
       logger.logInfo(

@@ -60,7 +60,6 @@ Future<void> setupServiceLocator() async {
   );
   di.registerLazySingleton<PreviewHttpService>(
     () => PreviewHttpService(
-      timelineNavViewModel: di<TimelineNavigationViewModel>(),
       previewService: di<PreviewService>(),
     ),
     dispose: (service) => service.dispose(),

@@ -158,9 +158,12 @@ class UpdateClipPreviewRectCommand extends TimelineCommand {
       );
       
       // Skip debug info request entirely to reduce load
-      await _previewHttpService.fetchAndUpdateFrame();
+      // Pass the current frame from the navigation view model
+      final frameToRefresh = _navigationViewModel.currentFrame;
+      logInfo('Attempting to refresh frame $frameToRefresh via HTTP', _logTag);
+      await _previewHttpService.fetchAndUpdateFrame(frameToRefresh);
       logInfo(
-        'HTTP frame refresh completed successfully',
+        'HTTP frame refresh request for frame $frameToRefresh completed',
         _logTag,
       );
     } catch (e) {
@@ -231,9 +234,12 @@ class UpdateClipPreviewRectCommand extends TimelineCommand {
       );
       
       // Skip debug info request entirely to reduce load
-      await _previewHttpService.fetchAndUpdateFrame();
+      // Pass the current frame from the navigation view model
+      final frameToRefresh = _navigationViewModel.currentFrame;
+      logInfo('Attempting to refresh frame $frameToRefresh via HTTP after undo', _logTag);
+      await _previewHttpService.fetchAndUpdateFrame(frameToRefresh);
       logInfo(
-        'HTTP frame refresh after undo completed successfully',
+        'HTTP frame refresh request for frame $frameToRefresh after undo completed',
         _logTag,
       );
     } catch (e) {

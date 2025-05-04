@@ -285,9 +285,12 @@ class ResizeClipCommand implements TimelineCommand {
             }
           }
           
-          await _previewHttpService.fetchAndUpdateFrame();
+          // Pass the current frame from the navigation view model
+          final frameToRefresh = _navigationViewModel.currentFrame;
+          logger.logInfo('[ResizeClipCommand] Attempting to refresh frame $frameToRefresh via HTTP', _logTag);
+          await _previewHttpService.fetchAndUpdateFrame(frameToRefresh);
           logger.logInfo(
-            '[ResizeClipCommand] HTTP frame refresh completed successfully',
+            '[ResizeClipCommand] HTTP frame refresh request for frame $frameToRefresh completed',
             _logTag,
           );
           refreshSuccessful = true;
@@ -422,9 +425,12 @@ class ResizeClipCommand implements TimelineCommand {
             }
           }
           
-          await _previewHttpService.fetchAndUpdateFrame();
+          // Pass the current frame from the navigation view model
+          final frameToRefresh = _navigationViewModel.currentFrame;
+          logger.logInfo('[ResizeClipCommand] Attempting to refresh frame $frameToRefresh via HTTP after undo', _logTag);
+          await _previewHttpService.fetchAndUpdateFrame(frameToRefresh);
           logger.logInfo(
-            '[ResizeClipCommand] HTTP frame refresh after undo completed successfully',
+            '[ResizeClipCommand] HTTP frame refresh request for frame $frameToRefresh after undo completed',
             _logTag,
           );
           refreshSuccessful = true;

@@ -6,7 +6,6 @@ import '../services/preview_service.dart';
 import '../utils/logger.dart';
 
 class PreviewHttpService {
-  final TimelineNavigationViewModel _timelineNavViewModel;
   final PreviewService _previewService;
   final String _logTag = 'PreviewHttpService';
 
@@ -34,10 +33,8 @@ class PreviewHttpService {
   bool _isProcessingQueue = false;
 
   PreviewHttpService({
-    required TimelineNavigationViewModel timelineNavViewModel,
     required PreviewService previewService,
-  })  : _timelineNavViewModel = timelineNavViewModel,
-        _previewService = previewService {
+  }) : _previewService = previewService {
     // Start the queue processor
     _startQueueProcessor();
   }
@@ -187,11 +184,11 @@ class PreviewHttpService {
     }
   }
 
-  /// Fetches the current frame from the Python HTTP server and updates the PreviewService.
-  Future<void> fetchAndUpdateFrame() async {
+  /// Fetches the specified frame from the Python HTTP server and updates the PreviewService.
+  Future<void> fetchAndUpdateFrame(int frameIndex) async { // Added frameIndex parameter
     // Avoid multiple concurrent requests which can overload the server
     if (_isProcessingRequest) {
-      logWarning('Skipping frame fetch - another request is in progress', _logTag);
+      logWarning('Skipping frame fetch for frame $frameIndex - another request is in progress', _logTag);
       return;
     }
     
@@ -209,28 +206,28 @@ class PreviewHttpService {
           return;
         }
         
-        // Get the current frame from the correct ViewModel
-        final currentFrame = _timelineNavViewModel.currentFrameNotifier.value;
+        // Use the passed frameIndex directly
+        logInfo('Attempting frame refresh for requested frame $frameIndex', _logTag);
 
-        logInfo('Attempting frame refresh for timeline position $currentFrame', _logTag);
-        
         // Only get debug info if failures are low to reduce load
         if (_consecutiveFailures < 2) {
           await getTimelineDebugInfo();
         }
-        
-        // Try with current frame first
-        if (await _tryFetchFrame(currentFrame)) {
+
+        // Try fetching the requested frame
+        if (await _tryFetchFrame(frameIndex)) {
           _consecutiveFailures = 0; // Reset on success
-          return; // Successfully fetched
+          return;
         }
-        
-        // If that failed, try with frame 0 as fallback
-        if (currentFrame != 0) {
-          logInfo('Retrying with frame 0 as fallback', _logTag);
+
+        // If that failed, try with frame 0 as a universal fallback (if the requested frame wasn't 0)
+        if (frameIndex != 0) {
+          logInfo('Initial fetch for frame $frameIndex failed. Retrying with frame 0 as fallback.', _logTag);
           if (await _tryFetchFrame(0)) {
             _consecutiveFailures = 0; // Reset on success
-            return; // Fallback successful
+            // IMPORTANT: We fetched frame 0, but the caller might expect frameIndex.
+            // This might require adjustment based on how the caller handles this fallback.
+            return;
           }
         }
         

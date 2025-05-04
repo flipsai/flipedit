@@ -373,7 +373,10 @@ class AddClipCommand implements TimelineCommand {
     // Fetch frame if paused
     if (!_timelineNavViewModel.isPlayingNotifier.value) {
       logger.logDebug('[AddClipCommand] Timeline paused, fetching frame via HTTP...', _logTag);
-      await _previewHttpService.fetchAndUpdateFrame();
+      // Pass the current frame from the navigation view model
+      final frameToRefresh = _timelineNavViewModel.currentFrame;
+      logger.logDebug('[AddClipCommand] Attempting to refresh frame $frameToRefresh via HTTP', _logTag);
+      await _previewHttpService.fetchAndUpdateFrame(frameToRefresh);
     }
 
     logger.logInfo(
@@ -453,7 +456,10 @@ class AddClipCommand implements TimelineCommand {
       // Fetch frame if paused
       if (!_timelineNavViewModel.isPlayingNotifier.value) {
         logger.logDebug('[AddClipCommand][Undo] Timeline paused, fetching frame via HTTP...', _logTag);
-        await _previewHttpService.fetchAndUpdateFrame();
+        // Pass the current frame from the navigation view model
+        final frameToRefresh = _timelineNavViewModel.currentFrame;
+        logger.logDebug('[AddClipCommand][Undo] Attempting to refresh frame $frameToRefresh via HTTP', _logTag);
+        await _previewHttpService.fetchAndUpdateFrame(frameToRefresh);
       }
 
       _insertedClipId = null;
