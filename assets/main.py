@@ -152,8 +152,8 @@ class MainServer:
         preview_server_port = self.args.http_port
         logger.info(f"Starting Preview HTTP server on port {preview_server_port}")
         http_thread = threading.Thread(
-            target=preview_app.run,
-            kwargs={'host': self.args.host, 'port': preview_server_port, 'debug': False, 'use_reloader': False},
+            target=preview_app.run_server,
+            kwargs={'host': self.args.host, 'port': preview_server_port},
             daemon=True
         )
         http_thread.start()

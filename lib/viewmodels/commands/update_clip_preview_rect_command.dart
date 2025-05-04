@@ -13,6 +13,41 @@ import '../../viewmodels/timeline_navigation_viewmodel.dart';
 import '../timeline_state_viewmodel.dart';
 import 'timeline_command.dart';
 
+// Add this static variable to track the last request time
+class UpdateRequestTracker {
+  static DateTime _lastPreviewRequestTime = DateTime.now().subtract(const Duration(seconds: 5));
+  
+  // Make throttling even more aggressive - don't allow faster than one request every 500ms
+  static bool shouldThrottle() {
+    final now = DateTime.now();
+    final timeSinceLast = now.difference(_lastPreviewRequestTime);
+    return timeSinceLast < const Duration(milliseconds: 500);
+  }
+  
+  static void updateTimestamp() {
+    _lastPreviewRequestTime = DateTime.now();
+  }
+  
+  // Add a counter for consecutive requests to implement exponential backoff
+  static int _consecutiveRequests = 0;
+  static const int _maxConsecutiveRequests = 5;
+  
+  static Duration getThrottleDelay() {
+    // Increase consecutive request counter
+    _consecutiveRequests = (_consecutiveRequests + 1).clamp(0, _maxConsecutiveRequests);
+    
+    // Calculate delay with exponential backoff: 300ms, 600ms, 900ms, etc.
+    final baseDelay = 300;
+    final calculatedDelay = baseDelay * _consecutiveRequests;
+    
+    return Duration(milliseconds: calculatedDelay);
+  }
+  
+  static void resetConsecutiveRequests() {
+    _consecutiveRequests = 0;
+  }
+}
+
 class UpdateClipPreviewRectCommand extends TimelineCommand {
   final int clipId;
   final Rect newRect;
@@ -33,6 +68,17 @@ class UpdateClipPreviewRectCommand extends TimelineCommand {
   @override
   Future<void> execute() async {
     logInfo('Executing UpdateClipPreviewRectCommand for clip $clipId', _logTag);
+
+    // Check if we should throttle this request
+    if (UpdateRequestTracker.shouldThrottle()) {
+      final throttleDelay = UpdateRequestTracker.getThrottleDelay();
+      logInfo('Throttling preview update request for ${throttleDelay.inMilliseconds}ms to avoid server overload', _logTag);
+      await Future.delayed(throttleDelay);
+    } else {
+      // Reset consecutive requests counter if we're not throttling
+      UpdateRequestTracker.resetConsecutiveRequests();
+    }
+    UpdateRequestTracker.updateTimestamp();
 
     _originalClipIndex = _stateViewModel.clipsNotifier.value.indexWhere(
       (c) => c.databaseId == clipId,
@@ -101,53 +147,25 @@ class UpdateClipPreviewRectCommand extends TimelineCommand {
       'Waiting for server database refresh to complete...',
       _logTag,
     );
-    await Future.delayed(const Duration(milliseconds: 300));
+    await Future.delayed(const Duration(milliseconds: 750));
     
-    // Directly trigger a frame refresh via HTTP
-    bool refreshSuccessful = false;
-    for (int attempt = 1; attempt <= 5 && !refreshSuccessful; attempt++) {
-      try {
-        logInfo(
-          'Initiating HTTP frame refresh (attempt $attempt)',
-          _logTag,
-        );
-        
-        // Get debug timeline info first to check if database was properly updated
-        if (attempt == 1) {
-          try {
-            await _previewHttpService.getTimelineDebugInfo();
-          } catch (e) {
-            logWarning('Failed to get debug info: $e', _logTag);
-          }
-        }
-        
-        await _previewHttpService.fetchAndUpdateFrame();
-        logInfo(
-          'HTTP frame refresh completed successfully',
-          _logTag,
-        );
-        refreshSuccessful = true;
-      } catch (e) {
-        logWarning(
-          'Attempt $attempt failed to refresh frame via HTTP API: $e',
-          _logTag,
-        );
-        
-        if (attempt < 5) {
-          // Increase delay with each retry
-          final delay = attempt * 250;
-          logInfo(
-            'Waiting ${delay}ms before next attempt...',
-            _logTag,
-          );
-          await Future.delayed(Duration(milliseconds: delay));
-        }
-      }
-    }
-    
-    if (!refreshSuccessful) {
-      logError(
-        'All HTTP frame refresh attempts failed',
+    // Directly trigger a frame refresh via HTTP 
+    // Only attempt once to reduce server load
+    try {
+      logInfo(
+        'Initiating HTTP frame refresh',
+        _logTag,
+      );
+      
+      // Skip debug info request entirely to reduce load
+      await _previewHttpService.fetchAndUpdateFrame();
+      logInfo(
+        'HTTP frame refresh completed successfully',
+        _logTag,
+      );
+    } catch (e) {
+      logWarning(
+        'Failed to refresh frame via HTTP API: $e',
         _logTag,
       );
     }
@@ -160,6 +178,17 @@ class UpdateClipPreviewRectCommand extends TimelineCommand {
   @override
   Future<void> undo() async {
     logInfo('Undoing UpdateClipPreviewRectCommand for clip $clipId', _logTag);
+
+    // Apply throttling to undo operations as well
+    if (UpdateRequestTracker.shouldThrottle()) {
+      final throttleDelay = UpdateRequestTracker.getThrottleDelay();
+      logInfo('Throttling undo preview update request for ${throttleDelay.inMilliseconds}ms to avoid server overload', _logTag);
+      await Future.delayed(throttleDelay);
+    } else {
+      // Reset consecutive requests counter if we're not throttling
+      UpdateRequestTracker.resetConsecutiveRequests();
+    }
+    UpdateRequestTracker.updateTimestamp();
 
     await _undoRedoService.undo();
 
@@ -191,52 +220,25 @@ class UpdateClipPreviewRectCommand extends TimelineCommand {
       'Waiting for server database refresh to complete after undo...',
       _logTag,
     );
-    await Future.delayed(const Duration(milliseconds: 300));
+    await Future.delayed(const Duration(milliseconds: 750));
     
     // Directly trigger a frame refresh via HTTP after undo
-    bool refreshSuccessful = false;
-    for (int attempt = 1; attempt <= 5 && !refreshSuccessful; attempt++) {
-      try {
-        logInfo(
-          'Initiating HTTP frame refresh after undo (attempt $attempt)',
-          _logTag,
-        );
-        
-        // Get debug timeline info first to check if database was properly updated
-        if (attempt == 1) {
-          try {
-            await _previewHttpService.getTimelineDebugInfo();
-          } catch (e) {
-            logWarning('Failed to get debug info after undo: $e', _logTag);
-          }
-        }
-        
-        await _previewHttpService.fetchAndUpdateFrame();
-        logInfo(
-          'HTTP frame refresh after undo completed successfully',
-          _logTag,
-        );
-        refreshSuccessful = true;
-      } catch (e) {
-        logWarning(
-          'Attempt $attempt failed to refresh frame via HTTP API after undo: $e',
-          _logTag,
-        );
-        
-        if (attempt < 5) {
-          final delay = attempt * 250;
-          logInfo(
-            'Waiting ${delay}ms before next attempt after undo...',
-            _logTag,
-          );
-          await Future.delayed(Duration(milliseconds: delay));
-        }
-      }
-    }
-    
-    if (!refreshSuccessful) {
-      logError(
-        'All HTTP frame refresh attempts failed after undo',
+    // Only attempt once to reduce server load
+    try {
+      logInfo(
+        'Initiating HTTP frame refresh after undo',
+        _logTag,
+      );
+      
+      // Skip debug info request entirely to reduce load
+      await _previewHttpService.fetchAndUpdateFrame();
+      logInfo(
+        'HTTP frame refresh after undo completed successfully',
+        _logTag,
+      );
+    } catch (e) {
+      logWarning(
+        'Failed to refresh frame via HTTP API after undo: $e',
         _logTag,
       );
     }

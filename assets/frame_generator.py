@@ -3,7 +3,14 @@ import cv2
 import numpy as np
 import os
 import logging
+import threading
 from typing import Dict, List, Optional
+
+# Configure OpenCV to disable threading to avoid FFmpeg async_lock assertion errors
+# This must be done before any OpenCV operations
+cv2.setNumThreads(0)  # Disable OpenCV internal threading
+os.environ["OPENCV_FFMPEG_THREADS"] = "1"  # Single thread for FFMPEG operations
+os.environ["OPENCV_FFMPEG_LOCK_STRATEGY"] = "mutex"  # Use mutex for locking strategy
 
 logger = logging.getLogger('video_stream_server')
 
@@ -15,6 +22,9 @@ class FrameGenerator:
         # Canvas dimensions (defaults, will be updated by app)
         self.canvas_width = 1280
         self.canvas_height = 720
+        
+        # Thread safety for FFmpeg operations
+        self.video_lock = threading.RLock()
     
     def update_canvas_dimensions(self, width: int, height: int):
         """Update the canvas dimensions used for rendering."""
@@ -64,17 +74,20 @@ class FrameGenerator:
                 # --- Add logging for source frame calculation ---
                 logger.debug(f"  -> ACTIVE: offset={frame_offset_in_clip}, source_start={source_start_frame_calc}, target_source_frame={source_frame_index}")
                 
-                # Get the video capture object
-                cap = self.ensure_video_capture(video_path)
-                if cap is None:
-                    logger.warning(f"Failed to get capture for {video_path}")
-                    continue
+                # Use lock for FFmpeg operations to prevent threading issues
+                with self.video_lock:
+                    # Get the video capture object
+                    cap = self.ensure_video_capture(video_path)
+                    if cap is None:
+                        logger.warning(f"Failed to get capture for {video_path}")
+                        continue
+                        
+                    # Set the position in the video
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, source_frame_index)
                     
-                # Set the position in the video
-                cap.set(cv2.CAP_PROP_POS_FRAMES, source_frame_index)
+                    # Read the frame
+                    ret, frame = cap.read()
                 
-                # Read the frame
-                ret, frame = cap.read()
                 if not ret:
                     logger.warning(f"Could not read frame {source_frame_index} from {video_path}")
                     continue
@@ -125,8 +138,10 @@ class FrameGenerator:
             self._add_no_visible_clips_message(composite_frame, frame_index)
         
         # Encode the composite frame
-        _, buffer = cv2.imencode('.jpg', composite_frame)
-        return buffer.tobytes()
+        # Use lock for encoding to prevent FFmpeg threading issues
+        with self.video_lock:
+            _, buffer = cv2.imencode('.jpg', composite_frame)
+            return buffer.tobytes()
 
     def _process_frame(self, frame, video_info):
         """Process a frame based on video_info metadata (resize, flip, etc.)"""
@@ -276,6 +291,7 @@ class FrameGenerator:
                 logger.error(f"Video file not found: {video_path}")
                 return None
                 
+            # Set OpenCV properties to avoid threading issues
             cap = cv2.VideoCapture(video_path)
             if not cap.isOpened():
                 logger.error(f"Could not open video: {video_path}")
@@ -287,6 +303,7 @@ class FrameGenerator:
 
     def cleanup(self):
         """Release all video capture objects"""
-        for cap in self.video_cache.values():
-            cap.release()
-        self.video_cache.clear()
+        with self.video_lock:
+            for cap in self.video_cache.values():
+                cap.release()
+            self.video_cache.clear()

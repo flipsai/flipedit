@@ -269,16 +269,29 @@ class PreviewService implements Disposable {
 
   // --- Cleanup ---
 
-  @override
   void dispose() {
-    logDebug('Disposing PreviewService...', _logTag);
-    _disconnectWebSocket(); // Disconnect WebSocket and cancel timers/subscriptions
+    logDebug('Disposing PreviewService', _logTag);
+    _streamSubscription?.cancel();
+    _reconnectTimer?.cancel();
     _fpsTimer?.cancel();
-    currentFrameNotifier.dispose();
-    isConnectedNotifier.dispose();
-    statusNotifier.dispose();
-    fpsNotifier.dispose();
-    logDebug('PreviewService disposed.', _logTag);
+    
+    // Close active connections
+    _disconnectWebSocket();
+    
+    // Remove all listeners
+    isConnectedNotifier.value = false;
+    statusNotifier.value = 'Disposed';
+    
+    // Dispose image resources
+    if (currentFrameNotifier.value != null) {
+      currentFrameNotifier.value!.dispose();
+      currentFrameNotifier.value = null;
+    }
+    
+    // Update notifiers
+    fpsNotifier.value = 0;
+    
+    logDebug('PreviewService disposed', _logTag);
   }
 
   @override

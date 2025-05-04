@@ -52,17 +52,18 @@ Future<void> setupServiceLocator() async {
   di.registerLazySingleton<LayoutService>(() => LayoutService());
   di.registerLazySingleton<PreviewService>(
     () => PreviewService(),
-    dispose: (service) => service.dispose(), // Register with dispose
+    dispose: (service) => service.dispose(),
   );
   di.registerLazySingleton<PreviewSyncService>(
     () => PreviewSyncService(),
-    dispose: (service) => service.dispose(), // Register with dispose
+    dispose: (service) => service.dispose(),
   );
   di.registerLazySingleton<PreviewHttpService>(
     () => PreviewHttpService(
       timelineNavViewModel: di<TimelineNavigationViewModel>(),
       previewService: di<PreviewService>(),
     ),
+    dispose: (service) => service.dispose(),
   );
 
   // Register canvas dimensions service
