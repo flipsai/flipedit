@@ -5,6 +5,8 @@ import 'package:flipedit/utils/logger.dart' as logger;
 import 'package:collection/collection.dart';
 import '../../services/timeline_logic_service.dart';
 import '../../services/project_database_service.dart';
+import '../../services/preview_http_service.dart';
+import '../../viewmodels/timeline_navigation_viewmodel.dart';
 import 'package:watch_it/watch_it.dart';
 
 class MoveClipCommand implements TimelineCommand {
@@ -14,8 +16,10 @@ class MoveClipCommand implements TimelineCommand {
   final ProjectDatabaseService _projectDatabaseService =
       di<ProjectDatabaseService>();
   final TimelineLogicService _timelineLogicService = di<TimelineLogicService>();
+  final PreviewHttpService _previewHttpService = di<PreviewHttpService>();
+  final TimelineNavigationViewModel _timelineNavViewModel = di<TimelineNavigationViewModel>();
   final ValueNotifier<List<ClipModel>> clipsNotifier;
-
+ 
   ClipModel? _originalClipState;
   Map<int, Map<String, dynamic>>? _neighborUpdatesForUndo;
   List<ClipModel>? _neighborsDeletedForUndo;
@@ -150,6 +154,12 @@ class MoveClipCommand implements TimelineCommand {
         placementResult['updatedClips'],
       );
 
+      // Fetch frame if paused
+      if (!_timelineNavViewModel.isPlayingNotifier.value) {
+        logger.logDebug('[MoveClipCommand] Timeline paused, fetching frame via HTTP...', _logTag);
+        await _previewHttpService.fetchAndUpdateFrame();
+      }
+
       logger.logInfo(
         '[MoveClipCommand] Successfully executed move for clip $clipId',
         _logTag,
@@ -215,6 +225,12 @@ class MoveClipCommand implements TimelineCommand {
         '[MoveClipCommand][Undo] ViewModel state should refresh via listeners.',
         _logTag,
       );
+
+      // Fetch frame if paused
+      if (!_timelineNavViewModel.isPlayingNotifier.value) {
+        logger.logDebug('[MoveClipCommand][Undo] Timeline paused, fetching frame via HTTP...', _logTag);
+        await _previewHttpService.fetchAndUpdateFrame();
+      }
 
       logger.logInfo(
         '[MoveClipCommand] Successfully undone move for clip $clipId',

@@ -5,6 +5,7 @@ import 'package:flipedit/utils/logger.dart' as logger;
 import 'package:collection/collection.dart';
 import '../../services/timeline_logic_service.dart';
 import '../../services/project_database_service.dart';
+import '../../services/preview_sync_service.dart';
 import 'package:watch_it/watch_it.dart';
 
 class ResizeClipCommand implements TimelineCommand {
@@ -14,6 +15,7 @@ class ResizeClipCommand implements TimelineCommand {
   final ProjectDatabaseService _projectDatabaseService =
       di<ProjectDatabaseService>();
   final TimelineLogicService _timelineLogicService = di<TimelineLogicService>();
+  final PreviewSyncService _previewSyncService = di<PreviewSyncService>();
   final ValueNotifier<List<ClipModel>> clipsNotifier;
 
   ClipModel? _originalClipState;
@@ -238,6 +240,20 @@ class ResizeClipCommand implements TimelineCommand {
         '[ResizeClipCommand] Successfully executed resize for clip $clipId',
         _logTag,
       );
+      
+      // Sync changes to preview server
+      await _previewSyncService.sendClipsToPreviewServer();
+      logger.logInfo(
+        '[ResizeClipCommand] Sent updated clips to preview server',
+        _logTag,
+      );
+      
+      // Send a refresh_from_db command to trigger database-based refresh
+      _previewSyncService.sendMessage("refresh_from_db");
+      logger.logInfo(
+        '[ResizeClipCommand] Sent refresh_from_db command to preview server',
+        _logTag,
+      );
     } catch (e) {
       logger.logError(
         '[ResizeClipCommand] Error executing resize for clip $clipId: $e',
@@ -303,7 +319,21 @@ class ResizeClipCommand implements TimelineCommand {
       );
 
       logger.logInfo(
-        '[ResizeClipCommand] Successfully undone resize for clip $clipId',
+        '[ResizeClipCommand] Successfully undid resize for clip $clipId',
+        _logTag,
+      );
+      
+      // Sync changes to preview server after undo
+      await _previewSyncService.sendClipsToPreviewServer();
+      logger.logInfo(
+        '[ResizeClipCommand] Sent undone clips state to preview server',
+        _logTag,
+      );
+      
+      // Send a refresh_from_db command to trigger database-based refresh after undo
+      _previewSyncService.sendMessage("refresh_from_db");
+      logger.logInfo(
+        '[ResizeClipCommand] Sent refresh_from_db command to preview server after undo',
         _logTag,
       );
 

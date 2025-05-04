@@ -40,7 +40,7 @@ class FrameGenerator:
         
         # Process each video clip in the timeline list
         for video_info in current_videos:
-            video_path = video_info.get('sourcePath')
+            video_path = video_info.get('sourcePath') or video_info.get('source_path')
             if not video_path:
                  logger.warning("Skipping clip with no sourcePath in get_frame")
                  continue

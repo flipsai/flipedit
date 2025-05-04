@@ -82,6 +82,8 @@ class UvManager {
         await installPackage('websockets', defaultEnvName);
         await installPackage('opencv-python', defaultEnvName);
         await installPackage('numpy', defaultEnvName);
+        await installPackage('flask', defaultEnvName);
+        await installPackage('sqlalchemy', defaultEnvName);
         logInfo(_logTag, 'Python dependencies check/install complete.');
       } catch (e) {
         logError(_logTag, 'Failed to install Python dependencies: $e');

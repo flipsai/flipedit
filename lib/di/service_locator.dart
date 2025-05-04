@@ -3,19 +3,20 @@ import 'package:flipedit/persistence/dao/project_metadata_dao.dart';
 import 'package:flipedit/persistence/database/project_metadata_database.dart';
 import 'package:flipedit/services/canvas_dimensions_service.dart';
 import 'package:flipedit/services/playback_service.dart';
-import 'package:flipedit/services/preview_service.dart'; // Import PreviewService
-import 'package:flipedit/services/preview_sync_service.dart'; // Import PreviewSyncService
+import 'package:flipedit/services/preview_service.dart';
+import 'package:flipedit/services/preview_sync_service.dart';
+import 'package:flipedit/services/preview_http_service.dart';
 import 'package:flipedit/services/timeline_logic_service.dart';
 import 'package:flipedit/services/uv_manager.dart';
 import 'package:flipedit/services/layout_service.dart';
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/services/project_metadata_service.dart';
-import 'package:flipedit/services/media_duration_service.dart'; // Import MediaDurationService
+import 'package:flipedit/services/media_duration_service.dart';
 import 'package:flipedit/viewmodels/app_viewmodel.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
-import 'package:flipedit/viewmodels/timeline_viewmodel.dart'; // Interaction VM
-import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart'; // State VM
+import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
+import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flipedit/services/undo_redo_service.dart';
@@ -57,7 +58,13 @@ Future<void> setupServiceLocator() async {
     () => PreviewSyncService(),
     dispose: (service) => service.dispose(), // Register with dispose
   );
-  
+  di.registerLazySingleton<PreviewHttpService>(
+    () => PreviewHttpService(
+      timelineNavViewModel: di<TimelineNavigationViewModel>(),
+      previewService: di<PreviewService>(),
+    ),
+  );
+
   // Register canvas dimensions service
   di.registerLazySingleton<CanvasDimensionsService>(
     () => CanvasDimensionsService(),

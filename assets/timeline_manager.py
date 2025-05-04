@@ -4,6 +4,7 @@ import os
 from typing import Dict, List, Optional
 
 import config
+import db_access
 
 logger = logging.getLogger('video_stream_server')
 
@@ -13,6 +14,47 @@ class TimelineManager:
         self.current_videos: List[Dict] = []
         self.frame_rate = config.DEFAULT_FRAME_RATE
         self.total_frames = config.DEFAULT_TOTAL_FRAMES
+        self.db_manager = db_access.get_manager()
+        
+        # Auto-connect to the most recent project database
+        if self.db_manager.connect_to_project():
+            self.refresh_from_database()
+    
+    def refresh_from_database(self):
+        """Load clips data directly from the connected project database"""
+        logger.info("Refreshing timeline data from database")
+        
+        # Check if database connection is active, try to reconnect if not
+        if not self.db_manager.project_session:
+            logger.warning("Database connection not active, attempting to reconnect...")
+            
+            # Try to connect to the most recent project
+            if not self.db_manager.connect_to_project():
+                logger.error("Failed to reconnect to database")
+                # Keep existing clips rather than clearing them on connection failure
+                return
+            
+            logger.info("Successfully reconnected to database")
+        
+        # Get all clips from the database
+        try:
+            clips = self.db_manager.get_all_clips()
+            
+            if not clips:
+                logger.info("No clips found in database")
+                # Only clear videos if we successfully connected but found no clips
+                self.current_videos = []
+                self.total_frames = config.DEFAULT_TOTAL_FRAMES
+                return
+                
+            # Use update_videos with database clips
+            self.update_videos(clips)
+            
+            logger.info(f"Timeline refreshed from database: {len(self.current_videos)} clips loaded")
+            
+        except Exception as e:
+            logger.error(f"Error refreshing timeline from database: {e}")
+            # Keep existing timeline state on error
     
     def update_videos(self, video_data: List[Dict]):
         """Update the list of videos in the timeline."""
@@ -35,10 +77,10 @@ class TimelineManager:
             if index < 3:
                  logger.debug(f"Processing video data [{index}]: {video}")
 
-            # Use 'sourcePath' instead of 'path'
-            path = video.get('sourcePath')
+            # Use 'sourcePath' or 'source_path' depending on the source of data
+            path = video.get('sourcePath') or video.get('source_path')
             if not path:
-                logger.warning(f"Skipped video [{index}] with missing sourcePath")
+                logger.warning(f"Skipped video [{index}] with missing source path")
                 continue
                 
             if not os.path.exists(path):
@@ -46,9 +88,10 @@ class TimelineManager:
                 continue
                 
             # Fetch millisecond times needed for calculation first
-            start_frame_ms = video.get('startTimeOnTrackMs', 0)
-            end_frame_ms = video.get('endTimeOnTrackMs', 0)
-            source_start_ms = video.get('startTimeInSourceMs', 0)
+            # Support both camelCase (from WebSocket) and snake_case (from DB) formats
+            start_frame_ms = video.get('startTimeOnTrackMs') or video.get('start_time_on_track_ms', 0)
+            end_frame_ms = video.get('endTimeOnTrackMs') or video.get('end_time_on_track_ms', 0)
+            source_start_ms = video.get('startTimeInSourceMs') or video.get('start_time_in_source_ms', 0)
 
             # Calculate frame numbers here and store them in the dictionary
             # --- Use self.frame_rate consistently ---
@@ -70,8 +113,9 @@ class TimelineManager:
             video_count += 1
             
             # Log some basic info about the video using calculated frames
-            metadata = video.get('metadata', {}) # Get metadata for previewRect access
-            preview_rect_data = metadata.get('previewRect', {}) # Get previewRect safely
+            # Handle both metadata formats (camelCase from WebSocket and snake_case from DB)
+            metadata = video.get('metadata', {})
+            preview_rect_data = metadata.get('previewRect', {}) 
             
             # Use calculated frame numbers for logging
             start_frame = video['start_frame_calc']
@@ -104,6 +148,11 @@ class TimelineManager:
         if not self.current_videos:
             logger.warning("No valid videos found in the data")
             self.total_frames = config.DEFAULT_TOTAL_FRAMES  # Reset to default
+    
+    def handle_message_updates(self, video_data: List[Dict]):
+        """Handle updates from WebSocket messages (legacy method)"""
+        logger.info("Received clip update message from Flutter app")
+        self.update_videos(video_data)
     
     def get_timeline_state(self):
         """Get the current timeline state as a dictionary"""

@@ -15,7 +15,8 @@ class MessageHandler:
         seek_callback: Callable[[int], int],
         get_frame_callback: Callable[[int], Optional[bytes]],
         send_state_callback: Callable[[Any, bool], None],
-        update_canvas_dimensions_callback: Callable[[int, int], None] = None  # Add new callback
+        update_canvas_dimensions_callback: Callable[[int, int], None] = None,
+        refresh_timeline_from_db_callback: Callable[[], None] = None 
     ):
         """
         Initialize the message handler with callback functions
@@ -28,6 +29,7 @@ class MessageHandler:
             get_frame_callback: Function to get a frame at a specific index
             send_state_callback: Function to send playback state to a client
             update_canvas_dimensions_callback: Function to update canvas dimensions
+            refresh_timeline_from_db_callback: Function to refresh timeline data from database
         """
         self.update_timeline = update_timeline_callback
         self.start_playback = start_playback_callback
@@ -36,6 +38,7 @@ class MessageHandler:
         self.get_frame = get_frame_callback
         self.send_state_update = send_state_callback
         self.update_canvas_dimensions = update_canvas_dimensions_callback
+        self.refresh_timeline_from_db = refresh_timeline_from_db_callback
     
     async def handle_message(self, websocket, message: str):
         """Handle incoming messages from clients."""
@@ -98,6 +101,26 @@ class MessageHandler:
                             logger.warning(f"Invalid canvas dimensions in message: {payload}")
                 except json.JSONDecodeError as e:
                     logger.error(f"Invalid JSON in canvas_dimensions message: {e}")
+            
+            # Add a handler for refresh_from_db message
+            elif message == "refresh_from_db":
+                if self.refresh_timeline_from_db:
+                    logger.info("Received refresh_from_db command")
+                    self.refresh_timeline_from_db()
+                    
+                    # Force a frame refresh by seeking to the current frame
+                    current_frame = self.seek(self.seek(0))  # Get current frame index
+                    frame_bytes = self.get_frame(current_frame)
+                    if frame_bytes and websocket:
+                        # Send the refreshed frame
+                        encoded_frame = base64.b64encode(frame_bytes).decode('utf-8')
+                        await websocket.send(encoded_frame)
+                        logger.info(f"Refreshed frame after database update")
+                    
+                    # Send pause state update to ensure UI is in sync
+                    await self.send_state_update(websocket, False)
+                else:
+                    logger.warning("Received refresh_from_db command but callback is not set")
                     
             elif message.startswith('{"type":"clips"'): # Check for the new JSON format
                 try:
@@ -108,7 +131,14 @@ class MessageHandler:
                         # Log the received raw data (truncated)
                         truncated_data = str(video_data)[:500]
                         logger.debug(f"Raw clips data received (truncated): {truncated_data}")
-                        self.update_timeline(video_data)
+                        
+                        # Instead of directly updating, trigger database refresh
+                        logger.info("Legacy clips message received - refreshing from database instead")
+                        if self.refresh_timeline_from_db:
+                            self.refresh_timeline_from_db()
+                        else:
+                            # Fallback to direct update if callback not available
+                            self.update_timeline(video_data)
                     else:
                         logger.warning(f"Received JSON message with unknown type: {data.get('type')}")
                 except json.JSONDecodeError as e:
@@ -121,18 +151,82 @@ class MessageHandler:
                 try:
                     data = json.loads(message)
                     if data.get('type') == 'sync_clips':
-                        video_data = data.get('payload', [])
-                        logger.info(f"Received 'sync_clips' message with {len(video_data)} clips.")
-                        # Log the received raw data (truncated)
-                        truncated_data = str(video_data)[:500]
-                        logger.debug(f"Raw sync_clips data received (truncated): {truncated_data}")
-                        self.update_timeline(video_data)
+                        logger.info("Received 'sync_clips' message - refreshing from database")
+                        
+                        # Use new database refresh approach instead of message data
+                        if self.refresh_timeline_from_db:
+                            self.refresh_timeline_from_db()
+                        else:
+                            # Fallback to legacy message approach if callback not set
+                            video_data = data.get('payload', [])
+                            truncated_data = str(video_data)[:500]
+                            logger.debug(f"Raw sync_clips data received (truncated): {truncated_data}")
+                            self.update_timeline(video_data)
                     else:
                         logger.warning(f"Received unexpected message format: {data.get('type')}")
                 except json.JSONDecodeError as e:
                     logger.error(f"Invalid JSON in sync_clips message: {e}")
                 except Exception as e:
                     logger.error(f"Error processing 'sync_clips' message: {e}")
+
+            # Handle JSON-formatted seek messages
+            elif message.startswith('{"type":"seek"'):
+                try:
+                    data = json.loads(message)
+                    if data.get('type') == 'seek':
+                        payload = data.get('payload', {})
+                        frame = payload.get('frame')
+                        
+                        if frame is not None:
+                            logger.info(f"Received JSON seek message for frame {frame}")
+                            
+                            # Seek to the requested frame
+                            actual_frame = self.seek(frame)
+                            
+                            # Always stop playback during manual seeking to prevent auto-play
+                            await self.stop_playback()
+                            
+                            # Send the current frame immediately
+                            frame_bytes = self.get_frame(actual_frame)
+                            if frame_bytes and websocket:
+                                # Send the refreshed frame
+                                encoded_frame = base64.b64encode(frame_bytes).decode('utf-8')
+                                await websocket.send(encoded_frame)
+                                
+                            # Confirm to client that we're in paused state after seeking
+                            await self.send_state_update(websocket, False)
+                        else:
+                            logger.warning(f"Invalid 'frame' value in seek message: {payload}")
+                    else:
+                        logger.warning(f"Received JSON message with unexpected type: {data.get('type')}")
+                except json.JSONDecodeError as e:
+                    logger.error(f"Invalid JSON in seek message: {e}")
+                except Exception as e:
+                    logger.error(f"Error processing 'seek' message: {e}")
+
+            # Handle playback control messages
+            elif message.startswith('{"type":"playback"'):
+                try:
+                    data = json.loads(message)
+                    if data.get('type') == 'playback':
+                        payload = data.get('payload', {})
+                        is_playing = payload.get('playing')
+                        if is_playing is True:
+                            logger.info("Received 'playback' message: playing=True")
+                            await self.start_playback()
+                            await self.send_state_update(websocket, True)
+                        elif is_playing is False:
+                            logger.info("Received 'playback' message: playing=False")
+                            await self.stop_playback()
+                            await self.send_state_update(websocket, False)
+                        else:
+                            logger.warning(f"Invalid 'playing' value in playback message: {payload}")
+                    else:
+                        logger.warning(f"Received JSON message with unexpected type: {data.get('type')}")
+                except json.JSONDecodeError as e:
+                    logger.error(f"Invalid JSON in playback message: {e}")
+                except Exception as e:
+                    logger.error(f"Error processing 'playback' message: {e}")
                     
             elif message.startswith("videos:"): # Keep old format for compatibility
                 # Format: videos:<json_data> - This path might be deprecated now

@@ -16,7 +16,9 @@ import '../../services/canvas_dimensions_service.dart';
 import '../../views/dialogs/canvas_dimensions_dialog.dart';
 import 'package:watch_it/watch_it.dart';
 import '../../services/undo_redo_service.dart';
-import '../../utils/global_context.dart'; // Import to access global context
+import '../../services/preview_http_service.dart';
+import '../../viewmodels/timeline_navigation_viewmodel.dart';
+import '../../utils/global_context.dart';
 
 class AddClipCommand implements TimelineCommand {
   final TimelineViewModel vm;
@@ -29,7 +31,9 @@ class AddClipCommand implements TimelineCommand {
   final TimelineStateViewModel _stateViewModel = di<TimelineStateViewModel>();
   final MediaDurationService _mediaDurationService = di<MediaDurationService>();
   final CanvasDimensionsService _canvasDimensionsService = di<CanvasDimensionsService>();
-
+  final PreviewHttpService _previewHttpService = di<PreviewHttpService>();
+  final TimelineNavigationViewModel _timelineNavViewModel = di<TimelineNavigationViewModel>();
+ 
   int? _insertedClipId;
   List<ClipModel>? _originalNeighborStates;
   List<int>? _removedNeighborIds;
@@ -365,6 +369,13 @@ class AddClipCommand implements TimelineCommand {
     }
 
     await _stateViewModel.refreshClips();
+
+    // Fetch frame if paused
+    if (!_timelineNavViewModel.isPlayingNotifier.value) {
+      logger.logDebug('[AddClipCommand] Timeline paused, fetching frame via HTTP...', _logTag);
+      await _previewHttpService.fetchAndUpdateFrame();
+    }
+
     logger.logInfo(
       '[AddClipCommand] Triggered refresh in State ViewModel.',
       _logTag,
@@ -438,6 +449,12 @@ class AddClipCommand implements TimelineCommand {
       }
 
       await _stateViewModel.refreshClips();
+
+      // Fetch frame if paused
+      if (!_timelineNavViewModel.isPlayingNotifier.value) {
+        logger.logDebug('[AddClipCommand][Undo] Timeline paused, fetching frame via HTTP...', _logTag);
+        await _previewHttpService.fetchAndUpdateFrame();
+      }
 
       _insertedClipId = null;
       _originalNeighborStates = null;
