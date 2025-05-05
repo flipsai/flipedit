@@ -235,7 +235,6 @@ class InspectorPanel extends StatelessWidget with WatchItMixin {
                 child: NumberBox<double>(
                   value: previewRect.left,
                   min: 0,
-                  max: 1200, // Reasonable max for 1280px preview width
                   onChanged: (value) {
                     if (value != null) {
                       timelineViewModel.updateClipPreviewRect(
@@ -259,7 +258,6 @@ class InspectorPanel extends StatelessWidget with WatchItMixin {
                 child: NumberBox<double>(
                   value: previewRect.top,
                   min: 0,
-                  max: 650, // Reasonable max for 720px preview height
                   onChanged: (value) {
                     if (value != null) {
                       timelineViewModel.updateClipPreviewRect(
@@ -290,7 +288,6 @@ class InspectorPanel extends StatelessWidget with WatchItMixin {
                 child: NumberBox<double>(
                   value: previewRect.width,
                   min: 10,
-                  max: 1280,
                   onChanged: (value) {
                     if (value != null) {
                       timelineViewModel.updateClipPreviewRect(
@@ -314,7 +311,6 @@ class InspectorPanel extends StatelessWidget with WatchItMixin {
                 child: NumberBox<double>(
                   value: previewRect.height,
                   min: 10,
-                  max: 720,
                   onChanged: (value) {
                     if (value != null) {
                       timelineViewModel.updateClipPreviewRect(

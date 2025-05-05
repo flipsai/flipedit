@@ -4,7 +4,9 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:watch_it/watch_it.dart'; // Import watch_it
 
 import 'package:flipedit/viewmodels/preview_viewmodel.dart';
+import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart'; // Keep for frame number display
+import 'package:flipedit/models/clip.dart';
 
 /// PreviewPanel displays the video stream received via the PreviewViewModel.
 class PreviewPanel extends StatelessWidget with WatchItMixin {
@@ -86,16 +88,19 @@ class PreviewPanel extends StatelessWidget with WatchItMixin {
 
 /// Simple widget to display the ui.Image using CustomPaint.
 /// Assumes a VideoFramePainter exists to handle the actual painting.
-class VideoFrameWidget extends StatelessWidget {
+class VideoFrameWidget extends StatelessWidget with WatchItMixin {
   final ui.Image image;
 
   const VideoFrameWidget({super.key, required this.image});
 
   @override
   Widget build(BuildContext context) {
+    // Watch clips from TimelineViewModel
+    final clips = watchValue((TimelineViewModel vm) => vm.clipsNotifier);
+    
     return SizedBox.expand(
       // Ensure the painter takes available space
-      child: CustomPaint(painter: VideoFramePainter(image: image)),
+      child: CustomPaint(painter: VideoFramePainter(image: image, clips: clips)),
     );
   }
 }
@@ -103,8 +108,9 @@ class VideoFrameWidget extends StatelessWidget {
 /// CustomPainter to draw the video frame.
 class VideoFramePainter extends CustomPainter {
   final ui.Image image;
+  final List<ClipModel> clips;
 
-  VideoFramePainter({required this.image});
+  VideoFramePainter({required this.image, required this.clips});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -144,11 +150,45 @@ class VideoFramePainter extends CustomPainter {
 
     // Draw the image
     canvas.drawImageRect(image, srcRect, dstRect, Paint());
+    
+    // Draw half-transparent squares over clips
+    final Paint clipPaint = Paint()
+      ..color = Colors.blue.withOpacity(0.5)
+      ..style = PaintingStyle.fill;
+      
+    for (final clip in clips) {
+      if (clip.previewRect != null) {
+        // Convert preview rect to painter coordinates
+        final previewRect = clip.previewRect!;
+        
+        // Adjust to canvas scale and position
+        double scale;
+        double dx = 0;
+        double dy = 0;
+        
+        if (imageAspect > canvasAspect) {
+          scale = size.width / image.width;
+          dy = (size.height - (image.height * scale)) / 2.0;
+        } else {
+          scale = size.height / image.height;
+          dx = (size.width - (image.width * scale)) / 2.0;
+        }
+        
+        final scaledRect = Rect.fromLTWH(
+          dx + previewRect.left * scale,
+          dy + previewRect.top * scale,
+          previewRect.width * scale,
+          previewRect.height * scale
+        );
+        
+        canvas.drawRect(scaledRect, clipPaint);
+      }
+    }
   }
 
   @override
   bool shouldRepaint(covariant VideoFramePainter oldDelegate) {
-    // Repaint only if the image object itself changes
-    return oldDelegate.image != image;
+    // Repaint if the image or clips have changed
+    return oldDelegate.image != image || oldDelegate.clips != clips;
   }
 }
