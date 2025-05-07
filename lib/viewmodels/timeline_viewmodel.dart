@@ -22,7 +22,6 @@ import 'package:flipedit/services/undo_redo_service.dart';
 import 'commands/roll_edit_command.dart';
 import 'package:flipedit/services/timeline_logic_service.dart';
 import 'package:flipedit/services/preview_sync_service.dart';
-import 'commands/update_clip_preview_rect_command.dart';
 import 'commands/update_clip_preview_flip_command.dart';
 
 class TimelineViewModel extends ChangeNotifier {
@@ -393,21 +392,6 @@ class TimelineViewModel extends ChangeNotifier {
       targetTrackId: targetTrackId,
       targetStartTimeOnTrackMs: targetStartTimeOnTrackMs,
     );
-  }
-
-  // Update clip's preview rectangle using the command pattern
-  Future<void> updateClipPreviewRect(int clipId, Rect rect) async {
-    final command = UpdateClipPreviewRectCommand(clipId: clipId, newRect: rect);
-    try {
-      await runCommand(command);
-      // State update and preview sync are handled within the command
-    } catch (e) {
-      logger.logError(
-        'Error running UpdateClipPreviewRectCommand: $e',
-        _logTag,
-      );
-      // Consider showing user feedback about the error
-    }
   }
 
   // Update clip's flip setting using the command pattern

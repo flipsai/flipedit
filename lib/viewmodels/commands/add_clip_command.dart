@@ -81,70 +81,6 @@ class AddClipCommand implements TimelineCommand {
     
     return clip; // No changes needed
   }
-  
-  /// Sets up default preview rectangle based on current canvas dimensions and media dimensions
-  Future<ClipModel> _setupPreviewRect(ClipModel clip) async {
-    // If the clip already has a previewRect, don't override it
-    if (clip.metadata.containsKey('previewRect')) {
-      logger.logInfo(
-        '[AddClipCommand] Clip already has previewRect, skipping auto-detection',
-        _logTag,
-      );
-      return clip;
-    }
-
-    logger.logInfo(
-      '[AddClipCommand] Auto-detecting dimensions for: ${clip.sourcePath}',
-      _logTag,
-    );
-    
-    try {
-      // Get media info from Python server
-      final mediaInfo = await _mediaDurationService.getMediaInfo(clip.sourcePath);
-      
-      if (mediaInfo.width > 0 && mediaInfo.height > 0) {
-        // Default preview rect values with detected dimensions
-        int previewWidth = mediaInfo.width;
-        int previewHeight = mediaInfo.height;
-        
-        // Get current canvas dimensions
-        double canvasWidth = _canvasDimensionsService.canvasWidth;
-        double canvasHeight = _canvasDimensionsService.canvasHeight;
-        
-        final left = (canvasWidth - previewWidth) / 2;
-        final top = (canvasHeight - previewHeight) / 2;
-        
-        // Create previewRect metadata
-        final previewRect = {
-          'left': left,
-          'top': top,
-          'width': previewWidth.toDouble(),
-          'height': previewHeight.toDouble(),
-        };
-        
-        // Create updated metadata
-        final updatedMetadata = Map<String, dynamic>.from(clip.metadata);
-        updatedMetadata['previewRect'] = previewRect;
-        
-        logger.logInfo(
-          '[AddClipCommand] Created preview rect: ${previewWidth}x${previewHeight} at position (${left.round()},${top.round()})',
-          _logTag,
-        );
-        
-        // Return clip with updated metadata
-        return clip.copyWith(
-          metadata: updatedMetadata,
-        );
-      }
-    } catch (e) {
-      logger.logError(
-        '[AddClipCommand] Error detecting media dimensions: $e',
-        _logTag,
-      );
-    }
-    
-    return clip; // Return original clip if dimensions detection fails
-  }
 
   @override
   Future<void> execute() async {
@@ -161,9 +97,6 @@ class AddClipCommand implements TimelineCommand {
 
     // Step 1: Validate and potentially update the clip source duration
     var processedClipData = await _validateClipSourceDuration(clipData);
-    
-    // Step 2: Set up preview rectangle based on media dimensions and current canvas size
-    processedClipData = await _setupPreviewRect(processedClipData);
 
     final initialEndTimeOnTrackMs =
         startTimeOnTrackMs + processedClipData.durationInSourceMs;
