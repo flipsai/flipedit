@@ -118,6 +118,9 @@ def create_preview_server(frame_generator, timeline_manager):
     app = Flask(__name__)
     app.config['FRAME_GENERATOR'] = frame_generator
     app.config['TIMELINE_MANAGER'] = timeline_manager
+    app.config['LAST_TIMELINE_REFRESH_TIME'] = 0  # Initialize last refresh time
+    app.config['CACHED_TIMELINE_STATE'] = None    # Initialize cached timeline state
+    app.config['TIMELINE_REFRESH_INTERVAL'] = 1.0 # Refresh interval in seconds
     
     # Start the request queue processor thread
     queue_processor_thread = threading.Thread(
@@ -138,15 +141,31 @@ def create_preview_server(frame_generator, timeline_manager):
             current_frame_generator = app.config['FRAME_GENERATOR']
             current_timeline_manager = app.config['TIMELINE_MANAGER']
 
-            # Always refresh from database to ensure up-to-date clip dimensions
-            logger.info("HTTP endpoint: Force refreshing timeline from database")
-            current_timeline_manager.refresh_from_database()
-            logger.info("HTTP endpoint: Timeline refreshed from database")
+            current_time = time.time()
+            last_refresh_time = app.config['LAST_TIMELINE_REFRESH_TIME']
+            refresh_interval = app.config['TIMELINE_REFRESH_INTERVAL']
+            cached_state = app.config['CACHED_TIMELINE_STATE']
 
-            # Get current timeline state from TimelineManager
-            timeline_state = current_timeline_manager.get_timeline_state()
-            if not timeline_state:
-                logger.error("TimelineManager did not provide timeline state.")
+            if current_time - last_refresh_time > refresh_interval or cached_state is None:
+                logger.info("HTTP endpoint: Refreshing timeline from database and caching.")
+                current_timeline_manager.refresh_from_database()
+                timeline_state = current_timeline_manager.get_timeline_state()
+                
+                if not timeline_state:
+                    logger.error("TimelineManager did not provide timeline state after refresh.")
+                    abort(500, description="Could not retrieve timeline state.")
+                
+                app.config['CACHED_TIMELINE_STATE'] = timeline_state
+                app.config['LAST_TIMELINE_REFRESH_TIME'] = current_time
+                # Clear FrameGenerator's caches as timeline data has changed
+                current_frame_generator.clear_all_caches()
+                logger.info("HTTP endpoint: Timeline refreshed, cached, and FrameGenerator caches cleared.")
+            else:
+                logger.info("HTTP endpoint: Using cached timeline state.")
+                timeline_state = cached_state
+
+            if not timeline_state: # Should be caught by the refresh logic, but as a safeguard
+                logger.error("TimelineManager did not provide timeline state (cached or fresh).")
                 abort(500, description="Could not retrieve timeline state.")
 
             current_videos = timeline_state.get("videos")

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'dart:ui' as ui;
 
+import 'package:flutter/widgets.dart'; // For WidgetsBinding
 import 'package:watch_it/watch_it.dart';
 import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -29,6 +30,9 @@ class PreviewService implements Disposable {
   final ValueNotifier<bool> isConnectedNotifier = ValueNotifier(false);
   final ValueNotifier<String> statusNotifier = ValueNotifier('Disconnected');
   final ValueNotifier<int> fpsNotifier = ValueNotifier(0);
+ui.Image? _latestDecodedImage;
+  bool _newFrameAvailable = false;
+  bool _postFrameCallbackScheduled = false;
 
   PreviewService() {
     _fpsTimer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -187,15 +191,37 @@ class PreviewService implements Disposable {
   void updatePreviewFrameFromBytes(Uint8List bytes) {
     try {
       ui.decodeImageFromList(bytes, (ui.Image result) {
-        // Dispose previous frame before assigning new one
-        currentFrameNotifier.value?.dispose();
-        currentFrameNotifier.value = result;
-        // Note: _framesReceived might not be accurate for HTTP updates,
-        // but we'll leave it for now as it primarily affects WebSocket FPS display.
-        _framesReceived++;
+        // This callback is on the main isolate.
+        // Instead of directly updating the notifier, store the image
+        // and schedule an update at the end of the current Flutter frame.
+        _latestDecodedImage?.dispose(); // Dispose previous pending image if any
+        _latestDecodedImage = result;
+        _newFrameAvailable = true;
+        _framesReceived++; // Still useful for raw FPS calculation from source
+
+        _ensurePostFrameCallbackScheduled();
       });
     } catch (e, s) {
       logError('Error decoding image bytes', e, s, _logTag);
+    }
+  }
+
+  void _ensurePostFrameCallbackScheduled() {
+    if (!_postFrameCallbackScheduled) {
+      _postFrameCallbackScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _postFrameCallbackScheduled = false; // Reset flag for next frame
+        _updateNotifierWithLatestFrame();
+      });
+    }
+  }
+
+  void _updateNotifierWithLatestFrame() {
+    if (_newFrameAvailable && _latestDecodedImage != null) {
+      currentFrameNotifier.value?.dispose(); // Dispose existing UI image
+      currentFrameNotifier.value = _latestDecodedImage;
+      _latestDecodedImage = null; // Image has been moved to notifier, clear here
+      _newFrameAvailable = false;
     }
   }
 
@@ -283,6 +309,8 @@ class PreviewService implements Disposable {
     statusNotifier.value = 'Disposed';
     
     // Dispose image resources
+    _latestDecodedImage?.dispose(); // Dispose any pending decoded image
+    _latestDecodedImage = null;
     if (currentFrameNotifier.value != null) {
       currentFrameNotifier.value!.dispose();
       currentFrameNotifier.value = null;
