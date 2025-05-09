@@ -2,6 +2,12 @@ import 'package:flipedit/models/clip.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flipedit/viewmodels/commands/resize_clip_command.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
+import 'package:flipedit/services/project_database_service.dart';
+import 'package:flipedit/services/timeline_logic_service.dart';
+import 'package:flipedit/services/preview_sync_service.dart';
+import 'package:flipedit/services/preview_http_service.dart';
+import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
+
 
 /// Service to encapsulate timeline clip resize logic.
 /// Stateless: all state is passed as parameters and returned as needed.
@@ -42,6 +48,11 @@ class TimelineClipResizeService {
     required ClipModel clip,
     required double zoom,
     required Future<void> Function(ResizeClipCommand) runCommand,
+    required ProjectDatabaseService projectDatabaseService,
+    required TimelineLogicService timelineLogicService,
+    required PreviewSyncService previewSyncService,
+    required PreviewHttpService previewHttpService,
+    required TimelineNavigationViewModel navigationViewModel,
   }) async {
     if (resizingDirection == null ||
         previewStartFrame == null ||
@@ -79,6 +90,11 @@ class TimelineClipResizeService {
         direction: direction,
         newBoundaryFrame: newBoundaryFrame,
         clipsNotifier: clipsNotifier,
+        projectDatabaseService: projectDatabaseService,
+        timelineLogicService: timelineLogicService,
+        previewSyncService: previewSyncService,
+        previewHttpService: previewHttpService,
+        navigationViewModel: navigationViewModel,
       );
       try {
         await runCommand(command);

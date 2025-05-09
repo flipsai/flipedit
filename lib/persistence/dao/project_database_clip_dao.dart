@@ -78,10 +78,12 @@ class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase>
         startTimeInSourceMs: clip.startTimeInSourceMs.value,
         endTimeInSourceMs: clip.endTimeInSourceMs.value,
         startTimeOnTrackMs: clip.startTimeOnTrackMs.value,
-        metadataJson:
-            clip.metadataJson.present ? clip.metadataJson.value : null,
-        createdAt:
-            clip.createdAt.present ? clip.createdAt.value : DateTime.now(),
+        previewPositionX: clip.previewPositionX.value,
+        previewPositionY: clip.previewPositionY.value,
+        previewWidth: clip.previewWidth.value,
+        previewHeight: clip.previewHeight.value,
+        metadata: clip.metadata.present ? clip.metadata.value : null,
+        createdAt: clip.createdAt.present ? clip.createdAt.value : DateTime.now(),
         updatedAt:
             clip.updatedAt.present ? clip.updatedAt.value : DateTime.now(),
       );
@@ -127,17 +129,16 @@ class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase>
         startTimeInSourceMs: Value(oldRow.startTimeInSourceMs),
         endTimeInSourceMs: Value(oldRow.endTimeInSourceMs),
         startTimeOnTrackMs: Value(oldRow.startTimeOnTrackMs),
-        metadataJson:
-            oldRow.metadataJson == null
-                ? const Value.absent()
-                : Value(oldRow.metadataJson!),
+        metadata: oldRow.metadata == null
+            ? const Value.absent()
+            : Value(oldRow.metadata!),
         createdAt:
             oldRow.createdAt != null
                 ? Value(oldRow.createdAt)
                 : Value(DateTime.now()),
         updatedAt: Value(
           DateTime.now(),
-        ), // Always update the updatedAt timestamp
+        ),
       );
 
       final updatedCompanion = _applyFieldUpdates(companion, fields);
@@ -153,10 +154,13 @@ class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase>
           startTimeInSourceMs: updatedCompanion.startTimeInSourceMs.value,
           endTimeInSourceMs: updatedCompanion.endTimeInSourceMs.value,
           startTimeOnTrackMs: updatedCompanion.startTimeOnTrackMs.value,
-          metadataJson:
-              updatedCompanion.metadataJson.present
-                  ? updatedCompanion.metadataJson.value
-                  : null,
+          previewPositionX: updatedCompanion.previewPositionX.value,
+          previewPositionY: updatedCompanion.previewPositionY.value,
+          previewWidth: updatedCompanion.previewWidth.value,
+          previewHeight: updatedCompanion.previewHeight.value,
+          metadata: updatedCompanion.metadata.present
+              ? updatedCompanion.metadata.value
+              : null,
           createdAt:
               updatedCompanion.createdAt.present
                   ? updatedCompanion.createdAt.value
@@ -218,13 +222,12 @@ class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase>
         case 'startTimeOnTrackMs':
           result = result.copyWith(startTimeOnTrackMs: Value(value as int));
           break;
-        case 'metadataJson':
+        case 'metadata':
           final metadataValue = value as String?;
           result = result.copyWith(
-            metadataJson:
-                metadataValue == null
-                    ? const Value.absent()
-                    : Value(metadataValue),
+            metadata: metadataValue == null
+                ? const Value.absent()
+                : Value(metadataValue),
           );
           break;
       }

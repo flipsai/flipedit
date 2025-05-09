@@ -1,6 +1,3 @@
-import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flutter_box_transform/flutter_box_transform.dart';
-
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
@@ -9,10 +6,18 @@ import 'package:watch_it/watch_it.dart';
 
 class UpdateClipTransformCommand extends TimelineCommand {
   final int clipId;
-  final Rect newRect;
-  final Flip newFlip;
-  final Rect oldRect;
-  final Flip oldFlip;
+
+  // New state properties
+  final double newPositionX;
+  final double newPositionY;
+  final double newWidth;
+  final double newHeight;
+
+  // Old state properties for undo
+  final double oldPositionX;
+  final double oldPositionY;
+  final double oldWidth;
+  final double oldHeight;
 
   final ProjectDatabaseService projectDatabaseService;
   final TimelineStateViewModel _stateViewModel = di<TimelineStateViewModel>();
@@ -20,71 +25,77 @@ class UpdateClipTransformCommand extends TimelineCommand {
   UpdateClipTransformCommand({
     required this.projectDatabaseService,
     required this.clipId,
-    required this.newRect,
-    required this.newFlip,
-    required this.oldRect,
-    required this.oldFlip,
+    required this.newPositionX,
+    required this.newPositionY,
+    required this.newWidth,
+    required this.newHeight,
+    required this.oldPositionX,
+    required this.oldPositionY,
+    required this.oldWidth,
+    required this.oldHeight,
   }) {
-    logger.logInfo(
-      'UpdateClipTransformCommand created for clip $clipId',
-      'Command',
-    );
+    logger.logInfo('UpdateClipTransformCommand created for clip $clipId', 'Command');
   }
 
   @override
   Future<void> execute() async {
-    logger.logInfo(
-      'Executing UpdateClipTransformCommand for clip $clipId',
-      'Command',
+    logger.logInfo('Executing UpdateClipTransformCommand for clip $clipId', 'Command');
+    await _applyPropertiesToDb(
+      posX: newPositionX,
+      posY: newPositionY,
+      width: newWidth,
+      height: newHeight,
     );
-    await _updateTransform(newRect, newFlip);
     await _stateViewModel.refreshClips();
   }
 
   @override
   Future<void> undo() async {
-    logger.logInfo(
-      'Undoing UpdateClipTransformCommand for clip $clipId (via command object)',
-      'Command',
+    logger.logInfo('Undoing UpdateClipTransformCommand for clip $clipId', 'Command');
+    await _applyPropertiesToDb(
+      posX: oldPositionX,
+      posY: oldPositionY,
+      width: oldWidth,
+      height: oldHeight,
     );
-    await _updateTransform(oldRect, oldFlip);
     await _stateViewModel.refreshClips();
   }
 
-  Future<void> _updateTransform(Rect rectToApply, Flip flipToApply) async {
-    final clip = _stateViewModel.clips.firstWhere(
+  Future<void> _applyPropertiesToDb({
+    required double posX,
+    required double posY,
+    required double width,
+    required double height,
+  }) async {
+    final originalClipState = _stateViewModel.clips.firstWhere(
       (c) => c.databaseId == clipId,
       orElse: () {
-        logger.logError(
-          'Clip $clipId not found during transform update.',
-          'Command',
-        );
-        throw StateError('Clip $clipId not found');
+        final errorMsg = 'Clip $clipId not found during transform update.';
+        logger.logError(errorMsg, 'Command');
+        throw StateError(errorMsg);
       },
     );
 
-    final updatedClip = clip
-        .copyWithPreviewRect(rectToApply)
-        .copyWithPreviewFlip(flipToApply);
+    final updatedClip = originalClipState.copyWith(
+      previewPositionX: posX,
+      previewPositionY: posY,
+      previewWidth: width,
+      previewHeight: height,
+    );
 
     try {
       if (projectDatabaseService.clipDao == null) {
-        throw StateError(
-          'ClipDao is not initialized in ProjectDatabaseService.',
-        );
+        throw StateError('ClipDao is not initialized in ProjectDatabaseService.');
       }
       await projectDatabaseService.clipDao!.updateClip(
         updatedClip.toDbCompanion(),
       );
       logger.logInfo(
-        'Clip $clipId transform updated in DB: Rect=$rectToApply, Flip=$flipToApply',
+        'Clip $clipId transform updated in DB: Pos=($posX,$posY), Width=$width, Height=$height',
         'Command',
       );
     } catch (e) {
-      logger.logError(
-        'Failed to update clip $clipId transform in DB: $e',
-        'Command',
-      );
+      logger.logError('Failed to update clip $clipId transform in DB: $e', 'Command');
       rethrow;
     }
   }

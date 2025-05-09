@@ -670,16 +670,64 @@ class $ClipsTable extends Clips with TableInfo<$ClipsTable, Clip> {
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _metadataJsonMeta = const VerificationMeta(
-    'metadataJson',
+  static const VerificationMeta _metadataMeta = const VerificationMeta(
+    'metadata',
   );
   @override
-  late final GeneratedColumn<String> metadataJson = GeneratedColumn<String>(
-    'metadata_json',
+  late final GeneratedColumn<String> metadata = GeneratedColumn<String>(
+    'metadata',
     aliasedName,
     true,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
+  );
+  static const VerificationMeta _previewPositionXMeta = const VerificationMeta(
+    'previewPositionX',
+  );
+  @override
+  late final GeneratedColumn<double> previewPositionX = GeneratedColumn<double>(
+    'preview_position_x',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
+  );
+  static const VerificationMeta _previewPositionYMeta = const VerificationMeta(
+    'previewPositionY',
+  );
+  @override
+  late final GeneratedColumn<double> previewPositionY = GeneratedColumn<double>(
+    'preview_position_y',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
+  );
+  static const VerificationMeta _previewWidthMeta = const VerificationMeta(
+    'previewWidth',
+  );
+  @override
+  late final GeneratedColumn<double> previewWidth = GeneratedColumn<double>(
+    'preview_width',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(100.0),
+  );
+  static const VerificationMeta _previewHeightMeta = const VerificationMeta(
+    'previewHeight',
+  );
+  @override
+  late final GeneratedColumn<double> previewHeight = GeneratedColumn<double>(
+    'preview_height',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(100.0),
   );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
@@ -717,7 +765,11 @@ class $ClipsTable extends Clips with TableInfo<$ClipsTable, Clip> {
     endTimeInSourceMs,
     startTimeOnTrackMs,
     endTimeOnTrackMs,
-    metadataJson,
+    metadata,
+    previewPositionX,
+    previewPositionY,
+    previewWidth,
+    previewHeight,
     createdAt,
     updatedAt,
   ];
@@ -813,12 +865,45 @@ class $ClipsTable extends Clips with TableInfo<$ClipsTable, Clip> {
         ),
       );
     }
-    if (data.containsKey('metadata_json')) {
+    if (data.containsKey('metadata')) {
       context.handle(
-        _metadataJsonMeta,
-        metadataJson.isAcceptableOrUnknown(
-          data['metadata_json']!,
-          _metadataJsonMeta,
+        _metadataMeta,
+        metadata.isAcceptableOrUnknown(data['metadata']!, _metadataMeta),
+      );
+    }
+    if (data.containsKey('preview_position_x')) {
+      context.handle(
+        _previewPositionXMeta,
+        previewPositionX.isAcceptableOrUnknown(
+          data['preview_position_x']!,
+          _previewPositionXMeta,
+        ),
+      );
+    }
+    if (data.containsKey('preview_position_y')) {
+      context.handle(
+        _previewPositionYMeta,
+        previewPositionY.isAcceptableOrUnknown(
+          data['preview_position_y']!,
+          _previewPositionYMeta,
+        ),
+      );
+    }
+    if (data.containsKey('preview_width')) {
+      context.handle(
+        _previewWidthMeta,
+        previewWidth.isAcceptableOrUnknown(
+          data['preview_width']!,
+          _previewWidthMeta,
+        ),
+      );
+    }
+    if (data.containsKey('preview_height')) {
+      context.handle(
+        _previewHeightMeta,
+        previewHeight.isAcceptableOrUnknown(
+          data['preview_height']!,
+          _previewHeightMeta,
         ),
       );
     }
@@ -891,10 +976,30 @@ class $ClipsTable extends Clips with TableInfo<$ClipsTable, Clip> {
         DriftSqlType.int,
         data['${effectivePrefix}end_time_on_track_ms'],
       ),
-      metadataJson: attachedDatabase.typeMapping.read(
+      metadata: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}metadata_json'],
+        data['${effectivePrefix}metadata'],
       ),
+      previewPositionX:
+          attachedDatabase.typeMapping.read(
+            DriftSqlType.double,
+            data['${effectivePrefix}preview_position_x'],
+          )!,
+      previewPositionY:
+          attachedDatabase.typeMapping.read(
+            DriftSqlType.double,
+            data['${effectivePrefix}preview_position_y'],
+          )!,
+      previewWidth:
+          attachedDatabase.typeMapping.read(
+            DriftSqlType.double,
+            data['${effectivePrefix}preview_width'],
+          )!,
+      previewHeight:
+          attachedDatabase.typeMapping.read(
+            DriftSqlType.double,
+            data['${effectivePrefix}preview_height'],
+          )!,
       createdAt:
           attachedDatabase.typeMapping.read(
             DriftSqlType.dateTime,
@@ -925,7 +1030,11 @@ class Clip extends DataClass implements Insertable<Clip> {
   final int endTimeInSourceMs;
   final int startTimeOnTrackMs;
   final int? endTimeOnTrackMs;
-  final String? metadataJson;
+  final String? metadata;
+  final double previewPositionX;
+  final double previewPositionY;
+  final double previewWidth;
+  final double previewHeight;
   final DateTime createdAt;
   final DateTime updatedAt;
   const Clip({
@@ -939,7 +1048,11 @@ class Clip extends DataClass implements Insertable<Clip> {
     required this.endTimeInSourceMs,
     required this.startTimeOnTrackMs,
     this.endTimeOnTrackMs,
-    this.metadataJson,
+    this.metadata,
+    required this.previewPositionX,
+    required this.previewPositionY,
+    required this.previewWidth,
+    required this.previewHeight,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -960,9 +1073,13 @@ class Clip extends DataClass implements Insertable<Clip> {
     if (!nullToAbsent || endTimeOnTrackMs != null) {
       map['end_time_on_track_ms'] = Variable<int>(endTimeOnTrackMs);
     }
-    if (!nullToAbsent || metadataJson != null) {
-      map['metadata_json'] = Variable<String>(metadataJson);
+    if (!nullToAbsent || metadata != null) {
+      map['metadata'] = Variable<String>(metadata);
     }
+    map['preview_position_x'] = Variable<double>(previewPositionX);
+    map['preview_position_y'] = Variable<double>(previewPositionY);
+    map['preview_width'] = Variable<double>(previewWidth);
+    map['preview_height'] = Variable<double>(previewHeight);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
@@ -986,10 +1103,14 @@ class Clip extends DataClass implements Insertable<Clip> {
           endTimeOnTrackMs == null && nullToAbsent
               ? const Value.absent()
               : Value(endTimeOnTrackMs),
-      metadataJson:
-          metadataJson == null && nullToAbsent
+      metadata:
+          metadata == null && nullToAbsent
               ? const Value.absent()
-              : Value(metadataJson),
+              : Value(metadata),
+      previewPositionX: Value(previewPositionX),
+      previewPositionY: Value(previewPositionY),
+      previewWidth: Value(previewWidth),
+      previewHeight: Value(previewHeight),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -1013,7 +1134,11 @@ class Clip extends DataClass implements Insertable<Clip> {
       endTimeInSourceMs: serializer.fromJson<int>(json['endTimeInSourceMs']),
       startTimeOnTrackMs: serializer.fromJson<int>(json['startTimeOnTrackMs']),
       endTimeOnTrackMs: serializer.fromJson<int?>(json['endTimeOnTrackMs']),
-      metadataJson: serializer.fromJson<String?>(json['metadataJson']),
+      metadata: serializer.fromJson<String?>(json['metadata']),
+      previewPositionX: serializer.fromJson<double>(json['previewPositionX']),
+      previewPositionY: serializer.fromJson<double>(json['previewPositionY']),
+      previewWidth: serializer.fromJson<double>(json['previewWidth']),
+      previewHeight: serializer.fromJson<double>(json['previewHeight']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
@@ -1032,7 +1157,11 @@ class Clip extends DataClass implements Insertable<Clip> {
       'endTimeInSourceMs': serializer.toJson<int>(endTimeInSourceMs),
       'startTimeOnTrackMs': serializer.toJson<int>(startTimeOnTrackMs),
       'endTimeOnTrackMs': serializer.toJson<int?>(endTimeOnTrackMs),
-      'metadataJson': serializer.toJson<String?>(metadataJson),
+      'metadata': serializer.toJson<String?>(metadata),
+      'previewPositionX': serializer.toJson<double>(previewPositionX),
+      'previewPositionY': serializer.toJson<double>(previewPositionY),
+      'previewWidth': serializer.toJson<double>(previewWidth),
+      'previewHeight': serializer.toJson<double>(previewHeight),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -1049,7 +1178,11 @@ class Clip extends DataClass implements Insertable<Clip> {
     int? endTimeInSourceMs,
     int? startTimeOnTrackMs,
     Value<int?> endTimeOnTrackMs = const Value.absent(),
-    Value<String?> metadataJson = const Value.absent(),
+    Value<String?> metadata = const Value.absent(),
+    double? previewPositionX,
+    double? previewPositionY,
+    double? previewWidth,
+    double? previewHeight,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) => Clip(
@@ -1069,7 +1202,11 @@ class Clip extends DataClass implements Insertable<Clip> {
         endTimeOnTrackMs.present
             ? endTimeOnTrackMs.value
             : this.endTimeOnTrackMs,
-    metadataJson: metadataJson.present ? metadataJson.value : this.metadataJson,
+    metadata: metadata.present ? metadata.value : this.metadata,
+    previewPositionX: previewPositionX ?? this.previewPositionX,
+    previewPositionY: previewPositionY ?? this.previewPositionY,
+    previewWidth: previewWidth ?? this.previewWidth,
+    previewHeight: previewHeight ?? this.previewHeight,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -1101,10 +1238,23 @@ class Clip extends DataClass implements Insertable<Clip> {
           data.endTimeOnTrackMs.present
               ? data.endTimeOnTrackMs.value
               : this.endTimeOnTrackMs,
-      metadataJson:
-          data.metadataJson.present
-              ? data.metadataJson.value
-              : this.metadataJson,
+      metadata: data.metadata.present ? data.metadata.value : this.metadata,
+      previewPositionX:
+          data.previewPositionX.present
+              ? data.previewPositionX.value
+              : this.previewPositionX,
+      previewPositionY:
+          data.previewPositionY.present
+              ? data.previewPositionY.value
+              : this.previewPositionY,
+      previewWidth:
+          data.previewWidth.present
+              ? data.previewWidth.value
+              : this.previewWidth,
+      previewHeight:
+          data.previewHeight.present
+              ? data.previewHeight.value
+              : this.previewHeight,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -1123,7 +1273,11 @@ class Clip extends DataClass implements Insertable<Clip> {
           ..write('endTimeInSourceMs: $endTimeInSourceMs, ')
           ..write('startTimeOnTrackMs: $startTimeOnTrackMs, ')
           ..write('endTimeOnTrackMs: $endTimeOnTrackMs, ')
-          ..write('metadataJson: $metadataJson, ')
+          ..write('metadata: $metadata, ')
+          ..write('previewPositionX: $previewPositionX, ')
+          ..write('previewPositionY: $previewPositionY, ')
+          ..write('previewWidth: $previewWidth, ')
+          ..write('previewHeight: $previewHeight, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -1142,7 +1296,11 @@ class Clip extends DataClass implements Insertable<Clip> {
     endTimeInSourceMs,
     startTimeOnTrackMs,
     endTimeOnTrackMs,
-    metadataJson,
+    metadata,
+    previewPositionX,
+    previewPositionY,
+    previewWidth,
+    previewHeight,
     createdAt,
     updatedAt,
   );
@@ -1160,7 +1318,11 @@ class Clip extends DataClass implements Insertable<Clip> {
           other.endTimeInSourceMs == this.endTimeInSourceMs &&
           other.startTimeOnTrackMs == this.startTimeOnTrackMs &&
           other.endTimeOnTrackMs == this.endTimeOnTrackMs &&
-          other.metadataJson == this.metadataJson &&
+          other.metadata == this.metadata &&
+          other.previewPositionX == this.previewPositionX &&
+          other.previewPositionY == this.previewPositionY &&
+          other.previewWidth == this.previewWidth &&
+          other.previewHeight == this.previewHeight &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -1176,7 +1338,11 @@ class ClipsCompanion extends UpdateCompanion<Clip> {
   final Value<int> endTimeInSourceMs;
   final Value<int> startTimeOnTrackMs;
   final Value<int?> endTimeOnTrackMs;
-  final Value<String?> metadataJson;
+  final Value<String?> metadata;
+  final Value<double> previewPositionX;
+  final Value<double> previewPositionY;
+  final Value<double> previewWidth;
+  final Value<double> previewHeight;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   const ClipsCompanion({
@@ -1190,7 +1356,11 @@ class ClipsCompanion extends UpdateCompanion<Clip> {
     this.endTimeInSourceMs = const Value.absent(),
     this.startTimeOnTrackMs = const Value.absent(),
     this.endTimeOnTrackMs = const Value.absent(),
-    this.metadataJson = const Value.absent(),
+    this.metadata = const Value.absent(),
+    this.previewPositionX = const Value.absent(),
+    this.previewPositionY = const Value.absent(),
+    this.previewWidth = const Value.absent(),
+    this.previewHeight = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
   });
@@ -1205,7 +1375,11 @@ class ClipsCompanion extends UpdateCompanion<Clip> {
     required int endTimeInSourceMs,
     this.startTimeOnTrackMs = const Value.absent(),
     this.endTimeOnTrackMs = const Value.absent(),
-    this.metadataJson = const Value.absent(),
+    this.metadata = const Value.absent(),
+    this.previewPositionX = const Value.absent(),
+    this.previewPositionY = const Value.absent(),
+    this.previewWidth = const Value.absent(),
+    this.previewHeight = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
   }) : trackId = Value(trackId),
@@ -1223,7 +1397,11 @@ class ClipsCompanion extends UpdateCompanion<Clip> {
     Expression<int>? endTimeInSourceMs,
     Expression<int>? startTimeOnTrackMs,
     Expression<int>? endTimeOnTrackMs,
-    Expression<String>? metadataJson,
+    Expression<String>? metadata,
+    Expression<double>? previewPositionX,
+    Expression<double>? previewPositionY,
+    Expression<double>? previewWidth,
+    Expression<double>? previewHeight,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
   }) {
@@ -1240,7 +1418,11 @@ class ClipsCompanion extends UpdateCompanion<Clip> {
       if (startTimeOnTrackMs != null)
         'start_time_on_track_ms': startTimeOnTrackMs,
       if (endTimeOnTrackMs != null) 'end_time_on_track_ms': endTimeOnTrackMs,
-      if (metadataJson != null) 'metadata_json': metadataJson,
+      if (metadata != null) 'metadata': metadata,
+      if (previewPositionX != null) 'preview_position_x': previewPositionX,
+      if (previewPositionY != null) 'preview_position_y': previewPositionY,
+      if (previewWidth != null) 'preview_width': previewWidth,
+      if (previewHeight != null) 'preview_height': previewHeight,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
     });
@@ -1257,7 +1439,11 @@ class ClipsCompanion extends UpdateCompanion<Clip> {
     Value<int>? endTimeInSourceMs,
     Value<int>? startTimeOnTrackMs,
     Value<int?>? endTimeOnTrackMs,
-    Value<String?>? metadataJson,
+    Value<String?>? metadata,
+    Value<double>? previewPositionX,
+    Value<double>? previewPositionY,
+    Value<double>? previewWidth,
+    Value<double>? previewHeight,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
   }) {
@@ -1272,7 +1458,11 @@ class ClipsCompanion extends UpdateCompanion<Clip> {
       endTimeInSourceMs: endTimeInSourceMs ?? this.endTimeInSourceMs,
       startTimeOnTrackMs: startTimeOnTrackMs ?? this.startTimeOnTrackMs,
       endTimeOnTrackMs: endTimeOnTrackMs ?? this.endTimeOnTrackMs,
-      metadataJson: metadataJson ?? this.metadataJson,
+      metadata: metadata ?? this.metadata,
+      previewPositionX: previewPositionX ?? this.previewPositionX,
+      previewPositionY: previewPositionY ?? this.previewPositionY,
+      previewWidth: previewWidth ?? this.previewWidth,
+      previewHeight: previewHeight ?? this.previewHeight,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -1311,8 +1501,20 @@ class ClipsCompanion extends UpdateCompanion<Clip> {
     if (endTimeOnTrackMs.present) {
       map['end_time_on_track_ms'] = Variable<int>(endTimeOnTrackMs.value);
     }
-    if (metadataJson.present) {
-      map['metadata_json'] = Variable<String>(metadataJson.value);
+    if (metadata.present) {
+      map['metadata'] = Variable<String>(metadata.value);
+    }
+    if (previewPositionX.present) {
+      map['preview_position_x'] = Variable<double>(previewPositionX.value);
+    }
+    if (previewPositionY.present) {
+      map['preview_position_y'] = Variable<double>(previewPositionY.value);
+    }
+    if (previewWidth.present) {
+      map['preview_width'] = Variable<double>(previewWidth.value);
+    }
+    if (previewHeight.present) {
+      map['preview_height'] = Variable<double>(previewHeight.value);
     }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
@@ -1336,7 +1538,11 @@ class ClipsCompanion extends UpdateCompanion<Clip> {
           ..write('endTimeInSourceMs: $endTimeInSourceMs, ')
           ..write('startTimeOnTrackMs: $startTimeOnTrackMs, ')
           ..write('endTimeOnTrackMs: $endTimeOnTrackMs, ')
-          ..write('metadataJson: $metadataJson, ')
+          ..write('metadata: $metadata, ')
+          ..write('previewPositionX: $previewPositionX, ')
+          ..write('previewPositionY: $previewPositionY, ')
+          ..write('previewWidth: $previewWidth, ')
+          ..write('previewHeight: $previewHeight, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -2868,7 +3074,11 @@ typedef $$ClipsTableCreateCompanionBuilder =
       required int endTimeInSourceMs,
       Value<int> startTimeOnTrackMs,
       Value<int?> endTimeOnTrackMs,
-      Value<String?> metadataJson,
+      Value<String?> metadata,
+      Value<double> previewPositionX,
+      Value<double> previewPositionY,
+      Value<double> previewWidth,
+      Value<double> previewHeight,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
     });
@@ -2884,7 +3094,11 @@ typedef $$ClipsTableUpdateCompanionBuilder =
       Value<int> endTimeInSourceMs,
       Value<int> startTimeOnTrackMs,
       Value<int?> endTimeOnTrackMs,
-      Value<String?> metadataJson,
+      Value<String?> metadata,
+      Value<double> previewPositionX,
+      Value<double> previewPositionY,
+      Value<double> previewWidth,
+      Value<double> previewHeight,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
     });
@@ -2948,8 +3162,28 @@ class $$ClipsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get metadataJson => $composableBuilder(
-    column: $table.metadataJson,
+  ColumnFilters<String> get metadata => $composableBuilder(
+    column: $table.metadata,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get previewPositionX => $composableBuilder(
+    column: $table.previewPositionX,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get previewPositionY => $composableBuilder(
+    column: $table.previewPositionY,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get previewWidth => $composableBuilder(
+    column: $table.previewWidth,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get previewHeight => $composableBuilder(
+    column: $table.previewHeight,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3023,8 +3257,28 @@ class $$ClipsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get metadataJson => $composableBuilder(
-    column: $table.metadataJson,
+  ColumnOrderings<String> get metadata => $composableBuilder(
+    column: $table.metadata,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get previewPositionX => $composableBuilder(
+    column: $table.previewPositionX,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get previewPositionY => $composableBuilder(
+    column: $table.previewPositionY,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get previewWidth => $composableBuilder(
+    column: $table.previewWidth,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get previewHeight => $composableBuilder(
+    column: $table.previewHeight,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -3090,8 +3344,26 @@ class $$ClipsTableAnnotationComposer
     builder: (column) => column,
   );
 
-  GeneratedColumn<String> get metadataJson => $composableBuilder(
-    column: $table.metadataJson,
+  GeneratedColumn<String> get metadata =>
+      $composableBuilder(column: $table.metadata, builder: (column) => column);
+
+  GeneratedColumn<double> get previewPositionX => $composableBuilder(
+    column: $table.previewPositionX,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get previewPositionY => $composableBuilder(
+    column: $table.previewPositionY,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get previewWidth => $composableBuilder(
+    column: $table.previewWidth,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get previewHeight => $composableBuilder(
+    column: $table.previewHeight,
     builder: (column) => column,
   );
 
@@ -3140,7 +3412,11 @@ class $$ClipsTableTableManager
                 Value<int> endTimeInSourceMs = const Value.absent(),
                 Value<int> startTimeOnTrackMs = const Value.absent(),
                 Value<int?> endTimeOnTrackMs = const Value.absent(),
-                Value<String?> metadataJson = const Value.absent(),
+                Value<String?> metadata = const Value.absent(),
+                Value<double> previewPositionX = const Value.absent(),
+                Value<double> previewPositionY = const Value.absent(),
+                Value<double> previewWidth = const Value.absent(),
+                Value<double> previewHeight = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => ClipsCompanion(
@@ -3154,7 +3430,11 @@ class $$ClipsTableTableManager
                 endTimeInSourceMs: endTimeInSourceMs,
                 startTimeOnTrackMs: startTimeOnTrackMs,
                 endTimeOnTrackMs: endTimeOnTrackMs,
-                metadataJson: metadataJson,
+                metadata: metadata,
+                previewPositionX: previewPositionX,
+                previewPositionY: previewPositionY,
+                previewWidth: previewWidth,
+                previewHeight: previewHeight,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
               ),
@@ -3170,7 +3450,11 @@ class $$ClipsTableTableManager
                 required int endTimeInSourceMs,
                 Value<int> startTimeOnTrackMs = const Value.absent(),
                 Value<int?> endTimeOnTrackMs = const Value.absent(),
-                Value<String?> metadataJson = const Value.absent(),
+                Value<String?> metadata = const Value.absent(),
+                Value<double> previewPositionX = const Value.absent(),
+                Value<double> previewPositionY = const Value.absent(),
+                Value<double> previewWidth = const Value.absent(),
+                Value<double> previewHeight = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => ClipsCompanion.insert(
@@ -3184,7 +3468,11 @@ class $$ClipsTableTableManager
                 endTimeInSourceMs: endTimeInSourceMs,
                 startTimeOnTrackMs: startTimeOnTrackMs,
                 endTimeOnTrackMs: endTimeOnTrackMs,
-                metadataJson: metadataJson,
+                metadata: metadata,
+                previewPositionX: previewPositionX,
+                previewPositionY: previewPositionY,
+                previewWidth: previewWidth,
+                previewHeight: previewHeight,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
               ),

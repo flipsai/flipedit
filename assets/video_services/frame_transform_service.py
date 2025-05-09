@@ -47,10 +47,30 @@ class FrameTransformService:
             logger.warning("Transform_frame called with invalid or empty frame.")
             return None, 0, 0, 0, 0
 
-        metadata = clip_info.get('metadata', {})
-        preview_rect_data = metadata.get('previewRect') # Expected: {'left': l, 'top': t, 'width': w, 'height': h}
-        
         frame_height_orig, frame_width_orig = frame.shape[:2]
+        
+        # --- Get transform parameters ---
+        # Prioritize new direct properties, then fallback to metadata['previewRect'], then to defaults.
+        # Using camelCase as per db_access.py's to_dict output for these new fields.
+        direct_pos_x = clip_info.get('previewPositionX')
+        direct_pos_y = clip_info.get('previewPositionY')
+        direct_width = clip_info.get('previewWidth')
+        direct_height = clip_info.get('previewHeight')
+
+        metadata = clip_info.get('metadata', {})
+        preview_rect_data = None # Will be used only if direct properties are missing
+        
+        using_direct_props = False
+        if all(v is not None for v in [direct_pos_x, direct_pos_y, direct_width, direct_height]):
+            target_x = int(direct_pos_x)
+            target_y = int(direct_pos_y)
+            target_width = max(1, int(direct_width))
+            target_height = max(1, int(direct_height))
+            logger.debug(f"Using direct transform properties: x={target_x}, y={target_y}, w={target_width}, h={target_height}")
+            using_direct_props = True
+        else:
+            logger.debug("Direct transform properties not fully available. Checking metadata['previewRect'].")
+            preview_rect_data = metadata.get('previewRect') # Expected: {'left': l, 'top': t, 'width': w, 'height': h}
 
         # --- Determine default positioning and sizing (fit and center) ---
         default_width, default_height = frame_width_orig, frame_height_orig
@@ -75,24 +95,25 @@ class FrameTransformService:
         }
         # --- End Default Positioning ---
 
-        target_x, target_y, target_width, target_height = 0, 0, 0, 0
-
-        if isinstance(preview_rect_data, dict):
-            target_x = int(preview_rect_data.get('left', default_rect_params['left']))
-            target_y = int(preview_rect_data.get('top', default_rect_params['top']))
-            target_width = max(1, int(preview_rect_data.get('width', default_rect_params['width'])))
-            target_height = max(1, int(preview_rect_data.get('height', default_rect_params['height'])))
-            logger.debug(f"Using previewRect from metadata: x={target_x}, y={target_y}, w={target_width}, h={target_height}")
-        else:
-            target_x = int(default_rect_params['left'])
-            target_y = int(default_rect_params['top'])
-            target_width = int(default_rect_params['width'])
-            target_height = int(default_rect_params['height'])
-            logger.debug(f"Using default previewRect (centered): x={target_x}, y={target_y}, w={target_width}, h={target_height}")
+        # Fallback logic if direct properties were not used
+        if not using_direct_props:
+            if isinstance(preview_rect_data, dict):
+                target_x = int(preview_rect_data.get('left', default_rect_params['left']))
+                target_y = int(preview_rect_data.get('top', default_rect_params['top']))
+                target_width = max(1, int(preview_rect_data.get('width', default_rect_params['width'])))
+                target_height = max(1, int(preview_rect_data.get('height', default_rect_params['height'])))
+                logger.debug(f"Using previewRect from metadata: x={target_x}, y={target_y}, w={target_width}, h={target_height}")
+            else:
+                target_x = int(default_rect_params['left'])
+                target_y = int(default_rect_params['top'])
+                target_width = int(default_rect_params['width'])
+                target_height = int(default_rect_params['height'])
+                logger.debug(f"Using default previewRect (centered, as neither direct props nor metadata.previewRect found): x={target_x}, y={target_y}, w={target_width}, h={target_height}")
 
         # Ensure width and height for resize are at least 1
-        resize_width = max(1, target_width)
-        resize_height = max(1, target_height)
+        # target_width and target_height are already max(1, ...) from above logic
+        resize_width = target_width
+        resize_height = target_height
         processed_frame = frame
 
         # --- Resize ---

@@ -5,7 +5,6 @@ import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/utils/logger.dart';
-import 'dart:ui' show Rect;
 
 /// Inspector panel using WatchItMixin for reactive updates
 class InspectorPanel extends StatelessWidget with WatchItMixin {
@@ -158,45 +157,44 @@ class InspectorPanel extends StatelessWidget with WatchItMixin {
   Widget _buildPositionAndSizeSection(BuildContext context, ClipModel clip) {
     final timelineVm = di<TimelineViewModel>();
     
-    // Get current rect values from the clip, or use defaults
-    final Rect currentRect = clip.previewRect ?? 
-        const Rect.fromLTWH(0, 0, 1280, 720);
-    
-    // Create controllers with initial values from currentRect
-    final xController = TextEditingController(text: currentRect.left.toStringAsFixed(0));
-    final yController = TextEditingController(text: currentRect.top.toStringAsFixed(0));
-    final widthController = TextEditingController(text: currentRect.width.toStringAsFixed(0));
-    final heightController = TextEditingController(text: currentRect.height.toStringAsFixed(0));
+    // Get current transform values from the clip
+    final double currentX = clip.previewPositionX;
+    final double currentY = clip.previewPositionY;
+    final double currentWidth = clip.previewWidth;
+    final double currentHeight = clip.previewHeight;
+
+    final xController = TextEditingController(text: currentX.toStringAsFixed(0));
+    final yController = TextEditingController(text: currentY.toStringAsFixed(0));
+    final widthController = TextEditingController(text: currentWidth.toStringAsFixed(0));
+    final heightController = TextEditingController(text: currentHeight.toStringAsFixed(0));
 
     // Feedback for update success/failure
     final ValueNotifier<String?> feedbackNotifier = ValueNotifier(null);
 
-    // Function to update the preview rect when any value changes
-    void updatePreviewRect() {
+    // Function to update the preview transform when any value changes
+    void updatePreviewTransform() {
       try {
         final double x = double.parse(xController.text);
         final double y = double.parse(yController.text);
-        final double width = double.parse(widthController.text);
-        final double height = double.parse(heightController.text);
-        
-        // Create a new rect with the updated values
-        final newRect = Rect.fromLTWH(x, y, width, height);
-        
+        final double w = double.parse(widthController.text);
+        final double h = double.parse(heightController.text);
+
         // Only update if values have actually changed
-        if (newRect != currentRect) {
-          timelineVm.updateClipPreviewRect(clip.databaseId!, newRect)
+        if (x != clip.previewPositionX ||
+            y != clip.previewPositionY ||
+            w != clip.previewWidth ||
+            h != clip.previewHeight) {
+          timelineVm.updateClipPreviewTransform(clip.databaseId!, x, y, w, h)
             .then((_) {
-              // Success feedback
-              feedbackNotifier.value = 'Updated position and size';
+              feedbackNotifier.value = 'Updated transform';
               Future.delayed(const Duration(seconds: 2), () {
-                if (feedbackNotifier.value == 'Updated position and size') {
+                if (feedbackNotifier.value == 'Updated transform') {
                   feedbackNotifier.value = null;
                 }
               });
             })
             .catchError((e) {
-              // Error feedback
-              feedbackNotifier.value = 'Error: $e';
+              feedbackNotifier.value = 'Error updating transform: $e';
               Future.delayed(const Duration(seconds: 3), () {
                 if (feedbackNotifier.value?.startsWith('Error:') ?? false) {
                   feedbackNotifier.value = null;
@@ -207,10 +205,9 @@ class InspectorPanel extends StatelessWidget with WatchItMixin {
       } catch (e) {
         logError(
           runtimeType.toString(),
-          "Error updating preview rect: $e", 
+          "Error updating preview transform: $e",
         );
-        // Show error feedback in UI
-        feedbackNotifier.value = 'Error: Invalid number format';
+        feedbackNotifier.value = 'Error: Invalid number format for transform';
         Future.delayed(const Duration(seconds: 3), () {
           feedbackNotifier.value = null;
         });
@@ -251,11 +248,11 @@ class InspectorPanel extends StatelessWidget with WatchItMixin {
               child: InfoLabel(
                 label: 'X Position:',
                 child: NumberBox(
-                  value: currentRect.left,
+                  value: currentX,
                   onChanged: (value) {
                     if (value != null) {
                       xController.text = value.toStringAsFixed(0);
-                      updatePreviewRect();
+                      updatePreviewTransform();
                     }
                   },
                   mode: SpinButtonPlacementMode.inline,
@@ -267,11 +264,11 @@ class InspectorPanel extends StatelessWidget with WatchItMixin {
               child: InfoLabel(
                 label: 'Y Position:',
                 child: NumberBox(
-                  value: currentRect.top,
+                  value: currentY,
                   onChanged: (value) {
                     if (value != null) {
                       yController.text = value.toStringAsFixed(0);
-                      updatePreviewRect();
+                      updatePreviewTransform();
                     }
                   },
                   mode: SpinButtonPlacementMode.inline,
@@ -287,15 +284,15 @@ class InspectorPanel extends StatelessWidget with WatchItMixin {
               child: InfoLabel(
                 label: 'Width:',
                 child: NumberBox(
-                  value: currentRect.width,
+                  value: currentWidth,
                   onChanged: (value) {
                     if (value != null) {
                       widthController.text = value.toStringAsFixed(0);
-                      updatePreviewRect();
+                      updatePreviewTransform();
                     }
                   },
                   mode: SpinButtonPlacementMode.inline,
-                  min: 1, // Prevent negative or zero width
+                  min: 1, // Example minimum, adjust as needed
                 ),
               ),
             ),
@@ -304,15 +301,15 @@ class InspectorPanel extends StatelessWidget with WatchItMixin {
               child: InfoLabel(
                 label: 'Height:',
                 child: NumberBox(
-                  value: currentRect.height,
+                  value: currentHeight,
                   onChanged: (value) {
                     if (value != null) {
                       heightController.text = value.toStringAsFixed(0);
-                      updatePreviewRect();
+                      updatePreviewTransform();
                     }
                   },
                   mode: SpinButtonPlacementMode.inline,
-                  min: 1, // Prevent negative or zero height
+                  min: 1, // Example minimum, adjust as needed
                 ),
               ),
             ),
@@ -322,13 +319,27 @@ class InspectorPanel extends StatelessWidget with WatchItMixin {
         Button(
           child: const Text('Reset to Default'),
           onPressed: () {
-            // Default full canvas at center (assuming 1280x720 canvas)
-            const defaultRect = Rect.fromLTWH(0, 0, 1280, 720);
-            xController.text = defaultRect.left.toStringAsFixed(0);
-            yController.text = defaultRect.top.toStringAsFixed(0);
-            widthController.text = defaultRect.width.toStringAsFixed(0);
-            heightController.text = defaultRect.height.toStringAsFixed(0);
-            timelineVm.updateClipPreviewRect(clip.databaseId!, defaultRect);
+            final defaultWidth = clip.metadata['source_width']?.toDouble() ?? 100.0;
+            final defaultHeight = clip.metadata['source_height']?.toDouble() ?? 100.0;
+
+            xController.text = "0";
+            yController.text = "0";
+            widthController.text = defaultWidth.toStringAsFixed(0);
+            heightController.text = defaultHeight.toStringAsFixed(0);
+            
+            timelineVm.updateClipPreviewTransform(
+              clip.databaseId!,
+              0,
+              0,
+              defaultWidth,
+              defaultHeight
+            );
+            feedbackNotifier.value = 'Transform reset to default';
+            Future.delayed(const Duration(seconds: 2), () {
+              if (feedbackNotifier.value == 'Transform reset to default') {
+                feedbackNotifier.value = null;
+              }
+            });
           },
         ),
       ],

@@ -7,8 +7,6 @@ import 'package:drift/drift.dart' show Value;
 // Import the generated part of project_database which contains the Clip class
 import 'package:flipedit/persistence/database/project_database.dart'
     show Clip, ClipsCompanion;
-import 'package:flutter_box_transform/flutter_box_transform.dart'
-    show Flip; // Import Flip
 
 class ClipValidationException implements Exception {
   final List<String> errors;
@@ -45,6 +43,12 @@ class ClipModel {
   final List<Effect> effects;
   final Map<String, dynamic> metadata;
 
+  // Preview transformation properties
+  final double previewPositionX;
+  final double previewPositionY;
+  final double previewWidth;
+  final double previewHeight;
+
   /// Duration of the clip segment taken from the source file.
   int get durationInSourceMs => endTimeInSourceMs - startTimeInSourceMs;
 
@@ -64,6 +68,10 @@ class ClipModel {
     required this.endTimeOnTrackMs,
     this.effects = const [],
     this.metadata = const {},
+    this.previewPositionX = 0.0,
+    this.previewPositionY = 0.0,
+    this.previewWidth = 100.0,
+    this.previewHeight = 100.0,
   }) {
     _validateClipTimes(
       startTimeInSourceMs: startTimeInSourceMs,
@@ -161,7 +169,30 @@ class ClipModel {
     int? endTimeOnTrackMs,
     List<Effect>? effects,
     Map<String, dynamic>? metadata,
+    double? previewPositionX,
+    double? previewPositionY,
+    double? previewWidth,
+    double? previewHeight,
   }) {
+    final finalPreviewPositionX = previewPositionX ?? this.previewPositionX;
+    final finalPreviewPositionY = previewPositionY ?? this.previewPositionY;
+    final finalPreviewWidth = previewWidth ?? this.previewWidth;
+    final finalPreviewHeight = previewHeight ?? this.previewHeight;
+
+    final Map<String, dynamic> baseMetadata = metadata ?? this.metadata;
+    final updatedMetadata = Map<String, dynamic>.from(baseMetadata);
+
+    updatedMetadata['preview_position_x'] = finalPreviewPositionX;
+    updatedMetadata['preview_position_y'] = finalPreviewPositionY;
+    updatedMetadata['preview_width'] = finalPreviewWidth;
+    updatedMetadata['preview_height'] = finalPreviewHeight;
+
+    updatedMetadata.remove('preview_scale');
+    updatedMetadata.remove('preview_rotation');
+    updatedMetadata.remove('preview_flip_x');
+    updatedMetadata.remove('preview_flip_y');
+    updatedMetadata.remove('previewRect');
+
     return ClipModel(
       databaseId: databaseId == null ? this.databaseId : databaseId.value,
       trackId: trackId ?? this.trackId,
@@ -174,7 +205,31 @@ class ClipModel {
       startTimeOnTrackMs: startTimeOnTrackMs ?? this.startTimeOnTrackMs,
       endTimeOnTrackMs: endTimeOnTrackMs ?? this.endTimeOnTrackMs,
       effects: effects ?? this.effects,
-      metadata: metadata ?? this.metadata,
+      metadata: updatedMetadata, // Use the synchronized metadata
+      previewPositionX: finalPreviewPositionX, // Use the final value
+      previewPositionY: finalPreviewPositionY, // Use the final value
+      previewWidth: finalPreviewWidth,         // Use the final value
+      previewHeight: finalPreviewHeight,       // Use the final value
+    );
+  }
+
+  ClipsCompanion toCompanion() {
+    return ClipsCompanion(
+      id: databaseId == null ? const Value.absent() : Value(databaseId!),
+      trackId: Value(trackId),
+      name: Value(name),
+      type: Value(type.name),
+      sourcePath: Value(sourcePath),
+      sourceDurationMs: Value(sourceDurationMs),
+      startTimeInSourceMs: Value(startTimeInSourceMs),
+      endTimeInSourceMs: Value(endTimeInSourceMs),
+      startTimeOnTrackMs: Value(startTimeOnTrackMs),
+      endTimeOnTrackMs: Value(endTimeOnTrackMs),
+      metadata: Value(metadata.isNotEmpty ? jsonEncode(metadata) : null),
+      previewPositionX: Value(previewPositionX),
+      previewPositionY: Value(previewPositionY),
+      previewWidth: Value(previewWidth),
+      previewHeight: Value(previewHeight),
     );
   }
 
@@ -207,40 +262,6 @@ class ClipModel {
     return copyWith(metadata: updatedMetadata);
   }
 
-  /// Get the preview flip state from metadata, or Flip.none if not set.
-  /// Stored as an integer: 0=none, 1=horizontal, 2=vertical, 3=both.
-  Flip get previewFlip {
-    final flipInt = metadata['previewFlip'] as int?;
-    switch (flipInt) {
-      case 1:
-        return Flip.horizontal;
-      case 2:
-        return Flip.vertical;
-      default:
-        return Flip.none;
-    }
-  }
-
-  /// Creates a new ClipModel with the preview flip state updated in metadata.
-  ClipModel copyWithPreviewFlip(Flip? flip) {
-    final updatedMetadata = Map<String, dynamic>.from(metadata);
-    if (flip == null || flip == Flip.none) {
-      updatedMetadata.remove('previewFlip');
-    } else {
-      int? flipInt; // Use nullable int
-      if (flip == Flip.horizontal) flipInt = 1;
-      if (flip == Flip.vertical) flipInt = 2;
-
-      if (flipInt != null) {
-        updatedMetadata['previewFlip'] = flipInt;
-      } else {
-        // Ensure removal if it becomes Flip.none again
-        updatedMetadata.remove('previewFlip');
-      }
-    }
-    return copyWith(metadata: updatedMetadata);
-  }
-
   factory ClipModel.fromDbData(Clip dbData, {int? sourceDurationMs}) {
     // Estimate source duration robustly if not available
     final dbSourceDuration = dbData.sourceDurationMs;
@@ -267,8 +288,8 @@ class ClipModel {
             : startTimeSource;
 
     final Map<String, dynamic> loadedMetadata =
-        dbData.metadataJson != null
-            ? jsonDecode(dbData.metadataJson!) as Map<String, dynamic>
+        dbData.metadata != null
+            ? jsonDecode(dbData.metadata!) as Map<String, dynamic>
             : const {};
 
     return ClipModel(
@@ -296,6 +317,10 @@ class ClipModel {
                   ) -
                   startTimeSource)),
       metadata: loadedMetadata,
+      previewPositionX: dbData.previewPositionX ?? 0.0,
+      previewPositionY: dbData.previewPositionY ?? 0.0,
+      previewWidth: dbData.previewWidth ?? 100.0,
+      previewHeight: dbData.previewHeight ?? 100.0,
     );
   }
 
@@ -317,7 +342,11 @@ class ClipModel {
       endTimeInSourceMs: Value(clampedEndTimeInSourceMs),
       startTimeOnTrackMs: Value(startTimeOnTrackMs),
       endTimeOnTrackMs: Value(endTimeOnTrackMs),
-      metadataJson: Value(metadata.isNotEmpty ? jsonEncode(metadata) : null),
+      metadata: Value(metadata.isNotEmpty ? jsonEncode(metadata) : null),
+      previewPositionX: Value(previewPositionX),
+      previewPositionY: Value(previewPositionY),
+      previewWidth: Value(previewWidth),
+      previewHeight: Value(previewHeight),
     );
   }
 
@@ -391,5 +420,58 @@ class ClipModel {
       'endTimeOnTrackMs': endTimeOnTrackMs,
       'metadata': metadata,
     };
+  }
+
+  factory ClipModel.fromJson(Map<String, dynamic> json) {
+    // Safely parse ClipType
+    ClipType clipType;
+    final typeString = json['type'] as String?;
+    if (typeString != null) {
+      clipType = ClipType.values.firstWhere(
+        (e) => e.toString().split('.').last == typeString,
+        orElse: () => ClipType.video,
+      );
+    } else {
+      clipType = ClipType.video;
+    }
+
+    // Safely parse metadata
+    Map<String, dynamic> parsedMetadata = {};
+    if (json['metadata'] is Map<String, dynamic>) {
+      parsedMetadata = json['metadata'] as Map<String, dynamic>;
+    } else if (json['metadata'] is String) {
+      // Attempt to decode if it's a JSON string
+      try {
+        parsedMetadata = jsonDecode(json['metadata'] as String) as Map<String, dynamic>;
+      } catch (e) {
+        // Log error or handle as appropriate if metadata string is malformed
+        print('Error decoding metadata from JSON string: $e');
+      }
+    }
+ 
+    // Extract preview transform properties from metadata if they exist
+    final double posX = (parsedMetadata['preview_position_x'] as num?)?.toDouble() ?? 0.0;
+    final double posY = (parsedMetadata['preview_position_y'] as num?)?.toDouble() ?? 0.0;
+    final double width = (parsedMetadata['preview_width'] as num?)?.toDouble() ?? 100.0; // Default if not in metadata
+    final double height = (parsedMetadata['preview_height'] as num?)?.toDouble() ?? 100.0; // Default if not in metadata
+
+    return ClipModel(
+      databaseId: json['databaseId'] as int?,
+      trackId: json['trackId'] as int,
+      name: json['name'] as String,
+      type: clipType,
+      sourcePath: json['sourcePath'] as String,
+      sourceDurationMs: json['sourceDurationMs'] as int,
+      startTimeInSourceMs: json['startTimeInSourceMs'] as int,
+      endTimeInSourceMs: json['endTimeInSourceMs'] as int,
+      startTimeOnTrackMs: json['startTimeOnTrackMs'] as int,
+      endTimeOnTrackMs: json['endTimeOnTrackMs'] as int,
+      effects: const [],
+      metadata: parsedMetadata,
+      previewPositionX: posX,
+      previewPositionY: posY,
+      previewWidth: width,
+      previewHeight: height,
+    );
   }
 }

@@ -3,15 +3,19 @@
 // Do not manually edit this file.
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
-import 'dart:async' as _i7;
+import 'dart:async' as _i9;
+import 'dart:ui' as _i12;
 
-import 'package:flipedit/models/clip.dart' as _i5;
-import 'package:flipedit/models/enums/clip_type.dart' as _i9;
+import 'package:flipedit/models/clip.dart' as _i7;
+import 'package:flipedit/models/enums/clip_type.dart' as _i11;
 import 'package:flipedit/models/enums/edit_mode.dart' as _i6;
+import 'package:flipedit/persistence/database/project_database.dart' as _i8;
 import 'package:flipedit/services/project_database_service.dart' as _i3;
-import 'package:flipedit/viewmodels/commands/timeline_command.dart' as _i8;
-import 'package:flipedit/viewmodels/timeline_viewmodel.dart' as _i4;
-import 'package:fluent_ui/fluent_ui.dart' as _i2;
+import 'package:flipedit/services/timeline_navigation_service.dart' as _i4;
+import 'package:flipedit/viewmodels/commands/timeline_command.dart' as _i10;
+import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart' as _i13;
+import 'package:flipedit/viewmodels/timeline_viewmodel.dart' as _i5;
+import 'package:flutter/foundation.dart' as _i2;
 import 'package:mockito/mockito.dart' as _i1;
 
 // ignore_for_file: type=lint
@@ -34,36 +38,122 @@ class _FakeValueNotifier_0<T> extends _i1.SmartFake
     : super(parent, parentInvocation);
 }
 
-class _FakeScrollController_1 extends _i1.SmartFake
-    implements _i2.ScrollController {
-  _FakeScrollController_1(Object parent, Invocation parentInvocation)
+class _FakeProjectDatabaseService_1 extends _i1.SmartFake
+    implements _i3.ProjectDatabaseService {
+  _FakeProjectDatabaseService_1(Object parent, Invocation parentInvocation)
     : super(parent, parentInvocation);
 }
 
-class _FakeProjectDatabaseService_2 extends _i1.SmartFake
-    implements _i3.ProjectDatabaseService {
-  _FakeProjectDatabaseService_2(Object parent, Invocation parentInvocation)
+class _FakeTimelineNavigationService_2 extends _i1.SmartFake
+    implements _i4.TimelineNavigationService {
+  _FakeTimelineNavigationService_2(Object parent, Invocation parentInvocation)
     : super(parent, parentInvocation);
 }
 
 /// A class which mocks [TimelineViewModel].
 ///
 /// See the documentation for Mockito's code generation for more information.
-class MockTimelineViewModel extends _i1.Mock implements _i4.TimelineViewModel {
+class MockTimelineViewModel extends _i1.Mock implements _i5.TimelineViewModel {
   MockTimelineViewModel() {
     _i1.throwOnMissingStub(this);
   }
 
   @override
-  _i2.ValueNotifier<List<_i5.ClipModel>> get clipsNotifier =>
+  _i2.ValueNotifier<double> get trackLabelWidthNotifier =>
+      (super.noSuchMethod(
+            Invocation.getter(#trackLabelWidthNotifier),
+            returnValue: _FakeValueNotifier_0<double>(
+              this,
+              Invocation.getter(#trackLabelWidthNotifier),
+            ),
+          )
+          as _i2.ValueNotifier<double>);
+
+  @override
+  _i2.ValueNotifier<int> get currentFrameNotifier =>
+      (super.noSuchMethod(
+            Invocation.getter(#currentFrameNotifier),
+            returnValue: _FakeValueNotifier_0<int>(
+              this,
+              Invocation.getter(#currentFrameNotifier),
+            ),
+          )
+          as _i2.ValueNotifier<int>);
+
+  @override
+  _i2.ValueNotifier<int> get totalFramesNotifier =>
+      (super.noSuchMethod(
+            Invocation.getter(#totalFramesNotifier),
+            returnValue: _FakeValueNotifier_0<int>(
+              this,
+              Invocation.getter(#totalFramesNotifier),
+            ),
+          )
+          as _i2.ValueNotifier<int>);
+
+  @override
+  _i2.ValueNotifier<_i6.EditMode> get currentEditMode =>
+      (super.noSuchMethod(
+            Invocation.getter(#currentEditMode),
+            returnValue: _FakeValueNotifier_0<_i6.EditMode>(
+              this,
+              Invocation.getter(#currentEditMode),
+            ),
+          )
+          as _i2.ValueNotifier<_i6.EditMode>);
+
+  @override
+  bool get isPlayheadDragging =>
+      (super.noSuchMethod(
+            Invocation.getter(#isPlayheadDragging),
+            returnValue: false,
+          )
+          as bool);
+
+  @override
+  double get trackLabelWidth =>
+      (super.noSuchMethod(Invocation.getter(#trackLabelWidth), returnValue: 0.0)
+          as double);
+
+  @override
+  int get currentFrame =>
+      (super.noSuchMethod(Invocation.getter(#currentFrame), returnValue: 0)
+          as int);
+
+  @override
+  int get totalFrames =>
+      (super.noSuchMethod(Invocation.getter(#totalFrames), returnValue: 0)
+          as int);
+
+  @override
+  _i2.ValueNotifier<List<_i7.ClipModel>> get clipsNotifier =>
       (super.noSuchMethod(
             Invocation.getter(#clipsNotifier),
-            returnValue: _FakeValueNotifier_0<List<_i5.ClipModel>>(
+            returnValue: _FakeValueNotifier_0<List<_i7.ClipModel>>(
               this,
               Invocation.getter(#clipsNotifier),
             ),
           )
-          as _i2.ValueNotifier<List<_i5.ClipModel>>);
+          as _i2.ValueNotifier<List<_i7.ClipModel>>);
+
+  @override
+  List<_i7.ClipModel> get clips =>
+      (super.noSuchMethod(
+            Invocation.getter(#clips),
+            returnValue: <_i7.ClipModel>[],
+          )
+          as List<_i7.ClipModel>);
+
+  @override
+  _i2.ValueNotifier<List<_i8.Track>> get tracksNotifierForView =>
+      (super.noSuchMethod(
+            Invocation.getter(#tracksNotifierForView),
+            returnValue: _FakeValueNotifier_0<List<_i8.Track>>(
+              this,
+              Invocation.getter(#tracksNotifierForView),
+            ),
+          )
+          as _i2.ValueNotifier<List<_i8.Track>>);
 
   @override
   List<int> get currentTrackIds =>
@@ -72,6 +162,339 @@ class MockTimelineViewModel extends _i1.Mock implements _i4.TimelineViewModel {
             returnValue: <int>[],
           )
           as List<int>);
+
+  @override
+  _i2.ValueNotifier<int?> get selectedTrackIdNotifier =>
+      (super.noSuchMethod(
+            Invocation.getter(#selectedTrackIdNotifier),
+            returnValue: _FakeValueNotifier_0<int?>(
+              this,
+              Invocation.getter(#selectedTrackIdNotifier),
+            ),
+          )
+          as _i2.ValueNotifier<int?>);
+
+  @override
+  _i2.ValueNotifier<int?> get selectedClipIdNotifier =>
+      (super.noSuchMethod(
+            Invocation.getter(#selectedClipIdNotifier),
+            returnValue: _FakeValueNotifier_0<int?>(
+              this,
+              Invocation.getter(#selectedClipIdNotifier),
+            ),
+          )
+          as _i2.ValueNotifier<int?>);
+
+  @override
+  bool get hasContent =>
+      (super.noSuchMethod(Invocation.getter(#hasContent), returnValue: false)
+          as bool);
+
+  @override
+  _i2.ValueNotifier<bool> get canUndoNotifier =>
+      (super.noSuchMethod(
+            Invocation.getter(#canUndoNotifier),
+            returnValue: _FakeValueNotifier_0<bool>(
+              this,
+              Invocation.getter(#canUndoNotifier),
+            ),
+          )
+          as _i2.ValueNotifier<bool>);
+
+  @override
+  _i2.ValueNotifier<bool> get canRedoNotifier =>
+      (super.noSuchMethod(
+            Invocation.getter(#canRedoNotifier),
+            returnValue: _FakeValueNotifier_0<bool>(
+              this,
+              Invocation.getter(#canRedoNotifier),
+            ),
+          )
+          as _i2.ValueNotifier<bool>);
+
+  @override
+  _i3.ProjectDatabaseService get projectDatabaseService =>
+      (super.noSuchMethod(
+            Invocation.getter(#projectDatabaseService),
+            returnValue: _FakeProjectDatabaseService_1(
+              this,
+              Invocation.getter(#projectDatabaseService),
+            ),
+          )
+          as _i3.ProjectDatabaseService);
+
+  @override
+  set isPlayheadDragging(bool? value) => super.noSuchMethod(
+    Invocation.setter(#isPlayheadDragging, value),
+    returnValueForMissingStub: null,
+  );
+
+  @override
+  set trackLabelWidth(double? value) => super.noSuchMethod(
+    Invocation.setter(#trackLabelWidth, value),
+    returnValueForMissingStub: null,
+  );
+
+  @override
+  set currentFrame(int? value) => super.noSuchMethod(
+    Invocation.setter(#currentFrame, value),
+    returnValueForMissingStub: null,
+  );
+
+  @override
+  set selectedTrackId(int? value) => super.noSuchMethod(
+    Invocation.setter(#selectedTrackId, value),
+    returnValueForMissingStub: null,
+  );
+
+  @override
+  set selectedClipId(int? value) => super.noSuchMethod(
+    Invocation.setter(#selectedClipId, value),
+    returnValueForMissingStub: null,
+  );
+
+  @override
+  bool get hasListeners =>
+      (super.noSuchMethod(Invocation.getter(#hasListeners), returnValue: false)
+          as bool);
+
+  @override
+  void setEditMode(_i6.EditMode? mode) => super.noSuchMethod(
+    Invocation.method(#setEditMode, [mode]),
+    returnValueForMissingStub: null,
+  );
+
+  @override
+  _i9.Future<void> runCommand(_i10.TimelineCommand? cmd) =>
+      (super.noSuchMethod(
+            Invocation.method(#runCommand, [cmd]),
+            returnValue: _i9.Future<void>.value(),
+            returnValueForMissingStub: _i9.Future<void>.value(),
+          )
+          as _i9.Future<void>);
+
+  @override
+  _i9.Future<void> undo() =>
+      (super.noSuchMethod(
+            Invocation.method(#undo, []),
+            returnValue: _i9.Future<void>.value(),
+            returnValueForMissingStub: _i9.Future<void>.value(),
+          )
+          as _i9.Future<void>);
+
+  @override
+  _i9.Future<void> redo() =>
+      (super.noSuchMethod(
+            Invocation.method(#redo, []),
+            returnValue: _i9.Future<void>.value(),
+            returnValueForMissingStub: _i9.Future<void>.value(),
+          )
+          as _i9.Future<void>);
+
+  @override
+  _i9.Future<void> deleteTrack(int? trackId) =>
+      (super.noSuchMethod(
+            Invocation.method(#deleteTrack, [trackId]),
+            returnValue: _i9.Future<void>.value(),
+            returnValueForMissingStub: _i9.Future<void>.value(),
+          )
+          as _i9.Future<void>);
+
+  @override
+  _i9.Future<void> reorderTracks(int? oldIndex, int? newIndex) =>
+      (super.noSuchMethod(
+            Invocation.method(#reorderTracks, [oldIndex, newIndex]),
+            returnValue: _i9.Future<void>.value(),
+            returnValueForMissingStub: _i9.Future<void>.value(),
+          )
+          as _i9.Future<void>);
+
+  @override
+  _i9.Future<bool> placeClipOnTrack({
+    int? clipId,
+    required int? trackId,
+    required _i11.ClipType? type,
+    required String? sourcePath,
+    required int? sourceDurationMs,
+    required int? startTimeOnTrackMs,
+    required int? endTimeOnTrackMs,
+    required int? startTimeInSourceMs,
+    required int? endTimeInSourceMs,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#placeClipOnTrack, [], {
+              #clipId: clipId,
+              #trackId: trackId,
+              #type: type,
+              #sourcePath: sourcePath,
+              #sourceDurationMs: sourceDurationMs,
+              #startTimeOnTrackMs: startTimeOnTrackMs,
+              #endTimeOnTrackMs: endTimeOnTrackMs,
+              #startTimeInSourceMs: startTimeInSourceMs,
+              #endTimeInSourceMs: endTimeInSourceMs,
+            }),
+            returnValue: _i9.Future<bool>.value(false),
+          )
+          as _i9.Future<bool>);
+
+  @override
+  _i9.Future<bool> handleClipDropToEmptyTimeline({
+    required _i7.ClipModel? clip,
+    required int? startTimeOnTrackMs,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#handleClipDropToEmptyTimeline, [], {
+              #clip: clip,
+              #startTimeOnTrackMs: startTimeOnTrackMs,
+            }),
+            returnValue: _i9.Future<bool>.value(false),
+          )
+          as _i9.Future<bool>);
+
+  @override
+  _i9.Future<void> updateTrackName(int? trackId, String? newName) =>
+      (super.noSuchMethod(
+            Invocation.method(#updateTrackName, [trackId, newName]),
+            returnValue: _i9.Future<void>.value(),
+            returnValueForMissingStub: _i9.Future<void>.value(),
+          )
+          as _i9.Future<void>);
+
+  @override
+  _i9.Future<bool> handleClipDrop({
+    required _i7.ClipModel? clip,
+    required int? trackId,
+    required int? startTimeOnTrackMs,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#handleClipDrop, [], {
+              #clip: clip,
+              #trackId: trackId,
+              #startTimeOnTrackMs: startTimeOnTrackMs,
+            }),
+            returnValue: _i9.Future<bool>.value(false),
+          )
+          as _i9.Future<bool>);
+
+  @override
+  _i9.Future<void> performRollEdit({
+    required int? leftClipId,
+    required int? rightClipId,
+    required int? newBoundaryFrame,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#performRollEdit, [], {
+              #leftClipId: leftClipId,
+              #rightClipId: rightClipId,
+              #newBoundaryFrame: newBoundaryFrame,
+            }),
+            returnValue: _i9.Future<void>.value(),
+            returnValueForMissingStub: _i9.Future<void>.value(),
+          )
+          as _i9.Future<void>);
+
+  @override
+  int calculateFramePositionForOffset(
+    double? pixelPosition,
+    double? scrollOffset,
+    double? zoom,
+  ) =>
+      (super.noSuchMethod(
+            Invocation.method(#calculateFramePositionForOffset, [
+              pixelPosition,
+              scrollOffset,
+              zoom,
+            ]),
+            returnValue: 0,
+          )
+          as int);
+
+  @override
+  int frameToMs(int? frame) =>
+      (super.noSuchMethod(
+            Invocation.method(#frameToMs, [frame]),
+            returnValue: 0,
+          )
+          as int);
+
+  @override
+  double calculateScrollOffsetForFrame(int? frame, double? zoom) =>
+      (super.noSuchMethod(
+            Invocation.method(#calculateScrollOffsetForFrame, [frame, zoom]),
+            returnValue: 0.0,
+          )
+          as double);
+
+  @override
+  List<_i7.ClipModel> getDragPreviewClips({
+    required int? draggedClipId,
+    required int? targetTrackId,
+    required int? targetStartTimeOnTrackMs,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#getDragPreviewClips, [], {
+              #draggedClipId: draggedClipId,
+              #targetTrackId: targetTrackId,
+              #targetStartTimeOnTrackMs: targetStartTimeOnTrackMs,
+            }),
+            returnValue: <_i7.ClipModel>[],
+          )
+          as List<_i7.ClipModel>);
+
+  @override
+  _i9.Future<void> updateClipPreviewTransform(
+    int? clipId,
+    double? newPositionX,
+    double? newPositionY,
+    double? newWidth,
+    double? newHeight,
+  ) =>
+      (super.noSuchMethod(
+            Invocation.method(#updateClipPreviewTransform, [
+              clipId,
+              newPositionX,
+              newPositionY,
+              newWidth,
+              newHeight,
+            ]),
+            returnValue: _i9.Future<void>.value(),
+            returnValueForMissingStub: _i9.Future<void>.value(),
+          )
+          as _i9.Future<void>);
+
+  @override
+  void dispose() => super.noSuchMethod(
+    Invocation.method(#dispose, []),
+    returnValueForMissingStub: null,
+  );
+
+  @override
+  void addListener(_i12.VoidCallback? listener) => super.noSuchMethod(
+    Invocation.method(#addListener, [listener]),
+    returnValueForMissingStub: null,
+  );
+
+  @override
+  void removeListener(_i12.VoidCallback? listener) => super.noSuchMethod(
+    Invocation.method(#removeListener, [listener]),
+    returnValueForMissingStub: null,
+  );
+
+  @override
+  void notifyListeners() => super.noSuchMethod(
+    Invocation.method(#notifyListeners, []),
+    returnValueForMissingStub: null,
+  );
+}
+
+/// A class which mocks [TimelineNavigationViewModel].
+///
+/// See the documentation for Mockito's code generation for more information.
+class MockTimelineNavigationViewModel extends _i1.Mock
+    implements _i13.TimelineNavigationViewModel {
+  MockTimelineNavigationViewModel() {
+    _i1.throwOnMissingStub(this);
+  }
 
   @override
   _i2.ValueNotifier<double> get zoomNotifier =>
@@ -107,6 +530,17 @@ class MockTimelineViewModel extends _i1.Mock implements _i4.TimelineViewModel {
           as _i2.ValueNotifier<int>);
 
   @override
+  _i2.ValueNotifier<int> get timelineEndNotifier =>
+      (super.noSuchMethod(
+            Invocation.getter(#timelineEndNotifier),
+            returnValue: _FakeValueNotifier_0<int>(
+              this,
+              Invocation.getter(#timelineEndNotifier),
+            ),
+          )
+          as _i2.ValueNotifier<int>);
+
+  @override
   _i2.ValueNotifier<bool> get isPlayingNotifier =>
       (super.noSuchMethod(
             Invocation.getter(#isPlayingNotifier),
@@ -118,45 +552,15 @@ class MockTimelineViewModel extends _i1.Mock implements _i4.TimelineViewModel {
           as _i2.ValueNotifier<bool>);
 
   @override
-  _i2.ScrollController get trackContentHorizontalScrollController =>
+  _i2.ValueNotifier<bool> get isPlayheadLockedNotifier =>
       (super.noSuchMethod(
-            Invocation.getter(#trackContentHorizontalScrollController),
-            returnValue: _FakeScrollController_1(
+            Invocation.getter(#isPlayheadLockedNotifier),
+            returnValue: _FakeValueNotifier_0<bool>(
               this,
-              Invocation.getter(#trackContentHorizontalScrollController),
+              Invocation.getter(#isPlayheadLockedNotifier),
             ),
           )
-          as _i2.ScrollController);
-
-  @override
-  _i2.ValueNotifier<double> get trackLabelWidthNotifier =>
-      (super.noSuchMethod(
-            Invocation.getter(#trackLabelWidthNotifier),
-            returnValue: _FakeValueNotifier_0<double>(
-              this,
-              Invocation.getter(#trackLabelWidthNotifier),
-            ),
-          )
-          as _i2.ValueNotifier<double>);
-
-  @override
-  _i2.ValueNotifier<_i6.EditMode> get currentEditMode =>
-      (super.noSuchMethod(
-            Invocation.getter(#currentEditMode),
-            returnValue: _FakeValueNotifier_0<_i6.EditMode>(
-              this,
-              Invocation.getter(#currentEditMode),
-            ),
-          )
-          as _i2.ValueNotifier<_i6.EditMode>);
-
-  @override
-  List<_i5.ClipModel> get clips =>
-      (super.noSuchMethod(
-            Invocation.getter(#clips),
-            returnValue: <_i5.ClipModel>[],
-          )
-          as List<_i5.ClipModel>);
+          as _i2.ValueNotifier<bool>);
 
   @override
   double get zoom =>
@@ -169,48 +573,38 @@ class MockTimelineViewModel extends _i1.Mock implements _i4.TimelineViewModel {
           as int);
 
   @override
+  int get totalFrames =>
+      (super.noSuchMethod(Invocation.getter(#totalFrames), returnValue: 0)
+          as int);
+
+  @override
+  int get timelineEnd =>
+      (super.noSuchMethod(Invocation.getter(#timelineEnd), returnValue: 0)
+          as int);
+
+  @override
   bool get isPlaying =>
       (super.noSuchMethod(Invocation.getter(#isPlaying), returnValue: false)
           as bool);
 
   @override
-  _i2.ValueNotifier<bool> get canUndoNotifier =>
+  bool get isPlayheadLocked =>
       (super.noSuchMethod(
-            Invocation.getter(#canUndoNotifier),
-            returnValue: _FakeValueNotifier_0<bool>(
-              this,
-              Invocation.getter(#canUndoNotifier),
-            ),
+            Invocation.getter(#isPlayheadLocked),
+            returnValue: false,
           )
-          as _i2.ValueNotifier<bool>);
+          as bool);
 
   @override
-  _i2.ValueNotifier<bool> get canRedoNotifier =>
+  _i4.TimelineNavigationService get navigationService =>
       (super.noSuchMethod(
-            Invocation.getter(#canRedoNotifier),
-            returnValue: _FakeValueNotifier_0<bool>(
+            Invocation.getter(#navigationService),
+            returnValue: _FakeTimelineNavigationService_2(
               this,
-              Invocation.getter(#canRedoNotifier),
+              Invocation.getter(#navigationService),
             ),
           )
-          as _i2.ValueNotifier<bool>);
-
-  @override
-  _i3.ProjectDatabaseService get projectDatabaseService =>
-      (super.noSuchMethod(
-            Invocation.getter(#projectDatabaseService),
-            returnValue: _FakeProjectDatabaseService_2(
-              this,
-              Invocation.getter(#projectDatabaseService),
-            ),
-          )
-          as _i3.ProjectDatabaseService);
-
-  @override
-  set currentTrackIds(List<int>? _currentTrackIds) => super.noSuchMethod(
-    Invocation.setter(#currentTrackIds, _currentTrackIds),
-    returnValueForMissingStub: null,
-  );
+          as _i4.TimelineNavigationService);
 
   @override
   set zoom(double? value) => super.noSuchMethod(
@@ -225,46 +619,18 @@ class MockTimelineViewModel extends _i1.Mock implements _i4.TimelineViewModel {
   );
 
   @override
-  void setEditMode(_i6.EditMode? mode) => super.noSuchMethod(
-    Invocation.method(#setEditMode, [mode]),
-    returnValueForMissingStub: null,
-  );
+  bool get hasListeners =>
+      (super.noSuchMethod(Invocation.getter(#hasListeners), returnValue: false)
+          as bool);
 
   @override
-  _i7.Future<void> runCommand(_i8.TimelineCommand? cmd) =>
-      (super.noSuchMethod(
-            Invocation.method(#runCommand, [cmd]),
-            returnValue: _i7.Future<void>.value(),
-            returnValueForMissingStub: _i7.Future<void>.value(),
-          )
-          as _i7.Future<void>);
-
-  @override
-  _i7.Future<void> undo() =>
-      (super.noSuchMethod(
-            Invocation.method(#undo, []),
-            returnValue: _i7.Future<void>.value(),
-            returnValueForMissingStub: _i7.Future<void>.value(),
-          )
-          as _i7.Future<void>);
-
-  @override
-  _i7.Future<void> redo() =>
-      (super.noSuchMethod(
-            Invocation.method(#redo, []),
-            returnValue: _i7.Future<void>.value(),
-            returnValueForMissingStub: _i7.Future<void>.value(),
-          )
-          as _i7.Future<void>);
-
-  @override
-  _i7.Future<void> startPlayback() =>
+  _i9.Future<void> startPlayback() =>
       (super.noSuchMethod(
             Invocation.method(#startPlayback, []),
-            returnValue: _i7.Future<void>.value(),
-            returnValueForMissingStub: _i7.Future<void>.value(),
+            returnValue: _i9.Future<void>.value(),
+            returnValueForMissingStub: _i9.Future<void>.value(),
           )
-          as _i7.Future<void>);
+          as _i9.Future<void>);
 
   @override
   void stopPlayback() => super.noSuchMethod(
@@ -273,111 +639,44 @@ class MockTimelineViewModel extends _i1.Mock implements _i4.TimelineViewModel {
   );
 
   @override
-  _i7.Future<void> loadClipsForProject(int? projectId) =>
-      (super.noSuchMethod(
-            Invocation.method(#loadClipsForProject, [projectId]),
-            returnValue: _i7.Future<void>.value(),
-            returnValueForMissingStub: _i7.Future<void>.value(),
-          )
-          as _i7.Future<void>);
-
-  @override
-  void updateClipsAfterPlacement(List<_i5.ClipModel>? updatedClips) =>
-      super.noSuchMethod(
-        Invocation.method(#updateClipsAfterPlacement, [updatedClips]),
-        returnValueForMissingStub: null,
-      );
-
-  @override
-  _i7.Future<bool> placeClipOnTrack({
-    int? clipId,
-    required int? trackId,
-    required _i9.ClipType? type,
-    required String? sourcePath,
-    required int? sourceDurationMs,
-    required int? startTimeOnTrackMs,
-    required int? endTimeOnTrackMs,
-    required int? startTimeInSourceMs,
-    required int? endTimeInSourceMs,
-  }) =>
-      (super.noSuchMethod(
-            Invocation.method(#placeClipOnTrack, [], {
-              #clipId: clipId,
-              #trackId: trackId,
-              #type: type,
-              #sourcePath: sourcePath,
-              #sourceDurationMs: sourceDurationMs,
-              #startTimeOnTrackMs: startTimeOnTrackMs,
-              #endTimeOnTrackMs: endTimeOnTrackMs,
-              #startTimeInSourceMs: startTimeInSourceMs,
-              #endTimeInSourceMs: endTimeInSourceMs,
-            }),
-            returnValue: _i7.Future<bool>.value(false),
-          )
-          as _i7.Future<bool>);
-
-  @override
-  _i7.Future<bool> handleClipDropToEmptyTimeline({
-    required _i5.ClipModel? clip,
-    required int? startTimeOnTrackMs,
-  }) =>
-      (super.noSuchMethod(
-            Invocation.method(#handleClipDropToEmptyTimeline, [], {
-              #clip: clip,
-              #startTimeOnTrackMs: startTimeOnTrackMs,
-            }),
-            returnValue: _i7.Future<bool>.value(false),
-          )
-          as _i7.Future<bool>);
-
-  @override
-  _i7.Future<bool> updateTrackName(int? trackId, String? newName) =>
-      (super.noSuchMethod(
-            Invocation.method(#updateTrackName, [trackId, newName]),
-            returnValue: _i7.Future<bool>.value(false),
-          )
-          as _i7.Future<bool>);
-
-  @override
-  _i7.Future<bool> handleClipDrop({
-    required _i5.ClipModel? clip,
-    required int? trackId,
-    required int? startTimeOnTrackMs,
-  }) =>
-      (super.noSuchMethod(
-            Invocation.method(#handleClipDrop, [], {
-              #clip: clip,
-              #trackId: trackId,
-              #startTimeOnTrackMs: startTimeOnTrackMs,
-            }),
-            returnValue: _i7.Future<bool>.value(false),
-          )
-          as _i7.Future<bool>);
-
-  @override
-  _i7.Future<void> refreshClips() =>
-      (super.noSuchMethod(
-            Invocation.method(#refreshClips, []),
-            returnValue: _i7.Future<void>.value(),
-            returnValueForMissingStub: _i7.Future<void>.value(),
-          )
-          as _i7.Future<void>);
-
-  @override
-  void recalculateAndUpdateTotalFrames() => super.noSuchMethod(
-    Invocation.method(#recalculateAndUpdateTotalFrames, []),
+  void togglePlayPause() => super.noSuchMethod(
+    Invocation.method(#togglePlayPause, []),
     returnValueForMissingStub: null,
   );
 
   @override
-  void updateTrackLabelWidth(double? newWidth) => super.noSuchMethod(
-    Invocation.method(#updateTrackLabelWidth, [newWidth]),
+  void togglePlayheadLock() => super.noSuchMethod(
+    Invocation.method(#togglePlayheadLock, []),
     returnValueForMissingStub: null,
   );
 
   @override
-  void onDispose() => super.noSuchMethod(
-    Invocation.method(#onDispose, []),
+  void recalculateTotalFrames() => super.noSuchMethod(
+    Invocation.method(#recalculateTotalFrames, []),
+    returnValueForMissingStub: null,
+  );
+
+  @override
+  void dispose() => super.noSuchMethod(
+    Invocation.method(#dispose, []),
+    returnValueForMissingStub: null,
+  );
+
+  @override
+  void addListener(_i12.VoidCallback? listener) => super.noSuchMethod(
+    Invocation.method(#addListener, [listener]),
+    returnValueForMissingStub: null,
+  );
+
+  @override
+  void removeListener(_i12.VoidCallback? listener) => super.noSuchMethod(
+    Invocation.method(#removeListener, [listener]),
+    returnValueForMissingStub: null,
+  );
+
+  @override
+  void notifyListeners() => super.noSuchMethod(
+    Invocation.method(#notifyListeners, []),
     returnValueForMissingStub: null,
   );
 }

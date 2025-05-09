@@ -8,6 +8,10 @@ import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
 import 'package:flipedit/viewmodels/commands/move_clip_command.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/services/timeline_clip_resize_service.dart';
+import 'package:flipedit/services/project_database_service.dart';
+import 'package:flipedit/services/timeline_logic_service.dart';
+import 'package:flipedit/services/preview_http_service.dart';
+import 'package:flipedit/services/preview_sync_service.dart';
 
 // Import extracted components
 import 'resize_clip_handle.dart';
@@ -465,6 +469,10 @@ class _TimelineClipState extends State<TimelineClip> {
           clipId: widget.clip.databaseId!,
           newTrackId: widget.clip.trackId,
           newStartTimeOnTrackMs: newStartTimeMs,
+          projectDatabaseService: di<ProjectDatabaseService>(),
+          timelineLogicService: di<TimelineLogicService>(),
+          previewHttpService: di<PreviewHttpService>(),
+          timelineNavViewModel: di<TimelineNavigationViewModel>(),
           clipsNotifier: di<TimelineViewModel>().clipsNotifier,
         );
         di<TimelineViewModel>().runCommand(cmd);
@@ -555,6 +563,19 @@ class _TimelineClipState extends State<TimelineClip> {
   void _handleResizeEnd(String direction, double finalPixelDelta) async {
     widget.onResizeEnd?.call();
 
+    // Retrieve services via di
+    final projectDatabaseService = di<ProjectDatabaseService>();
+    final timelineLogicService = di<TimelineLogicService>();
+    final previewHttpService = di<PreviewHttpService>();
+    // Assuming PreviewSyncService is also available via di, if not, this needs adjustment
+    // For now, let's assume it's available. If it's not registered, this will fail at runtime.
+    // It's better to ensure all dependencies are correctly injected.
+    // If PreviewSyncService is not in DI, it might need to be passed differently or added to DI.
+    // Let's check if PreviewSyncService is typically available via di.
+    // Based on other command patterns, it's likely.
+    final previewSyncService = di<PreviewSyncService>();
+    final navigationViewModel = di<TimelineNavigationViewModel>();
+
     await _resizeService.handleResizeEnd(
       resizingDirection: _resizingDirection,
       previewStartFrame: _previewStartFrame,
@@ -565,6 +586,12 @@ class _TimelineClipState extends State<TimelineClip> {
       clip: widget.clip,
       zoom: di<TimelineNavigationViewModel>().zoomNotifier.value,
       runCommand: (cmd) => di<TimelineViewModel>().runCommand(cmd),
+      // Pass the required services
+      projectDatabaseService: projectDatabaseService,
+      timelineLogicService: timelineLogicService,
+      previewSyncService: previewSyncService,
+      previewHttpService: previewHttpService,
+      navigationViewModel: navigationViewModel,
     );
 
     setState(() {

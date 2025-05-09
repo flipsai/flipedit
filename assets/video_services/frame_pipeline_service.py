@@ -104,15 +104,26 @@ class FramePipelineService:
 
             if self.intermediate_frame_cache:
                 # Key needs to be unique for the source frame AND its specific transformations
-                # This could include video_path, current_source_frame_index, and a hash of relevant metadata
-                # For now, a simple key; can be made more robust.
-                # previewRect is part of clip_info['metadata']
-                rect_tuple = tuple(sorted(clip_info.get('metadata',{}).get('previewRect', {}).items())) if clip_info.get('metadata',{}).get('previewRect') else tuple()
+                # This could include video_path, current_source_frame_index, and a hash of relevant transform properties.
+                # Use new direct transform properties for the cache key.
+                pos_x = clip_info.get('previewPositionX') # Using camelCase as per db_access.py output
+                pos_y = clip_info.get('previewPositionY')
+                width = clip_info.get('previewWidth')
+                height = clip_info.get('previewHeight')
+                # Still consider flip if it's a separate property, e.g., from metadata
                 flip_val = clip_info.get('metadata',{}).get('flip', None)
-                intermediate_cache_key = f"{video_path}:{current_source_frame_index}:{rect_tuple}:{flip_val}"
-                cached_intermediate_frame_data_tuple = self.intermediate_frame_cache.get_frame(intermediate_cache_key) # Assuming cache stores the tuple
+                
+                # Create a stable tuple for the cache key part
+                transform_tuple = (
+                    f"{pos_x:.2f}" if pos_x is not None else "None",
+                    f"{pos_y:.2f}" if pos_y is not None else "None",
+                    f"{width:.2f}" if width is not None else "None",
+                    f"{height:.2f}" if height is not None else "None",
+                )
+
+                intermediate_cache_key = f"{video_path}:{current_source_frame_index}:{transform_tuple}:{flip_val}"
+                cached_intermediate_frame_data_tuple = self.intermediate_frame_cache.get_frame(intermediate_cache_key)
                 if cached_intermediate_frame_data_tuple:
-                     # Ensure it's a tuple (frame, x, y, w, h)
                     if isinstance(cached_intermediate_frame_data_tuple, tuple) and len(cached_intermediate_frame_data_tuple) == 5:
                         transformed_frame_data = cached_intermediate_frame_data_tuple
                         logger.debug(f"Intermediate cache HIT for {intermediate_cache_key}")

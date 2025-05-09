@@ -1,8 +1,5 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'dart:ui' show Rect;
-import 'package:flutter_box_transform/flutter_box_transform.dart' show Flip;
-
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/models/enums/edit_mode.dart';
@@ -22,8 +19,9 @@ import 'package:flipedit/services/undo_redo_service.dart';
 import 'commands/roll_edit_command.dart';
 import 'package:flipedit/services/timeline_logic_service.dart';
 import 'package:flipedit/services/preview_sync_service.dart';
-import 'commands/update_clip_preview_flip_command.dart';
 import 'commands/update_clip_transform_command.dart';
+import 'package:flipedit/services/commands/undoable_command.dart'; // Added import
+import 'commands/move_clip_command.dart'; // Added import
 
 class TimelineViewModel extends ChangeNotifier {
   final String _logTag = 'TimelineViewModel';
@@ -123,10 +121,56 @@ class TimelineViewModel extends ChangeNotifier {
   final List<VoidCallback> _internalListeners =
       []; // Store listeners for disposal
 
-  /// Executes a TimelineCommand and registers it with the Undo/Redo service.
+  /// Executes a TimelineCommand. If the command is Undoable, it's processed
+  /// via the UndoRedoService. Otherwise, it's executed directly.
   Future<void> runCommand(TimelineCommand cmd) async {
-    await cmd.execute();
-    await _undoRedoService.init();
+    if (cmd is UndoableCommand) {
+      // Determine entityId. This might need to be a property of the command itself,
+      // or passed to runCommand. For MoveClipCommand, it's the clipId.
+      // For now, let's assume UndoableCommand has an entityId getter or similar.
+      // This needs a more robust way to get entityId.
+      // For MoveClipCommand, we know it has a `clipId` property.
+      String entityId;
+      if (cmd is MoveClipCommand) { // Specific check for MoveClipCommand
+        entityId = cmd.clipId.toString();
+      } else if (cmd is AddClipCommand) {
+        // AddClipCommand might not have an ID until after execution.
+        // The UndoRedoService.executeCommand might need to handle ID generation
+        // or the command itself returns the ID after execution.
+        // For now, this highlights a design consideration.
+        // Let's assume for AddClip, the entityId might be set after execute,
+        // or the command's toChangeLog handles it.
+        // This part needs careful thought for commands that create new entities.
+        // A temporary placeholder:
+        entityId = "unknown_after_execute";
+      } else if (cmd is DeleteTrackCommand) {
+        entityId = cmd.trackId.toString();
+      } else if (cmd is UpdateTrackNameCommand) {
+        entityId = cmd.trackId.toString();
+      } else if (cmd is ReorderTracksCommand) {
+        // ReorderTracks might affect multiple entities or a "project" entity.
+        // For now, let's use a generic ID or the first track ID involved.
+        entityId = cmd.originalTracks.isNotEmpty ? cmd.originalTracks.first.id.toString() : "reorder_tracks";
+      } else if (cmd is AddTrackCommand) {
+        entityId = "unknown_track_after_execute"; // Similar to AddClip
+      } else if (cmd is RollEditCommand) {
+        entityId = cmd.leftClipId.toString(); // Corrected to use leftClipId
+      } else if (cmd is UpdateClipTransformCommand) {
+        entityId = cmd.clipId.toString();
+      }
+      // Add more 'else if' for other UndoableCommand types
+      else {
+        // Fallback or throw error if entityId cannot be determined
+        logger.logWarning('Cannot determine entityId for UndoableCommand of type ${cmd.runtimeType}', _logTag);
+        // Execute directly if entityId is critical and unknown, or throw
+        await cmd.execute();
+        return;
+      }
+      await _undoRedoService.executeCommand(cmd as UndoableCommand, entityId);
+    } else {
+      // If the command is not undoable, execute it directly.
+      await cmd.execute();
+    }
   }
 
   /// Undoes the last operation via service
@@ -346,8 +390,8 @@ class TimelineViewModel extends ChangeNotifier {
       leftClipId: leftClipId,
       rightClipId: rightClipId,
       newBoundaryFrame: newBoundaryFrame,
-      clipsNotifier:
-          _stateViewModel.clipsNotifier, // Pass notifier from State VM
+      projectDatabaseService: _projectDatabaseService, // Pass existing service
+      clipsNotifier: clipsNotifier, // Pass existing notifier (getter to _stateViewModel.clipsNotifier)
     );
     await runCommand(command);
   }
@@ -395,70 +439,57 @@ class TimelineViewModel extends ChangeNotifier {
     );
   }
 
-  // Update clip's flip setting using the command pattern
-  Future<void> updateClipPreviewFlip(int clipId, Flip flip) async {
-    final command = UpdateClipPreviewFlipCommand(clipId: clipId, newFlip: flip);
-    try {
-      await runCommand(command);
-      // State update and preview sync are handled within the command
-    } catch (e) {
-      logger.logError(
-        'Error running UpdateClipPreviewFlipCommand: $e',
-        _logTag,
-      );
-      // Consider showing user feedback about the error
-    }
-  }
-
-  // Update clip's preview rectangle using the command pattern
-  Future<void> updateClipPreviewRect(int clipId, Rect newRect) async {
+  /// Updates a clip's preview transformation (X, Y, Width, Height) using the UpdateClipTransformCommand.
+  Future<void> updateClipPreviewTransform(
+    int clipId,
+    double newPositionX,
+    double newPositionY,
+    double newWidth,
+    double newHeight,
+  ) async {
     logger.logInfo(
-      'Attempting to update clip $clipId preview rect to: $newRect',
+      'Attempting to update clip $clipId preview transform to: X=$newPositionX, Y=$newPositionY, W=$newWidth, H=$newHeight',
       _logTag,
     );
 
     try {
-      // Get the current clip state to retrieve oldRect and oldFlip for the command
       final clip = _stateViewModel.clips.firstWhere(
         (c) => c.databaseId == clipId,
         orElse: () {
-          logger.logError('Clip $clipId not found for rect update.', _logTag);
+          logger.logError('Clip $clipId not found for transform update.', _logTag);
           throw StateError('Clip $clipId not found');
         },
       );
 
-      final oldRect = clip.previewRect ??
-          const Rect.fromLTWH(
-            0,
-            0,
-            1280,
-            720,
-          ); // Provide a sensible default if null
-      final oldFlip = clip.previewFlip ?? Flip.none; // Provide a default
-
       final command = UpdateClipTransformCommand(
         projectDatabaseService: _projectDatabaseService,
         clipId: clipId,
-        newRect: newRect,
-        newFlip: oldFlip, // Keep the existing flip value
-        oldRect: oldRect,
-        oldFlip: oldFlip,
+        // New values
+        newPositionX: newPositionX,
+        newPositionY: newPositionY,
+        newWidth: newWidth,
+        newHeight: newHeight,
+        // Old values
+        oldPositionX: clip.previewPositionX,
+        oldPositionY: clip.previewPositionY,
+        oldWidth: clip.previewWidth,
+        oldHeight: clip.previewHeight,
       );
 
       await runCommand(command);
       logger.logInfo(
-        'UpdateClipTransformCommand executed for clip $clipId with new rect: $newRect',
+        'UpdateClipTransformCommand executed for clip $clipId with new transform: X=$newPositionX, Y=$newPositionY, W=$newWidth, H=$newHeight',
         _logTag,
       );
-      // State update and preview sync are handled by the command and TimelineStateViewModel listeners
     } catch (e) {
       logger.logError(
-        'Error running UpdateClipTransformCommand for rect update: $e',
+        'Error executing UpdateClipTransformCommand for transform update on clip $clipId: $e',
         _logTag,
       );
-      // Optionally, rethrow or show user feedback
+      // Optionally rethrow or handle as per app's error strategy
     }
   }
+  // updateClipPreviewRect method removed as per user request to remove flutter_box_transform
 
   @override
   void dispose() {

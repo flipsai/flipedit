@@ -186,9 +186,13 @@ class AddClipCommand implements TimelineCommand {
         endTimeOnTrackMs: drift.Value(newClipDataMap['endTimeOnTrackMs']),
         startTimeInSourceMs: drift.Value(newClipDataMap['startTimeInSourceMs']),
         endTimeInSourceMs: drift.Value(newClipDataMap['endTimeInSourceMs']),
+        previewPositionX: drift.Value(processedClipData.previewPositionX),
+        previewPositionY: drift.Value(processedClipData.previewPositionY),
+        previewWidth: drift.Value(processedClipData.previewWidth),
+        previewHeight: drift.Value(processedClipData.previewHeight),
         createdAt: drift.Value(DateTime.now()),
         updatedAt: drift.Value(DateTime.now()),
-        metadataJson: drift.Value(
+        metadata: drift.Value(
           processedClipData.metadata.isNotEmpty
               ? jsonEncode(processedClipData.metadata)
               : null,

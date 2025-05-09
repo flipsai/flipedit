@@ -47,15 +47,20 @@ class Clip(Base):
     end_time_in_source_ms = Column(Integer)
     start_time_on_track_ms = Column(Integer, nullable=False)
     end_time_on_track_ms = Column(Integer, nullable=False)
-    metadata_json = Column(Text)
+    clip_metadata_str = Column('metadata', Text)
+    
+    preview_position_x = Column(Float, nullable=False, default=0.0)
+    preview_position_y = Column(Float, nullable=False, default=0.0)
+    preview_width = Column(Float, nullable=False, default=100.0)
+    preview_height = Column(Float, nullable=False, default=100.0)
     
     track = relationship("Track", back_populates="clips")
     
     def to_dict(self) -> Dict[str, Any]:
-        metadata = {}
-        if self.metadata_json:
+        parsed_metadata = {}
+        if self.clip_metadata_str:
             try:
-                metadata = json.loads(self.metadata_json)
+                parsed_metadata = json.loads(self.clip_metadata_str)
             except json.JSONDecodeError:
                 logger.warning(f"Failed to parse metadata JSON for clip {self.id}")
                 
@@ -71,10 +76,14 @@ class Clip(Base):
             "end_time_in_source_ms": self.end_time_in_source_ms,
             "start_time_on_track_ms": self.start_time_on_track_ms,
             "end_time_on_track_ms": self.end_time_on_track_ms,
-            "metadata": metadata
+            "metadata": parsed_metadata,
+            
+            "preview_position_x": self.preview_position_x,
+            "preview_position_y": self.preview_position_y,
+            "preview_width": self.preview_width,
+            "preview_height": self.preview_height
         }
         
-        # Add camelCase versions of the same fields for compatibility with frame generator
         result.update({
             "trackId": self.track_id,
             "sourcePath": self.source_path,
@@ -82,7 +91,11 @@ class Clip(Base):
             "startTimeInSourceMs": self.start_time_in_source_ms,
             "endTimeInSourceMs": self.end_time_in_source_ms,
             "startTimeOnTrackMs": self.start_time_on_track_ms,
-            "endTimeOnTrackMs": self.end_time_on_track_ms
+            "endTimeOnTrackMs": self.end_time_on_track_ms,
+            "previewPositionX": self.preview_position_x,
+            "previewPositionY": self.preview_position_y,
+            "previewWidth": self.preview_width,
+            "previewHeight": self.preview_height
         })
         
         return result

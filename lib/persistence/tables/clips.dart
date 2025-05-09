@@ -27,7 +27,13 @@ class Clips extends Table {
       integer().nullable()(); // Store explicit end time on track
 
   // Optional metadata as JSON string (can be null)
-  TextColumn get metadataJson => text().nullable()();
+  TextColumn get metadata => text().nullable()(); // Renamed from metadataJson
+
+  // Preview transformation properties
+  RealColumn get previewPositionX => real().withDefault(const Constant(0.0))();
+  RealColumn get previewPositionY => real().withDefault(const Constant(0.0))();
+  RealColumn get previewWidth => real().withDefault(const Constant(100.0))();
+  RealColumn get previewHeight => real().withDefault(const Constant(100.0))();
 
   // Timestamps
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();

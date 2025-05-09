@@ -113,20 +113,28 @@ class TimelineManager:
             video_count += 1
             
             # Log some basic info about the video using calculated frames
-            # Handle both metadata formats (camelCase from WebSocket and snake_case from DB)
-            metadata = video.get('metadata', {})
-            preview_rect_data = metadata.get('previewRect', {}) 
-            
             # Use calculated frame numbers for logging
             start_frame = video['start_frame_calc']
             end_frame = video['end_frame_calc']
             source_start_frame = video['source_start_frame_calc']
 
-            # Add the frame conversion info to the log
-            # Use preview_rect_data safely for position info
-            pos_info = f"pos: {preview_rect_data.get('left', '?')},{preview_rect_data.get('top', '?')}"
-            time_info = f"frames: {start_frame}-{end_frame} (src_start: {source_start_frame})" # Already calculated frames
-            logger.info(f"Added video [{index}]: {os.path.basename(path)}, {pos_info}, {time_info} (calc)") # Indicate calculated frames
+            # Get new transform properties, preferring camelCase (from db_access.to_dict) then snake_case as fallback
+            pos_x = video.get('previewPositionX') # or video.get('preview_position_x')
+            pos_y = video.get('previewPositionY') # or video.get('preview_position_y')
+            width = video.get('previewWidth')     # or video.get('preview_width')
+            height = video.get('previewHeight')   # or video.get('preview_height')
+
+            # Construct pos_info using new direct properties
+            # Ensure they are not None before formatting, provide defaults '?' if missing
+            pos_x_str = f"{pos_x:.2f}" if pos_x is not None else "?"
+            pos_y_str = f"{pos_y:.2f}" if pos_y is not None else "?"
+            width_str = f"{width:.2f}" if width is not None else "?"
+            height_str = f"{height:.2f}" if height is not None else "?"
+            
+            pos_info = f"pos:({pos_x_str},{pos_y_str}) size:({width_str},{height_str})"
+            
+            time_info = f"frames: {start_frame}-{end_frame} (src_start: {source_start_frame})"
+            logger.info(f"Added video [{index}]: {os.path.basename(path)}, {pos_info}, {time_info} (calc)")
                 
             # Update frame rate and total frames if needed
             if 'frame_rate' in video:
