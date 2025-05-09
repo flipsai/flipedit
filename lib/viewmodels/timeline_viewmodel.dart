@@ -9,7 +9,7 @@ import 'package:flipedit/models/enums/edit_mode.dart';
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
 import 'package:flipedit/persistence/database/project_database.dart' show Track;
-import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart'; // Import State VM
+import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart';
 
 import 'package:watch_it/watch_it.dart';
 import 'commands/timeline_command.dart';
@@ -23,6 +23,7 @@ import 'commands/roll_edit_command.dart';
 import 'package:flipedit/services/timeline_logic_service.dart';
 import 'package:flipedit/services/preview_sync_service.dart';
 import 'commands/update_clip_preview_flip_command.dart';
+import 'commands/update_clip_transform_command.dart';
 
 class TimelineViewModel extends ChangeNotifier {
   final String _logTag = 'TimelineViewModel';
@@ -406,6 +407,56 @@ class TimelineViewModel extends ChangeNotifier {
         _logTag,
       );
       // Consider showing user feedback about the error
+    }
+  }
+
+  // Update clip's preview rectangle using the command pattern
+  Future<void> updateClipPreviewRect(int clipId, Rect newRect) async {
+    logger.logInfo(
+      'Attempting to update clip $clipId preview rect to: $newRect',
+      _logTag,
+    );
+
+    try {
+      // Get the current clip state to retrieve oldRect and oldFlip for the command
+      final clip = _stateViewModel.clips.firstWhere(
+        (c) => c.databaseId == clipId,
+        orElse: () {
+          logger.logError('Clip $clipId not found for rect update.', _logTag);
+          throw StateError('Clip $clipId not found');
+        },
+      );
+
+      final oldRect = clip.previewRect ??
+          const Rect.fromLTWH(
+            0,
+            0,
+            1280,
+            720,
+          ); // Provide a sensible default if null
+      final oldFlip = clip.previewFlip ?? Flip.none; // Provide a default
+
+      final command = UpdateClipTransformCommand(
+        projectDatabaseService: _projectDatabaseService,
+        clipId: clipId,
+        newRect: newRect,
+        newFlip: oldFlip, // Keep the existing flip value
+        oldRect: oldRect,
+        oldFlip: oldFlip,
+      );
+
+      await runCommand(command);
+      logger.logInfo(
+        'UpdateClipTransformCommand executed for clip $clipId with new rect: $newRect',
+        _logTag,
+      );
+      // State update and preview sync are handled by the command and TimelineStateViewModel listeners
+    } catch (e) {
+      logger.logError(
+        'Error running UpdateClipTransformCommand for rect update: $e',
+        _logTag,
+      );
+      // Optionally, rethrow or show user feedback
     }
   }
 

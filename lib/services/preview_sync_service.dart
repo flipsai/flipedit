@@ -5,7 +5,8 @@ import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:watch_it/watch_it.dart';
 
-import '../persistence/database/project_database.dart' show Clip, Track;
+import '../persistence/database/project_database.dart' show Track;
+import '../models/clip.dart' as model_clip;
 import '../services/project_database_service.dart';
 import '../utils/logger.dart';
 
@@ -80,6 +81,26 @@ class PreviewSyncService {
     }
   }
 
+  /// Send a JSON message to the preview server
+  void sendJsonMessage(Map<String, dynamic> data) {
+    if (!_isConnected || _channel == null) {
+      logWarning(
+        'Cannot send JSON message to preview server: Not connected.',
+        _logTag,
+      );
+      _connect(); // Attempt to reconnect
+      return;
+    }
+
+    try {
+      final message = jsonEncode(data);
+      _channel!.sink.add(message);
+      logVerbose('Sent JSON message to preview server: $message', _logTag);
+    } catch (e, s) {
+      logError('Error sending JSON message to preview server', e, s, _logTag);
+    }
+  }
+
   Future<void> sendClipsToPreviewServer() async {
     if (!_isConnected || _channel == null) {
       logWarning(
@@ -103,20 +124,24 @@ class PreviewSyncService {
 
     try {
       final List<Track> tracks = _projectDatabaseService.tracksNotifier.value;
-      final List<Clip> allDbClips = [];
+      final List<model_clip.ClipModel> allClipModels = [];
 
       for (final track in tracks) {
-        final trackClips = await clipDao.getClipsForTrack(track.id);
-        allDbClips.addAll(trackClips);
+        final dbTrackClips = await clipDao.getClipsForTrack(track.id);
+        for (final dbClip in dbTrackClips) {
+          // Convert Drift Clip entity to ClipModel
+          allClipModels.add(model_clip.ClipModel.fromDbData(dbClip));
+        }
       }
 
+      // Now call toJson() on ClipModel instances
       final List<Map<String, dynamic>> clipData =
-          allDbClips.map((clip) => clip.toJson()).toList();
+          allClipModels.map((clipModel) => clipModel.toJson()).toList();
 
       final message = jsonEncode({'type': 'sync_clips', 'payload': clipData});
 
       _channel!.sink.add(message);
-      logInfo('Sent ${allDbClips.length} clips to preview server.', _logTag);
+      logInfo('Sent ${allClipModels.length} clips to preview server.', _logTag);
     } catch (e, s) {
       logError('Error sending clips to preview server', e, s, _logTag);
     }

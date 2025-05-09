@@ -8,33 +8,42 @@ import threading
 # Import the refactored modules
 import config
 import websocket_server
-import timeline_manager
-import frame_generator
+import timeline_manager as timeline_manager_module
+# import frame_generator # Will be replaced by services
 import playback_controller
 import message_handler
+
+# Import new video services
+from video_services.timeline_state_service import TimelineStateService
+from video_services.video_source_service import VideoSourceService
+from video_services.frame_transform_service import FrameTransformService
+from video_services.compositing_service import CompositingService
+from video_services.encoding_service import EncodingService
+from video_services.frame_cache_service import FrameCacheService # For intermediate frames
+from video_services.frame_pipeline_service import FramePipelineService
 import preview_server
 import db_access
 
 # Global logger instance
 logger: Optional[logging.Logger] = None
 
-# Global instance for access from other modules
-_global_timeline_manager = None
+# Global timeline manager instance for access from other modules
+timeline_manager = None
 
 def get_timeline_manager():
-    """Access the timeline manager singleton from other modules"""
-    global _global_timeline_manager
-    return _global_timeline_manager
+    """Get the global timeline manager instance."""
+    return timeline_manager
 
 class MainServer:
     def __init__(self, args):
         """Initialize the main server coordinating all components."""
-        global logger, _global_timeline_manager
+        global logger, timeline_manager
         logger = config.configure_logging(args)
         
+        # Parse arguments
         self.args = args
         
-        # Connect to the database
+        # Create database manager based on configured path
         self.db_manager = db_access.get_manager()
         logger.info("Database manager initialized")
         if self.db_manager.metadata_db_path:
@@ -45,9 +54,33 @@ class MainServer:
                 logger.info(f"Most recent project: {projects[0]['name']}")
         
         # Initialize components
-        self.timeline_manager = timeline_manager.TimelineManager()
-        _global_timeline_manager = self.timeline_manager 
-        self.frame_generator = frame_generator.FrameGenerator()
+        self.timeline_manager = timeline_manager_module.TimelineManager()
+        # Set the global timeline_manager for external access
+        global timeline_manager
+        timeline_manager = self.timeline_manager
+
+        # --- Instantiate new video services ---
+        self.timeline_state_service = TimelineStateService(
+            canvas_width=self.args.default_canvas_width if hasattr(self.args, 'default_canvas_width') else 1280,
+            canvas_height=self.args.default_canvas_height if hasattr(self.args, 'default_canvas_height') else 720
+        )
+        self.video_source_service = VideoSourceService()
+        self.intermediate_frame_cache_service = FrameCacheService(max_cache_entries=120) # Cache for transformed clip frames
+        self.frame_transform_service = FrameTransformService()
+        self.compositing_service = CompositingService()
+        self.encoding_service = EncodingService()
+        
+        self.frame_pipeline_service = FramePipelineService(
+            timeline_state_service=self.timeline_state_service,
+            video_source_service=self.video_source_service,
+            frame_transform_service=self.frame_transform_service,
+            compositing_service=self.compositing_service,
+            encoding_service=self.encoding_service,
+            intermediate_frame_cache_service=self.intermediate_frame_cache_service
+        )
+        # --- End new video services instantiation ---
+        
+        # self.frame_generator = frame_generator.FrameGenerator() # OLD
         
         # Pass callbacks to the PlaybackController
         self.playback_controller = playback_controller.PlaybackController(
@@ -61,9 +94,10 @@ class MainServer:
             start_playback_callback=self.playback_controller.start_playback,
             stop_playback_callback=self.playback_controller.stop_playback,
             seek_callback=self.handle_seek,
-            get_frame_callback=self.get_frame_for_seek,
+            get_frame_callback=self.get_frame_for_seek, # This will use the new pipeline
             send_state_callback=self.send_state_update_to_client,
-            update_canvas_dimensions_callback=self.frame_generator.update_canvas_dimensions,
+            # update_canvas_dimensions_callback=self.frame_generator.update_canvas_dimensions, # OLD
+            update_canvas_dimensions_callback=self.handle_update_canvas_dimensions, # NEW
             refresh_timeline_from_db_callback=self.refresh_timeline_from_database
         )
         
@@ -82,35 +116,74 @@ class MainServer:
         self.timeline_manager.refresh_from_database()
         
         # Update playback controller with new timeline parameters
-        timeline_state = self.timeline_manager.get_timeline_state()
+        timeline_manager_state = self.timeline_manager.get_timeline_state()
         self.playback_controller.set_timeline_params(
-            timeline_state["frame_rate"],
-            timeline_state["total_frames"]
+            timeline_manager_state["frame_rate"],
+            timeline_manager_state["total_frames"]
         )
         
-        logger.info("Timeline refreshed from database")
+        # Also update the TimelineStateService with the refreshed data
+        self.timeline_state_service.update_timeline_data(
+            videos=timeline_manager_state["videos"],
+            total_frames=timeline_manager_state["total_frames"]
+            # Canvas dimensions are handled separately
+        )
+        logger.info("Timeline refreshed from database and TimelineStateService updated.")
+
+    def handle_update_canvas_dimensions(self, width: int, height: int):
+        """Handles updates to canvas dimensions and informs the relevant service."""
+        logger.debug(f"MainServer: Handling update canvas dimensions: {width}x{height}")
+        changed = self.timeline_state_service.update_canvas_dimensions(width, height)
+        if changed:
+            # If dimensions change, the pipeline's final frame cache relying on
+            # timeline_state_hash (which includes canvas dimensions) will naturally
+            # use new keys. We might also consider explicitly clearing certain caches
+            # if there are intermediate caches that don't automatically invalidate.
+            # For now, TimelineStateService.get_hashable_timeline_state() includes
+            # canvas dimensions, so the FramePipelineService's main cache key will change.
+            logger.info(f"Canvas dimensions updated in TimelineStateService to {width}x{height}.")
+            # Potentially, if playback is active, send a new frame or trigger UI update.
+            # For now, just updating the state service is the core responsibility here.
 
     def get_frame_for_playback(self, frame_index: int) -> Optional[bytes]:
-        """Wrapper to get frame using current timeline state for playback loop"""
-        timeline_state = self.timeline_manager.get_timeline_state()
-        return self.frame_generator.get_frame(
-            frame_index,
-            timeline_state["videos"],
-            timeline_state["total_frames"]
+        """
+        Wrapper to get a frame using the new FramePipelineService.
+        Ensures TimelineStateService is updated before fetching.
+        """
+        # Ensure TimelineStateService has the latest from TimelineManager
+        current_timeline_manager_state = self.timeline_manager.get_timeline_state()
+        self.timeline_state_service.update_timeline_data(
+            videos=current_timeline_manager_state["videos"],
+            total_frames=current_timeline_manager_state["total_frames"]
+            # Canvas dimensions are updated via handle_update_canvas_dimensions
         )
+        
+        # FramePipelineService uses the state from TimelineStateService internally
+        return self.frame_pipeline_service.get_encoded_frame(frame_index)
 
     async def send_frame_to_all_clients(self, frame_data: str):
         """Wrapper to send frame data via WebSocket server"""
         await self.ws_server.send_frame_to_all(frame_data)
 
     def handle_update_timeline(self, video_data: List[Dict]):
-        """Handle timeline updates and propagate changes"""
-        self.timeline_manager.handle_message_updates(video_data)  # Use the renamed method
-        timeline_state = self.timeline_manager.get_timeline_state()
+        """Handle timeline updates and propagate changes to TimelineManager and TimelineStateService"""
+        self.timeline_manager.handle_message_updates(video_data)
+        
+        # Get the updated state from TimelineManager
+        updated_timeline_manager_state = self.timeline_manager.get_timeline_state()
+        
+        # Push this updated state to TimelineStateService
+        self.timeline_state_service.update_timeline_data(
+            videos=updated_timeline_manager_state["videos"],
+            total_frames=updated_timeline_manager_state["total_frames"]
+            # Canvas dimensions are handled separately by handle_update_canvas_dimensions
+        )
+        logger.info("Timeline data updated in TimelineStateService via handle_update_timeline.")
+
         # Update playback controller with new timeline parameters
         self.playback_controller.set_timeline_params(
-            timeline_state["frame_rate"],
-            timeline_state["total_frames"]
+            updated_timeline_manager_state["frame_rate"],
+            updated_timeline_manager_state["total_frames"]
         )
 
     def handle_seek(self, frame: int) -> int:
@@ -144,9 +217,12 @@ class MainServer:
         logger.info(f"HTTP API server on port {self.args.http_port}")
         
         # Create and start the Flask preview server in a separate thread
+        # TODO: Update preview_server to use the new FramePipelineService or TimelineStateService
         preview_app = preview_server.create_preview_server(
-            self.frame_generator,
-            self.timeline_manager
+            # self.frame_generator, # OLD
+            self.frame_pipeline_service, # NEW - or pass specific services it needs
+            self.timeline_manager, # TimelineManager might still be useful for HTTP endpoints
+            self.timeline_state_service # Pass this too, as it holds current state
         )
         # Run Flask in a daemon thread so it exits when the main thread exits
         preview_server_port = self.args.http_port
@@ -187,7 +263,8 @@ class MainServer:
         """Perform cleanup tasks after servers have stopped."""
         if logger:
              logger.info("Performing cleanup...")
-        self.frame_generator.cleanup() # Release OpenCV resources
+        # self.frame_generator.cleanup() # OLD
+        self.frame_pipeline_service.clear_all_caches() # NEW
         if logger:
              logger.info("Server shutdown complete.")
 

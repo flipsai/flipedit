@@ -250,6 +250,74 @@ class MessageHandler:
                 except Exception as e:
                     logger.error(f"Error processing 'playback' message: {e}")
                     
+            # Handle direct clip position update messages
+            elif message.startswith('{"type":"clip_position_update"'):
+                try:
+                    data = json.loads(message)
+                    if data.get('type') == 'clip_position_update':
+                        payload = data.get('payload', {})
+                        clip_id = payload.get('clip_id')
+                        position = payload.get('position', {})
+                        
+                        if clip_id is not None and position:
+                            logger.info(f"Received clip position update for clip ID {clip_id}: {position}")
+                            
+                            # Get access to the timeline manager from main.py
+                            from main import get_timeline_manager
+                            try:
+                                timeline_manager = get_timeline_manager()
+                                if timeline_manager:
+                                    # Find the clip by ID in current_videos
+                                    for clip in timeline_manager.current_videos:
+                                        if clip.get('id') == clip_id:
+                                            # Update the previewRect in the clip's metadata
+                                            if 'metadata' not in clip:
+                                                clip['metadata'] = {}
+                                            if 'previewRect' not in clip['metadata']:
+                                                clip['metadata']['previewRect'] = {}
+                                                
+                                            # Update the position values
+                                            clip['metadata']['previewRect'] = {
+                                                'left': position.get('left', 0),
+                                                'top': position.get('top', 0),
+                                                'width': position.get('width', 1280),
+                                                'height': position.get('height', 720)
+                                            }
+                                            logger.info(f"Updated clip {clip_id} position: {clip['metadata']['previewRect']}")
+                                            
+                                            # Force frame cache clear and refresh
+                                            from frame_generator import get_frame_generator
+                                            frame_gen = get_frame_generator()
+                                            if frame_gen:
+                                                frame_gen.clear_cache()
+                                                logger.info("Cleared frame cache after position update")
+                                            
+                                            # Force a frame refresh
+                                            current_frame = self.seek(self.seek(0))  # Get current frame index
+                                            frame_bytes = self.get_frame(current_frame)
+                                            if frame_bytes and websocket:
+                                                # Send the refreshed frame
+                                                encoded_frame = base64.b64encode(frame_bytes).decode('utf-8')
+                                                await websocket.send(encoded_frame)
+                                                logger.info(f"Refreshed frame after position update")
+                                            break
+                                    else:
+                                        logger.warning(f"Clip with ID {clip_id} not found in timeline")
+                                else:
+                                    logger.warning("Timeline manager not available")
+                            except ImportError:
+                                logger.warning("Could not import timeline manager - position update limited")
+                            except Exception as e:
+                                logger.error(f"Error updating clip position: {e}")
+                        else:
+                            logger.warning(f"Invalid clip_id or position in message: {payload}")
+                    else:
+                        logger.warning(f"Received JSON message with unexpected type: {data.get('type')}")
+                except json.JSONDecodeError as e:
+                    logger.error(f"Invalid JSON in clip_position_update message: {e}")
+                except Exception as e:
+                    logger.error(f"Error processing 'clip_position_update' message: {e}")
+                    
             elif message.startswith("videos:"): # Keep old format for compatibility
                 # Format: videos:<json_data> - This path might be deprecated now
                 logger.warning("Received message in deprecated 'videos:' format. Processing anyway.")

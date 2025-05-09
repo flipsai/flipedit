@@ -368,6 +368,15 @@ class ClipModel {
   int get startFrameInSource => msToFrames(startTimeInSourceMs);
   int get endFrameInSource => msToFrames(endTimeInSourceMs);
   Map<String, dynamic> toJson() {
+    // Debug log for metadata conversion to json
+    print('ClipModel.toJson: Converting clip ${databaseId} to JSON');
+    print('ClipModel.toJson: metadata content: $metadata');
+    if (metadata.containsKey('previewRect')) {
+      print('ClipModel.toJson: previewRect found: ${metadata['previewRect']}');
+    } else {
+      print('ClipModel.toJson: No previewRect found in metadata');
+    }
+    
     // Select fields relevant for the preview server
     return {
       'databaseId': databaseId,

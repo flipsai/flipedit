@@ -110,17 +110,16 @@ def process_request_queue():
         except Exception as e:
             logger.error(f"Error in request queue processor: {e}")
             logger.error(traceback.format_exc())
-            # Keep the thread running even if there's an error
             time.sleep(1)
 
-def create_preview_server(frame_generator, timeline_manager):
+def create_preview_server(frame_pipeline_service, timeline_manager, timeline_state_service):
     """Creates the Flask application instance."""
     app = Flask(__name__)
-    app.config['FRAME_GENERATOR'] = frame_generator
-    app.config['TIMELINE_MANAGER'] = timeline_manager
-    app.config['LAST_TIMELINE_REFRESH_TIME'] = 0  # Initialize last refresh time
-    app.config['CACHED_TIMELINE_STATE'] = None    # Initialize cached timeline state
-    app.config['TIMELINE_REFRESH_INTERVAL'] = 1.0 # Refresh interval in seconds
+    app.config['FRAME_PIPELINE_SERVICE'] = frame_pipeline_service 
+    app.config['TIMELINE_MANAGER'] = timeline_manager 
+    app.config['TIMELINE_STATE_SERVICE'] = timeline_state_service 
+    app.config['LAST_TIMELINE_REFRESH_TIME'] = 0
+    app.config['TIMELINE_REFRESH_INTERVAL'] = 1.0
     
     # Start the request queue processor thread
     queue_processor_thread = threading.Thread(
@@ -130,7 +129,7 @@ def create_preview_server(frame_generator, timeline_manager):
     queue_processor_thread.start()
 
     @app.route('/get_frame/<int:frame_index>', methods=['GET'])
-    @queue_request(timeout=15)  # Queue requests with a 15-second timeout
+    @queue_request(timeout=15)
     def get_frame_route(frame_index):
         """
         Endpoint to get a specific frame based on the timeline state.
@@ -138,64 +137,53 @@ def create_preview_server(frame_generator, timeline_manager):
         try:
             logger.info(f"Processing HTTP request for frame: {frame_index}")
             
-            current_frame_generator = app.config['FRAME_GENERATOR']
-            current_timeline_manager = app.config['TIMELINE_MANAGER']
+            # Get new services from app.config
+            current_pipeline_service = app.config['FRAME_PIPELINE_SERVICE']
+            current_timeline_manager = app.config['TIMELINE_MANAGER'] # Still used for DB refresh
+            current_timeline_state_service = app.config['TIMELINE_STATE_SERVICE']
 
             current_time = time.time()
             last_refresh_time = app.config['LAST_TIMELINE_REFRESH_TIME']
             refresh_interval = app.config['TIMELINE_REFRESH_INTERVAL']
-            cached_state = app.config['CACHED_TIMELINE_STATE']
-
-            if current_time - last_refresh_time > refresh_interval or cached_state is None:
-                logger.info("HTTP endpoint: Refreshing timeline from database and caching.")
+            
+            # Check if a refresh from DB is needed for this HTTP endpoint's perspective
+            # The WebSocket path might have more up-to-date info in TimelineStateService already.
+            # This refresh ensures this HTTP endpoint can also trigger DB reads if it's been a while.
+            if current_time - last_refresh_time > refresh_interval:
+                logger.info("HTTP endpoint: Refresh interval elapsed. Refreshing timeline from database.")
                 current_timeline_manager.refresh_from_database()
-                timeline_state = current_timeline_manager.get_timeline_state()
+                refreshed_manager_state = current_timeline_manager.get_timeline_state()
                 
-                if not timeline_state:
+                if not refreshed_manager_state:
                     logger.error("TimelineManager did not provide timeline state after refresh.")
-                    abort(500, description="Could not retrieve timeline state.")
+                    abort(500, description="Could not retrieve timeline state from TimelineManager.")
                 
-                app.config['CACHED_TIMELINE_STATE'] = timeline_state
+                # Update the shared TimelineStateService with this refreshed data
+                current_timeline_state_service.update_timeline_data(
+                    videos=refreshed_manager_state.get("videos", []),
+                    total_frames=refreshed_manager_state.get("total_frames", 0)
+                )
+                # Note: Canvas dimensions are typically updated via WebSocket.
+                # If HTTP needs to ensure default/latest, it could call:
+                # current_timeline_state_service.update_canvas_dimensions(default_w, default_h)
+                
                 app.config['LAST_TIMELINE_REFRESH_TIME'] = current_time
-                # Clear FrameGenerator's caches as timeline data has changed
-                current_frame_generator.clear_all_caches()
-                logger.info("HTTP endpoint: Timeline refreshed, cached, and FrameGenerator caches cleared.")
-            else:
-                logger.info("HTTP endpoint: Using cached timeline state.")
-                timeline_state = cached_state
-
-            if not timeline_state: # Should be caught by the refresh logic, but as a safeguard
-                logger.error("TimelineManager did not provide timeline state (cached or fresh).")
-                abort(500, description="Could not retrieve timeline state.")
-
-            current_videos = timeline_state.get("videos")
-            total_frames = timeline_state.get("total_frames")
-
-            # Check if we got the necessary data
-            if current_videos is None or total_frames is None:
-                 logger.error(f"Timeline state missing required keys. State: {timeline_state}")
-                 abort(500, description="Incomplete timeline data.")
-
-            # Log clip dimensions for debugging
-            logger.info(f"HTTP endpoint: Processing {len(current_videos)} clips")
-            for i, video in enumerate(current_videos):
-                start_ms = video.get('startTimeOnTrackMs')
-                end_ms = video.get('endTimeOnTrackMs')
-                src_start = video.get('startTimeInSourceMs')
-                src_end = video.get('endTimeInSourceMs')
-                logger.info(f"HTTP endpoint: Clip[{i}] track time: {start_ms}-{end_ms}ms, source time: {src_start}-{src_end}ms")
-
-            logger.debug(f"Generating frame {frame_index} with {len(current_videos)} clips, total_frames={total_frames}")
-
-            # Generate the frame using FrameGenerator
-            frame_bytes = current_frame_generator.get_frame(frame_index, current_videos, total_frames)
+                
+                # Clear pipeline caches as timeline data has potentially changed significantly
+                current_pipeline_service.clear_all_caches()
+                logger.info("HTTP endpoint: Timeline refreshed from DB, TimelineStateService updated, and FramePipelineService caches cleared.")
+            
+            # FramePipelineService will use the (potentially just updated) TimelineStateService
+            # for its source of truth regarding videos, total_frames, and canvas dimensions.
+            logger.debug(f"HTTP endpoint: Requesting frame {frame_index} from FramePipelineService.")
+            frame_bytes = current_pipeline_service.get_encoded_frame(frame_index)
 
             if frame_bytes:
                 logger.info(f"HTTP endpoint: Successfully generated frame {frame_index}")
                 # Return the frame as JPEG image
                 return Response(frame_bytes, mimetype='image/jpeg')
             else:
-                logger.warning(f"HTTP endpoint: FrameGenerator returned None for frame {frame_index}")
+                logger.warning(f"HTTP endpoint: FramePipelineService returned None for frame {frame_index}")
                 # Return a 404 or a blank image? Let's return 404 for now.
                 abort(404, description=f"Frame {frame_index} could not be generated.")
 

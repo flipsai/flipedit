@@ -5,6 +5,7 @@ import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/utils/logger.dart';
+import 'dart:ui' show Rect;
 
 /// Inspector panel using WatchItMixin for reactive updates
 class InspectorPanel extends StatelessWidget with WatchItMixin {
@@ -59,6 +60,8 @@ class InspectorPanel extends StatelessWidget with WatchItMixin {
           _buildCommonProperties(context, selectedClip),
           const SizedBox(height: 16),
           _buildTypeSpecificProperties(context, selectedClip),
+          const SizedBox(height: 16),
+          _buildPositionAndSizeSection(context, selectedClip),
           const SizedBox(height: 16),
           _buildEffectsSection(context, selectedClip),
         ],
@@ -149,6 +152,186 @@ class InspectorPanel extends StatelessWidget with WatchItMixin {
     return InfoLabel(
       label: 'Font:',
       child: Text(clip.metadata['font'] ?? 'N/A'),
+    );
+  }
+
+  Widget _buildPositionAndSizeSection(BuildContext context, ClipModel clip) {
+    final timelineVm = di<TimelineViewModel>();
+    
+    // Get current rect values from the clip, or use defaults
+    final Rect currentRect = clip.previewRect ?? 
+        const Rect.fromLTWH(0, 0, 1280, 720);
+    
+    // Create controllers with initial values from currentRect
+    final xController = TextEditingController(text: currentRect.left.toStringAsFixed(0));
+    final yController = TextEditingController(text: currentRect.top.toStringAsFixed(0));
+    final widthController = TextEditingController(text: currentRect.width.toStringAsFixed(0));
+    final heightController = TextEditingController(text: currentRect.height.toStringAsFixed(0));
+
+    // Feedback for update success/failure
+    final ValueNotifier<String?> feedbackNotifier = ValueNotifier(null);
+
+    // Function to update the preview rect when any value changes
+    void updatePreviewRect() {
+      try {
+        final double x = double.parse(xController.text);
+        final double y = double.parse(yController.text);
+        final double width = double.parse(widthController.text);
+        final double height = double.parse(heightController.text);
+        
+        // Create a new rect with the updated values
+        final newRect = Rect.fromLTWH(x, y, width, height);
+        
+        // Only update if values have actually changed
+        if (newRect != currentRect) {
+          timelineVm.updateClipPreviewRect(clip.databaseId!, newRect)
+            .then((_) {
+              // Success feedback
+              feedbackNotifier.value = 'Updated position and size';
+              Future.delayed(const Duration(seconds: 2), () {
+                if (feedbackNotifier.value == 'Updated position and size') {
+                  feedbackNotifier.value = null;
+                }
+              });
+            })
+            .catchError((e) {
+              // Error feedback
+              feedbackNotifier.value = 'Error: $e';
+              Future.delayed(const Duration(seconds: 3), () {
+                if (feedbackNotifier.value?.startsWith('Error:') ?? false) {
+                  feedbackNotifier.value = null;
+                }
+              });
+            });
+        }
+      } catch (e) {
+        logError(
+          runtimeType.toString(),
+          "Error updating preview rect: $e", 
+        );
+        // Show error feedback in UI
+        feedbackNotifier.value = 'Error: Invalid number format';
+        Future.delayed(const Duration(seconds: 3), () {
+          feedbackNotifier.value = null;
+        });
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Position and Size',
+          style: FluentTheme.of(context).typography.bodyStrong,
+        ),
+        const SizedBox(height: 8),
+        InfoBar(
+          title: const Text('These values control how the clip appears in the preview.'),
+          severity: InfoBarSeverity.info,
+        ),
+        const SizedBox(height: 8),
+        
+        // Show feedback if available
+        ValueListenableBuilder<String?>(
+          valueListenable: feedbackNotifier,
+          builder: (context, feedback, _) {
+            if (feedback == null) return const SizedBox.shrink();
+            
+            final isError = feedback.startsWith('Error:');
+            return InfoBar(
+              title: Text(feedback),
+              severity: isError ? InfoBarSeverity.error : InfoBarSeverity.success,
+            );
+          },
+        ),
+        
+        Row(
+          children: [
+            Expanded(
+              child: InfoLabel(
+                label: 'X Position:',
+                child: NumberBox(
+                  value: currentRect.left,
+                  onChanged: (value) {
+                    if (value != null) {
+                      xController.text = value.toStringAsFixed(0);
+                      updatePreviewRect();
+                    }
+                  },
+                  mode: SpinButtonPlacementMode.inline,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: InfoLabel(
+                label: 'Y Position:',
+                child: NumberBox(
+                  value: currentRect.top,
+                  onChanged: (value) {
+                    if (value != null) {
+                      yController.text = value.toStringAsFixed(0);
+                      updatePreviewRect();
+                    }
+                  },
+                  mode: SpinButtonPlacementMode.inline,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: InfoLabel(
+                label: 'Width:',
+                child: NumberBox(
+                  value: currentRect.width,
+                  onChanged: (value) {
+                    if (value != null) {
+                      widthController.text = value.toStringAsFixed(0);
+                      updatePreviewRect();
+                    }
+                  },
+                  mode: SpinButtonPlacementMode.inline,
+                  min: 1, // Prevent negative or zero width
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: InfoLabel(
+                label: 'Height:',
+                child: NumberBox(
+                  value: currentRect.height,
+                  onChanged: (value) {
+                    if (value != null) {
+                      heightController.text = value.toStringAsFixed(0);
+                      updatePreviewRect();
+                    }
+                  },
+                  mode: SpinButtonPlacementMode.inline,
+                  min: 1, // Prevent negative or zero height
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Button(
+          child: const Text('Reset to Default'),
+          onPressed: () {
+            // Default full canvas at center (assuming 1280x720 canvas)
+            const defaultRect = Rect.fromLTWH(0, 0, 1280, 720);
+            xController.text = defaultRect.left.toStringAsFixed(0);
+            yController.text = defaultRect.top.toStringAsFixed(0);
+            widthController.text = defaultRect.width.toStringAsFixed(0);
+            heightController.text = defaultRect.height.toStringAsFixed(0);
+            timelineVm.updateClipPreviewRect(clip.databaseId!, defaultRect);
+          },
+        ),
+      ],
     );
   }
 
