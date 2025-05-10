@@ -89,6 +89,27 @@ class AddClipCommand implements TimelineCommand, UndoableCommand { // Implement 
     return clip; // No changes needed
   }
 
+  /// Adjusts preview dimensions based on canvas settings or media dimensions
+  ClipModel _adjustPreviewDimensions(ClipModel clip) {
+    // Use canvas dimensions for clip preview instead of default 100x100
+    final canvasWidth = _canvasDimensionsService.canvasWidth;
+    final canvasHeight = _canvasDimensionsService.canvasHeight;
+
+    // Get appropriate preview size based on canvas dimensions
+    final previewWidth = canvasWidth;
+    final previewHeight = canvasHeight;
+    
+    logger.logInfo(
+      '[AddClipCommand] Setting clip preview dimensions to match canvas: ${previewWidth}x${previewHeight}',
+      _logTag,
+    );
+    
+    return clip.copyWith(
+      previewWidth: previewWidth,
+      previewHeight: previewHeight,
+    );
+  }
+
   @override
   Future<void> execute() async {
     if (_databaseService.clipDao == null) {
@@ -103,7 +124,10 @@ class AddClipCommand implements TimelineCommand, UndoableCommand { // Implement 
     }
 
     // Step 1: Validate and potentially update the clip source duration
-    var processedClipData = await _validateClipSourceDuration(clipDataInput); // Use clipDataInput
+    var processedClipData = await _validateClipSourceDuration(clipDataInput);
+    
+    // Step 2: Adjust preview dimensions based on canvas settings
+    processedClipData = _adjustPreviewDimensions(processedClipData);
 
     final initialEndTimeOnTrackMs =
         startTimeOnTrackMs + processedClipData.durationInSourceMs;

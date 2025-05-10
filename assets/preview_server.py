@@ -6,6 +6,8 @@ import threading
 import queue
 import time
 from functools import wraps
+import os
+import media_utils  # Add import for media_utils
 
 # Assume FrameGenerator and TimelineManager are passed in or accessible
 # We'll refine how these are accessed when integrating with main.py
@@ -251,6 +253,76 @@ def create_preview_server(frame_pipeline_service, timeline_manager, timeline_sta
             
         except Exception as e:
             logger.error(f"Error in debug timeline endpoint: {e}")
+            logger.error(traceback.format_exc())
+            return jsonify({"error": str(e)}), 500
+
+    @app.route('/api/mediainfo', methods=['GET'])
+    def media_info_route():
+        """Get the duration and dimensions of a media file."""
+        try:
+            file_path = request.args.get('path')
+            if not file_path:
+                return jsonify({"error": "Missing 'path' parameter"}), 400
+                
+            logger.info(f"HTTP API: Getting media info for: {file_path}")
+            
+            if not os.path.exists(file_path):
+                return jsonify({"error": f"File does not exist: {file_path}"}), 404
+            
+            # Get media info using the media_utils module
+            media_info = media_utils.get_media_info(file_path)
+            
+            # Return media info as JSON
+            return jsonify(media_info)
+            
+        except Exception as e:
+            logger.error(f"Error getting media info: {e}")
+            logger.error(traceback.format_exc())
+            return jsonify({"error": str(e)}), 500
+
+    @app.route('/api/duration', methods=['GET'])
+    def duration_route():
+        """Get the duration of a media file."""
+        try:
+            file_path = request.args.get('path')
+            if not file_path:
+                return jsonify({"error": "Missing 'path' parameter"}), 400
+                
+            logger.info(f"HTTP API: Getting duration for: {file_path}")
+            
+            if not os.path.exists(file_path):
+                return jsonify({"error": f"File does not exist: {file_path}"}), 404
+            
+            # Get media duration using the media_utils module
+            duration = media_utils.get_media_duration(file_path)
+            
+            # Return duration as JSON
+            return jsonify({"duration_ms": duration})
+            
+        except Exception as e:
+            logger.error(f"Error getting media duration: {e}")
+            logger.error(traceback.format_exc())
+            return jsonify({"error": str(e)}), 500
+
+    @app.route('/debug/restart', methods=['GET'])
+    def restart_server():
+        """Development endpoint to restart the server with reloaded modules."""
+        try:
+            # Reload key modules
+            import importlib
+            importlib.reload(media_utils)
+            from video_services import frame_transform_service, frame_pipeline_service
+            importlib.reload(frame_transform_service)
+            importlib.reload(frame_pipeline_service)
+            
+            # Clear all caches 
+            current_pipeline_service = app.config['FRAME_PIPELINE_SERVICE']
+            current_pipeline_service.clear_all_caches()
+            
+            logger.info("Server modules reloaded and caches cleared via debug endpoint")
+            return jsonify({"status": "success", "message": "Server modules reloaded and caches cleared"}), 200
+        except Exception as e:
+            logger.error(f"Error restarting server: {e}")
             logger.error(traceback.format_exc())
             return jsonify({"error": str(e)}), 500
 

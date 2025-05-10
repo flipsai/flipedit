@@ -66,6 +66,28 @@ class FramePipelineService:
         canvas_height = self.timeline_state_service.canvas_height
         current_videos = self.timeline_state_service.current_videos
         total_frames = self.timeline_state_service.total_frames # Overall timeline duration
+        
+        # Debug information - log info about the timeline state
+        logger.info(f"[DEBUG] Processing frame {frame_index} with canvas {canvas_width}x{canvas_height}, {len(current_videos)} clips")
+        
+        # Pre-process clips - check for small preview dimensions and update them
+        for i, clip in enumerate(current_videos):
+            clip_id = clip.get('databaseId', 'unknown')
+            clip_path = clip.get('sourcePath', 'unknown')
+            preview_width = clip.get('previewWidth')
+            preview_height = clip.get('previewHeight')
+            
+            # Check for default 100x100 dimensions or other small values
+            if (preview_width is not None and preview_height is not None and 
+                (preview_width <= 100 or preview_height <= 100)):
+                # Update with canvas dimensions
+                logger.info(f"[DEBUG] Updating small clip dimensions ({preview_width}x{preview_height}) to canvas dimensions for clip {clip_id}")
+                clip['previewWidth'] = canvas_width
+                clip['previewHeight'] = canvas_height
+            
+            preview_width = clip.get('previewWidth')
+            preview_height = clip.get('previewHeight') 
+            logger.info(f"[DEBUG] Clip {i} (ID: {clip_id}, Path: {clip_path}) has dimensions: previewWidth={preview_width}, previewHeight={preview_height}")
 
         if not current_videos:
             logger.debug(f"No videos in timeline for frame {frame_index}. Generating blank frame.")

@@ -24,6 +24,7 @@ import 'commands/update_clip_transform_command.dart';
 import 'package:flipedit/services/commands/undoable_command.dart'; // Added import
 import 'commands/move_clip_command.dart'; // Added import
 import 'commands/resize_clip_command.dart'; // Added import
+import '../services/canvas_dimensions_service.dart'; // Add this import if it's not already there
 
 class TimelineViewModel extends ChangeNotifier {
   final String _logTag = 'TimelineViewModel';
@@ -44,6 +45,7 @@ class TimelineViewModel extends ChangeNotifier {
       di<TimelineStateViewModel>(); // Inject State VM
  final TimelineNavigationViewModel _navigationViewModel =
      di<TimelineNavigationViewModel>(); // Inject Navigation VM
+ final CanvasDimensionsService _canvasDimensionsService = di<CanvasDimensionsService>();
 
  // --- State Notifiers (Managed by this ViewModel - Interaction State Only) ---
 
@@ -239,9 +241,9 @@ class TimelineViewModel extends ChangeNotifier {
     }
   }
 
-  /// Legacy method for backward compatibility - delegates to command pattern
+  /// Places a clip on a track at the specified time using the Command pattern.
   Future<bool> placeClipOnTrack({
-    int? clipId, // If updating an existing clip
+    int? clipId,
     required int trackId,
     required ClipType type,
     required String sourcePath,
@@ -253,6 +255,10 @@ class TimelineViewModel extends ChangeNotifier {
   }) async {
     // Use the AddClipCommand for adding new clips.
     if (clipId == null) {
+      // Get canvas dimensions for the clip preview
+      final canvasWidth = _canvasDimensionsService.canvasWidth;
+      final canvasHeight = _canvasDimensionsService.canvasHeight;
+      
       final clipData = ClipModel(
         databaseId: null,
         trackId: trackId,
@@ -267,6 +273,8 @@ class TimelineViewModel extends ChangeNotifier {
         endTimeOnTrackMs: endTimeOnTrackMs,
         effects: [],
         metadata: {},
+        previewWidth: canvasWidth, // Use canvas width instead of default
+        previewHeight: canvasHeight, // Use canvas height instead of default
       );
 
       // Create an instance of the AddClipCommand class (imported at the top of the file)

@@ -398,8 +398,9 @@ class ClipModel extends Equatable {
   int get startFrameInSource => msToFrames(startTimeInSourceMs);
   int get endFrameInSource => msToFrames(endTimeInSourceMs);
   Map<String, dynamic> toJson() {
-    // Debug log for metadata conversion to json
+    // Debug log for clip conversion to json
     print('ClipModel.toJson: Converting clip ${databaseId} to JSON');
+    print('ClipModel.toJson: previewWidth=${previewWidth}, previewHeight=${previewHeight}');
     print('ClipModel.toJson: metadata content: $metadata');
     if (metadata.containsKey('previewRect')) {
       print('ClipModel.toJson: previewRect found: ${metadata['previewRect']}');
@@ -408,7 +409,7 @@ class ClipModel extends Equatable {
     }
     
     // Select fields relevant for the preview server
-    return {
+    final jsonData = {
       'databaseId': databaseId,
       'trackId': trackId,
       'name': name,
@@ -426,6 +427,9 @@ class ClipModel extends Equatable {
       'effects': effects.map((e) => e.toJson()).toList(),
       'metadata': metadata,
     };
+    
+    print('ClipModel.toJson: Final JSON contains previewWidth=${jsonData['previewWidth']}, previewHeight=${jsonData['previewHeight']}');
+    return jsonData;
   }
 
   factory ClipModel.fromJson(Map<String, dynamic> json) {

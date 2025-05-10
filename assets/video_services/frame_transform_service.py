@@ -43,11 +43,18 @@ class FrameTransformService:
             - width: The final width of the processed frame.
             - height: The final height of the processed frame.
         """
+        # Add debug logging to show clip dimensions
+        clip_id = clip_info.get('databaseId', 'unknown')
+        preview_width = clip_info.get('previewWidth')
+        preview_height = clip_info.get('previewHeight')
+        logger.info(f"[DEBUG] Processing clip {clip_id} with previewWidth={preview_width}, previewHeight={preview_height}, canvas={canvas_width}x{canvas_height}")
+        
         if not isinstance(frame, np.ndarray) or frame.size == 0:
             logger.warning("Transform_frame called with invalid or empty frame.")
             return None, 0, 0, 0, 0
 
         frame_height_orig, frame_width_orig = frame.shape[:2]
+        logger.info(f"[DEBUG] Original frame dimensions: {frame_width_orig}x{frame_height_orig}")
         
         # --- Get transform parameters ---
         # Prioritize new direct properties, then fallback to metadata['previewRect'], then to defaults.
@@ -62,6 +69,7 @@ class FrameTransformService:
         
         using_direct_props = False
         if all(v is not None for v in [direct_pos_x, direct_pos_y, direct_width, direct_height]):
+            # Ensure we always use direct props if available, even if they're the default 100x100
             target_x = int(direct_pos_x)
             target_y = int(direct_pos_y)
             target_width = max(1, int(direct_width))
@@ -93,6 +101,7 @@ class FrameTransformService:
             'left': default_left, 'top': default_top,
             'width': float(default_width), 'height': float(default_height)
         }
+        logger.debug(f"Default rect params: left={default_left}, top={default_top}, width={default_width}, height={default_height}")
         # --- End Default Positioning ---
 
         # Fallback logic if direct properties were not used
@@ -104,12 +113,16 @@ class FrameTransformService:
                 target_height = max(1, int(preview_rect_data.get('height', default_rect_params['height'])))
                 logger.debug(f"Using previewRect from metadata: x={target_x}, y={target_y}, w={target_width}, h={target_height}")
             else:
+                # If no direct props and no previewRect, use defaults that fit the canvas
                 target_x = int(default_rect_params['left'])
                 target_y = int(default_rect_params['top'])
                 target_width = int(default_rect_params['width'])
                 target_height = int(default_rect_params['height'])
                 logger.debug(f"Using default previewRect (centered, as neither direct props nor metadata.previewRect found): x={target_x}, y={target_y}, w={target_width}, h={target_height}")
 
+        # Log the final dimensions being used
+        logger.info(f"[DEBUG] Final dimensions for clip {clip_id}: position=({target_x},{target_y}), size={target_width}x{target_height}")
+        
         # Ensure width and height for resize are at least 1
         # target_width and target_height are already max(1, ...) from above logic
         resize_width = target_width
