@@ -7,6 +7,7 @@ import 'package:flipedit/services/commands/undoable_command.dart';
 import 'package:flipedit/viewmodels/commands/move_clip_command.dart';
 import 'package:flipedit/viewmodels/commands/roll_edit_command.dart';
 import 'package:flipedit/viewmodels/commands/add_clip_command.dart'; // Import AddClipCommand
+import 'package:flipedit/viewmodels/commands/resize_clip_command.dart'; // Import ResizeClipCommand
 import 'package:drift/drift.dart';
 
 // Factory function type to deserialize a command from its ChangeLog data.
@@ -44,6 +45,10 @@ class UndoRedoService {
     registerCommandFactory( // Register AddClipCommand
       AddClipCommand.commandType,
       (dbService, jsonData) => AddClipCommand.fromJson(dbService, jsonData)
+    );
+    registerCommandFactory( // Register ResizeClipCommand
+      ResizeClipCommand.commandType,
+      (dbService, jsonData) => ResizeClipCommand.fromJson(dbService, jsonData)
     );
     // Example for other commands:
     // registerCommandFactory(

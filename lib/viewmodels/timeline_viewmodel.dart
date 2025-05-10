@@ -23,6 +23,7 @@ import 'package:flipedit/services/preview_sync_service.dart';
 import 'commands/update_clip_transform_command.dart';
 import 'package:flipedit/services/commands/undoable_command.dart'; // Added import
 import 'commands/move_clip_command.dart'; // Added import
+import 'commands/resize_clip_command.dart'; // Added import
 
 class TimelineViewModel extends ChangeNotifier {
   final String _logTag = 'TimelineViewModel';
@@ -153,6 +154,8 @@ class TimelineViewModel extends ChangeNotifier {
       } else if (cmd is RollEditCommand) {
         entityId = cmd.leftClipId.toString(); // Corrected to use leftClipId
       } else if (cmd is UpdateClipTransformCommand) {
+        entityId = cmd.clipId.toString();
+      } else if (cmd is ResizeClipCommand) {
         entityId = cmd.clipId.toString();
       }
       // Add more 'else if' for other UndoableCommand types
