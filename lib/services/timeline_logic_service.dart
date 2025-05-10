@@ -103,7 +103,7 @@ class TimelineLogicService {
               !clipsToRemove.contains(neighbor.databaseId!)) {
             clipsToRemove.add(neighbor.databaseId!);
           }
-        } else if (ns < newStart && ne > newStart && ne <= newEnd) {
+        } else if (ns < newStart && ne > newStart) {
           final newNeighborTrackEnd = newStart;
           final trackTrimAmount = ne - newNeighborTrackEnd;
           final newNeighborSourceEnd = (neighbor.endTimeInSourceMs -
@@ -139,42 +139,12 @@ class TimelineLogicService {
             }
           }
         } else if (ns >= newStart && ns < newEnd && ne > newEnd) {
-          final newNeighborTrackStart = newEnd;
-          final trackTrimAmount = newNeighborTrackStart - ns;
-          final newNeighborSourceStart = (neighbor.startTimeInSourceMs +
-                  trackTrimAmount)
-              .clamp(0, neighbor.endTimeInSourceMs);
-
-          final updated = neighbor.copyWith(
-            startTimeOnTrackMs: newNeighborTrackStart,
-            startTimeInSourceMs: newNeighborSourceStart,
-          );
-          final updateIndex = updatedClips.indexWhere(
-            (c) => c.databaseId == neighbor.databaseId,
-          );
-          if (updateIndex != -1) updatedClips[updateIndex] = updated;
-
-          if (neighbor.databaseId != null) {
-            final existingUpdateIndex = clipUpdates.indexWhere(
-              (u) => u['id'] == neighbor.databaseId!,
-            );
-            if (existingUpdateIndex == -1) {
-              clipUpdates.add({
-                'id': neighbor.databaseId!,
-                'fields': {
-                  'startTimeOnTrackMs': newNeighborTrackStart,
-                  'startTimeInSourceMs': newNeighborSourceStart,
-                },
-              });
-            } else {
-              clipUpdates[existingUpdateIndex]['fields']['startTimeOnTrackMs'] =
-                  newNeighborTrackStart;
-              clipUpdates[existingUpdateIndex]['fields']['startTimeInSourceMs'] =
-                  newNeighborSourceStart;
-            }
+          updatedClips.removeWhere((c) => c.databaseId == neighbor.databaseId);
+          if (neighbor.databaseId != null &&
+              !clipsToRemove.contains(neighbor.databaseId!)) {
+            clipsToRemove.add(neighbor.databaseId!);
           }
         } else if (ns < newStart && ne > newEnd) {
-          // TODO: Implement splitting the neighbor into two clips for better accuracy.
           final newNeighborTrackEnd = newStart;
           final trackTrimAmount = ne - newNeighborTrackEnd;
           final newNeighborSourceEnd = (neighbor.endTimeInSourceMs -

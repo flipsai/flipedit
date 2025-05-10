@@ -126,12 +126,18 @@ class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase>
         name: Value(oldRow.name),
         type: Value(oldRow.type),
         sourcePath: Value(oldRow.sourcePath),
+        sourceDurationMs: oldRow.sourceDurationMs == null ? const Value.absent() : Value(oldRow.sourceDurationMs!),
         startTimeInSourceMs: Value(oldRow.startTimeInSourceMs),
         endTimeInSourceMs: Value(oldRow.endTimeInSourceMs),
         startTimeOnTrackMs: Value(oldRow.startTimeOnTrackMs),
+        endTimeOnTrackMs: oldRow.endTimeOnTrackMs == null ? const Value.absent() : Value(oldRow.endTimeOnTrackMs!),
         metadata: oldRow.metadata == null
             ? const Value.absent()
             : Value(oldRow.metadata!),
+        previewPositionX: Value(oldRow.previewPositionX),
+        previewPositionY: Value(oldRow.previewPositionY),
+        previewWidth: Value(oldRow.previewWidth),
+        previewHeight: Value(oldRow.previewHeight),
         createdAt:
             oldRow.createdAt != null
                 ? Value(oldRow.createdAt)
@@ -154,13 +160,16 @@ class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase>
           startTimeInSourceMs: updatedCompanion.startTimeInSourceMs.value,
           endTimeInSourceMs: updatedCompanion.endTimeInSourceMs.value,
           startTimeOnTrackMs: updatedCompanion.startTimeOnTrackMs.value,
+          endTimeOnTrackMs: updatedCompanion.endTimeOnTrackMs.present
+              ? updatedCompanion.endTimeOnTrackMs.value
+              : null,
+          metadata: updatedCompanion.metadata.present
+              ? updatedCompanion.metadata.value
+              : null,
           previewPositionX: updatedCompanion.previewPositionX.value,
           previewPositionY: updatedCompanion.previewPositionY.value,
           previewWidth: updatedCompanion.previewWidth.value,
           previewHeight: updatedCompanion.previewHeight.value,
-          metadata: updatedCompanion.metadata.present
-              ? updatedCompanion.metadata.value
-              : null,
           createdAt:
               updatedCompanion.createdAt.present
                   ? updatedCompanion.createdAt.value
@@ -213,6 +222,9 @@ class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase>
         case 'sourcePath':
           result = result.copyWith(sourcePath: Value(value as String));
           break;
+        case 'sourceDurationMs':
+          result = result.copyWith(sourceDurationMs: Value(value as int?));
+          break;
         case 'startTimeInSourceMs':
           result = result.copyWith(startTimeInSourceMs: Value(value as int));
           break;
@@ -222,6 +234,9 @@ class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase>
         case 'startTimeOnTrackMs':
           result = result.copyWith(startTimeOnTrackMs: Value(value as int));
           break;
+        case 'endTimeOnTrackMs':
+          result = result.copyWith(endTimeOnTrackMs: Value(value as int?));
+          break;
         case 'metadata':
           final metadataValue = value as String?;
           result = result.copyWith(
@@ -229,6 +244,18 @@ class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase>
                 ? const Value.absent()
                 : Value(metadataValue),
           );
+          break;
+        case 'previewPositionX':
+          result = result.copyWith(previewPositionX: Value(value as double));
+          break;
+        case 'previewPositionY':
+          result = result.copyWith(previewPositionY: Value(value as double));
+          break;
+        case 'previewWidth':
+          result = result.copyWith(previewWidth: Value(value as double));
+          break;
+        case 'previewHeight':
+          result = result.copyWith(previewHeight: Value(value as double));
           break;
       }
     }
