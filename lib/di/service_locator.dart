@@ -2,6 +2,8 @@ import 'package:flipedit/comfyui/comfyui_service.dart';
 import 'package:flipedit/persistence/dao/project_metadata_dao.dart';
 import 'package:flipedit/persistence/database/project_metadata_database.dart';
 import 'package:flipedit/services/canvas_dimensions_service.dart';
+import 'package:flipedit/services/command_history_service.dart';
+import 'package:flipedit/services/clip_update_service.dart';
 import 'package:flipedit/services/playback_service.dart';
 import 'package:flipedit/services/preview_service.dart';
 import 'package:flipedit/services/preview_sync_service.dart';
@@ -76,6 +78,13 @@ Future<void> setupServiceLocator() async {
     () => UndoRedoService(projectDatabaseService: di<ProjectDatabaseService>()),
   );
 
+  // New minimalist Command History and Clip Update services
+  di.registerLazySingleton<CommandHistoryService>(
+    () => CommandHistoryService(),
+  );
+  
+  // ClipUpdateService depends on Timeline State ViewModel, register after it
+  
   // ViewModels
   di.registerLazySingleton<AppViewModel>(() => AppViewModel());
   di.registerLazySingleton<ProjectViewModel>(
@@ -87,6 +96,15 @@ Future<void> setupServiceLocator() async {
   di.registerLazySingleton<TimelineStateViewModel>(
     () => TimelineStateViewModel(),
     dispose: (vm) => vm.dispose(),
+  );
+  
+  // Register ClipUpdateService after TimelineStateViewModel
+  di.registerLazySingleton<ClipUpdateService>(
+    () => ClipUpdateService(
+      historyService: di<CommandHistoryService>(),
+      databaseService: di<ProjectDatabaseService>(),
+      clipsNotifier: di<TimelineStateViewModel>().clipsNotifier,
+    ),
   );
 
   // Register the Interaction ViewModel (formerly just TimelineViewModel)

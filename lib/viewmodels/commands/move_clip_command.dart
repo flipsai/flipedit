@@ -14,6 +14,7 @@ import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/di/service_locator.dart'; // Added for di
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart'; // Added for di
 import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart'; // For setClips
+import '../../services/preview_sync_service.dart';
 
 class MoveClipCommand implements TimelineCommand, UndoableCommand {
   final int clipId;
@@ -127,6 +128,20 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
     _updatedNeighborStatesAfterExecute = {};
 
     try {
+      // First create a direct visual update for immediate feedback
+      final List<ClipModel> visualUpdateClips = List<ClipModel>.from(currentClips);
+      // Remove the current version of the clip
+      visualUpdateClips.removeWhere((c) => c.databaseId == clipId);
+      // Add updated clip with new position
+      final updatedVisualClip = clipToMove.copyWith(
+        trackId: newTrackId,
+        startTimeOnTrackMs: newStartTimeOnTrackMs,
+        endTimeOnTrackMs: newEndTimeMs
+      );
+      visualUpdateClips.add(updatedVisualClip);
+      // Update UI immediately for responsiveness
+      di<TimelineStateViewModel>().setClips(visualUpdateClips);
+
       final placementResult = _timelineLogicService.prepareClipPlacement(
         clips: currentClips, // Use current clips from notifier for calculation
         clipId: clipId,
@@ -200,6 +215,17 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
       final List<ClipModel> updatedClipModels = List<ClipModel>.from(placementResult['updatedClips']);
       // _clipsNotifier.value = updatedClipModels; // Update UI - Old way
       di<TimelineStateViewModel>().setClips(updatedClipModels); // New way
+      
+      // Force the preview server to refresh with explicit frame value
+      final currentFrame = _timelineNavViewModel.currentFrame;
+      // First send clip data then seek to refresh
+      di<PreviewSyncService>().sendClipsToPreviewServer();
+      
+      // Add a small delay to ensure things process in the right order
+      await Future.delayed(const Duration(milliseconds: 50));
+      
+      // Now send a clean seek command with the precise frame number
+      di<PreviewSyncService>().sendJsonMessage({'type': 'seek', 'frame': currentFrame});
 
       // Store the "after" states for serialization
       _movedClipStateAfterExecute = updatedClipModels.firstWhereOrNull((c) => c.databaseId == clipId)?.copyWith();
@@ -208,7 +234,6 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
           _updatedNeighborStatesAfterExecute![updatedClipModel.databaseId!] = updatedClipModel.copyWith();
         }
       }
-
 
       // Fetch frame if paused
       if (!_timelineNavViewModel.isPlayingNotifier.value) {
@@ -234,117 +259,134 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
 
   @override
   Future<void> undo() async {
-    logger.logInfo(
-      '[MoveClipCommand] Undoing move for clipId=$clipId',
-      _logTag,
-    );
-    if (_originalClipState == null || _originalNeighborStates == null || _deletedNeighborsState == null) {
+    logger.logInfo('[MoveClipCommand] Undoing move for clipId=$clipId', _logTag);
+
+    if (_originalClipState == null) {
       logger.logError(
-        '[MoveClipCommand] Cannot undo: Original state not fully captured or command not executed yet.',
+        '[MoveClipCommand] Cannot undo, original clip state was not captured',
         _logTag,
       );
       return;
     }
-    if (_projectDatabaseService.clipDao == null) {
-      logger.logError(
-        '[MoveClipCommand] Clip DAO not initialized for undo',
-        _logTag,
-      );
-      throw Exception('Clip DAO not initialized for undo');
+
+    try {
+      if (_originalClipState != null) {
+        // Create a direct visual representation first
+        final List<ClipModel> updatedClips = List<ClipModel>.from(_clipsNotifier.value);
+        
+        // Remove the current version of the clip
+        updatedClips.removeWhere((c) => c.databaseId == clipId);
+        
+        // Add the original clip state
+        updatedClips.add(_originalClipState!.copyWith());
+
+        // Update UI immediately with the correct visual position
+        di<TimelineStateViewModel>().setClips(updatedClips);
+        
+        // Update the database directly with the EXACT original values to ensure complete reset
+        await _projectDatabaseService.clipDao!.updateClipFields(
+          clipId,
+          {
+            'trackId': _originalClipState!.trackId,
+            'startTimeOnTrackMs': _originalClipState!.startTimeOnTrackMs,
+            'endTimeOnTrackMs': _originalClipState!.endTimeOnTrackMs,
+            'startTimeInSourceMs': _originalClipState!.startTimeInSourceMs,
+            'endTimeInSourceMs': _originalClipState!.endTimeInSourceMs,
+          },
+          log: true,
+        );
+        
+        // Longer pause to ensure database update completes
+        await Future.delayed(const Duration(milliseconds: 100));
+        
+        // Force preview sync with direct clip send
+        di<PreviewSyncService>().sendClipsToPreviewServer();
+
+        // Explicitly force a seek for the preview
+        final previewSync = di<PreviewSyncService>();
+        final currentFrame = _timelineNavViewModel.currentFrame;
+        
+        // First seek to a different frame to force a redraw
+        previewSync.sendJsonMessage({'type': 'seek', 'frame': currentFrame > 0 ? 0 : 1});
+        await Future.delayed(const Duration(milliseconds: 50));
+        
+        // Then seek back to the current frame
+        previewSync.sendJsonMessage({'type': 'seek', 'frame': currentFrame});
+        
+        // One more visual update from db to ensure UI matches
+        final freshClips = await _projectDatabaseService.getAllTimelineClips();
+        di<TimelineStateViewModel>().setClips(freshClips);
+        
+        // Another HTTP fetch to ensure preview is updated
+        await _previewHttpService.fetchAndUpdateFrame(currentFrame);
+      }
+    } catch (e) {
+      logger.logError('[MoveClipCommand] Error during final position fix: $e', _logTag);
     }
 
     try {
-      logger.logDebug('[MoveClipCommand][Undo] Restoring DB state...', _logTag);
-
-      // Restore the main clip
-      await _projectDatabaseService.clipDao!.updateClipFields(
-        clipId,
-        _originalClipState!.toDbCompanion().toColumns(true), // Use toColumns for full update
-        log: false, // Handled by UndoRedoService
-      );
-
-      // Restore updated neighbors
-      for (final entry in _originalNeighborStates!.entries) {
-        final neighborId = entry.key;
-        final originalNeighborState = entry.value;
-        await _projectDatabaseService.clipDao!.updateClipFields(
-          neighborId,
-          originalNeighborState.toDbCompanion().toColumns(true),
-          log: false,
-        );
+      // Also, if any neighbors were updated during the original execution, restore their original states
+      if (_originalNeighborStates != null) {
+        for (final originalNeighborEntry in _originalNeighborStates!.entries) {
+          final int neighborId = originalNeighborEntry.key;
+          final ClipModel originalNeighbor = originalNeighborEntry.value;
+          await _projectDatabaseService.clipDao!.updateClipFields(
+            neighborId,
+            {
+              'trackId': originalNeighbor.trackId,
+              'startTimeOnTrackMs': originalNeighbor.startTimeOnTrackMs,
+              'endTimeOnTrackMs': originalNeighbor.endTimeOnTrackMs,
+              'startTimeInSourceMs': originalNeighbor.startTimeInSourceMs,
+              'endTimeInSourceMs': originalNeighbor.endTimeInSourceMs,
+            },
+            log: false, // Avoid too many logs for neighbors
+          );
+        }
       }
 
-      // Re-insert deleted neighbors
-      for (final deletedNeighborState in _deletedNeighborsState!) {
-        await _projectDatabaseService.clipDao!.insertClip(deletedNeighborState.toDbCompanion());
+      // Moreover, if any neighbors were deleted during the execution, restore them
+      if (_deletedNeighborsState != null) {
+        for (final deletedNeighbor in _deletedNeighborsState!) {
+          final reconstructedClip = ClipModel(
+            databaseId: deletedNeighbor.databaseId,
+            trackId: deletedNeighbor.trackId,
+            name: deletedNeighbor.name,
+            type: deletedNeighbor.type,
+            sourcePath: deletedNeighbor.sourcePath,
+            sourceDurationMs: deletedNeighbor.sourceDurationMs,
+            startTimeInSourceMs: deletedNeighbor.startTimeInSourceMs,
+            endTimeInSourceMs: deletedNeighbor.endTimeInSourceMs,
+            startTimeOnTrackMs: deletedNeighbor.startTimeOnTrackMs,
+            endTimeOnTrackMs: deletedNeighbor.endTimeOnTrackMs,
+            previewPositionX: deletedNeighbor.previewPositionX,
+            previewPositionY: deletedNeighbor.previewPositionY,
+            previewWidth: deletedNeighbor.previewWidth,
+            previewHeight: deletedNeighbor.previewHeight,
+            effects: deletedNeighbor.effects,
+            metadata: deletedNeighbor.metadata,
+          );
+          await _projectDatabaseService.clipDao!.insertClip(reconstructedClip.toDbCompanion());
+        }
       }
 
-      // After DB changes, refresh the clipsNotifier to reflect the undone state.
-      // This requires fetching all clips again or carefully reconstructing the list.
-      // For simplicity, let's assume a full refresh mechanism exists or will be added.
-      // A more targeted update would be better for performance.
-      // For now, we'll rely on whatever mechanism updates clipsNotifier upon DB changes.
-      // If direct update is needed:
-      // Accessing 'clips' table directly from the dao.
-      // Reconstruct the clips list for the UI notifier more precisely.
-      // Start with clips that were not directly involved in this command's execution.
-      final Set<int> affectedClipIds = {_originalClipState!.databaseId!};
-      _originalNeighborStates?.keys.forEach(affectedClipIds.add);
-      // Note: _deletedNeighborsState contains clips that were deleted by execute(),
-      // so they wouldn't be in the current _clipsNotifier.value right before this update.
+      // Refresh UI with fresh clips after all DB operations
+      final freshClips = await _projectDatabaseService.getAllTimelineClips();
+      di<TimelineStateViewModel>().setClips(freshClips);
 
-      List<ClipModel> newClipsList = _clipsNotifier.value
-          .where((clip) => clip.databaseId != null && !affectedClipIds.contains(clip.databaseId!))
-          .toList();
+      // Get the current frame again to ensure we're using the most recent value
+      final currentFrame = _timelineNavViewModel.currentFrame;
 
-      // Add the main clip in its original state
-      if (_originalClipState != null) {
-        newClipsList.add(_originalClipState!.copyWith()); // Use copyWith for safety
-      }
+      // Explicitly send another seek command to completely refresh the frame
+      final seekCommand = {'type': 'seek', 'frame': currentFrame};
+      di<PreviewSyncService>().sendJsonMessage(seekCommand);
 
-      // Add original neighbor states
-      _originalNeighborStates?.forEach((id, originalNeighbor) {
-        newClipsList.add(originalNeighbor.copyWith()); // Use copyWith for safety
-      });
-
-      // Add back deleted neighbors
-      _deletedNeighborsState?.forEach((deletedNeighbor) {
-        newClipsList.add(deletedNeighbor.copyWith()); // Use copyWith for safety
-      });
-
-      // Sort the list to maintain timeline order (by track, then by start time)
-      newClipsList.sort((a, b) {
-        int trackCompare = a.trackId.compareTo(b.trackId);
-        if (trackCompare != 0) return trackCompare;
-        return a.startTimeOnTrackMs.compareTo(b.startTimeOnTrackMs);
-      });
-      // _clipsNotifier.value = newClipsList; // Old way
-      di<TimelineStateViewModel>().setClips(newClipsList); // New way
-
-
-      logger.logDebug(
-        '[MoveClipCommand][Undo] ViewModel state updated after undo.',
-        _logTag,
-      );
-
-      // Fetch frame if paused
-      if (!_timelineNavViewModel.isPlayingNotifier.value) {
-        logger.logDebug('[MoveClipCommand][Undo] Timeline paused, fetching frame via HTTP...', _logTag);
-        // Pass the current frame from the navigation view model
-        final frameToRefresh = _timelineNavViewModel.currentFrame;
-        logger.logDebug('[MoveClipCommand][Undo] Attempting to refresh frame $frameToRefresh via HTTP', _logTag);
-        await _previewHttpService.fetchAndUpdateFrame(frameToRefresh);
-      }
+      // Fetch and update the current frame in the preview panel
+      await _previewHttpService.fetchAndUpdateFrame(currentFrame);
 
       logger.logInfo(
         '[MoveClipCommand] Successfully undone move for clip $clipId',
         _logTag,
       );
-
-      // Clear the "after execute" states as they are now invalid
-      _movedClipStateAfterExecute = null;
-      _updatedNeighborStatesAfterExecute = null;
-      // _originalClipState and others remain, as they are needed if we "redo" this command.
     } catch (e) {
       logger.logError(
         '[MoveClipCommand] Error undoing move for clip $clipId: $e',

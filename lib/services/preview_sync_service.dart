@@ -101,6 +101,30 @@ class PreviewSyncService {
     }
   }
 
+  /// Sends a message to force the preview server to refresh its entire timeline state from the database
+  void forceTimelineRefresh() {
+    if (!_isConnected || _channel == null) {
+      logWarning(
+        'Cannot force timeline refresh: Preview server not connected.',
+        _logTag,
+      );
+      _connect(); // Attempt to reconnect
+      return;
+    }
+
+    try {
+      // First send a direct sync_clips command which the server understands
+      sendJsonMessage({'type': 'sync_clips'});
+      
+      // Also send a seek command to force a redraw
+      sendJsonMessage({'type': 'seek', 'frame': 0});
+      
+      logInfo('Sent timeline refresh commands to preview server', _logTag);
+    } catch (e, s) {
+      logError('Error sending timeline refresh commands', e, s, _logTag);
+    }
+  }
+
   Future<void> sendClipsToPreviewServer() async {
     if (!_isConnected || _channel == null) {
       logWarning(

@@ -12,6 +12,7 @@ import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/services/timeline_logic_service.dart';
 import 'package:flipedit/services/preview_http_service.dart';
 import 'package:flipedit/services/preview_sync_service.dart';
+import 'package:flipedit/services/clip_update_service.dart';
 
 // Import extracted components
 import 'resize_clip_handle.dart';
@@ -98,44 +99,61 @@ class _TimelineClipState extends State<TimelineClip> {
   @override
   void didUpdateWidget(TimelineClip oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // If we were waiting for a move confirmation and the new widget data matches
-    // the expected frame, turn off the confirmation flag.
-    if (_awaitingMoveConfirmation &&
-        widget.clip.startFrame == _currentMoveFrame) {
-      // Use WidgetsBinding.instance.addPostFrameCallback to avoid calling setState during build/layout phase
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          // Check if the widget is still mounted
-          setState(() {
-            _awaitingMoveConfirmation = false;
-          });
-        }
-      });
-    }
-    // If the underlying clip data changes externally while we are moving or resizing, reset interaction state.
-    // Check specific properties that indicate a fundamental change (like ID or track).
+
+    bool needsUiUpdate = false;
+
+    // Scenario 1: Critical change during active interaction (e.g., clip replaced underfoot)
+    // This is a hard reset of interaction state.
     if ((_isMoving || _isResizing) &&
         (widget.clip.databaseId != oldWidget.clip.databaseId ||
             widget.clip.trackId != oldWidget.clip.trackId)) {
+      // Post-frame callback to avoid setState during build/layout
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           setState(() {
             _isMoving = false;
             _isResizing = false;
             _resizingDirection = null;
-            _awaitingMoveConfirmation = false; // Also reset this flag
-            _currentMoveFrame =
-                widget.clip.startFrame; // Reset visual frame too
+            _awaitingMoveConfirmation = false;
+            _currentMoveFrame = widget.clip.startFrame; // Sync with new clip's actual start
           });
         }
       });
-    } else if (!_isMoving && !_isResizing && !_awaitingMoveConfirmation) {
-      // If not interacting, keep _currentMoveFrame synchronized with widget data
-      if (widget.clip.startFrame != _currentMoveFrame) {
-        // Update _currentMoveFrame silently IF not interacting/awaiting
-        // Avoids unnecessary setState if only build is called
-        _currentMoveFrame = widget.clip.startFrame;
+      return; // State has been reset, further checks are not needed for this update cycle.
+    }
+
+    // Scenario 2: Handling the aftermath of a move operation (_awaitingMoveConfirmation is true)
+    if (_awaitingMoveConfirmation) {
+      // Case 2a: The ViewModel has updated the clip to the expected new position.
+      if (widget.clip.startFrame == _currentMoveFrame) {
+        _awaitingMoveConfirmation = false;
+        needsUiUpdate = true; // UI needs to reflect that we're no longer "awaiting."
       }
+      // Case 2b: The ViewModel updated the clip, but to a *different* position
+      // (e.g., an undo occurred, or another external change superseded the move).
+      else { // widget.clip.startFrame != _currentMoveFrame
+        _awaitingMoveConfirmation = false; // The awaited move is no longer relevant/valid.
+        _currentMoveFrame = widget.clip.startFrame; // Crucial: Sync internal state to actual model state.
+        needsUiUpdate = true; // UI needs to reflect the new _currentMoveFrame and no longer awaiting.
+      }
+    }
+    // Scenario 3: No active interaction or pending confirmation.
+    // Synchronize _currentMoveFrame if widget.clip.startFrame has changed externally.
+    // This covers general external updates, including undo when not in the middle of a move sequence.
+    else if (!_isMoving && !_isResizing) { // Ensure not actively moving/resizing
+      if (_currentMoveFrame != widget.clip.startFrame) {
+        _currentMoveFrame = widget.clip.startFrame;
+        needsUiUpdate = true; // UI needs to reflect the new _currentMoveFrame.
+      }
+    }
+
+    // If any state change occurred that requires a UI update, schedule a setState.
+    if (needsUiUpdate) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {});
+        }
+      });
     }
   }
 
@@ -601,5 +619,33 @@ class _TimelineClipState extends State<TimelineClip> {
       _previewStartFrame = null;
       _previewEndFrame = null;
     });
+  }
+
+  // Add a new method to handle the move commit using our new service:
+  void _commitMoveWithService(BuildContext context) {
+    if (_currentMoveFrame == null || !_awaitingMoveConfirmation) return;
+    
+    final clipUpdateService = di<ClipUpdateService>();
+    final startTimeOnTrackMs = ClipModel.framesToMs(_currentMoveFrame!);
+    
+    // Use the new service to create and execute the command
+    clipUpdateService.moveClip(
+      clip: widget.clip,
+      newTrackId: widget.clip.trackId, // Same track for simple move
+      newStartTimeOnTrackMs: startTimeOnTrackMs,
+    );
+    
+    // Reset state
+    setState(() {
+      _isMoving = false;
+      // _currentMoveFrame = null;
+      _awaitingMoveConfirmation = false;
+    });
+  }
+
+  // Then modify the existing _commitMove method to use our new service:
+  void _commitMove(BuildContext context) {
+    _commitMoveWithService(context);
+    // Remove the old implementation or keep it as fallback
   }
 }
