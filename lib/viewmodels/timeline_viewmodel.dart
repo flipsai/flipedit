@@ -8,6 +8,7 @@ import 'package:flipedit/utils/logger.dart' as logger;
 import 'package:flipedit/persistence/database/project_database.dart' show Track;
 import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart';
 
+import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart'; // Added import
 import 'package:watch_it/watch_it.dart';
 import 'commands/timeline_command.dart';
 import 'commands/add_clip_command.dart';
@@ -40,8 +41,10 @@ class TimelineViewModel extends ChangeNotifier {
       >(); // Needed by some commands directly? Review later.
   final TimelineStateViewModel _stateViewModel =
       di<TimelineStateViewModel>(); // Inject State VM
+ final TimelineNavigationViewModel _navigationViewModel =
+     di<TimelineNavigationViewModel>(); // Inject Navigation VM
 
-  // --- State Notifiers (Managed by this ViewModel - Interaction State Only) ---
+ // --- State Notifiers (Managed by this ViewModel - Interaction State Only) ---
 
   // Flag to track when playhead is being intentionally dragged (Interaction State)
   final ValueNotifier<bool> _isPlayheadDraggingNotifier = ValueNotifier<bool>(
@@ -68,24 +71,18 @@ class TimelineViewModel extends ChangeNotifier {
     }
   }
 
-  final ValueNotifier<int> currentFrameNotifier = ValueNotifier<int>(0);
-  static const DEFAULT_EMPTY_DURATION = 600000; // 10 minutes in milliseconds
-  int get currentFrame => currentFrameNotifier.value;
+  // --- Delegated State Getters (from TimelineNavigationViewModel) ---
+  ValueNotifier<int> get currentFrameNotifier =>
+      _navigationViewModel.currentFrameNotifier;
+  int get currentFrame => _navigationViewModel.currentFrame;
   set currentFrame(int value) {
-    final totalFrames = totalFramesNotifier.value;
-    // Clamp to content duration when present
-    final int maxAllowedFrame =
-        totalFrames > 0
-            ? totalFrames - 1
-            : ClipModel.msToFrames(DEFAULT_EMPTY_DURATION);
-    final clampedValue = value.clamp(0, maxAllowedFrame);
-    if (currentFrameNotifier.value == clampedValue) return;
-    currentFrameNotifier.value = clampedValue;
-    logger.logDebug('Current frame updated to $clampedValue', _logTag);
+    // Delegate to TimelineNavigationViewModel's setter which handles clamping and notification
+    _navigationViewModel.currentFrame = value;
   }
 
-  final ValueNotifier<int> totalFramesNotifier = ValueNotifier<int>(0);
-  int get totalFrames => totalFramesNotifier.value;
+  ValueNotifier<int> get totalFramesNotifier =>
+      _navigationViewModel.totalFramesNotifier;
+  int get totalFrames => _navigationViewModel.totalFrames;
 
   // --- Delegated State Getters (from TimelineStateViewModel) ---
   ValueNotifier<List<ClipModel>> get clipsNotifier =>
@@ -271,7 +268,7 @@ class TimelineViewModel extends ChangeNotifier {
 
       // Create an instance of the AddClipCommand class (imported at the top of the file)
       final command = AddClipCommand(
-        vm: this, // Or pass stateViewModel?
+        // vm: this, // Removed as AddClipCommand no longer takes vm
         clipData: clipData,
         trackId: trackId,
         startTimeOnTrackMs:
@@ -504,8 +501,8 @@ class TimelineViewModel extends ChangeNotifier {
     // Dispose owned ValueNotifiers (Interaction State Only)
     _isPlayheadDraggingNotifier.dispose();
     trackLabelWidthNotifier.dispose();
-    currentFrameNotifier.dispose(); // TODO: Move to Nav VM?
-    totalFramesNotifier.dispose(); // TODO: Move to Nav VM?
+    // currentFrameNotifier and totalFramesNotifier are now delegated, not owned.
+    // No TODO needed here anymore for them.
     currentEditMode.dispose();
     // Do NOT dispose notifiers owned by TimelineStateViewModel
 

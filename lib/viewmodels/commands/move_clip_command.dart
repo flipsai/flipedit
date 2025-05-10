@@ -13,6 +13,7 @@ import '../../viewmodels/timeline_navigation_viewmodel.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/di/service_locator.dart'; // Added for di
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart'; // Added for di
+import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart'; // For setClips
 
 class MoveClipCommand implements TimelineCommand, UndoableCommand {
   final int clipId;
@@ -85,7 +86,14 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
       _logTag,
     );
 
-    final currentClips = _clipsNotifier.value; // Use private notifier
+    // Make a mutable, sorted copy of currentClips to ensure consistent input for TimelineLogicService
+    final List<ClipModel> currentClips = List<ClipModel>.from(_clipsNotifier.value);
+    currentClips.sort((a, b) {
+        int trackCompare = a.trackId.compareTo(b.trackId);
+        if (trackCompare != 0) return trackCompare;
+        return a.startTimeOnTrackMs.compareTo(b.startTimeOnTrackMs);
+    });
+
     final clipToMove = currentClips.firstWhereOrNull(
       (c) => c.databaseId == clipId,
     );
@@ -190,7 +198,8 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
       // The placementResult['updatedClips'] contains ClipModel instances reflecting the new state.
       // We need to store these for `newData` serialization.
       final List<ClipModel> updatedClipModels = List<ClipModel>.from(placementResult['updatedClips']);
-      _clipsNotifier.value = updatedClipModels; // Update UI
+      // _clipsNotifier.value = updatedClipModels; // Update UI - Old way
+      di<TimelineStateViewModel>().setClips(updatedClipModels); // New way
 
       // Store the "after" states for serialization
       _movedClipStateAfterExecute = updatedClipModels.firstWhereOrNull((c) => c.databaseId == clipId)?.copyWith();
@@ -277,8 +286,40 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
       // For now, we'll rely on whatever mechanism updates clipsNotifier upon DB changes.
       // If direct update is needed:
       // Accessing 'clips' table directly from the dao.
-      final allDbClipsAfterUndo = await _projectDatabaseService.clipDao!.select(_projectDatabaseService.clipDao!.clips).get();
-      _clipsNotifier.value = allDbClipsAfterUndo.map((c) => ClipModel.fromDbData(c)).toList();
+      // Reconstruct the clips list for the UI notifier more precisely.
+      // Start with clips that were not directly involved in this command's execution.
+      final Set<int> affectedClipIds = {_originalClipState!.databaseId!};
+      _originalNeighborStates?.keys.forEach(affectedClipIds.add);
+      // Note: _deletedNeighborsState contains clips that were deleted by execute(),
+      // so they wouldn't be in the current _clipsNotifier.value right before this update.
+
+      List<ClipModel> newClipsList = _clipsNotifier.value
+          .where((clip) => clip.databaseId != null && !affectedClipIds.contains(clip.databaseId!))
+          .toList();
+
+      // Add the main clip in its original state
+      if (_originalClipState != null) {
+        newClipsList.add(_originalClipState!.copyWith()); // Use copyWith for safety
+      }
+
+      // Add original neighbor states
+      _originalNeighborStates?.forEach((id, originalNeighbor) {
+        newClipsList.add(originalNeighbor.copyWith()); // Use copyWith for safety
+      });
+
+      // Add back deleted neighbors
+      _deletedNeighborsState?.forEach((deletedNeighbor) {
+        newClipsList.add(deletedNeighbor.copyWith()); // Use copyWith for safety
+      });
+
+      // Sort the list to maintain timeline order (by track, then by start time)
+      newClipsList.sort((a, b) {
+        int trackCompare = a.trackId.compareTo(b.trackId);
+        if (trackCompare != 0) return trackCompare;
+        return a.startTimeOnTrackMs.compareTo(b.startTimeOnTrackMs);
+      });
+      // _clipsNotifier.value = newClipsList; // Old way
+      di<TimelineStateViewModel>().setClips(newClipsList); // New way
 
 
       logger.logDebug(

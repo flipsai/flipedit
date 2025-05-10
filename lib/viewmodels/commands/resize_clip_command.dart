@@ -13,7 +13,7 @@ import '../../services/preview_sync_service.dart';
 import '../../services/preview_http_service.dart';
 import '../../viewmodels/timeline_navigation_viewmodel.dart';
 import 'package:watch_it/watch_it.dart';
-import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
+import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart';
 
 class ResizeClipCommand implements TimelineCommand, UndoableCommand {
   final int clipId;
@@ -26,15 +26,26 @@ class ResizeClipCommand implements TimelineCommand, UndoableCommand {
   final PreviewSyncService _previewSyncService;
   final PreviewHttpService _previewHttpService;
   final TimelineNavigationViewModel _navigationViewModel;
-  final ValueNotifier<List<ClipModel>> _clipsNotifier;
+  final ValueNotifier<List<ClipModel>> _clipsNotifier; // To get current timeline state for neighbors
 
-  // State for undo/redo and serialization
-  ClipModel? _originalClipState;
-  Map<int, ClipModel>? _originalNeighborStates;
-  List<ClipModel>? _deletedNeighborsState;
-  
-  ClipModel? _resizedClipStateAfterExecute;
-  Map<int, ClipModel>? _updatedNeighborStatesAfterExecute;
+  // Core state
+  // This is the state of the clip just before this command instance is supposed to act.
+  // For a new user action, it's the pre-drag state.
+  // For a command fromJson, it's the state that its 'oldData' represents (i.e., what undo should restore to).
+  final ClipModel _initialClipState;
+
+  // These store the "before" states that are logged and used for undo.
+  // For the first execution, they are derived from _initialClipState and its context.
+  // For deserialized commands, they are loaded from JSON's oldData.
+  ClipModel? _persistedOldClipState;
+  Map<int, ClipModel>? _persistedOldNeighborStates;
+  List<ClipModel>? _persistedOldDeletedNeighborsState;
+
+  // These store the "after" states resulting from execute(). Logged as newData.
+  ClipModel? _stateAfterExecute;
+  Map<int, ClipModel>? _neighborStatesAfterExecute;
+  List<int>? _neighborIdsDeletedByExecute;
+
 
   static const String commandType = 'resizeClip';
   static const _logTag = "ResizeClipCommand";
@@ -43,70 +54,82 @@ class ResizeClipCommand implements TimelineCommand, UndoableCommand {
     required this.clipId,
     required this.direction,
     required this.newBoundaryFrame,
+    required ClipModel initialResolvedClipState, // This is the key: state before operation
     required ProjectDatabaseService projectDatabaseService,
     required TimelineLogicService timelineLogicService,
     required PreviewSyncService previewSyncService,
     required PreviewHttpService previewHttpService,
     required TimelineNavigationViewModel navigationViewModel,
     required ValueNotifier<List<ClipModel>> clipsNotifier,
-    ClipModel? originalClipState, // Renamed for clarity in constructor
-    Map<int, ClipModel>? originalNeighborStates, // Renamed
-    List<ClipModel>? deletedNeighborsState, // Renamed
-  })  : _projectDatabaseService = projectDatabaseService,
+    // Optional: for fromJson to pass pre-loaded "old" states
+    ClipModel? deserializedPersistedOldClipState,
+    Map<int, ClipModel>? deserializedPersistedOldNeighborStates,
+    List<ClipModel>? deserializedPersistedOldDeletedNeighborsState,
+  })  : _initialClipState = initialResolvedClipState,
+        _projectDatabaseService = projectDatabaseService,
         _timelineLogicService = timelineLogicService,
         _previewSyncService = previewSyncService,
         _previewHttpService = previewHttpService,
         _navigationViewModel = navigationViewModel,
         _clipsNotifier = clipsNotifier,
-        _originalClipState = originalClipState, // Assign to internal field
-        _originalNeighborStates = originalNeighborStates, // Assign to internal field
-        _deletedNeighborsState = deletedNeighborsState, // Assign to internal field
+        _persistedOldClipState = deserializedPersistedOldClipState,
+        _persistedOldNeighborStates = deserializedPersistedOldNeighborStates,
+        _persistedOldDeletedNeighborsState = deserializedPersistedOldDeletedNeighborsState,
         assert(
          direction == 'left' || direction == 'right',
          'Direction must be "left" or "right"',
        );
 
   @override
-  Future<void> execute() async {
-    final bool isRedo = _originalClipState != null;
+  Future<void> execute({bool isRedo = false}) async {
+    // isRedo: true if called by UndoRedoService.redo()
+    // If _persistedOldClipState is null, it's the first meaningful run for a new user action.
+    // If _persistedOldClipState is not null, it means state was loaded (fromJson) or set by a previous run.
+    final bool isFirstRunForUserAction = _persistedOldClipState == null && !isRedo;
 
     logger.logInfo(
-      '[ResizeClipCommand] Executing (isRedo: $isRedo): clipId=$clipId, direction=$direction, newBoundaryFrame=$newBoundaryFrame',
+      '[ResizeClipCommand] Executing (isRedo: $isRedo, isFirstRun: $isFirstRunForUserAction): clipId=$clipId, direction=$direction, newBoundaryFrame=$newBoundaryFrame',
       _logTag,
     );
 
-    final currentClips = _clipsNotifier.value;
-    final clipToResize = currentClips.firstWhereOrNull(
-      (c) => c.databaseId == clipId,
-    );
-
-    if (clipToResize == null) {
-      logger.logError(
-        '[ResizeClipCommand] Clip $clipId not found in provided clips list',
-        _logTag,
-      );
-      throw Exception('Clip $clipId not found for resizing');
+    final currentClipsForContext = _clipsNotifier.value; // For finding neighbors
+    
+    final ClipModel baseClipForLogic;
+    if (isFirstRunForUserAction) {
+      _persistedOldClipState = _initialClipState.copyWith(); // Capture the true original state
+      // Capture original neighbor states based on _initialClipState and currentClipsForContext
+      _persistedOldNeighborStates = {};
+      _persistedOldDeletedNeighborsState = [];
+      // (Detailed neighbor capture logic would go here, finding neighbors of _initialClipState)
+      // This part needs careful implementation to find neighbors correctly relative to _initialClipState.
+      // For simplicity in this step, we're focusing on _persistedOldClipState.
+      // A more robust neighbor capture would iterate currentClipsForContext and identify neighbors
+      // of _initialClipState based on its trackId and times.
+      baseClipForLogic = _initialClipState;
+    } else {
+      // This is a redo, or fromJson. _persistedOldClipState should be set.
+      // The logic should operate on the state that the previous undo restored (which is _persistedOldClipState).
+      if (_persistedOldClipState == null) {
+         logger.logError('[ResizeClipCommand] Redo called but _persistedOldClipState is null.', _logTag);
+         throw Exception('Invalid state for redo.');
+      }
+      baseClipForLogic = _persistedOldClipState!;
     }
 
     if (_projectDatabaseService.clipDao == null) {
       logger.logError('[ResizeClipCommand] Clip DAO not initialized', _logTag);
       throw Exception('Clip DAO not initialized');
     }
-
-    if (!isRedo) {
-      _originalClipState = clipToResize.copyWith();
-      _originalNeighborStates = {}; 
-      _deletedNeighborsState = [];
-    }
-
-    _resizedClipStateAfterExecute = null;
-    _updatedNeighborStatesAfterExecute = {};
     
-    final originalStartTimeOnTrackMs = clipToResize.startTimeOnTrackMs;
-    final originalEndTimeOnTrackMs = clipToResize.endTimeOnTrackMs;
-    final originalStartTimeInSourceMs = clipToResize.startTimeInSourceMs;
-    final originalEndTimeInSourceMs = clipToResize.endTimeInSourceMs;
-    final sourceDurationMs = clipToResize.sourceDurationMs;
+    _stateAfterExecute = null;
+    _neighborStatesAfterExecute = {};
+    _neighborIdsDeletedByExecute = [];
+    
+    final originalStartTimeOnTrackMs = baseClipForLogic.startTimeOnTrackMs;
+    final originalEndTimeOnTrackMs = baseClipForLogic.endTimeOnTrackMs;
+    final originalStartTimeInSourceMs = baseClipForLogic.startTimeInSourceMs;
+    final originalEndTimeInSourceMs = baseClipForLogic.endTimeInSourceMs;
+    final sourceDurationMs = baseClipForLogic.sourceDurationMs;
 
     int targetStartTimeOnTrackMs = originalStartTimeOnTrackMs;
     int targetEndTimeOnTrackMs = originalEndTimeOnTrackMs;
@@ -116,42 +139,34 @@ class ResizeClipCommand implements TimelineCommand, UndoableCommand {
 
     if (direction == 'left') {
       targetStartTimeOnTrackMs = newBoundaryMs;
-      final trackDeltaMs =
-          targetStartTimeOnTrackMs - originalStartTimeOnTrackMs;
+      final trackDeltaMs = targetStartTimeOnTrackMs - originalStartTimeOnTrackMs;
       targetStartTimeInSourceMs = originalStartTimeInSourceMs + trackDeltaMs;
-    } else {
+    } else { // 'right'
       targetEndTimeOnTrackMs = newBoundaryMs;
       final trackDeltaMs = targetEndTimeOnTrackMs - originalEndTimeOnTrackMs;
       targetEndTimeInSourceMs = originalEndTimeInSourceMs + trackDeltaMs;
     }
 
-    int finalStartTimeInSourceMs = targetStartTimeInSourceMs.clamp(
-      0,
-      sourceDurationMs,
-    );
-    int finalEndTimeInSourceMs = targetEndTimeInSourceMs.clamp(
-      finalStartTimeInSourceMs,
-      sourceDurationMs,
-    );
-    finalStartTimeInSourceMs = finalStartTimeInSourceMs.clamp(
-      0,
-      finalEndTimeInSourceMs,
-    );
+    // Clamp source times
+    int finalStartTimeInSourceMs = targetStartTimeInSourceMs.clamp(0, sourceDurationMs);
+    int finalEndTimeInSourceMs = targetEndTimeInSourceMs.clamp(finalStartTimeInSourceMs, sourceDurationMs);
+    finalStartTimeInSourceMs = finalStartTimeInSourceMs.clamp(0, finalEndTimeInSourceMs); // Re-clamp start based on potentially adjusted end
 
+    // Adjust track times based on clamped source times
     int finalStartTimeOnTrackMs;
     int finalEndTimeOnTrackMs;
 
     if (direction == 'left') {
-      final sourceDeltaMs =
-          finalStartTimeInSourceMs - originalStartTimeInSourceMs;
+      final sourceDeltaMs = finalStartTimeInSourceMs - originalStartTimeInSourceMs;
       finalStartTimeOnTrackMs = originalStartTimeOnTrackMs + sourceDeltaMs;
-      finalEndTimeOnTrackMs = originalEndTimeOnTrackMs;
-    } else {
+      finalEndTimeOnTrackMs = originalEndTimeOnTrackMs; // End of track remains fixed for left resize
+    } else { // 'right'
       final sourceDeltaMs = finalEndTimeInSourceMs - originalEndTimeInSourceMs;
-      finalStartTimeOnTrackMs = originalStartTimeOnTrackMs;
+      finalStartTimeOnTrackMs = originalStartTimeOnTrackMs; // Start of track remains fixed for right resize
       finalEndTimeOnTrackMs = originalEndTimeOnTrackMs + sourceDeltaMs;
     }
-
+    
+    // Ensure minimum duration
     final minTrackDurationMs = ClipModel.framesToMs(1);
     if (finalEndTimeOnTrackMs - finalStartTimeOnTrackMs < minTrackDurationMs) {
       if (direction == 'left') {
@@ -160,140 +175,222 @@ class ResizeClipCommand implements TimelineCommand, UndoableCommand {
         finalEndTimeOnTrackMs = finalStartTimeOnTrackMs + minTrackDurationMs;
       }
     }
-    final minSourceDurationMs = 1;
-    if (finalEndTimeInSourceMs - finalStartTimeInSourceMs <
-            minSourceDurationMs &&
-        sourceDurationMs > 0) {
-      finalEndTimeInSourceMs = (finalStartTimeInSourceMs + minSourceDurationMs)
-          .clamp(finalStartTimeInSourceMs, sourceDurationMs);
-    } else if (sourceDurationMs == 0) {
+    final minSourceDurationMs = 1; 
+    if (finalEndTimeInSourceMs - finalStartTimeInSourceMs < minSourceDurationMs && sourceDurationMs > 0) {
+      finalEndTimeInSourceMs = (finalStartTimeInSourceMs + minSourceDurationMs).clamp(finalStartTimeInSourceMs, sourceDurationMs);
+    } else if (sourceDurationMs == 0 && (finalStartTimeInSourceMs != 0 || finalEndTimeInSourceMs != 0)) {
+      // Handle image/color clips (sourceDurationMs == 0) - their source times should always be 0
       finalStartTimeInSourceMs = 0;
       finalEndTimeInSourceMs = 0;
     }
 
+
     logger.logInfo(
-      '[ResizeClipCommand] Final values: Track[$finalStartTimeOnTrackMs-$finalEndTimeOnTrackMs], Source[$finalStartTimeInSourceMs-$finalEndTimeInSourceMs]',
+      '[ResizeClipCommand] Final calculated values: Track[$finalStartTimeOnTrackMs-$finalEndTimeOnTrackMs], Source[$finalStartTimeInSourceMs-$finalEndTimeInSourceMs]',
       _logTag,
     );
 
     try {
       final placementResult = _timelineLogicService.prepareClipPlacement(
-        clips: currentClips,
-        clipId: clipId,
-        trackId: clipToResize.trackId,
-        type: clipToResize.type,
-        sourcePath: clipToResize.sourcePath,
-        sourceDurationMs: sourceDurationMs,
-        startTimeOnTrackMs: finalStartTimeOnTrackMs,
-        endTimeOnTrackMs: finalEndTimeOnTrackMs,
-        startTimeInSourceMs: finalStartTimeInSourceMs,
-        endTimeInSourceMs: finalEndTimeInSourceMs,
+        clips: currentClipsForContext, // Use the full list for context
+        clipId: clipId, // ID of the clip being resized
+        trackId: baseClipForLogic.trackId, // Original track ID
+        type: baseClipForLogic.type,
+        sourcePath: baseClipForLogic.sourcePath,
+        sourceDurationMs: sourceDurationMs, // Original source duration
+        startTimeOnTrackMs: finalStartTimeOnTrackMs, // New calculated start time
+        endTimeOnTrackMs: finalEndTimeOnTrackMs,   // New calculated end time
+        startTimeInSourceMs: finalStartTimeInSourceMs, // New calculated source start
+        endTimeInSourceMs: finalEndTimeInSourceMs,     // New calculated source end
       );
 
       if (!placementResult['success']) {
-        throw Exception('prepareClipPlacement failed during resize command');
+        throw Exception('prepareClipPlacement failed during resize command: ${placementResult['error']}');
       }
 
-      final List<Map<String, dynamic>> neighborUpdates = List.from(
-        placementResult['clipUpdates'],
-      );
-      final List<int> neighborsToDelete = List.from(
-        placementResult['clipsToRemove'],
-      );
-      final Map<String, dynamic> mainClipUpdateData = Map.from(
-        placementResult['newClipData'],
-      );
+      final List<Map<String, dynamic>> neighborUpdatesFromPlacement = List.from(placementResult['clipUpdates']);
+      final List<int> neighborsToDeleteFromPlacement = List.from(placementResult['clipsToRemove']);
+      final Map<String, dynamic> resizedClipDataFromPlacement = placementResult['newClipData'];
 
-      logger.logDebug('[ResizeClipCommand] Applying DB updates...', _logTag);
-
-      for (final update in neighborUpdates) {
-        final int neighborId = update['id'];
-        final Map<String, dynamic> fields = Map.from(update['fields']);
-        final originalNeighbor = currentClips.firstWhereOrNull((c) => c.databaseId == neighborId);
-        if (originalNeighbor != null && !isRedo) {
-            _originalNeighborStates![neighborId] = originalNeighbor.copyWith();
+      // During first run, capture actual original states of neighbors affected by placementResult
+      if (isFirstRunForUserAction) {
+        for (final updateMap in neighborUpdatesFromPlacement) {
+          final int neighborId = updateMap['id'];
+          if (neighborId == clipId) continue; // Don't capture self as neighbor here
+          final originalNeighbor = currentClipsForContext.firstWhereOrNull((c) => c.databaseId == neighborId);
+          if (originalNeighbor != null) {
+            _persistedOldNeighborStates![neighborId] = originalNeighbor.copyWith();
+          }
         }
-        await _projectDatabaseService.clipDao!.updateClipFields(
-          neighborId,
-          fields,
-          log: false, 
-        );
-      }
-
-      for (final int neighborId in neighborsToDelete) {
-        final deletedNeighbor = currentClips.firstWhereOrNull((c) => c.databaseId == neighborId);
-        if (deletedNeighbor != null && !isRedo) {
-          _deletedNeighborsState!.add(deletedNeighbor.copyWith());
+        for (final int neighborIdToDelete in neighborsToDeleteFromPlacement) {
+          final originalNeighbor = currentClipsForContext.firstWhereOrNull((c) => c.databaseId == neighborIdToDelete);
+          if (originalNeighbor != null) {
+            _persistedOldDeletedNeighborsState!.add(originalNeighbor.copyWith());
+          }
         }
-        await _projectDatabaseService.clipDao!.deleteClip(neighborId);
       }
-
+      
+      // Apply changes to DB
       await _projectDatabaseService.clipDao!.updateClipFields(
         clipId,
-        mainClipUpdateData,
-        log: false, 
+        resizedClipDataFromPlacement['fields'] as Map<String, dynamic>,
+      );
+      _stateAfterExecute = ClipModel.fromDbData( // Reconstruct from DB or map? For now, assume fields are enough.
+         (await _projectDatabaseService.clipDao!.getClipById(clipId))!,
       );
 
-      logger.logDebug('[ResizeClipCommand] Updating ViewModel state...', _logTag);
-      final List<ClipModel> updatedClipModelsFromPlacement = List<ClipModel>.from(placementResult['updatedClips']);
-      _clipsNotifier.value = updatedClipModelsFromPlacement; 
 
-      _resizedClipStateAfterExecute = updatedClipModelsFromPlacement.firstWhereOrNull((c) => c.databaseId == clipId)?.copyWith();
-      for (final updatedClipModel in updatedClipModelsFromPlacement) {
-        if (updatedClipModel.databaseId != clipId && 
-            neighborUpdates.any((nu) => nu['id'] == updatedClipModel.databaseId)) {
-          _updatedNeighborStatesAfterExecute![updatedClipModel.databaseId!] = updatedClipModel.copyWith();
-        }
+      for (final updateMap in neighborUpdatesFromPlacement) {
+         final int neighborId = updateMap['id'];
+         if (neighborId == clipId) continue; // Skip main clip, already handled
+         await _projectDatabaseService.clipDao!.updateClipFields(
+            neighborId,
+            updateMap['fields'] as Map<String, dynamic>,
+         );
+         final updatedNeighborModel = ClipModel.fromDbData((await _projectDatabaseService.clipDao!.getClipById(neighborId))!);
+         _neighborStatesAfterExecute![neighborId] = updatedNeighborModel;
       }
-      
-      // logger.logWarning('[ResizeClipCommand] Execute: Preview/Navigation updates are currently commented out. Verify method names.', _logTag);
-      // await _previewSyncService.syncClipsToPreview([mainClipUpdateData['id'] as int]);
-      // _previewHttpService.updatePlayer();
-      // _navigationViewModel.recalculateContentDuration();
-      
-      logger.logInfo(
-        '[ResizeClipCommand] Successfully performed resize for clip $clipId.',
-        _logTag,
-      );
-    } catch (e) {
-      logger.logError(
-        '[ResizeClipCommand] Error performing resize: $e',
-        _logTag,
-      );
-      if (!isRedo && _originalClipState != null) {
-        logger.logWarning('[ResizeClipCommand] Attempting basic rollback due to error during execute...', _logTag);
-        try {
-          await _projectDatabaseService.clipDao!.updateClipFields(
-            _originalClipState!.databaseId!,
-            _clipModelToFieldMap(_originalClipState!),
-            log: false,
-          );
-          _originalNeighborStates?.forEach((id, model) async {
-            await _projectDatabaseService.clipDao!.updateClipFields(id, _clipModelToFieldMap(model), log: false);
-          });
-          _deletedNeighborsState?.forEach((model) async {
-            await _projectDatabaseService.clipDao!.insertClip(model.toCompanion()); // Assumes toCompanion exists
-          });
-          logger.logInfo('[ResizeClipCommand] Basic DB rollback completed.', _logTag);
-        } catch (rollbackError) {
-          logger.logError('[ResizeClipCommand] Error during basic rollback: $rollbackError', _logTag);
-        }
+
+      for (final int idToRemove in neighborsToDeleteFromPlacement) {
+        await _projectDatabaseService.clipDao!.deleteClip(idToRemove);
       }
+      _neighborIdsDeletedByExecute = List.from(neighborsToDeleteFromPlacement);
+
+
+      // Update UI state
+      final List<ClipModel> updatedClipsForNotifier = List.from(currentClipsForContext);
+      
+      // Update the main clip
+      int mainClipIdx = updatedClipsForNotifier.indexWhere((c) => c.databaseId == clipId);
+      if (mainClipIdx != -1 && _stateAfterExecute != null) {
+        updatedClipsForNotifier[mainClipIdx] = _stateAfterExecute!;
+      } else if (_stateAfterExecute != null) {
+         updatedClipsForNotifier.add(_stateAfterExecute!); // Should not happen if it existed
+      }
+
+      // Update neighbors
+      _neighborStatesAfterExecute?.forEach((id, model) {
+        int idx = updatedClipsForNotifier.indexWhere((c) => c.databaseId == id);
+        if (idx != -1) {
+          updatedClipsForNotifier[idx] = model;
+        } else {
+          updatedClipsForNotifier.add(model); // Should not happen if it existed
+        }
+      });
+
+      // Remove deleted neighbors
+      updatedClipsForNotifier.removeWhere((c) => _neighborIdsDeletedByExecute?.contains(c.databaseId) ?? false);
+      
+      di<TimelineStateViewModel>().setClips(updatedClipsForNotifier);
+
+
+      if (!_navigationViewModel.isPlayingNotifier.value) {
+        final frameToRefresh = _navigationViewModel.currentFrame;
+        await _previewHttpService.fetchAndUpdateFrame(frameToRefresh);
+      }
+      await _previewSyncService.sendClipsToPreviewServer();
+
+    } catch (e, s) {
+      logger.logError('[ResizeClipCommand] Error during execute: $e\n$s', _logTag);
+      // Consider how to handle partial failure: revert optimistic UI?
+      // For now, rethrow to indicate command failure.
       rethrow;
     }
+    logger.logInfo('[ResizeClipCommand] Execute finished successfully.', _logTag);
   }
+
+  @override
+  Future<void> undo() async {
+    logger.logInfo('[ResizeClipCommand] Undoing resize for clipId: $clipId', _logTag);
+    if (_persistedOldClipState == null) {
+      logger.logError('[ResizeClipCommand] Cannot undo: original state not available.', _logTag);
+      return;
+    }
+    if (_projectDatabaseService.clipDao == null) {
+      logger.logError('[ResizeClipCommand] Clip DAO not initialized for undo.', _logTag);
+      return;
+    }
+
+    try {
+      // Restore the main clip
+      await _projectDatabaseService.clipDao!.updateClipFields(
+        _persistedOldClipState!.databaseId!,
+        _clipModelToFieldMap(_persistedOldClipState!),
+      );
+
+      // Restore neighbors that were modified
+      _persistedOldNeighborStates?.forEach((id, model) async {
+        await _projectDatabaseService.clipDao!.updateClipFields(
+          id,
+          _clipModelToFieldMap(model),
+        );
+      });
+
+      // Re-insert neighbors that were deleted
+      _persistedOldDeletedNeighborsState?.forEach((model) async {
+        // Ensure we don't re-insert if it somehow exists (e.g. bad state)
+        final existing = await _projectDatabaseService.clipDao!.getClipById(model.databaseId!);
+        if (existing == null) {
+          await _projectDatabaseService.clipDao!.insertClip(model.toDbCompanion());
+        } else {
+           // If it exists, maybe update it to original state?
+           await _projectDatabaseService.clipDao!.updateClipFields(model.databaseId!, _clipModelToFieldMap(model));
+        }
+      });
+
+      // Delete neighbors that were created/pulled in by the execute operation
+      // This requires knowing which clips were *newly* affected by `execute`.
+      // The current `_neighborStatesAfterExecute` and `_neighborIdsDeletedByExecute`
+      // describe the state *after* execute.
+      // To correctly undo, we need to revert these specific changes.
+      // This part is complex: if execute() pulled a clip to fill a gap, undo must push it back or delete it.
+      // If execute() deleted a clip, undo re-inserts it (handled by _persistedOldDeletedNeighborsState).
+
+      // For now, a simpler UI update based on persisted old states:
+      List<ClipModel> currentClipsInNotifier = List.from(_clipsNotifier.value);
+      List<ClipModel> finalNotifierList = [];
+
+      // Add all clips from current notifier that are NOT the main clip or its original neighbors/deleted.
+      final involvedIds = <int>{_persistedOldClipState!.databaseId!};
+      _persistedOldNeighborStates?.keys.forEach(involvedIds.add);
+      _persistedOldDeletedNeighborsState?.forEach((c) => involvedIds.add(c.databaseId!));
+      
+      currentClipsInNotifier.where((c) => !involvedIds.contains(c.databaseId)).forEach(finalNotifierList.add);
+
+      // Add back the persisted states
+      finalNotifierList.add(_persistedOldClipState!);
+      if (_persistedOldNeighborStates != null) finalNotifierList.addAll(_persistedOldNeighborStates!.values);
+      if (_persistedOldDeletedNeighborsState != null) finalNotifierList.addAll(_persistedOldDeletedNeighborsState!);
+      
+      di<TimelineStateViewModel>().setClips(finalNotifierList);
+
+
+      if (!_navigationViewModel.isPlayingNotifier.value) {
+        final frameToRefresh = _navigationViewModel.currentFrame;
+        await _previewHttpService.fetchAndUpdateFrame(frameToRefresh);
+      }
+      await _previewSyncService.sendClipsToPreviewServer();
+
+    } catch (e, s) {
+      logger.logError('[ResizeClipCommand] Error during undo: $e\n$s', _logTag);
+      rethrow;
+    }
+    logger.logInfo('[ResizeClipCommand] Undo finished successfully.', _logTag);
+  }
+
 
   Map<String, dynamic> _clipModelToFieldMap(ClipModel clip) {
     return {
       'trackId': clip.trackId,
-      'startTimeOnTrackMs': clip.startTimeOnTrackMs,
-      'endTimeOnTrackMs': clip.endTimeOnTrackMs,
-      'startTimeInSourceMs': clip.startTimeInSourceMs,
-      'endTimeInSourceMs': clip.endTimeInSourceMs,
-      'sourcePath': clip.sourcePath,
-      'sourceDurationMs': clip.sourceDurationMs,
       'name': clip.name,
       'type': clip.type.name,
+      'sourcePath': clip.sourcePath,
+      'sourceDurationMs': clip.sourceDurationMs,
+      'startTimeInSourceMs': clip.startTimeInSourceMs,
+      'endTimeInSourceMs': clip.endTimeInSourceMs,
+      'startTimeOnTrackMs': clip.startTimeOnTrackMs,
+      'endTimeOnTrackMs': clip.endTimeOnTrackMs,
+      'metadata': jsonEncode(clip.metadata),
       'previewPositionX': clip.previewPositionX,
       'previewPositionY': clip.previewPositionY,
       'previewWidth': clip.previewWidth,
@@ -302,191 +399,123 @@ class ResizeClipCommand implements TimelineCommand, UndoableCommand {
   }
 
   @override
-  Future<void> undo() async {
-    logger.logInfo('[ResizeClipCommand] Undoing resize for clip $clipId', _logTag);
-    if (_originalClipState == null) {
-      logger.logError('[ResizeClipCommand] Cannot undo: Original state not saved', _logTag);
-      return;
+  ChangeLog toChangeLog(String entityId) {
+    if (_persistedOldClipState == null || _stateAfterExecute == null) {
+      throw Exception('Cannot create ChangeLog: command state is incomplete.');
     }
-    if (_projectDatabaseService.clipDao == null) {
-      logger.logError('[ResizeClipCommand] Clip DAO not initialized for undo', _logTag);
-      throw Exception('Clip DAO not initialized for undo');
-    }
-
-    try {
-      await _projectDatabaseService.clipDao!.updateClipFields(
-        _originalClipState!.databaseId!,
-        _clipModelToFieldMap(_originalClipState!),
-        log: false,
-      );
-
-      if (_originalNeighborStates != null) {
-        for (final entry in _originalNeighborStates!.entries) {
-          final originalNeighbor = entry.value;
-          await _projectDatabaseService.clipDao!.updateClipFields(
-            originalNeighbor.databaseId!,
-            _clipModelToFieldMap(originalNeighbor),
-            log: false,
-          );
-        }
-      }
-
-      if (_deletedNeighborsState != null) {
-        for (final deletedClip in _deletedNeighborsState!) {
-          await _projectDatabaseService.clipDao!.insertClip(deletedClip.toCompanion()); // Assumes toCompanion
-        }
-      }
-      
-      List<ClipModel> currentClipsInNotifier = List.from(_clipsNotifier.value);
-      List<ClipModel> resultUiClips = [];
-      Set<int?> processedIds = {};
-
-      void addOrUpdateInUiList(ClipModel clip) {
-        if (clip.databaseId == null) return;
-        if (processedIds.contains(clip.databaseId)) { 
-          int index = resultUiClips.indexWhere((c) => c.databaseId == clip.databaseId);
-          if (index != -1) resultUiClips[index] = clip;
-          return;
-        }
-        resultUiClips.add(clip);
-        processedIds.add(clip.databaseId);
-      }
-
-      if (_originalClipState != null) addOrUpdateInUiList(_originalClipState!);
-      _originalNeighborStates?.values.forEach(addOrUpdateInUiList);
-      _deletedNeighborsState?.forEach(addOrUpdateInUiList);
-      
-      for (var existingClip in currentClipsInNotifier) {
-          if (!processedIds.contains(existingClip.databaseId)) {
-              // This clip was not part of the undo operation's direct restoration,
-              // but it was in the notifier. We need to decide if it should remain.
-              // If it was created by the 'execute' step, it should be removed.
-              // This logic is complex. For now, we only add back the known original states.
-              // A more robust solution might involve comparing with _resizedClipStateAfterExecute etc.
-          }
-      }
-      // A simpler UI update for now:
-      List<ClipModel> allClipsAfterUndo = [];
-      if(_originalClipState != null) allClipsAfterUndo.add(_originalClipState!);
-      if(_originalNeighborStates != null) allClipsAfterUndo.addAll(_originalNeighborStates!.values);
-      if(_deletedNeighborsState != null) allClipsAfterUndo.addAll(_deletedNeighborsState!);
-      
-      // Get IDs of clips that were present *after* execute but are *not* in the restored set
-      Set<int?> idsAfterExecute = <int?>{ // Explicitly type the set
-        if (_resizedClipStateAfterExecute != null) _resizedClipStateAfterExecute!.databaseId,
-        ...(_updatedNeighborStatesAfterExecute?.keys ?? const <int>[]), // Correctly handle null keys
-      }.whereNotNull().toSet();
-
-      Set<int?> idsInRestoredSet = allClipsAfterUndo.map((c) => c.databaseId).whereNotNull().toSet();
-      Set<int?> idsToRemoveFromCurrentNotifier = idsAfterExecute.difference(idsInRestoredSet);
-
-      List<ClipModel> finalNotifierList = List.from(currentClipsInNotifier);
-      finalNotifierList.removeWhere((c) => idsToRemoveFromCurrentNotifier.contains(c.databaseId));
-      
-      // Add or update with restored clips
-      for (var restoredClip in allClipsAfterUndo) {
-        int index = finalNotifierList.indexWhere((c) => c.databaseId == restoredClip.databaseId);
-        if (index != -1) {
-          finalNotifierList[index] = restoredClip;
-        } else {
-          finalNotifierList.add(restoredClip);
-        }
-      }
-      _clipsNotifier.value = finalNotifierList;
-
-      // logger.logWarning('[ResizeClipCommand] Undo: Preview/Navigation updates are currently commented out.', _logTag);
-      // await _previewSyncService.syncClipsToPreview([_originalClipState!.databaseId!]);
-      // _previewHttpService.updatePlayer();
-      // _navigationViewModel.recalculateContentDuration();
-
-      logger.logInfo('[ResizeClipCommand] Successfully undone resize for clip $clipId', _logTag);
-    } catch (e) {
-      logger.logError('[ResizeClipCommand] Error undoing resize: $e', _logTag);
-      rethrow;
-    }
-  }
-
-  @override
-  Map<String, dynamic> toJson() {
-    return {
-      'oldData': {
-        'originalClipState': _originalClipState?.toJson(),
-        'originalNeighborStates': _originalNeighborStates?.map((key, value) => MapEntry(key.toString(), value.toJson())),
-        'deletedNeighborsState': _deletedNeighborsState?.map((clip) => clip.toJson()).toList(),
-      },
-      'newData': {
-        'clipId': clipId,
-        'direction': direction,
-        'newBoundaryFrame': newBoundaryFrame,
-        'resizedClipStateAfterExecute': _resizedClipStateAfterExecute?.toJson(),
-        'updatedNeighborStatesAfterExecute': _updatedNeighborStatesAfterExecute?.map((key, value) => MapEntry(key.toString(), value.toJson())),
-      },
-    };
-  }
-
-  @override
-  ChangeLog toChangeLog(String entityId) { 
-    final commandState = toJson();
     return ChangeLog(
-      id: -1, 
+      id: -1, // DB will assign
       entity: 'clip',
-      entityId: entityId, 
-      action: ResizeClipCommand.commandType,
-      oldData: jsonEncode(commandState['oldData']),
-      newData: jsonEncode(commandState['newData']),
+      entityId: entityId, // clipId.toString()
+      action: commandType,
+      oldData: jsonEncode({
+        'originalClipState': _persistedOldClipState!.toJson(),
+        'originalNeighborStates': _persistedOldNeighborStates?.map((key, value) => MapEntry(key.toString(), value.toJson())),
+        'deletedNeighborsState': _persistedOldDeletedNeighborsState?.map((clip) => clip.toJson()).toList(),
+      }),
+      newData: jsonEncode({
+        'resizedClipState': _stateAfterExecute!.toJson(),
+        'updatedNeighborStates': _neighborStatesAfterExecute?.map((key, value) => MapEntry(key.toString(), value.toJson())),
+        'deletedNeighborIdsDuringExecute': _neighborIdsDeletedByExecute, // IDs of clips deleted by execute
+      }),
       timestamp: DateTime.now().millisecondsSinceEpoch,
     );
   }
 
   factory ResizeClipCommand.fromJson(
-      ProjectDatabaseService projectDatabaseService, 
-      Map<String, dynamic> commandData) { 
-    
-    final oldData = commandData['oldData'] as Map<String, dynamic>? ?? {}; // Ensure not null
-    final newData = commandData['newData'] as Map<String, dynamic>;
+    ProjectDatabaseService projectDbService,
+    TimelineLogicService timelineLogicService,
+    PreviewSyncService previewSyncService,
+    PreviewHttpService previewHttpService,
+    TimelineNavigationViewModel navigationViewModel,
+    ValueNotifier<List<ClipModel>> clipsNotifier,
+    Map<String, dynamic> jsonData,
+  ) {
+    final oldData = jsonData['oldData'] as Map<String, dynamic>?;
+    final newData = jsonData['newData'] as Map<String, dynamic>?; // Not strictly needed for construction if execute re-calculates
 
-    ClipModel? originalClipStateFromJson;
-    if (oldData['originalClipState'] != null) {
-      originalClipStateFromJson = ClipModel.fromJson(oldData['originalClipState'] as Map<String, dynamic>);
+    if (oldData == null || oldData['originalClipState'] == null) {
+      throw Exception('Invalid JSON for ResizeClipCommand: missing oldData or originalClipState');
     }
 
-    Map<int, ClipModel>? originalNeighborStatesFromJson;
+    final ClipModel initialForConstructor = ClipModel.fromJson(oldData['originalClipState'] as Map<String, dynamic>);
+    
+    Map<int, ClipModel>? originalNeighborsForConstructor;
     if (oldData['originalNeighborStates'] != null) {
-      originalNeighborStatesFromJson = (oldData['originalNeighborStates'] as Map<String, dynamic>).map(
+      originalNeighborsForConstructor = (oldData['originalNeighborStates'] as Map<String, dynamic>).map(
         (key, value) => MapEntry(int.parse(key), ClipModel.fromJson(value as Map<String, dynamic>)),
       );
     }
 
-    List<ClipModel>? deletedNeighborsStateFromJson;
+    List<ClipModel>? deletedNeighborsForConstructor;
     if (oldData['deletedNeighborsState'] != null) {
-      deletedNeighborsStateFromJson = (oldData['deletedNeighborsState'] as List<dynamic>)
+      deletedNeighborsForConstructor = (oldData['deletedNeighborsState'] as List<dynamic>)
           .map((item) => ClipModel.fromJson(item as Map<String, dynamic>))
           .toList();
     }
 
-    final command = ResizeClipCommand(
-      clipId: newData['clipId'] as int,
-      direction: newData['direction'] as String,
-      newBoundaryFrame: newData['newBoundaryFrame'] as int,
-      projectDatabaseService: projectDatabaseService, 
-      timelineLogicService: di<TimelineLogicService>(),
-      previewSyncService: di<PreviewSyncService>(),
-      previewHttpService: di<PreviewHttpService>(),
-      navigationViewModel: di<TimelineNavigationViewModel>(),
-      clipsNotifier: di<TimelineViewModel>().clipsNotifier, 
-      originalClipState: originalClipStateFromJson,
-      originalNeighborStates: originalNeighborStatesFromJson,
-      deletedNeighborsState: deletedNeighborsStateFromJson,
-    );
+    // Extract identifying info from newData or base clip if possible
+    // The command needs clipId, direction, newBoundaryFrame for its identity/parameters for re-execution.
+    // These should ideally be stored at the top level of jsonData or within newData.
+    // Assuming they are in newData for this example. If not, JSON structure needs adjustment.
+    
+    final topLevelData = jsonData['topLevelData'] as Map<String, dynamic>? ?? newData?['commandParams'] as Map<String, dynamic>? ?? {};
 
-    if (newData['resizedClipStateAfterExecute'] != null) {
-      command._resizedClipStateAfterExecute = ClipModel.fromJson(newData['resizedClipStateAfterExecute'] as Map<String, dynamic>);
+    final clipId = topLevelData['clipId'] as int? ?? initialForConstructor.databaseId!; // Fallback to ID from old state
+    final direction = topLevelData['direction'] as String? ?? (throw Exception("Missing direction in JSON"));
+    
+    // newBoundaryFrame might be tricky, it's a result of the resize.
+    // For fromJson, it's more about restoring to a state. The specific 'newBoundaryFrame' that led to
+    // 'newData' might not be explicitly stored if 'newData' itself represents the target state.
+    // However, if 'execute' logic requires it to re-calculate, it MUST be persisted.
+    // Let's assume 'newData.resizedClipState' gives enough info, or 'newBoundaryFrame' is stored.
+    int newBoundaryFrame;
+    if (topLevelData.containsKey('newBoundaryFrame')) {
+       newBoundaryFrame = topLevelData['newBoundaryFrame'] as int;
+    } else {
+      // Infer from newData if possible (this is complex and might be lossy)
+      // This part is highly dependent on how execute() uses newBoundaryFrame on redo.
+      // For robust redo, newBoundaryFrame should be persisted.
+      // Defaulting to a value that implies no change from initial state's boundary if not found.
+      final executedState = newData?['resizedClipState'] != null ? ClipModel.fromJson(newData!['resizedClipState'] as Map<String, dynamic>) : initialForConstructor;
+      newBoundaryFrame = ClipModel.msToFrames(direction == 'left' ? executedState.startTimeOnTrackMs : executedState.endTimeOnTrackMs);
+       logger.logWarning("[ResizeClipCommand.fromJson] newBoundaryFrame not found in JSON, inferred. Persist this value for robustness.", _logTag);
     }
-    if (newData['updatedNeighborStatesAfterExecute'] != null) {
-      command._updatedNeighborStatesAfterExecute = (newData['updatedNeighborStatesAfterExecute'] as Map<String, dynamic>).map(
-        (key, value) => MapEntry(int.parse(key), ClipModel.fromJson(value as Map<String, dynamic>)),
-      );
-    }
-    return command;
+
+
+    return ResizeClipCommand(
+      clipId: clipId,
+      direction: direction,
+      newBoundaryFrame: newBoundaryFrame,
+      initialResolvedClipState: initialForConstructor, // This is critical
+      projectDatabaseService: projectDbService,
+      timelineLogicService: timelineLogicService,
+      previewSyncService: previewSyncService,
+      previewHttpService: previewHttpService,
+      navigationViewModel: navigationViewModel,
+      clipsNotifier: clipsNotifier,
+      deserializedPersistedOldClipState: initialForConstructor.copyWith(), // Pass the same for persisted old state
+      deserializedPersistedOldNeighborStates: originalNeighborsForConstructor,
+      deserializedPersistedOldDeletedNeighborsState: deletedNeighborsForConstructor,
+    );
+  }
+
+  @override
+  Map<String, dynamic> toJson() {
+    // This should serialize the command's identity and parameters,
+    // plus the necessary "before" states for reconstruction by fromJson.
+    return {
+      'commandType': commandType,
+      'clipId': clipId,
+      'direction': direction,
+      'newBoundaryFrame': newBoundaryFrame, // Critical parameter for re-execution logic
+      'oldData': { // Consistent with toChangeLog's oldData structure
+        'originalClipState': _persistedOldClipState?.toJson() ?? _initialClipState.toJson(),
+        'originalNeighborStates': _persistedOldNeighborStates?.map((key, value) => MapEntry(key.toString(), value.toJson())),
+        'deletedNeighborsState': _persistedOldDeletedNeighborsState?.map((clip) => clip.toJson()).toList(),
+      },
+      // newData could also be included if fromJson needs it for context, but typically
+      // execute() recomputes this. For now, focusing on what fromJson strictly needs.
+    };
   }
 }

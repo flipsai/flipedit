@@ -1,5 +1,6 @@
 import 'package:watch_it/watch_it.dart';
 import '../timeline_viewmodel.dart';
+import '../timeline_state_viewmodel.dart'; // Added for di<TimelineStateViewModel>()
 import '../timeline_navigation_viewmodel.dart';
 import 'timeline_command.dart';
 import '../../models/clip.dart';
@@ -44,7 +45,9 @@ class RemoveClipCommand implements TimelineCommand {
 
       if (indexToRemove != -1) {
         currentClips.removeAt(indexToRemove);
-        vm.clipsNotifier.value = currentClips;
+        // vm.clipsNotifier.value = currentClips; // Old way
+        // vm.clipsNotifier.value = currentClips; // Original old way
+        di<TimelineStateViewModel>().setClips(currentClips); // Corrected new way
         di<TimelineNavigationViewModel>().navigationService
             .recalculateAndUpdateTotalFrames();
         logger.logInfo(
@@ -113,7 +116,9 @@ class RemoveClipCommand implements TimelineCommand {
       currentClips.sort(
         (a, b) => a.startTimeOnTrackMs.compareTo(b.startTimeOnTrackMs),
       );
-      vm.clipsNotifier.value = currentClips;
+      // vm.clipsNotifier.value = currentClips; // Old way
+      // vm.clipsNotifier.value = currentClips; // Original old way
+      di<TimelineStateViewModel>().setClips(currentClips); // Corrected new way
       di<TimelineNavigationViewModel>().navigationService
           .recalculateAndUpdateTotalFrames();
 

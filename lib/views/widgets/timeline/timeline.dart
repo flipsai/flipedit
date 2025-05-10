@@ -162,15 +162,16 @@ class _TimelineState extends State<Timeline>
     final zoom = watchValue(
       (TimelineNavigationViewModel vm) => vm.zoomNotifier,
     );
-    final totalFrames = watchValue(
-      (TimelineNavigationViewModel vm) => vm.totalFramesNotifier,
+    // Use timelineEnd for scrollable width, not just totalFrames (based on clips)
+    final timelineEnd = watchValue(
+      (TimelineNavigationViewModel vm) => vm.timelineEndNotifier,
     );
 
     // Debug logging
     if (clips.isNotEmpty) {
       logDebug(
         'Timeline',
-        '🧩 Timeline build with ${clips.length} clips, ${tracks.length} tracks, totalFrames: $totalFrames',
+        '🧩 Timeline build with ${clips.length} clips, ${tracks.length} tracks, timelineEnd: $timelineEnd',
       );
     }
 
@@ -189,8 +190,9 @@ class _TimelineState extends State<Timeline>
               builder: (context, constraints) {
                 // Use instance variable viewportWidth
                 viewportWidth = constraints.maxWidth;
+                // Calculate contentWidth based on timelineEnd to allow scrolling beyond clips
                 final double contentWidth =
-                    totalFrames * zoom * framePixelWidth;
+                    timelineEnd * zoom * framePixelWidth;
                 final double totalScrollableWidth = math.max(
                   viewportWidth,
                   contentWidth + trackLabelWidth,

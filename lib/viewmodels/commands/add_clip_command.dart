@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:drift/drift.dart' as drift;
 import 'package:flipedit/persistence/database/project_database.dart'
     as project_db;
-import '../timeline_viewmodel.dart';
+import '../../services/commands/undoable_command.dart'; // Added import
 import '../timeline_state_viewmodel.dart';
 import 'timeline_command.dart';
 import '../../models/clip.dart';
@@ -13,13 +13,11 @@ import '../../services/project_database_service.dart';
 import '../../services/media_duration_service.dart';
 import '../../services/canvas_dimensions_service.dart';
 import 'package:watch_it/watch_it.dart';
-import '../../services/undo_redo_service.dart';
 import '../../services/preview_http_service.dart';
 import '../../viewmodels/timeline_navigation_viewmodel.dart';
 
-class AddClipCommand implements TimelineCommand {
-  final TimelineViewModel vm;
-  final ClipModel clipData;
+class AddClipCommand implements TimelineCommand, UndoableCommand { // Implement UndoableCommand
+  final ClipModel clipDataInput; // Renamed to avoid confusion with internal state
   final int trackId;
   final int startTimeOnTrackMs;
 
@@ -35,14 +33,23 @@ class AddClipCommand implements TimelineCommand {
   List<ClipModel>? _originalNeighborStates;
   List<int>? _removedNeighborIds;
 
+  static const String commandType = 'insert'; // Match the error message
   static const _logTag = "AddClipCommand";
 
   AddClipCommand({
-    required this.vm,
-    required this.clipData,
+    required ClipModel clipData, // Use local var name
     required this.trackId,
     required this.startTimeOnTrackMs,
-  });
+    // Fields for fromJson restoration
+    int? insertedClipId, 
+    List<ClipModel>? originalNeighborStates,
+    List<int>? removedNeighborIds,
+  }) : clipDataInput = clipData { // Assign to new field
+    // Restore state if provided (e.g., fromJson)
+    if (insertedClipId != null) _insertedClipId = insertedClipId;
+    if (originalNeighborStates != null) _originalNeighborStates = originalNeighborStates;
+    if (removedNeighborIds != null) _removedNeighborIds = removedNeighborIds;
+  }
 
   /// Validates the clip source duration and updates it if necessary
   Future<ClipModel> _validateClipSourceDuration(ClipModel clip) async {
@@ -96,7 +103,7 @@ class AddClipCommand implements TimelineCommand {
     }
 
     // Step 1: Validate and potentially update the clip source duration
-    var processedClipData = await _validateClipSourceDuration(clipData);
+    var processedClipData = await _validateClipSourceDuration(clipDataInput); // Use clipDataInput
 
     final initialEndTimeOnTrackMs =
         startTimeOnTrackMs + processedClipData.durationInSourceMs;
@@ -198,6 +205,7 @@ class AddClipCommand implements TimelineCommand {
               : null,
         ),
       ),
+      // log: false, // Removed: ClipDao.insertClip doesn't have this param
     );
     logger.logInfo(
       '[AddClipCommand] Inserted new clip with ID: $_insertedClipId',
@@ -210,14 +218,14 @@ class AddClipCommand implements TimelineCommand {
 
     final newClipIndex = finalUpdatedClips.indexWhere(
       (clip) =>
-          clip.databaseId == null &&
+          clip.databaseId == null && // The new clip doesn't have an ID yet in this list
           clip.sourcePath == processedClipData.sourcePath &&
           clip.startTimeOnTrackMs == newClipDataMap['startTimeOnTrackMs'],
     );
 
     if (newClipIndex != -1 && _insertedClipId != null) {
       final newClipWithId = finalUpdatedClips[newClipIndex].copyWith(
-        databaseId: drift.Value(_insertedClipId),
+        databaseId: drift.Value(_insertedClipId), // Assign the actual DB ID
       );
       finalUpdatedClips[newClipIndex] = newClipWithId;
       logger.logInfo(
@@ -231,12 +239,11 @@ class AddClipCommand implements TimelineCommand {
       );
     }
 
-    await _stateViewModel.refreshClips();
+    await _stateViewModel.refreshClips(); // Refresh the UI
 
     // Fetch frame if paused
     if (!_timelineNavViewModel.isPlayingNotifier.value) {
       logger.logDebug('[AddClipCommand] Timeline paused, fetching frame via HTTP...', _logTag);
-      // Pass the current frame from the navigation view model
       final frameToRefresh = _timelineNavViewModel.currentFrame;
       logger.logDebug('[AddClipCommand] Attempting to refresh frame $frameToRefresh via HTTP', _logTag);
       await _previewHttpService.fetchAndUpdateFrame(frameToRefresh);
@@ -247,8 +254,9 @@ class AddClipCommand implements TimelineCommand {
       _logTag,
     );
 
-    final UndoRedoService undoRedoService = di<UndoRedoService>();
-    await undoRedoService.init();
+    // Remove direct call to undoRedoService.init()
+    // final UndoRedoService undoRedoService = di<UndoRedoService>();
+    // await undoRedoService.init(); 
   }
 
   @override
@@ -310,7 +318,8 @@ class AddClipCommand implements TimelineCommand {
           _logTag,
         );
         await _databaseService.clipDao!.insertClip(
-          originalRemovedNeighbor.toDbCompanion(),
+          originalRemovedNeighbor.toDbCompanion(), 
+          // log: false, // Removed: ClipDao.insertClip doesn't have this param
         );
       }
 
@@ -332,5 +341,78 @@ class AddClipCommand implements TimelineCommand {
     } catch (e, s) {
       logger.logError('[AddClipCommand] Error during undo: $e\n$s', _logTag);
     }
+  }
+
+  @override
+  project_db.ChangeLog toChangeLog(String entityId) {
+    return project_db.ChangeLog(
+      id: -1, 
+      entity: 'clip', 
+      entityId: _insertedClipId?.toString() ?? entityId, 
+      action: commandType,
+      oldData: jsonEncode({
+        'originalNeighborStates': _originalNeighborStates?.map((c) => c.toJson()).toList(),
+        'removedNeighborIds': _removedNeighborIds,
+      }),
+      newData: jsonEncode({
+        'clipDataInput': clipDataInput.toJson(),
+        'trackId': trackId,
+        'startTimeOnTrackMs': startTimeOnTrackMs,
+        'insertedClipId': _insertedClipId, 
+      }),
+      timestamp: DateTime.now().millisecondsSinceEpoch,
+    );
+  }
+
+  factory AddClipCommand.fromJson(
+      ProjectDatabaseService projectDatabaseService, 
+      Map<String, dynamic> commandData) {
+    
+    final newData = commandData['newData'] as Map<String, dynamic>;
+    final oldData = commandData['oldData'] as Map<String, dynamic>? ?? {};
+
+    final clipDataInput = ClipModel.fromJson(newData['clipDataInput'] as Map<String, dynamic>);
+    final trackId = newData['trackId'] as int;
+    final startTimeOnTrackMs = newData['startTimeOnTrackMs'] as int;
+    final insertedClipId = newData['insertedClipId'] as int?;
+
+    List<ClipModel>? originalNeighborStates;
+    if (oldData['originalNeighborStates'] != null) {
+      originalNeighborStates = (oldData['originalNeighborStates'] as List<dynamic>)
+          .map((item) => ClipModel.fromJson(item as Map<String, dynamic>))
+          .toList();
+    }
+
+    List<int>? removedNeighborIds;
+    if (oldData['removedNeighborIds'] != null) {
+      removedNeighborIds = List<int>.from(oldData['removedNeighborIds'] as List<dynamic>);
+    }
+    
+    return AddClipCommand(
+      clipData: clipDataInput,
+      trackId: trackId,
+      startTimeOnTrackMs: startTimeOnTrackMs,
+      insertedClipId: insertedClipId, 
+      originalNeighborStates: originalNeighborStates, 
+      removedNeighborIds: removedNeighborIds, 
+    );
+  }
+
+  @override
+  Map<String, dynamic> toJson() {
+    return {
+      'actionType': commandType,
+      'entityId': _insertedClipId?.toString() ?? 'unknown', 
+      'oldData': {
+        'originalNeighborStates': _originalNeighborStates?.map((c) => c.toJson()).toList(),
+        'removedNeighborIds': _removedNeighborIds,
+      },
+      'newData': {
+        'clipDataInput': clipDataInput.toJson(),
+        'trackId': trackId,
+        'startTimeOnTrackMs': startTimeOnTrackMs,
+        'insertedClipId': _insertedClipId,
+      },
+    };
   }
 }

@@ -23,11 +23,11 @@ class TimelineNavigationService extends ChangeNotifier {
   final ValueNotifier<int> currentFrameNotifier = ValueNotifier<int>(0);
   int get currentFrame => currentFrameNotifier.value;
   set currentFrame(int value) {
-    final totalFramesValue = totalFramesNotifier.value;
-    final int maxAllowedFrame =
-        totalFramesValue > 0
-            ? totalFramesValue - 1
-            : defaultEmptyDurationFrames;
+    // Allow scrolling to the timelineEnd, not just to totalFrames
+    final timelineEndValue = timelineEndNotifier.value;
+    final int maxAllowedFrame = timelineEndValue > 0
+        ? timelineEndValue - 1
+        : defaultEmptyDurationFrames;
     final clampedValue = value.clamp(0, maxAllowedFrame);
     if (currentFrameNotifier.value == clampedValue) return;
     currentFrameNotifier.value = clampedValue;
@@ -48,9 +48,18 @@ class TimelineNavigationService extends ChangeNotifier {
     null,
   );
 
+  // Default duration when no clips exist (10 minutes)
   static const int DEFAULT_EMPTY_DURATION_MS = 600000; // 10 minutes
+  
+  // Minimum scrollable area beyond the last clip (60 minutes for a more 'infinite' feel)
+  static const int MINIMUM_SCROLL_BEYOND_MS = 3600000; // 60 minutes
+  
   final int defaultEmptyDurationFrames = ClipModel.msToFrames(
     DEFAULT_EMPTY_DURATION_MS,
+  );
+  
+  final int minimumScrollBeyondFrames = ClipModel.msToFrames(
+    MINIMUM_SCROLL_BEYOND_MS,
   );
 
   late final VoidCallback _scrollListener;
@@ -100,12 +109,16 @@ class TimelineNavigationService extends ChangeNotifier {
       changed = true;
     }
 
-    final newTimelineEnd =
-        newTotalFrames > 0 ? newTotalFrames : defaultEmptyDurationFrames;
+    // Calculate timeline end: either total frames + minimum scroll area or default duration
+    // This ensures we always have scrollable area beyond the last clip
+    final newTimelineEnd = newTotalFrames > 0
+        ? newTotalFrames + minimumScrollBeyondFrames
+        : defaultEmptyDurationFrames;
+        
     if (timelineEndNotifier.value != newTimelineEnd) {
       timelineEndNotifier.value = newTimelineEnd;
       logger.logInfo(
-        'Timeline end updated to: $newTimelineEnd frames',
+        'Timeline end updated to: $newTimelineEnd frames (total clips frames: $newTotalFrames)',
         _logTag,
       );
       changed = true;

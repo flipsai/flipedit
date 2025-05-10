@@ -1,6 +1,7 @@
+import 'package:equatable/equatable.dart'; // Added for Equatable
 import 'package:flipedit/models/enums/effect_type.dart';
 
-class Effect {
+class Effect extends Equatable {
   final String id;
   final String name;
   final EffectType type;
@@ -69,4 +70,19 @@ class Effect {
       durationFrames: json['durationFrames'],
     );
   }
+
+  @override
+  List<Object?> get props => [
+        id,
+        name,
+        type,
+        parameters,
+        childEffects,
+        startFrame,
+        durationFrames,
+      ];
+
+  // Optional: If you want a string representation for debugging that includes all props.
+  // @override
+  // bool get stringify => true;
 }

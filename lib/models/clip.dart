@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:ui'; // Import Rect
+import 'package:equatable/equatable.dart'; // Added for Equatable
 import 'package:flipedit/models/effect.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:drift/drift.dart' show Value;
@@ -17,7 +18,7 @@ class ClipValidationException implements Exception {
   String toString() => 'Invalid clip configuration:\n${errors.join('\n')}';
 }
 
-class ClipModel {
+class ClipModel extends Equatable {
   final int? databaseId;
   final int trackId;
   final String name;
@@ -204,7 +205,7 @@ class ClipModel {
       endTimeInSourceMs: endTimeInSourceMs ?? this.endTimeInSourceMs,
       startTimeOnTrackMs: startTimeOnTrackMs ?? this.startTimeOnTrackMs,
       endTimeOnTrackMs: endTimeOnTrackMs ?? this.endTimeOnTrackMs,
-      effects: effects ?? this.effects,
+      effects: effects != null ? List<Effect>.from(effects) : List<Effect>.from(this.effects),
       metadata: updatedMetadata, // Use the synchronized metadata
       previewPositionX: finalPreviewPositionX, // Use the final value
       previewPositionY: finalPreviewPositionY, // Use the final value
@@ -418,6 +419,11 @@ class ClipModel {
       'endTimeInSourceMs': endTimeInSourceMs,
       'startTimeOnTrackMs': startTimeOnTrackMs,
       'endTimeOnTrackMs': endTimeOnTrackMs,
+      'previewPositionX': previewPositionX,
+      'previewPositionY': previewPositionY,
+      'previewWidth': previewWidth,
+      'previewHeight': previewHeight,
+      'effects': effects.map((e) => e.toJson()).toList(),
       'metadata': metadata,
     };
   }
@@ -450,10 +456,31 @@ class ClipModel {
     }
  
     // Extract preview transform properties from metadata if they exist
-    final double posX = (parsedMetadata['preview_position_x'] as num?)?.toDouble() ?? 0.0;
-    final double posY = (parsedMetadata['preview_position_y'] as num?)?.toDouble() ?? 0.0;
-    final double width = (parsedMetadata['preview_width'] as num?)?.toDouble() ?? 100.0; // Default if not in metadata
-    final double height = (parsedMetadata['preview_height'] as num?)?.toDouble() ?? 100.0; // Default if not in metadata
+    // Safely parse effects
+    final List<dynamic> effectsJson = json['effects'] as List<dynamic>? ?? [];
+    final List<Effect> parsedEffects = effectsJson
+        .map((eJson) {
+          if (eJson is Map<String, dynamic>) {
+            return Effect.fromJson(eJson); // Assumes Effect.fromJson exists
+          }
+          return null;
+        })
+        .whereType<Effect>() // Filters out any nulls
+        .toList();
+
+    // Extract preview transform properties, preferring top-level, then metadata, then default
+    final double posX = (json['previewPositionX'] as num?)?.toDouble() ??
+                        (parsedMetadata['preview_position_x'] as num?)?.toDouble() ??
+                        0.0;
+    final double posY = (json['previewPositionY'] as num?)?.toDouble() ??
+                        (parsedMetadata['preview_position_y'] as num?)?.toDouble() ??
+                        0.0;
+    final double width = (json['previewWidth'] as num?)?.toDouble() ??
+                         (parsedMetadata['preview_width'] as num?)?.toDouble() ??
+                         100.0;
+    final double height = (json['previewHeight'] as num?)?.toDouble() ??
+                          (parsedMetadata['preview_height'] as num?)?.toDouble() ??
+                          100.0;
 
     return ClipModel(
       databaseId: json['databaseId'] as int?,
@@ -466,7 +493,7 @@ class ClipModel {
       endTimeInSourceMs: json['endTimeInSourceMs'] as int,
       startTimeOnTrackMs: json['startTimeOnTrackMs'] as int,
       endTimeOnTrackMs: json['endTimeOnTrackMs'] as int,
-      effects: const [],
+      effects: parsedEffects, // Use parsedEffects
       metadata: parsedMetadata,
       previewPositionX: posX,
       previewPositionY: posY,
@@ -474,4 +501,29 @@ class ClipModel {
       previewHeight: height,
     );
   }
+
+  @override
+  List<Object?> get props => [
+        databaseId,
+        trackId,
+        name,
+        type,
+        sourcePath,
+        sourceDurationMs,
+        startTimeInSourceMs,
+        endTimeInSourceMs,
+        startTimeOnTrackMs,
+        endTimeOnTrackMs,
+        effects,
+        metadata,
+        previewPositionX,
+        previewPositionY,
+        previewWidth,
+        previewHeight,
+      ];
+  
+  // By extending Equatable, we also get a default `stringify` for `toString` if needed.
+  // Setting stringify = true for Equatable is an option:
+  // @override
+  // bool get stringify => true;
 }

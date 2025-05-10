@@ -89,6 +89,7 @@ class TimelineClipResizeService {
         clipId: clip.databaseId!,
         direction: direction,
         newBoundaryFrame: newBoundaryFrame,
+        initialResolvedClipState: clip, // Pass the existing clip model here
         clipsNotifier: clipsNotifier,
         projectDatabaseService: projectDatabaseService,
         timelineLogicService: timelineLogicService,

@@ -103,6 +103,41 @@ class TimelineStateViewModel extends ChangeNotifier {
     }
   }
 
+  /// Sets the clips list directly and notifies listeners.
+  /// Intended for use by commands that have already calculated the new state.
+  void setClips(List<ClipModel> newClipsList) {
+    // Ensure the list is sorted, as commands might not always provide a sorted list.
+    // Sorting here guarantees consistency for listeners and for listEquals.
+    newClipsList.sort((a, b) {
+      int trackCompare = a.trackId.compareTo(b.trackId);
+      if (trackCompare != 0) return trackCompare;
+      return a.startTimeOnTrackMs.compareTo(b.startTimeOnTrackMs);
+    });
+
+    final bool contentChanged = !listEquals(clipsNotifier.value, newClipsList);
+    final bool instanceChanged = !identical(clipsNotifier.value, newClipsList);
+
+    if (contentChanged || instanceChanged) {
+      clipsNotifier.value = newClipsList; // ValueNotifier will notify if its criteria are met
+      _canvasDimensionsService.updateHasClipsState(newClipsList.length);
+      _previewSyncService.sendClipsToPreviewServer(); // Sync with preview server
+
+      logger.logDebug(
+        'Clips list set by command. Content changed: $contentChanged, Instance changed: $instanceChanged. (${newClipsList.length} clips). Notifiers triggered.',
+        _logTag,
+      );
+      notifyListeners(); // TimelineStateViewModel (ChangeNotifier) notifies its listeners
+    } else {
+      // Content and instance are identical. No state change.
+      logger.logDebug(
+        'Explicitly set clips list is identical in content and instance to current. No update triggered.',
+        _logTag,
+      );
+      // No need to call notifyListeners() if there's truly no change.
+      // If a command results in the exact same state, the UI shouldn't need to re-render from this ViewModel's perspective.
+    }
+  }
+
   Future<void> loadDataForProject() async {
     logger.logInfo('Syncing state after project load.', _logTag);
     _initialLoad(); // Sync tracks immediately
