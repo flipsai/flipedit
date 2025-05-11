@@ -1,15 +1,22 @@
 import 'package:flipedit/models/clip.dart';
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
+import 'package:watch_it/watch_it.dart';
 
 typedef GetClips = List<ClipModel> Function();
 typedef GetIsPlaying = bool Function();
 
 class TimelineNavigationService extends ChangeNotifier {
   final String _logTag = 'TimelineNavigationService';
+  
+  // Key for storing zoom level in SharedPreferences
+  static const String _zoomLevelKey = 'timeline_zoom_level';
 
   final GetClips _getClips;
   final GetIsPlaying _getIsPlaying;
+  
+  late final SharedPreferences _prefs;
 
   final ValueNotifier<double> zoomNotifier = ValueNotifier<double>(1.0);
   double get zoom => zoomNotifier.value;
@@ -17,6 +24,8 @@ class TimelineNavigationService extends ChangeNotifier {
     final clampedValue = value.clamp(0.1, 5.0);
     if (zoomNotifier.value == clampedValue) return;
     zoomNotifier.value = clampedValue;
+    // Save the zoom level to SharedPreferences when it changes
+    _saveZoomLevel(clampedValue);
     logger.logDebug('Zoom updated to: $clampedValue', _logTag);
   }
 
@@ -71,6 +80,11 @@ class TimelineNavigationService extends ChangeNotifier {
   }) : _getClips = getClips,
        _getIsPlaying = getIsPlaying {
     logger.logInfo('Initializing TimelineNavigationService', _logTag);
+    
+    // Initialize SharedPreferences and load saved zoom level
+    _prefs = di<SharedPreferences>();
+    _loadZoomLevel();
+    
     _setupInternalListeners();
     // Initial calculation
     recalculateAndUpdateTotalFrames();
@@ -162,11 +176,43 @@ class TimelineNavigationService extends ChangeNotifier {
   int getTotalFramesValue() => totalFramesNotifier.value;
   int getDefaultEmptyDurationFramesValue() => defaultEmptyDurationFrames;
 
+  // Method to save zoom level to SharedPreferences
+  void _saveZoomLevel(double value) {
+    try {
+      _prefs.setDouble(_zoomLevelKey, value);
+      logger.logDebug('Saved zoom level: $value', _logTag);
+    } catch (e) {
+      logger.logError('Failed to save zoom level: $e', _logTag);
+    }
+  }
+  
+  // Method to load zoom level from SharedPreferences
+  void _loadZoomLevel() {
+    try {
+      // Get the saved zoom level or use default if not found
+      final savedZoom = _prefs.getDouble(_zoomLevelKey);
+      if (savedZoom != null) {
+        // Set initial value directly to prevent unnecessary save
+        zoomNotifier.value = savedZoom.clamp(0.1, 5.0);
+        logger.logInfo('Loaded saved zoom level: ${zoomNotifier.value}', _logTag);
+      }
+    } catch (e) {
+      logger.logError('Failed to load zoom level: $e', _logTag);
+    }
+  }
+
   @override
   void dispose() {
     if (_isDisposed) return;
     _isDisposed = true;
     logger.logInfo('Disposing TimelineNavigationService', _logTag);
+
+    // Save the current zoom level one last time before disposal
+    try {
+      _saveZoomLevel(zoomNotifier.value);
+    } catch (e) {
+      logger.logError('Error saving zoom level during disposal: $e', _logTag);
+    }
 
     isPlayheadLockedNotifier.removeListener(_scrollListener);
     currentFrameNotifier.removeListener(_scrollListener);
