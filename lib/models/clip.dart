@@ -56,6 +56,18 @@ class ClipModel extends Equatable {
   /// Duration of the clip as it appears on the timeline track.
   int get durationOnTrackMs => endTimeOnTrackMs - startTimeOnTrackMs;
 
+  // Frame-based getters
+  int get startFrame => ClipModel.msToFrames(startTimeOnTrackMs);
+  int get endFrame => ClipModel.msToFrames(endTimeOnTrackMs);
+  int get durationFrames => endFrame - startFrame; // Derived from on-track times
+
+  int get startFrameInSource => ClipModel.msToFrames(startTimeInSourceMs);
+  int get endFrameInSource => ClipModel.msToFrames(endTimeInSourceMs);
+  // Duration of the *used portion* of the source material, in frames
+  int get durationInSourceFrames => ClipModel.msToFrames(durationInSourceMs);
+  // Total duration of the *entire source file*, in frames
+  int get sourceTotalDurationFrames => ClipModel.msToFrames(sourceDurationMs);
+
   ClipModel({
     this.databaseId,
     required this.trackId,
@@ -391,12 +403,6 @@ class ClipModel extends Equatable {
     return framesToMs(frames - 1 < 0 ? 0 : frames - 1);
   }
 
-  int get startFrame => msToFrames(startTimeOnTrackMs);
-  int get durationFrames => msToFrames(durationOnTrackMs);
-  int get endFrame => msToFrames(endTimeOnTrackMs);
-
-  int get startFrameInSource => msToFrames(startTimeInSourceMs);
-  int get endFrameInSource => msToFrames(endTimeInSourceMs);
   Map<String, dynamic> toJson() {
     // Debug log for clip conversion to json
     print('ClipModel.toJson: Converting clip ${databaseId} to JSON');

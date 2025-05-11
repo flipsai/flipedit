@@ -10,6 +10,7 @@ import 'dart:math';
 import '../../services/project_database_service.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
+import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart';
 
 class RollEditCommand implements TimelineCommand, UndoableCommand {
   final int leftClipId;
@@ -18,7 +19,8 @@ class RollEditCommand implements TimelineCommand, UndoableCommand {
   
   // Dependencies
   final ProjectDatabaseService _projectDatabaseService;
-  final ValueNotifier<List<ClipModel>> _clipsNotifier; // Made private
+  final ValueNotifier<List<ClipModel>> _clipsNotifier;
+  final TimelineStateViewModel _stateViewModel;
 
   // State for undo/redo and serialization
   ClipModel? _originalLeftClipState;
@@ -36,11 +38,13 @@ class RollEditCommand implements TimelineCommand, UndoableCommand {
     // Dependencies
     required ProjectDatabaseService projectDatabaseService,
     required ValueNotifier<List<ClipModel>> clipsNotifier,
+    required TimelineStateViewModel stateViewModel,
     // Optional for deserialization
     ClipModel? originalLeftClipState,
     ClipModel? originalRightClipState,
   })  : _projectDatabaseService = projectDatabaseService,
         _clipsNotifier = clipsNotifier,
+        _stateViewModel = stateViewModel,
         _originalLeftClipState = originalLeftClipState,
         _originalRightClipState = originalRightClipState;
 
@@ -99,13 +103,13 @@ class RollEditCommand implements TimelineCommand, UndoableCommand {
       return;
     }
 
-    final leftMinBoundaryFrame = left.startFrame + 1;
+    final leftMinBoundaryFrame = left.startFrame + 1; // Cannot be shorter than 1 frame
     final leftMaxBoundaryFrame =
-        left.startFrame + (left.endFrameInSource - left.startFrameInSource);
+        left.startFrame + (left.sourceTotalDurationFrames - left.startFrameInSource);
 
     final rightMinBoundaryFrame =
-        right.endFrame - (right.endFrameInSource - right.startFrameInSource);
-    final rightMaxBoundaryFrame = right.endFrame - 1;
+        right.endFrame - right.endFrameInSource;
+    final rightMaxBoundaryFrame = right.endFrame - 1; // Cannot be shorter than 1 frame
 
     final minValidBoundaryFrame = max(
       leftMinBoundaryFrame,
@@ -155,32 +159,12 @@ class RollEditCommand implements TimelineCommand, UndoableCommand {
             'startTimeInSourceMs': newRightStartInSourceMs,
           }, log: true);
 
-      logger.logDebug('[RollEditCommand] Updating ViewModel state...', _logTag);
-      final updatedClips = List<ClipModel>.from(currentClips);
-      final leftIndex = updatedClips.indexWhere(
-        (c) => c.databaseId == leftClipId,
-      );
-      final rightIndex = updatedClips.indexWhere(
-        (c) => c.databaseId == rightClipId,
-      );
-
-      if (leftIndex != -1) {
-        updatedClips[leftIndex] = updatedClips[leftIndex].copyWith(
-          endTimeOnTrackMs: newLeftEndMsOnTrack,
-          endTimeInSourceMs: newLeftEndInSourceMs,
-        );
-      }
-      if (rightIndex != -1) {
-        updatedClips[rightIndex] = updatedClips[rightIndex].copyWith(
-          startTimeOnTrackMs: newRightStartMsOnTrack,
-          startTimeInSourceMs: newRightStartInSourceMs,
-        );
-      }
-      _clipsNotifier.value = updatedClips; // Update UI
+      await _stateViewModel.refreshClips();
 
       // Capture the state of the clips *after* the operation for redo/serialization
-      _newLeftClipStateAfterExecute = updatedClips.firstWhereOrNull((c) => c.databaseId == leftClipId)?.copyWith();
-      _newRightClipStateAfterExecute = updatedClips.firstWhereOrNull((c) => c.databaseId == rightClipId)?.copyWith();
+      final refreshedClips = _clipsNotifier.value; // Get the latest clips after refresh
+      _newLeftClipStateAfterExecute = refreshedClips.firstWhereOrNull((c) => c.databaseId == leftClipId)?.copyWith();
+      _newRightClipStateAfterExecute = refreshedClips.firstWhereOrNull((c) => c.databaseId == rightClipId)?.copyWith();
       
       logger.logInfo(
         '[RollEditCommand] Successfully performed roll edit.',
@@ -332,12 +316,15 @@ class RollEditCommand implements TimelineCommand, UndoableCommand {
       originalRightClipState = ClipModel.fromJson(oldData!['originalRightClipState'] as Map<String, dynamic>);
     }
 
+    final stateViewModelInstance = di<TimelineStateViewModel>(); // Get StateVM from DI
+
     final command = RollEditCommand(
       leftClipId: newData['leftClipId'] as int,
       rightClipId: newData['rightClipId'] as int,
       newBoundaryFrame: newData['newBoundaryFrame'] as int,
       projectDatabaseService: projectDatabaseService, // Passed in
-      clipsNotifier: di<TimelineViewModel>().clipsNotifier, // Get from di
+      clipsNotifier: stateViewModelInstance.clipsNotifier, // Use StateVM's notifier
+      stateViewModel: stateViewModelInstance,             // Pass StateVM
       originalLeftClipState: originalLeftClipState, // For undo
       originalRightClipState: originalRightClipState, // For undo
     );

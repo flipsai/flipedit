@@ -398,8 +398,9 @@ class TimelineViewModel extends ChangeNotifier {
       leftClipId: leftClipId,
       rightClipId: rightClipId,
       newBoundaryFrame: newBoundaryFrame,
-      projectDatabaseService: _projectDatabaseService, // Pass existing service
-      clipsNotifier: clipsNotifier, // Pass existing notifier (getter to _stateViewModel.clipsNotifier)
+      projectDatabaseService: _projectDatabaseService,
+      clipsNotifier: clipsNotifier, // This is _stateViewModel.clipsNotifier
+      stateViewModel: _stateViewModel, // Pass TimelineStateViewModel instance
     );
     await runCommand(command);
   }
