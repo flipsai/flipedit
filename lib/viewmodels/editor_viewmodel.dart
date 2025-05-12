@@ -53,8 +53,8 @@ class EditorViewModel {
   // --- Getters ---
   String get selectedExtension => selectedExtensionNotifier.value;
   String? get selectedClipId => selectedClipIdNotifier.value;
-  DockingLayout? get layout => layoutManager.layout;
-  ValueNotifier<DockingLayout?> get layoutNotifier =>
+  DockingLayoutModel? get layout => layoutManager.layout;
+  ValueNotifier<DockingLayoutModel?> get layoutNotifier =>
       layoutManager.layoutNotifier;
   bool get isTimelineVisible => layoutManager.isTimelineVisible;
   bool get isInspectorVisible => layoutManager.isInspectorVisible;

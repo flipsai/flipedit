@@ -1,0 +1,6 @@
+[submodule "docking_flutter"]
+	path = docking_flutter
+	url = https://github.com/caduandrade/docking_flutter.git
+[submodule "multi_split_view"]
+	path = multi_split_view
+	url = https://github.com/caduandrade/multi_split_view.git

@@ -1,3 +1,5 @@
+import 'dart:convert'; // For jsonEncode and jsonDecode
+
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart'; // For debugPrint
 import 'package:docking/docking.dart';
@@ -5,11 +7,14 @@ import 'package:flipedit/views/widgets/inspector/inspector_panel.dart';
 import 'package:flipedit/views/widgets/timeline/timeline.dart';
 import 'package:flipedit/views/widgets/preview/preview_panel.dart';
 import 'package:flipedit/utils/logger.dart'; // Add logger import
+import 'package:shared_preferences/shared_preferences.dart'; // Import shared_preferences
+
+const String _flexValuesPrefsKey = 'editor_flex_values'; // Key for SharedPreferences
 
 class EditorLayoutViewModel {
   // Remove LoggerExtension
-  final ValueNotifier<DockingLayout?> layoutNotifier =
-      ValueNotifier<DockingLayout?>(null);
+  final ValueNotifier<DockingLayoutModel?> layoutNotifier =
+      ValueNotifier<DockingLayoutModel?>(null);
   final ValueNotifier<bool> isTimelineVisibleNotifier = ValueNotifier<bool>(
     true,
   );
@@ -19,14 +24,17 @@ class EditorLayoutViewModel {
   final ValueNotifier<bool> isPreviewVisibleNotifier = ValueNotifier<bool>(
     true,
   );
+  final ValueNotifier<Map<dynamic, double>> persistedFlexValuesNotifier = 
+      ValueNotifier<Map<dynamic, double>>({});
 
   final Map<String, Map<String, dynamic>> _lastPanelPositions = {};
+  Map<dynamic, double> _persistedFlexValues = {}; // Stores flex values by panel ID
 
   VoidCallback? _layoutListener;
 
   String get _logTag => runtimeType.toString();
 
-  DockingLayout? get layout => layoutNotifier.value;
+  DockingLayoutModel? get layout => layoutNotifier.value;
   bool get isTimelineVisible =>
       layoutNotifier.value?.findDockingItem('timeline') != null;
   bool get isInspectorVisible =>
@@ -34,7 +42,10 @@ class EditorLayoutViewModel {
   bool get isPreviewVisible =>
       layoutNotifier.value?.findDockingItem('preview') != null;
 
-  set layout(DockingLayout? value) {
+  // Getter for UI to access flex values for DockingLayoutWidget's initialFlexValues
+  Map<dynamic, double> get persistedFlexValues => Map.unmodifiable(_persistedFlexValues);
+
+  set layout(DockingLayoutModel? value) {
     if (layoutNotifier.value == value) return;
 
     if (layoutNotifier.value != null && _layoutListener != null) {
@@ -61,23 +72,81 @@ class EditorLayoutViewModel {
   }
 
   EditorLayoutViewModel() {
-    _buildInitialLayout();
+    _loadFlexValuesFromPrefs().then((_) {
+      logDebug(_logTag, "LayoutManager: Initialized. Flex values loaded: $_persistedFlexValues");
+      _buildInitialLayout();
+    });
+  }
+
+  Future<void> _loadFlexValuesFromPrefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String? jsonString = prefs.getString(_flexValuesPrefsKey);
+      if (jsonString != null) {
+        final Map<String, dynamic> decodedMap = jsonDecode(jsonString);
+        // SharedPreferences stores Map<String, dynamic>, convert keys back if necessary (IDs are strings here)
+        _persistedFlexValues = decodedMap.map((key, value) => MapEntry(key, value.toDouble()));
+        persistedFlexValuesNotifier.value = Map.unmodifiable(_persistedFlexValues);
+      }
+    } catch (e) {
+      logError(_logTag, "LayoutManager: Error loading flex values from Prefs: $e");
+    }
+  }
+
+  Future<void> _saveFlexValuesToPrefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      // Ensure keys are strings for JSON serialization
+      final Map<String, double> stringKeyMap = _persistedFlexValues.map((key, value) => MapEntry(key.toString(), value));
+      final String jsonString = jsonEncode(stringKeyMap);
+      await prefs.setString(_flexValuesPrefsKey, jsonString);
+      logDebug(_logTag, "LayoutManager: Flex values saved to Prefs.");
+    } catch (e) {
+      logError(_logTag, "LayoutManager: Error saving flex values to Prefs: $e");
+    }
   }
 
   void dispose() {
+    _saveFlexValuesToPrefs(); // Save on dispose as a fallback
     layoutNotifier.dispose();
     isTimelineVisibleNotifier.dispose();
     isInspectorVisibleNotifier.dispose();
     isPreviewVisibleNotifier.dispose();
+    persistedFlexValuesNotifier.dispose();
 
-    // Remove layout listener
     if (layoutNotifier.value != null && _layoutListener != null) {
       layoutNotifier.value!.removeListener(_layoutListener!);
     }
   }
 
+  void updatePersistedFlexValues(Map<dynamic, double> newFlexValues) {
+    bool changed = false;
+    Map<String, String> changes = {};
+    
+    newFlexValues.forEach((key, value) {
+      if (_persistedFlexValues[key] != value) {
+        double oldValue = _persistedFlexValues[key] ?? 0.0;
+        String change = '${oldValue.toStringAsFixed(2)} -> ${value.toStringAsFixed(2)}';
+        changes[key.toString()] = change;
+        _persistedFlexValues[key] = value;
+        changed = true;
+      }
+    });
+
+    if (changed) {
+      String valueChanges = changes.entries
+          .map((e) => '${e.key}: ${e.value}')
+          .join(', ');
+      logDebug(_logTag, "Panel resize detected. Changes: $valueChanges");
+      
+      persistedFlexValuesNotifier.value = Map.unmodifiable(_persistedFlexValues);
+      _saveFlexValuesToPrefs(); // Save to prefs immediately on change
+      layoutNotifier.notifyListeners(); 
+    }
+  }
+
   void _onLayoutChanged() {
-    logDebug(_logTag, "LayoutManager: DockingLayout changed internally.");
+    logDebug(_logTag, "LayoutManager: DockingLayoutModel changed internally.");
     final currentLayout = layoutNotifier.value;
     if (currentLayout != null) {
       bool timelineFound = currentLayout.findDockingItem('timeline') != null;
@@ -239,7 +308,7 @@ class EditorLayoutViewModel {
     logDebug(_logTag, "LayoutManager: Built default layout.");
   }
 
-  DockingLayout _buildDefaultLayout() {
+  DockingLayoutModel _buildDefaultLayout() {
     final previewItem = _buildPreviewItem();
     final timelineItem = _buildTimelineItem();
     final inspectorItem = _buildInspectorItem();
@@ -248,20 +317,33 @@ class EditorLayoutViewModel {
     isInspectorVisibleNotifier.value = true;
     isPreviewVisibleNotifier.value = true;
 
-    return DockingLayout(
-      root: DockingRow([
-        DockingColumn([previewItem, timelineItem]),
-        inspectorItem,
-      ]),
-    );
+    // Initial layout: Preview on left, Inspector and Timeline tabbed on right
+    // Then Timeline below the tab area
+    DockingRow mainRow = DockingRow([
+      previewItem, // Takes 70% initially
+      DockingColumn([
+        inspectorItem, // Inspector takes top part
+        timelineItem, // Timeline takes bottom part
+      ])
+    ]);
+
+    // Set initial flex values (adjust as needed)
+    // previewItem.flex = 0.7; // Preview takes 70% of horizontal space
+    // // The DockingColumn containing Inspector and Timeline takes the remaining 30%
+    // // Within that column, Inspector and Timeline can have their own flex or default to 50/50
+    // inspectorItem.flex = 0.5; // Inspector takes 50% of the right column space
+    // timelineItem.flex = 0.5; // Timeline takes 50% of the right column space
+
+    return DockingLayoutModel(root: mainRow);
   }
 
   DockingItem _buildPreviewItem() {
     return DockingItem(
       id: 'preview',
       name: 'Preview',
-      maximizable: false,
-      widget: const PreviewPanel(),
+      builder: (context, item) => const PreviewPanel(), // widget to builder
+      closable: false,
+      flex: _persistedFlexValues['preview'] ?? 0.7, // Apply persisted or default flex
     );
   }
 
@@ -269,7 +351,9 @@ class EditorLayoutViewModel {
     return DockingItem(
       id: 'timeline',
       name: 'Timeline',
-      widget: const Timeline(),
+      builder: (context, item) => const Timeline(), // Changed TimelineWidget to Timeline
+      closable: false,
+      flex: _persistedFlexValues['timeline'] ?? 0.5, // Apply persisted or default flex
     );
   }
 
@@ -277,7 +361,9 @@ class EditorLayoutViewModel {
     return DockingItem(
       id: 'inspector',
       name: 'Inspector',
-      widget: const InspectorPanel(),
+      builder: (context, item) => const InspectorPanel(), // widget to builder
+      closable: false,
+      flex: _persistedFlexValues['inspector'] ?? 0.5, // Apply persisted or default flex
     );
   }
 
@@ -286,7 +372,7 @@ class EditorLayoutViewModel {
     required bool isCurrentlyVisible,
     required ValueNotifier<bool> visibilityNotifier,
     required DockingItem Function() itemBuilder,
-    required void Function(DockingLayout) defaultPositionHandler,
+    required void Function(DockingLayoutModel) defaultPositionHandler,
   }) {
     final currentLayout = layoutNotifier.value;
     if (currentLayout == null) return;
@@ -311,7 +397,7 @@ class EditorLayoutViewModel {
           _logTag,
           "LayoutManager: Layout is empty. Resetting layout with $panelId as root.",
         );
-        layout = DockingLayout(root: itemBuilder());
+        layout = DockingLayoutModel(root: itemBuilder());
       } else {
         // Layout is not empty, proceed with restoring/adding
         final lastPosition = _lastPanelPositions[panelId];
@@ -371,7 +457,7 @@ class EditorLayoutViewModel {
     );
   }
 
-  void _addTimelineDefaultPosition(DockingLayout layout) {
+  void _addTimelineDefaultPosition(DockingLayoutModel layout) {
     DockingItem? targetItem =
         layout.findDockingItem('preview') ??
         layout.findDockingItem('inspector');
@@ -392,7 +478,7 @@ class EditorLayoutViewModel {
     }
   }
 
-  void _addInspectorDefaultPosition(DockingLayout layout) {
+  void _addInspectorDefaultPosition(DockingLayoutModel layout) {
     DockingItem? targetItem =
         layout.findDockingItem('preview') ?? layout.findDockingItem('timeline');
     DropPosition position = DropPosition.right;
@@ -412,7 +498,7 @@ class EditorLayoutViewModel {
     }
   }
 
-  void _addPreviewDefaultPosition(DockingLayout layout) {
+  void _addPreviewDefaultPosition(DockingLayoutModel layout) {
     DockingItem? targetItem =
         layout.findDockingItem('timeline') ??
         layout.findDockingItem('inspector');

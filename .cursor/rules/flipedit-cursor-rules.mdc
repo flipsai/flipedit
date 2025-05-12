@@ -8,6 +8,7 @@ alwaysApply: true
 ## Important Rules
 Dont comment your codes to explain your changes.
 Only comment when an explanation of a complex logic is needed, and it should be technical doc.
+Never run a flutter run commannd, the app is already running.
 
 ## Architecture
 - **Framework**: Flutter/Dart application for cross-platform video editing

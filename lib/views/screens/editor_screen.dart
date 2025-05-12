@@ -16,6 +16,8 @@ class EditorScreen extends StatelessWidget with WatchItMixin {
   @override
   Widget build(BuildContext context) {
     final layout = watchValue((EditorViewModel vm) => vm.layoutNotifier);
+    final vm = di<EditorViewModel>();
+    final persistedFlexValues = watchValue((EditorViewModel vm) => vm.layoutManager.persistedFlexValuesNotifier);
 
     return ScaffoldPage(
       padding: EdgeInsets.zero,
@@ -43,13 +45,26 @@ class EditorScreen extends StatelessWidget with WatchItMixin {
                 child: Focus(
                   autofocus: true,
                   onKeyEvent: _handleKeyEvent,
-                  child:
-                      layout != null
-                          ? Docking(
-                            layout: layout,
-                            onItemClose: _handlePanelClosed,
-                          )
-                          : const Center(child: ProgressRing()),
+                  child: layout == null 
+                    ? const Center(child: ProgressRing())
+                    : DockingLayoutWidget(
+                          layout: layout.root,
+                          initialFlexValues: persistedFlexValues,
+                          onFlexValuesChanged: (newFlexValues) {
+                            logDebug('Panel resize: ${_formatFlexValues(newFlexValues)}', 'EditorScreen');
+                            vm.layoutManager.updatePersistedFlexValues(newFlexValues);
+                          },
+                          areaWidgetBuilder: (context, area) {
+                            if (area is DockingItem) {
+                              return area.builder?.call(context, area) ?? 
+                                  Container(
+                                    color: Colors.grey.withOpacity(0.2),
+                                    child: Center(child: Text('${area.name ?? area.id}')),
+                                  );
+                            }
+                            return Container();
+                          },
+                        )
                 ),
               ),
             ),
@@ -57,6 +72,10 @@ class EditorScreen extends StatelessWidget with WatchItMixin {
         ],
       ),
     );
+  }
+
+  String _formatFlexValues(Map<dynamic, double> flexValues) {
+    return flexValues.entries.map((e) => '${e.key}: ${e.value.toStringAsFixed(2)}').join(', ');
   }
 
   void _handlePanelClosed(DockingItem item) {
