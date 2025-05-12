@@ -11,6 +11,7 @@ import 'package:flipedit/services/preview_http_service.dart';
 import 'package:flipedit/services/timeline_logic_service.dart';
 import 'package:flipedit/services/uv_manager.dart';
 import 'package:flipedit/services/layout_service.dart';
+import 'package:flipedit/services/area_dimensions_service.dart';
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/services/project_metadata_service.dart';
 import 'package:flipedit/services/media_duration_service.dart';
@@ -52,6 +53,7 @@ Future<void> setupServiceLocator() async {
   di.registerLazySingleton<UvManager>(() => UvManager());
   di.registerLazySingleton<ComfyUIService>(() => ComfyUIService());
   di.registerLazySingleton<LayoutService>(() => LayoutService());
+  di.registerLazySingleton<AreaDimensionsService>(() => AreaDimensionsService());
   di.registerLazySingleton<PreviewService>(
     () => PreviewService(),
     dispose: (service) => service.dispose(),

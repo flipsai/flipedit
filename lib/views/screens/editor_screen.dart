@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/utils/logger.dart';
 import 'package:flipedit/viewmodels/commands/remove_clip_command.dart';
+import 'package:flipedit/views/widgets/docking/resizable_docking.dart';
 
 class EditorScreen extends StatelessWidget with WatchItMixin {
   const EditorScreen({super.key});
@@ -45,7 +46,7 @@ class EditorScreen extends StatelessWidget with WatchItMixin {
                   onKeyEvent: _handleKeyEvent,
                   child:
                       layout != null
-                          ? Docking(
+                          ? ResizableDocking(
                             layout: layout,
                             onItemClose: _handlePanelClosed,
                           )
