@@ -81,7 +81,7 @@ class _ResizableDockingState extends State<ResizableDocking> {
   }
   
   void _onLayoutChanged() {
-    // Save weights when layout changes
+    // Save the complete layout when it changes
     _layoutViewModel.updateAreaDimensions();
   }
   
@@ -90,7 +90,14 @@ class _ResizableDockingState extends State<ResizableDocking> {
     return Docking(
       layout: widget.layout,
       onItemSelection: widget.onItemSelection,
-      onItemClose: widget.onItemClose,
+      onItemClose: (item) {
+        // When an item is closed, make sure to save the layout
+        if (widget.onItemClose != null) {
+          widget.onItemClose!(item);
+        }
+        // Save layout after close
+        _layoutViewModel.updateAreaDimensions();
+      },
       itemCloseInterceptor: widget.itemCloseInterceptor,
       dockingButtonsBuilder: widget.dockingButtonsBuilder,
       maximizableItem: widget.maximizableItem,
@@ -99,7 +106,8 @@ class _ResizableDockingState extends State<ResizableDocking> {
       antiAliasingWorkaround: widget.antiAliasingWorkaround,
       draggable: widget.draggable,
       onAreaDimensionsChange: (DockingArea area) {
-          _layoutViewModel.updateAreaDimensions();
+        // Save layout when dimensions change
+        _layoutViewModel.updateAreaDimensions();
       },
     );
   }
