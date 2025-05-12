@@ -1,0 +1,3 @@
+[submodule "docking_flutter"]
+	path = docking_flutter
+	url = https://github.com/flipsai/docking_flutter.git
