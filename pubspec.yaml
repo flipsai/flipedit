@@ -61,6 +61,7 @@ dependencies:
 
   collection: any
   equatable: ^2.0.7
+  flutter_cache_manager: ^3.4.1
 dev_dependencies:
   flutter_lints: ^5.0.0
   flutter_test:

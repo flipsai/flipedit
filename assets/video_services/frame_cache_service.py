@@ -18,9 +18,9 @@ class FrameCacheService:
         self._lock = threading.RLock() # For thread-safe access to the cache
         logger.info(f"FrameCacheService initialized with max {max_cache_entries} entries.")
 
-    def get_frame(self, cache_key: str) -> Optional[np.ndarray]:
+    def get_frame(self, cache_key: str) -> Optional[Any]:
         """
-        Retrieves a frame from the cache.
+        Retrieves an item from the cache.
         Moves the accessed item to the end to mark it as recently used (for LRU).
         """
         with self._lock:
@@ -32,14 +32,15 @@ class FrameCacheService:
             logger.debug(f"Cache MISS for key: {cache_key}")
             return None
 
-    def put_frame(self, cache_key: str, frame: np.ndarray):
+    def put_frame(self, cache_key: str, item: Any):
         """
-        Adds a frame to the cache.
+        Adds an item to the cache.
         If the cache exceeds its maximum size, the oldest entry is removed.
         """
-        if not isinstance(frame, np.ndarray):
-            logger.warning(f"Attempted to cache non-numpy array for key {cache_key}. Type: {type(frame)}")
-            return
+        # Removed isinstance check to allow caching of generic items (e.g., tuples)
+        # if not isinstance(frame, np.ndarray):
+        #     logger.warning(f"Attempted to cache non-numpy array for key {cache_key}. Type: {type(frame)}")
+        #     return
 
         with self._lock:
             if cache_key in self._cache:
@@ -50,8 +51,8 @@ class FrameCacheService:
                 oldest_key, _ = self._cache.popitem(last=False)
                 logger.debug(f"Cache full. Removed oldest entry: {oldest_key}")
             
-            self._cache[cache_key] = frame
-            logger.debug(f"Cached frame with key: {cache_key}. Cache size: {len(self._cache)}")
+            self._cache[cache_key] = item
+            logger.debug(f"Cached item with key: {cache_key}. Cache size: {len(self._cache)}")
 
     def clear_cache(self):
         """Clears all items from the cache."""
