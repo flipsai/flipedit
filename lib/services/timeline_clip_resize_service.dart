@@ -4,7 +4,6 @@ import 'package:flipedit/viewmodels/commands/resize_clip_command.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/services/timeline_logic_service.dart';
-import 'package:flipedit/services/preview_sync_service.dart';
 import 'package:flipedit/services/preview_http_service.dart';
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
 
@@ -50,7 +49,7 @@ class TimelineClipResizeService {
     required Future<void> Function(ResizeClipCommand) runCommand,
     required ProjectDatabaseService projectDatabaseService,
     required TimelineLogicService timelineLogicService,
-    required PreviewSyncService previewSyncService,
+    // required PreviewSyncService previewSyncService, // Removed
     required PreviewHttpService previewHttpService,
     required TimelineNavigationViewModel navigationViewModel,
   }) async {
@@ -93,9 +92,6 @@ class TimelineClipResizeService {
         clipsNotifier: clipsNotifier,
         projectDatabaseService: projectDatabaseService,
         timelineLogicService: timelineLogicService,
-        previewSyncService: previewSyncService,
-        previewHttpService: previewHttpService,
-        navigationViewModel: navigationViewModel,
       );
       try {
         await runCommand(command);

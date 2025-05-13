@@ -11,7 +11,6 @@ import 'package:flipedit/services/timeline_clip_resize_service.dart';
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/services/timeline_logic_service.dart';
 import 'package:flipedit/services/preview_http_service.dart';
-import 'package:flipedit/services/preview_sync_service.dart';
 import 'package:flipedit/services/clip_update_service.dart';
 
 // Import extracted components
@@ -585,13 +584,6 @@ class _TimelineClipState extends State<TimelineClip> {
     final projectDatabaseService = di<ProjectDatabaseService>();
     final timelineLogicService = di<TimelineLogicService>();
     final previewHttpService = di<PreviewHttpService>();
-    // Assuming PreviewSyncService is also available via di, if not, this needs adjustment
-    // For now, let's assume it's available. If it's not registered, this will fail at runtime.
-    // It's better to ensure all dependencies are correctly injected.
-    // If PreviewSyncService is not in DI, it might need to be passed differently or added to DI.
-    // Let's check if PreviewSyncService is typically available via di.
-    // Based on other command patterns, it's likely.
-    final previewSyncService = di<PreviewSyncService>();
     final navigationViewModel = di<TimelineNavigationViewModel>();
 
     await _resizeService.handleResizeEnd(
@@ -607,7 +599,6 @@ class _TimelineClipState extends State<TimelineClip> {
       // Pass the required services
       projectDatabaseService: projectDatabaseService,
       timelineLogicService: timelineLogicService,
-      previewSyncService: previewSyncService,
       previewHttpService: previewHttpService,
       navigationViewModel: navigationViewModel,
     );

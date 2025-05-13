@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import 'package:watch_it/watch_it.dart';
 import '../utils/logger.dart' as logger;
 import '../utils/constants.dart';
-import '../services/preview_sync_service.dart';
 import '../services/project_database_service.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flipedit/persistence/database/project_database.dart';
@@ -11,7 +10,6 @@ import 'package:flipedit/persistence/database/project_database.dart';
 /// Service for managing canvas dimensions settings
 class CanvasDimensionsService {
   final String _logTag = 'CanvasDimensionsService';
-  final PreviewSyncService _previewSyncService = di<PreviewSyncService>();
   final ProjectDatabaseService _databaseService = di<ProjectDatabaseService>();
 
   // Key for storing dimensions in project metadata
@@ -40,17 +38,8 @@ class CanvasDimensionsService {
         'default video size: ${AppConstants.defaultVideoWidth} x ${AppConstants.defaultVideoHeight}', 
         _logTag);
     
-    // Immediately sync to preview server
-    _syncDimensionsToPreviewServer();
-    
     // Try to load saved dimensions from project
     loadDimensionsFromProject();
-    
-    // Send initial dimensions to the preview server again after a delay
-    // to ensure preview service is ready
-    Future.delayed(const Duration(seconds: 2), () {
-      _syncDimensionsToPreviewServer();
-    });
     
     // Listen for changes to dimensions
     canvasWidthNotifier.addListener(_handleDimensionsChanged);
@@ -125,26 +114,7 @@ class CanvasDimensionsService {
   
   // Handler called when dimensions change
   void _handleDimensionsChanged() {
-    _syncDimensionsToPreviewServer();
     _saveDimensionsToProject();
-  }
-  
-  // Send canvas dimensions to the preview server
-  void _syncDimensionsToPreviewServer() {
-    try {
-      final message = jsonEncode({
-        'type': 'canvas_dimensions',
-        'payload': {
-          'width': canvasWidth.toInt(),
-          'height': canvasHeight.toInt(),
-        }
-      });
-      
-      _previewSyncService.sendMessage(message);
-      logger.logInfo('Sent canvas dimensions to preview server: ${canvasWidth.toInt()}x${canvasHeight.toInt()}', _logTag);
-    } catch (e) {
-      logger.logError('Error sending canvas dimensions to preview server: $e', _logTag);
-    }
   }
   
   // Save canvas dimensions to project metadata
@@ -235,8 +205,6 @@ class CanvasDimensionsService {
             
             logger.logInfo('Loaded canvas dimensions from project: ${width}x${height}', _logTag);
             
-            // Force sync to preview server
-            _syncDimensionsToPreviewServer();
             return;
           }
         }

@@ -11,10 +11,8 @@ import '../../services/project_database_service.dart';
 import '../../services/preview_http_service.dart';
 import '../../viewmodels/timeline_navigation_viewmodel.dart';
 import 'package:watch_it/watch_it.dart';
-import 'package:flipedit/di/service_locator.dart'; // Added for di
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart'; // Added for di
 import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart'; // For setClips
-import '../../services/preview_sync_service.dart';
 
 class MoveClipCommand implements TimelineCommand, UndoableCommand {
   final int clipId;
@@ -216,17 +214,6 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
       // _clipsNotifier.value = updatedClipModels; // Update UI - Old way
       di<TimelineStateViewModel>().setClips(updatedClipModels); // New way
       
-      // Force the preview server to refresh with explicit frame value
-      final currentFrame = _timelineNavViewModel.currentFrame;
-      // First send clip data then seek to refresh
-      di<PreviewSyncService>().sendClipsToPreviewServer();
-      
-      // Add a small delay to ensure things process in the right order
-      await Future.delayed(const Duration(milliseconds: 50));
-      
-      // Now send a clean seek command with the precise frame number
-      di<PreviewSyncService>().sendJsonMessage({'type': 'seek', 'frame': currentFrame});
-
       // Store the "after" states for serialization
       _movedClipStateAfterExecute = updatedClipModels.firstWhereOrNull((c) => c.databaseId == clipId)?.copyWith();
       for (final updatedClipModel in updatedClipModels) {
@@ -240,8 +227,9 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
         logger.logDebug('[MoveClipCommand] Timeline paused, fetching frame via HTTP...', _logTag);
         // Pass the current frame from the navigation view model
         final frameToRefresh = _timelineNavViewModel.currentFrame;
-        logger.logDebug('[MoveClipCommand] Attempting to refresh frame $frameToRefresh via HTTP', _logTag);
-        await _previewHttpService.fetchAndUpdateFrame(frameToRefresh);
+        // logger.logDebug('[MoveClipCommand] Attempting to refresh frame $frameToRefresh via HTTP', _logTag);
+        // await _previewHttpService.fetchAndUpdateFrame(frameToRefresh); // Removed
+        logger.logDebug('[MoveClipCommand] Timeline paused. Frame refresh via HTTP removed, video player will update.', _logTag);
       }
 
       logger.logInfo(
@@ -296,29 +284,11 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
           log: true,
         );
         
-        // Longer pause to ensure database update completes
-        await Future.delayed(const Duration(milliseconds: 100));
-        
-        // Force preview sync with direct clip send
-        di<PreviewSyncService>().sendClipsToPreviewServer();
-
-        // Explicitly force a seek for the preview
-        final previewSync = di<PreviewSyncService>();
-        final currentFrame = _timelineNavViewModel.currentFrame;
-        
-        // First seek to a different frame to force a redraw
-        previewSync.sendJsonMessage({'type': 'seek', 'frame': currentFrame > 0 ? 0 : 1});
-        await Future.delayed(const Duration(milliseconds: 50));
-        
-        // Then seek back to the current frame
-        previewSync.sendJsonMessage({'type': 'seek', 'frame': currentFrame});
-        
         // One more visual update from db to ensure UI matches
         final freshClips = await _projectDatabaseService.getAllTimelineClips();
         di<TimelineStateViewModel>().setClips(freshClips);
         
-        // Another HTTP fetch to ensure preview is updated
-        await _previewHttpService.fetchAndUpdateFrame(currentFrame);
+        logger.logDebug('[MoveClipCommand][Undo] HTTP frame fetch removed, video player will update.', _logTag);
       }
     } catch (e) {
       logger.logError('[MoveClipCommand] Error during final position fix: $e', _logTag);
@@ -373,15 +343,6 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
       final freshClips = await _projectDatabaseService.getAllTimelineClips();
       di<TimelineStateViewModel>().setClips(freshClips);
 
-      // Get the current frame again to ensure we're using the most recent value
-      final currentFrame = _timelineNavViewModel.currentFrame;
-
-      // Explicitly send another seek command to completely refresh the frame
-      final seekCommand = {'type': 'seek', 'frame': currentFrame};
-      di<PreviewSyncService>().sendJsonMessage(seekCommand);
-
-      // Fetch and update the current frame in the preview panel
-      await _previewHttpService.fetchAndUpdateFrame(currentFrame);
 
       logger.logInfo(
         '[MoveClipCommand] Successfully undone move for clip $clipId',

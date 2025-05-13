@@ -2,8 +2,7 @@
 import cv2
 import numpy as np
 import logging
-import functools
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional # functools import removed
 
 # Import the services we've created
 from .timeline_state_service import TimelineStateService
@@ -11,7 +10,6 @@ from .video_source_service import VideoSourceService
 from .frame_transform_service import FrameTransformService
 from .compositing_service import CompositingService
 from .encoding_service import EncodingService
-from .frame_cache_service import FrameCacheService # For caching individual processed clip frames
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +17,7 @@ class FramePipelineService:
     """
     Orchestrates the generation of a final, encoded frame by coordinating
     various specialized services.
-    Manages a cache for fully rendered and encoded frames.
+    Frames are generated on-the-fly without caching.
     """
     def __init__(
         self,
@@ -27,48 +25,43 @@ class FramePipelineService:
         video_source_service: VideoSourceService,
         frame_transform_service: FrameTransformService,
         compositing_service: CompositingService,
-        encoding_service: EncodingService,
-        # Optional: Cache for intermediate transformed frames (output of FrameTransformService)
-        intermediate_frame_cache_service: Optional[FrameCacheService] = None, 
-        # Cache for final rendered & encoded frames (output of EncodingService)
-        final_frame_cache_max_entries: int = 256 
+        encoding_service: EncodingService
+        # intermediate_frame_cache_service parameter removed
+        # final_frame_cache_max_entries parameter removed
     ):
         self.timeline_state_service = timeline_state_service
         self.video_source_service = video_source_service
         self.frame_transform_service = frame_transform_service
         self.compositing_service = compositing_service
         self.encoding_service = encoding_service
-        self.intermediate_frame_cache = intermediate_frame_cache_service
+        # self.intermediate_frame_cache attribute removed
+        # self._final_frame_lru_cache attribute removed
+        self._debug_verbose = False  # Flag to control detailed debug output
+        logger.info("FramePipelineService initialized (no caching).")
 
-        # LRU Cache for final rendered (encoded) frames
-        # Key: Hashable timeline state from TimelineStateService + frame_index
-        # Value: Encoded frame (bytes)
-        self._final_frame_lru_cache = functools.lru_cache(maxsize=final_frame_cache_max_entries)(
-            self._generate_and_encode_frame_for_caching
-        )
-        logger.info("FramePipelineService initialized.")
+    def set_debug_verbosity(self, verbose: bool):
+        """Set debug verbosity level"""
+        self._debug_verbose = verbose
+        logger.info(f"FramePipelineService debug verbosity set to: {verbose}")
 
-    def _generate_and_encode_frame_for_caching(
-        self, 
-        frame_index: int, 
-        timeline_state_hashable: tuple # From TimelineStateService
+    def _generate_and_encode_frame( # Renamed from _generate_and_encode_frame_for_caching
+        self,
+        frame_index: int
+        # timeline_state_hashable parameter removed
     ) -> Optional[bytes]:
         """
         Internal method that performs the actual frame generation and encoding.
-        This method's results are cached by _final_frame_lru_cache.
-        The timeline_state_hashable ensures that if the timeline changes,
-        the cache key changes.
+        Called directly by get_encoded_frame.
         """
-        # Unpack relevant parts from the hashable state if needed, or rely on
-        # the TimelineStateService instance to have the current state.
-        # For this example, we'll use the instance directly.
+        # Use the TimelineStateService instance directly to get current state.
         canvas_width = self.timeline_state_service.canvas_width
         canvas_height = self.timeline_state_service.canvas_height
         current_videos = self.timeline_state_service.current_videos
         total_frames = self.timeline_state_service.total_frames # Overall timeline duration
         
-        # Debug information - log info about the timeline state
-        logger.info(f"[DEBUG] Processing frame {frame_index} with canvas {canvas_width}x{canvas_height}, {len(current_videos)} clips")
+        # Log only periodically to reduce log volume
+        if frame_index % 30 == 0 or self._debug_verbose:
+            logger.info(f"Processing frame {frame_index} with canvas {canvas_width}x{canvas_height}, {len(current_videos)} clips")
         
         # Pre-process clips - check for small preview dimensions and update them
         for i, clip in enumerate(current_videos):
@@ -81,16 +74,20 @@ class FramePipelineService:
             if (preview_width is not None and preview_height is not None and 
                 (preview_width <= 100 or preview_height <= 100)):
                 # Update with canvas dimensions
-                logger.info(f"[DEBUG] Updating small clip dimensions ({preview_width}x{preview_height}) to canvas dimensions for clip {clip_id}")
+                if self._debug_verbose:
+                    logger.info(f"Updating small clip dimensions ({preview_width}x{preview_height}) to canvas dimensions for clip {clip_id}")
                 clip['previewWidth'] = canvas_width
                 clip['previewHeight'] = canvas_height
             
-            preview_width = clip.get('previewWidth')
-            preview_height = clip.get('previewHeight') 
-            logger.info(f"[DEBUG] Clip {i} (ID: {clip_id}, Path: {clip_path}) has dimensions: previewWidth={preview_width}, previewHeight={preview_height}")
+            # Only log clip details in verbose mode
+            if self._debug_verbose:
+                preview_width = clip.get('previewWidth')
+                preview_height = clip.get('previewHeight') 
+                logger.info(f"Clip {i} (ID: {clip_id}, Path: {clip_path}) has dimensions: previewWidth={preview_width}, previewHeight={preview_height}")
 
         if not current_videos:
-            logger.debug(f"No videos in timeline for frame {frame_index}. Generating blank frame.")
+            if self._debug_verbose:
+                logger.debug(f"No videos in timeline for frame {frame_index}. Generating blank frame.")
             blank_canvas = self.compositing_service.create_blank_canvas(canvas_width, canvas_height)
             # Add "No videos loaded" text or similar
             cv2.putText(blank_canvas, f"No Clips (F:{frame_index})", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200,200,200),1)
@@ -122,54 +119,22 @@ class FramePipelineService:
             current_source_frame_index = source_start_frame + frame_offset_in_clip
             
             transformed_frame_data = None
-            intermediate_cache_key = None
+            # intermediate_cache logic removed
 
-            if self.intermediate_frame_cache:
-                # Key needs to be unique for the source frame AND its specific transformations
-                # This could include video_path, current_source_frame_index, and a hash of relevant transform properties.
-                # Use new direct transform properties for the cache key.
-                pos_x = clip_info.get('previewPositionX') # Using camelCase as per db_access.py output
-                pos_y = clip_info.get('previewPositionY')
-                width = clip_info.get('previewWidth')
-                height = clip_info.get('previewHeight')
-                # Still consider flip if it's a separate property, e.g., from metadata
-                flip_val = clip_info.get('metadata',{}).get('flip', None)
-                
-                # Create a stable tuple for the cache key part
-                transform_tuple = (
-                    f"{pos_x:.2f}" if pos_x is not None else "None",
-                    f"{pos_y:.2f}" if pos_y is not None else "None",
-                    f"{width:.2f}" if width is not None else "None",
-                    f"{height:.2f}" if height is not None else "None",
-                )
+            # Always generate frame, no caching lookup
+            raw_frame = self.video_source_service.get_frame(video_path, current_source_frame_index)
+            if raw_frame is None:
+                logger.warning(f"Could not get raw frame {current_source_frame_index} from {video_path}")
+                continue
 
-                intermediate_cache_key = f"{video_path}:{current_source_frame_index}:{transform_tuple}:{flip_val}"
-                cached_intermediate_frame_data_tuple = self.intermediate_frame_cache.get_frame(intermediate_cache_key)
-                if cached_intermediate_frame_data_tuple:
-                    if isinstance(cached_intermediate_frame_data_tuple, tuple) and len(cached_intermediate_frame_data_tuple) == 5:
-                        transformed_frame_data = cached_intermediate_frame_data_tuple
-                        logger.debug(f"Intermediate cache HIT for {intermediate_cache_key}")
-
-
-            if transformed_frame_data is None:
-                raw_frame = self.video_source_service.get_frame(video_path, current_source_frame_index)
-                if raw_frame is None:
-                    logger.warning(f"Could not get raw frame {current_source_frame_index} from {video_path}")
-                    continue
-                
-                # Transform frame
-                processed_frame, x, y, w, h = self.frame_transform_service.transform_frame(
-                    raw_frame, clip_info, canvas_width, canvas_height
-                )
-                if processed_frame is None:
-                    logger.warning(f"Failed to transform frame {current_source_frame_index} from {video_path}")
-                    continue
-                transformed_frame_data = (processed_frame, x, y, w, h)
-
-                if self.intermediate_frame_cache and intermediate_cache_key:
-                    # Cache the tuple (processed_frame, x, y, w, h)
-                    self.intermediate_frame_cache.put_frame(intermediate_cache_key, transformed_frame_data) 
-                    logger.debug(f"Intermediate cache PUT for {intermediate_cache_key}")
+            # Transform frame
+            processed_frame, x, y, w, h = self.frame_transform_service.transform_frame(
+                raw_frame, clip_info, canvas_width, canvas_height
+            )
+            if processed_frame is None:
+                logger.warning(f"Failed to transform frame {current_source_frame_index} from {video_path}")
+                continue
+            transformed_frame_data = (processed_frame, x, y, w, h)
 
 
             if transformed_frame_data is not None: # Check if processed_frame is valid
@@ -192,26 +157,25 @@ class FramePipelineService:
     def get_encoded_frame(self, frame_index: int) -> Optional[bytes]:
         """
         Retrieves an encoded (JPEG) frame for the given timeline frame_index.
-        Uses the LRU cache for final frames.
+        Generates the frame on-the-fly.
         """
-        # Get the current hashable state of the timeline
-        # This state includes canvas dimensions, total_frames, and a hashable
-        # representation of all video clips and their relevant properties.
-        current_timeline_hash = self.timeline_state_service.get_hashable_timeline_state()
-        
-        # The LRU cache uses frame_index and the timeline_state_hash as its key parts.
-        return self._final_frame_lru_cache(frame_index, current_timeline_hash)
+        # timeline_state_hashable is no longer used as caching is removed.
+        # Directly call the internal generation method.
+        # current_timeline_hash = self.timeline_state_service.get_hashable_timeline_state() # Removed
+        return self._generate_and_encode_frame(frame_index) # Removed current_timeline_hash
 
     def clear_all_caches(self):
-        """Clears all underlying caches."""
-        logger.info("Clearing all caches in FramePipelineService.")
-        self._final_frame_lru_cache.cache_clear()
-        if self.intermediate_frame_cache:
-            self.intermediate_frame_cache.clear_cache()
-        # Services below pipeline usually manage their own caches if needed (e.g. VideoSourceService)
-        # but we can call them explicitly if direct control is desired.
-        self.video_source_service.clear_cache() 
-        # TimelineStateService might have internal caches for its hashing, clear them too.
+        """
+        Clears caches in underlying services.
+        FramePipelineService itself no longer has direct caches.
+        """
+        logger.info("Clearing caches in underlying services for FramePipelineService.")
+        # self._final_frame_lru_cache.cache_clear() # Removed
+        # if self.intermediate_frame_cache: # Removed
+            # self.intermediate_frame_cache.clear_cache() # Removed
+        
+        # Services below pipeline usually manage their own caches if needed
+        self.video_source_service.clear_cache()
         self.timeline_state_service.clear_caches()
 
 
@@ -224,11 +188,10 @@ if __name__ == '__main__':
     frame_transform = FrameTransformService()
     compositing = CompositingService()
     encoding = EncodingService()
-    intermediate_cache = FrameCacheService(max_cache_entries=50) # Cache for transformed clip frames
 
     pipeline = FramePipelineService(
-        timeline_state, video_source, frame_transform, 
-        compositing, encoding, intermediate_cache
+        timeline_state, video_source, frame_transform,
+        compositing, encoding # intermediate_cache removed from arguments
     )
 
     # Create a dummy video file for VideoSourceService if it doesn't exist
@@ -279,15 +242,23 @@ if __name__ == '__main__':
         assert encoded_frame == encoded_frame_cached
 
     # Change timeline state (e.g., a clip's previewRect)
-    sample_clips["metadata"]["previewRect"]["width"] = 320 
-    timeline_state.update_timeline_data(sample_clips, 90) # This changes the timeline_state_hash
+    # Note: The original test for cache invalidation by changing timeline_state_hash
+    # is less relevant now as caching is removed. Frames are always regenerated.
+    # We can still test that getting a frame after a state change works.
+    if sample_clips: # Ensure sample_clips is not empty before trying to modify
+        sample_clips[0]["metadata"]["previewRect"]["width"] = 320 # Corrected to access first element
+        timeline_state.update_timeline_data(sample_clips, 90)
 
     encoded_frame_after_change = pipeline.get_encoded_frame(target_frame_idx)
     if encoded_frame_after_change:
         logger.info(f"Got encoded frame {target_frame_idx} after change. Size: {len(encoded_frame_after_change)} bytes.")
-        assert encoded_frame != encoded_frame_after_change # Should be different due to re-render
+        # The assertion encoded_frame != encoded_frame_after_change might still hold if the content changed.
+        # If only metadata changed that didn't affect the visual output of frame 35, they could be identical.
+        # For simplicity, we'll assume the change *does* alter the frame.
+        if encoded_frame and encoded_frame_after_change: # Ensure both exist before comparing
+             assert encoded_frame != encoded_frame_after_change, "Frame content should differ after state change affecting visuals."
 
-    pipeline.clear_all_caches()
+    pipeline.clear_all_caches() # This now clears underlying service caches
     logger.info("FramePipelineService test complete.")
 
     # if os.path.exists(dummy_video_path):

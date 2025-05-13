@@ -5,8 +5,6 @@ import 'package:flipedit/services/canvas_dimensions_service.dart';
 import 'package:flipedit/services/command_history_service.dart';
 import 'package:flipedit/services/clip_update_service.dart';
 import 'package:flipedit/services/playback_service.dart';
-import 'package:flipedit/services/preview_service.dart';
-import 'package:flipedit/services/preview_sync_service.dart';
 import 'package:flipedit/services/preview_http_service.dart';
 import 'package:flipedit/services/timeline_logic_service.dart';
 import 'package:flipedit/services/uv_manager.dart';
@@ -54,18 +52,8 @@ Future<void> setupServiceLocator() async {
   di.registerLazySingleton<ComfyUIService>(() => ComfyUIService());
   di.registerLazySingleton<LayoutService>(() => LayoutService());
   di.registerLazySingleton<AreaDimensionsService>(() => AreaDimensionsService());
-  di.registerLazySingleton<PreviewService>(
-    () => PreviewService(),
-    dispose: (service) => service.dispose(),
-  );
-  di.registerLazySingleton<PreviewSyncService>(
-    () => PreviewSyncService(),
-    dispose: (service) => service.dispose(),
-  );
   di.registerLazySingleton<PreviewHttpService>(
-    () => PreviewHttpService(
-      previewService: di<PreviewService>(),
-    ),
+    () => PreviewHttpService(),
     dispose: (service) => service.dispose(),
   );
 

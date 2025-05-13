@@ -3,7 +3,7 @@ import 'dart:ui'; // Import for Size class
 
 import 'package:flipedit/viewmodels/editor_viewmodel.dart'; // For EditorViewModel
 import 'package:flipedit/views/widgets/inspector/inspector_panel.dart'; // For InspectorPanel finder
-import 'package:flipedit/views/widgets/preview/preview_panel.dart'; // For PreviewPanel finder
+import 'package:flipedit/views/widgets/player/player_panel.dart'; // For PlayerPanel finder
 import 'package:watch_it/watch_it.dart'; // For di
 
 import 'package:flipedit/app.dart';
@@ -92,10 +92,10 @@ void main() {
     await testPanelToggleViaViewMenu(
       tester: tester,
       editorVm: editorVm,
-      panelName: 'Preview',
-      isVisibleGetter: () => editorVm.isPreviewVisible,
+      panelName: 'Player', // Updated panel name
+      isVisibleGetter: () => editorVm.isPreviewVisible, // ViewModel property is still isPreviewVisible
       viewMenuButtonFinder: viewMenuButtonFinder,
-      panelWidgetFinder: find.byType(PreviewPanel),
+      panelWidgetFinder: find.byType(PlayerPanel), // Updated to PlayerPanel
     );
     print('--- View Menu Toggles Tested ---');
 

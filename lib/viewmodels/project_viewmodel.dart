@@ -93,12 +93,7 @@ class ProjectViewModel {
     await loadProjectCommand.execute(projectId);
     const int initialFrameIndex = 0;
     try {
-      final previewHttpService = di<PreviewHttpService>();
-      // Pass the desired frame index
-      await previewHttpService.fetchAndUpdateFrame(initialFrameIndex);
-      logInfo('Initial frame ($initialFrameIndex) fetched via HTTP after loading project $projectId', _logTag);
       
-      // Explicitly set the timeline navigation to the initial frame to ensure consistency
       _timelineNavViewModel.currentFrame = initialFrameIndex;
       logInfo('Set TimelineNavigationViewModel currentFrame to $initialFrameIndex', _logTag);
 

@@ -105,8 +105,9 @@ class UvManager {
         'Running Python video stream server script: $scriptPath',
       );
 
-      // Attempt to kill any existing process on the target port before starting
-      await _killProcessOnPort(8080);
+      // Attempt to kill any existing processes on the target ports before starting
+      await _killProcessOnPort(8080); // WebSocket server port
+      await _killProcessOnPort(8085); // HTTP streaming server port
 
       // Run the script in a separate process without waiting for it to finish
       // since it's a long-running server

@@ -3,13 +3,18 @@ import argparse
 import logging
 import sys
 
+def get_argument_parser():
+    """Creates and returns the ArgumentParser for base server arguments."""
+    parser = argparse.ArgumentParser(description="FlipEdit Video Stream Server", add_help=False)
+    parser.add_argument('--ws-port', type=int, default=DEFAULT_WS_PORT, help='WebSocket server port')
+    parser.add_argument('--http-port', type=int, default=DEFAULT_HTTP_PORT, help='HTTP server port')
+    parser.add_argument('--host', type=str, default=DEFAULT_HOST, help='Host to bind to')
+    parser.add_argument('--debug', action='store_true', help='Enable debug logging for base server')
+    return parser
+
 def parse_args():
-    """Parse command-line arguments for the server"""
-    parser = argparse.ArgumentParser(description="FlipEdit Video Stream Server")
-    parser.add_argument('--ws-port', type=int, default=8080, help='WebSocket server port')
-    parser.add_argument('--http-port', type=int, default=8081, help='HTTP server port')
-    parser.add_argument('--host', type=str, default='0.0.0.0', help='Host to bind to')
-    parser.add_argument('--debug', action='store_true', help='Enable debug logging')
+    """Parse command-line arguments for the server using the base parser."""
+    parser = get_argument_parser()
     return parser.parse_args()
 
 def configure_logging(args=None):

@@ -2,7 +2,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:docking/docking.dart';
 import 'package:flipedit/views/widgets/inspector/inspector_panel.dart';
 import 'package:flipedit/views/widgets/timeline/timeline.dart';
-import 'package:flipedit/views/widgets/preview/preview_panel.dart';
+import 'package:flipedit/views/widgets/player/player_panel.dart'; // Added
 import 'package:flipedit/utils/logger.dart';
 import 'package:flipedit/services/area_dimensions_service.dart';
 import 'package:watch_it/watch_it.dart';
@@ -494,9 +494,9 @@ class EditorLayoutViewModel with LayoutParserMixin, AreaBuilderMixin {
   DockingItem _buildPreviewItem({double? weight, bool maximized = false, double? size}) {
     return DockingItem(
       id: 'preview',
-      name: 'Preview',
+      name: 'Player',
       maximizable: false,
-      widget: const PreviewPanel(),
+      widget: const PlayerPanel(),
       weight: weight,
       maximized: maximized,
       size: size,

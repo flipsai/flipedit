@@ -1,212 +1,242 @@
 # assets/preview_server.py
-from flask import Flask, Response, jsonify, abort, request
+from flask import Flask, Response, jsonify, abort, request, send_file
 import logging
 import traceback
 import threading
-import queue
 import time
 from functools import wraps
 import os
 import media_utils  # Add import for media_utils
+import numpy as np # Added for error frame generation
+import cv2 # Added for error frame generation
+from werkzeug.serving import run_simple
 
 # Assume FrameGenerator and TimelineManager are passed in or accessible
 # We'll refine how these are accessed when integrating with main.py
 
 logger = logging.getLogger('preview_server')
 
-# Global request queue and processor
-request_queue = queue.Queue(maxsize=20)  # Limit queue size
-request_processing_lock = threading.Lock()
-MAX_CONCURRENT_REQUESTS = 2  # Maximum number of concurrent requests to process
-active_requests = 0
-
-def queue_request(timeout=10):
-    """Decorator to queue incoming requests to avoid overloading the server."""
-    def decorator(f):
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
-            global active_requests
-            
-            # Check if request should be queued
-            with request_processing_lock:
-                if active_requests >= MAX_CONCURRENT_REQUESTS:
-                    try:
-                        logger.info(f"Queueing request: {request.path} (active: {active_requests})")
-                        # Create a task for the queue
-                        task = {
-                            "func": f,
-                            "args": args,
-                            "kwargs": kwargs,
-                            "result_queue": queue.Queue()
-                        }
-                        
-                        # Try to put in queue with timeout to avoid blocking
-                        try:
-                            request_queue.put(task, block=True, timeout=timeout)
-                        except queue.Full:
-                            logger.error("Request queue full, rejecting request")
-                            abort(503, description="Server too busy, try again later")
-                        
-                        # Wait for result with timeout
-                        try:
-                            result = task["result_queue"].get(block=True, timeout=timeout)
-                            return result
-                        except queue.Empty:
-                            logger.error("Request processing timed out")
-                            abort(504, description="Request processing timed out") 
-                    except Exception as e:
-                        logger.error(f"Error in request queue: {e}")
-                        abort(500, description="Internal server error in request queue")
-                
-                # Process request directly if no queueing needed
-                active_requests += 1
-            
-            try:
-                return f(*args, **kwargs)
-            except Exception as e:
-                logger.error(f"Exception in request handler: {e}")
-                logger.error(traceback.format_exc())
-                abort(500, description=f"Internal server error: {str(e)}")
-            finally:
-                with request_processing_lock:
-                    active_requests -= 1
-        
-        return decorated_function
-    return decorator
-
-# Start a worker thread to process queued requests
-def process_request_queue():
-    """Worker function to process queued requests."""
-    global active_requests
-    
-    while True:
-        try:
-            # Get a task from the queue
-            task = request_queue.get(block=True)
-            
-            # Wait until we can process the request
-            can_process = False
-            while not can_process:
-                with request_processing_lock:
-                    if active_requests < MAX_CONCURRENT_REQUESTS:
-                        active_requests += 1
-                        can_process = True
-                
-                if not can_process:
-                    time.sleep(0.1)  # Wait a bit before checking again
-            
-            # Process the request
-            try:
-                result = task["func"](*task["args"], **task["kwargs"])
-                task["result_queue"].put(result)
-            except Exception as e:
-                logger.error(f"Error processing queued request: {e}")
-                logger.error(traceback.format_exc())
-                task["result_queue"].put(jsonify({"error": str(e)}), 500)
-            finally:
-                with request_processing_lock:
-                    active_requests -= 1
-                
-                request_queue.task_done()
-        
-        except Exception as e:
-            logger.error(f"Error in request queue processor: {e}")
-            logger.error(traceback.format_exc())
-            time.sleep(1)
+# Request queuing mechanism removed for simplification.
 
 def create_preview_server(frame_pipeline_service, timeline_manager, timeline_state_service):
     """Creates the Flask application instance."""
     app = Flask(__name__)
-    app.config['FRAME_PIPELINE_SERVICE'] = frame_pipeline_service 
-    app.config['TIMELINE_MANAGER'] = timeline_manager 
-    app.config['TIMELINE_STATE_SERVICE'] = timeline_state_service 
+    app.config['FRAME_PIPELINE_SERVICE'] = frame_pipeline_service
+    app.config['TIMELINE_MANAGER'] = timeline_manager
+    app.config['TIMELINE_STATE_SERVICE'] = timeline_state_service
     app.config['LAST_TIMELINE_REFRESH_TIME'] = 0
     app.config['TIMELINE_REFRESH_INTERVAL'] = 1.0
-    
-    # Start the request queue processor thread
-    queue_processor_thread = threading.Thread(
-        target=process_request_queue,
-        daemon=True
-    )
-    queue_processor_thread.start()
 
-    @app.route('/get_frame/<int:frame_index>', methods=['GET'])
-    @queue_request(timeout=15)
-    def get_frame_route(frame_index):
+    # Removed /get_frame/<int:frame_index> endpoint
+
+    @app.route('/stream')
+    def stream_route():
         """
-        Endpoint to get a specific frame based on the timeline state.
+        Endpoint to stream video frames as MJPEG.
         """
+        # Capture request parameters outside the generator function
+        start_frame = request.args.get('start_frame', default=0, type=int)
+        
+        frame_pipeline_service = app.config['FRAME_PIPELINE_SERVICE']
+        timeline_state_service = app.config['TIMELINE_STATE_SERVICE']
+        timeline_manager = app.config['TIMELINE_MANAGER']
+
+        def generate_frames(frame_index):
+            logger.info(f"Stream starting at frame: {frame_index}")
+            # Potentially refresh timeline once at the start of the stream
+            # or rely on external updates to TimelineStateService
+            try:
+                timeline_manager.refresh_from_database()
+                refreshed_manager_state = timeline_manager.get_timeline_state()
+                if refreshed_manager_state:
+                    timeline_state_service.update_timeline_data(
+                        videos=refreshed_manager_state.get("videos", []),
+                        total_frames=refreshed_manager_state.get("total_frames", 0),
+                        frame_rate=refreshed_manager_state.get("frame_rate", 30.0)  # Use default 30.0 if not available
+                    )
+                    # Assuming canvas dimensions are also updated or set appropriately
+                    # frame_pipeline_service.clear_all_caches() # Caches are removed from pipeline
+                    logger.info("Stream: Initial timeline refresh for stream.")
+                else:
+                    logger.warning("Stream: Could not get initial timeline state for stream.")
+            except Exception as e:
+                logger.error(f"Stream: Error during initial timeline refresh: {e}")
+
+
+            while True:
+                # TODO: Add a mechanism to stop streaming or check client connection
+                # For now, it streams indefinitely or until an error.
+                # Consider if timeline needs periodic refresh during long streams,
+                # or if updates to TimelineStateService from other sources (e.g., main loop) are sufficient.
+
+                try:
+                    # The FramePipelineService now generates frames on-the-fly
+                    frame_bytes = frame_pipeline_service.get_encoded_frame(frame_index)
+
+                    if frame_bytes:
+                        yield (b'--frame\\r\\n'
+                               b'Content-Type: image/jpeg\\r\\n'
+                               b'Content-Length: ' + str(len(frame_bytes)).encode() + b'\\r\\n'
+                               b'\\r\\n' + frame_bytes + b'\\r\\n') # Ensure trailing \\r\\n
+                        logger.debug(f"Stream: Sent frame {frame_index}")
+                    else:
+                        # Create a blank frame or error frame if generation fails
+                        logger.warning(f"Stream: Frame {frame_index} could not be generated by pipeline.")
+                        canvas_width = timeline_state_service.canvas_width or 640
+                        canvas_height = timeline_state_service.canvas_height or 360
+                        blank_frame = np.zeros((canvas_height, canvas_width, 3), dtype=np.uint8)
+                        cv2.putText(blank_frame, f"Error F:{frame_index}", (10,30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 2)
+                        ret, error_frame_encoded = cv2.imencode('.jpg', blank_frame)
+                        if ret and error_frame_encoded is not None:
+                             error_frame_bytes = error_frame_encoded.tobytes()
+                             yield (b'--frame\\r\\n'
+                                   b'Content-Type: image/jpeg\\r\\n'
+                                   b'Content-Length: ' + str(len(error_frame_bytes)).encode() + b'\\r\\n'
+                                   b'\\r\\n' + error_frame_bytes + b'\\r\\n') # Ensure trailing \\r\\n
+                        else:
+                            logger.error(f"Stream: Failed to encode error frame for frame {frame_index}")
+                            # If error frame encoding fails, we might send nothing or break.
+                            # For now, let's skip sending a frame if error encoding fails.
+                            pass
+
+
+                    frame_index += 1
+                    # Reset frame_index if it exceeds total_frames (looping behavior)
+                    # This depends on desired behavior - for live preview, it might just keep going
+                    # or stop when timeline_state_service indicates playback stopped.
+                    current_total_frames = timeline_state_service.total_frames
+                    if current_total_frames > 0 and frame_index >= current_total_frames:
+                        frame_index = 0 # Loop the stream for now
+                    
+                    time.sleep(1 / (timeline_state_service.frame_rate or 30.0)) # Adjust to actual frame rate
+
+                except Exception as e:
+                    logger.error(f"Stream: Error generating or sending frame {frame_index}: {e}")
+                    logger.error(traceback.format_exc())
+                    # Decide how to handle stream errors: break, send error frame, etc.
+                    # For now, let's break the loop, which will end the stream for this client.
+                    break
+        
+        return Response(generate_frames(start_frame), mimetype='multipart/x-mixed-replace; boundary=frame')
+        
+    @app.route('/video_stream')
+    def video_stream_route():
+        """
+        Endpoint to stream video frames directly as an HTTP stream.
+        This is a simplified approach that doesn't create temporary files.
+        """
+        # Capture request parameters
+        start_frame = request.args.get('start_frame', default=0, type=int)
+        duration_seconds = request.args.get('duration', default=10, type=int)  # Default 10 seconds of video
+        
+        frame_pipeline_service = app.config['FRAME_PIPELINE_SERVICE']
+        timeline_state_service = app.config['TIMELINE_STATE_SERVICE']
+        timeline_manager = app.config['TIMELINE_MANAGER']
+        
+        # Refresh timeline data
         try:
-            logger.info(f"Processing HTTP request for frame: {frame_index}")
-            
-            # Get new services from app.config
-            current_pipeline_service = app.config['FRAME_PIPELINE_SERVICE']
-            current_timeline_manager = app.config['TIMELINE_MANAGER'] # Still used for DB refresh
-            current_timeline_state_service = app.config['TIMELINE_STATE_SERVICE']
-
-            current_time = time.time()
-            last_refresh_time = app.config['LAST_TIMELINE_REFRESH_TIME']
-            refresh_interval = app.config['TIMELINE_REFRESH_INTERVAL']
-            
-            # Check if a refresh from DB is needed for this HTTP endpoint's perspective
-            # The WebSocket path might have more up-to-date info in TimelineStateService already.
-            # This refresh ensures this HTTP endpoint can also trigger DB reads if it's been a while.
-            if current_time - last_refresh_time > refresh_interval:
-                logger.info("HTTP endpoint: Refresh interval elapsed. Refreshing timeline from database.")
-                current_timeline_manager.refresh_from_database()
-                refreshed_manager_state = current_timeline_manager.get_timeline_state()
-                
-                if not refreshed_manager_state:
-                    logger.error("TimelineManager did not provide timeline state after refresh.")
-                    abort(500, description="Could not retrieve timeline state from TimelineManager.")
-                
-                # Update the shared TimelineStateService with this refreshed data
-                current_timeline_state_service.update_timeline_data(
+            timeline_manager.refresh_from_database()
+            refreshed_manager_state = timeline_manager.get_timeline_state()
+            if refreshed_manager_state:
+                timeline_state_service.update_timeline_data(
                     videos=refreshed_manager_state.get("videos", []),
-                    total_frames=refreshed_manager_state.get("total_frames", 0)
+                    total_frames=refreshed_manager_state.get("total_frames", 0),
+                    frame_rate=refreshed_manager_state.get("frame_rate", 30.0)
                 )
-                # Note: Canvas dimensions are typically updated via WebSocket.
-                # If HTTP needs to ensure default/latest, it could call:
-                # current_timeline_state_service.update_canvas_dimensions(default_w, default_h)
-                
-                app.config['LAST_TIMELINE_REFRESH_TIME'] = current_time
-                
-                # Clear pipeline caches as timeline data has potentially changed significantly
-                current_pipeline_service.clear_all_caches()
-                logger.info("HTTP endpoint: Timeline refreshed from DB, TimelineStateService updated, and FramePipelineService caches cleared.")
-            
-            # FramePipelineService will use the (potentially just updated) TimelineStateService
-            # for its source of truth regarding videos, total_frames, and canvas dimensions.
-            logger.debug(f"HTTP endpoint: Requesting frame {frame_index} from FramePipelineService.")
-            frame_bytes = current_pipeline_service.get_encoded_frame(frame_index)
-
-            if frame_bytes:
-                logger.info(f"HTTP endpoint: Successfully generated frame {frame_index}")
-                # Return the frame as JPEG image
-                return Response(frame_bytes, mimetype='image/jpeg')
+                logger.info("Video Stream: Initial timeline refresh for stream.")
             else:
-                logger.warning(f"HTTP endpoint: FramePipelineService returned None for frame {frame_index}")
-                # Return a 404 or a blank image? Let's return 404 for now.
-                abort(404, description=f"Frame {frame_index} could not be generated.")
-
+                logger.warning("Video Stream: Could not get initial timeline state for stream.")
         except Exception as e:
-            logger.error(f"HTTP endpoint: Error generating frame {frame_index}: {e}")
-            logger.error(traceback.format_exc()) # Log the full traceback
-            abort(500, description="Internal server error generating frame.")
+            logger.error(f"Video Stream: Error during initial timeline refresh: {e}")
+            return jsonify({"error": f"Failed to refresh timeline: {str(e)}"}), 500
+        
+        # Get frame rate
+        frame_rate = timeline_state_service.frame_rate or 30.0
+        
+        def generate_frames():
+            """Generate frames for streaming."""
+            frame_index = start_frame
+            frame_count = 0
+            max_frames = int(duration_seconds * frame_rate)
             
+            logger.info(f"Starting direct stream from frame {start_frame} for {duration_seconds} seconds")
+            
+            while frame_count < max_frames:
+                try:
+                    # Get frame from pipeline
+                    frame_bytes = frame_pipeline_service.get_encoded_frame(frame_index)
+                    
+                    if frame_bytes:
+                        # Ensure proper MIME multipart formatting with clear boundaries
+                        # The boundary must be consistent and properly formatted
+                        frame_data = (
+                            b'--frame\r\n'
+                            b'Content-Type: image/jpeg\r\n'
+                            b'Content-Length: ' + str(len(frame_bytes)).encode() + b'\r\n'
+                            b'\r\n' + frame_bytes + b'\r\n'
+                        )
+                        yield frame_data
+                    else:
+                        # Create a blank frame if generation fails
+                        canvas_width = timeline_state_service.canvas_width or 1920
+                        canvas_height = timeline_state_service.canvas_height or 1080
+                        blank_frame = np.zeros((canvas_height, canvas_width, 3), dtype=np.uint8)
+                        cv2.putText(blank_frame, f"Error F:{frame_index}", (10,30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 2)
+                        error_frame_bytes, _ = cv2.imencode('.jpg', blank_frame)
+                        if error_frame_bytes is not None:
+                            error_bytes = error_frame_bytes.tobytes()
+                            frame_data = (
+                                b'--frame\r\n'
+                                b'Content-Type: image/jpeg\r\n'
+                                b'Content-Length: ' + str(len(error_bytes)).encode() + b'\r\n'
+                                b'\r\n' + error_bytes + b'\r\n'
+                            )
+                            yield frame_data
+                    
+                    frame_count += 1
+                    frame_index += 1
+                    
+                    # Loop back to start if we reach the end of the timeline
+                    current_total_frames = timeline_state_service.total_frames
+                    if current_total_frames > 0 and frame_index >= current_total_frames:
+                        frame_index = 0
+                        
+                    # Frame rate control removed; client should handle display rate.
+                    # time.sleep(1.0 / frame_rate)
+                    
+                except Exception as e:
+                    logger.error(f"Error generating frame {frame_index}: {e}")
+                    logger.error(traceback.format_exc())
+                    # Continue to next frame on error
+                    frame_count += 1
+                    frame_index += 1
+                    time.sleep(1.0 / frame_rate)
+        
+        # Return a multipart response with JPEG frames
+        response = Response(
+            generate_frames(),
+            mimetype='multipart/x-mixed-replace; boundary=frame'
+        )
+        
+        # Set additional headers to ensure proper streaming
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        response.headers['Connection'] = 'keep-alive'
+        
+        return response
+
     @app.route('/health', methods=['GET'])
     def health_check():
         """Basic health check endpoint."""
         # Include queue stats in health check
         return jsonify({
-            "status": "ok",
-            "queue_size": request_queue.qsize(),
-            "active_requests": active_requests,
-            "max_concurrent": MAX_CONCURRENT_REQUESTS
+            "status": "ok"
+            # Removed queue stats as queue is removed
         })
         
     @app.route('/debug/timeline', methods=['GET'])
-    @queue_request(timeout=10)  # Queue with a 10-second timeout
+    # @queue_request decorator removed
     def debug_timeline():
         """Debug endpoint to view the current timeline state."""
         try:
@@ -244,15 +274,84 @@ def create_preview_server(frame_pipeline_service, timeline_manager, timeline_sta
                 "total_frames": timeline_state.get("total_frames"),
                 "frame_rate": timeline_state.get("frame_rate"),
                 "clips_count": len(videos),
-                "clips": clips_info,
-                "queue_stats": {
-                    "queue_size": request_queue.qsize(),
-                    "active_requests": active_requests
-                }
+                "clips": clips_info
+                # Removed queue_stats as queue is removed
             })
             
         except Exception as e:
             logger.error(f"Error in debug timeline endpoint: {e}")
+            logger.error(traceback.format_exc())
+            return jsonify({"error": str(e)}), 500
+
+    @app.route('/api/timeline/update', methods=['POST'])
+    def update_timeline_route():
+        """
+        Endpoint to update the timeline.
+        Expects JSON data: {"videos": [...]}
+        """
+        # Add debug logging to help diagnose issues
+        logger.info(f"Received timeline update request with content type: {request.content_type}")
+        try:
+            data = request.get_json()
+            if not data or 'videos' not in data:
+                return jsonify({"error": "Missing 'videos' in JSON payload"}), 400
+
+            video_data = data['videos']
+            
+            timeline_manager = app.config['TIMELINE_MANAGER']
+            timeline_state_service = app.config['TIMELINE_STATE_SERVICE']
+
+            # Update TimelineManager
+            timeline_manager.handle_message_updates(video_data)
+            logger.info("TimelineManager updated via HTTP API.")
+
+            # Get the updated state from TimelineManager
+            updated_timeline_manager_state = timeline_manager.get_timeline_state()
+
+            # Push this updated state to TimelineStateService
+            if updated_timeline_manager_state:
+                timeline_state_service.update_timeline_data(
+                    videos=updated_timeline_manager_state.get("videos", []),
+                    total_frames=updated_timeline_manager_state.get("total_frames", 0),
+                    frame_rate=updated_timeline_manager_state.get("frame_rate", 30.0)  # Use default 30.0 if not available
+                )
+                logger.info("TimelineStateService updated via HTTP API after timeline update.")
+            else:
+                logger.warning("Could not get updated timeline state after HTTP API update.")
+
+            return jsonify({"status": "success", "message": "Timeline updated"}), 200
+
+        except Exception as e:
+            logger.error(f"Error updating timeline via HTTP API: {e}")
+            logger.error(traceback.format_exc())
+            return jsonify({"error": str(e)}), 500
+
+    @app.route('/api/canvas/dimensions', methods=['POST'])
+    def update_canvas_dimensions_route():
+        """
+        Endpoint to update canvas dimensions.
+        Expects JSON data: {"width": <int>, "height": <int>}
+        """
+        try:
+            data = request.get_json()
+            if not data or 'width' not in data or 'height' not in data:
+                return jsonify({"error": "Missing 'width' or 'height' in JSON payload"}), 400
+
+            width = data['width']
+            height = data['height']
+            
+            timeline_state_service = app.config['TIMELINE_STATE_SERVICE']
+            
+            changed = timeline_state_service.update_canvas_dimensions(width, height)
+            if changed:
+                logger.info(f"Canvas dimensions updated to {width}x{height} via HTTP API.")
+                return jsonify({"status": "success", "message": f"Canvas dimensions updated to {width}x{height}"}), 200
+            else:
+                logger.info(f"Canvas dimensions {width}x{height} received via HTTP API, but no change detected.")
+                return jsonify({"status": "success", "message": "Canvas dimensions received, no change"}), 200
+
+        except Exception as e:
+            logger.error(f"Error updating canvas dimensions via HTTP API: {e}")
             logger.error(traceback.format_exc())
             return jsonify({"error": str(e)}), 500
 
@@ -326,27 +425,43 @@ def create_preview_server(frame_pipeline_service, timeline_manager, timeline_sta
             logger.error(traceback.format_exc())
             return jsonify({"error": str(e)}), 500
 
-    # Simplified run method that uses Flask's built-in server
+    # Modified run method to use werkzeug.serving.run_simple for potentially better shutdown
     def run_server(host='0.0.0.0', port=8081):
-        """Run the Flask app with the standard development server."""
-        # Configure Flask to handle request timeout issues 
-        logger.info(f"Starting standard Flask server on {host}:{port}")
-        
+        """Run the Flask app, preferring werkzeug.serving.run_simple."""
+        logger.info(f"Attempting to start server on {host}:{port}")
         try:
-            # Use Flask's built-in server with reasonable settings for this use case
-            app.run(
-                host=host,
+            from werkzeug.serving import run_simple
+            logger.info(f"Using werkzeug.serving.run_simple to start server on {host}:{port}")
+            run_simple(
+                hostname=host,
                 port=port,
-                threaded=True,    # Enable threading for concurrent requests
-                debug=False,      # Disable debug mode in production
-                use_reloader=False # Disable auto-reloading
+                application=app,
+                threaded=True,
+                use_reloader=False,
+                use_debugger=False
             )
+        except ImportError:
+            logger.warning("werkzeug.serving.run_simple not found, falling back to app.run()")
+            try:
+                app.run(
+                    host=host,
+                    port=port,
+                    threaded=True,
+                    debug=False,
+                    use_reloader=False
+                )
+            except KeyboardInterrupt:
+                logger.info("Server (app.run) shutting down due to keyboard interrupt")
+            except Exception as e:
+                logger.error(f"Server error (app.run): {e}")
+                logger.error(traceback.format_exc())
+                time.sleep(1)
+                raise
         except KeyboardInterrupt:
-            logger.info("Server shutting down due to keyboard interrupt")
+            logger.info("Server (run_simple) shutting down due to keyboard interrupt")
         except Exception as e:
-            logger.error(f"Server error: {e}")
+            logger.error(f"Server error (run_simple): {e}")
             logger.error(traceback.format_exc())
-            # Wait a moment before raising to allow logging to complete
             time.sleep(1)
             raise
     

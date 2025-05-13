@@ -4,7 +4,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flipedit/app.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/views/widgets/inspector/inspector_panel.dart';
-import 'package:flipedit/views/widgets/preview/preview_panel.dart';
+import 'package:flipedit/views/widgets/player/player_panel.dart';
 import 'package:flipedit/views/widgets/timeline/timeline.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -259,12 +259,12 @@ void main() {
       await _testPanelToggle(
         tester: tester,
         editorVm: setup.editorVm,
-        panelName: 'Preview',
+        panelName: 'Player',
         isVisibleGetter: () => setup.editorVm.isPreviewVisible,
         viewMenuButtonFinder: setup.viewMenuButtonFinder,
-        panelWidgetFinder: find.byType(PreviewPanel),
+        panelWidgetFinder: find.byType(PlayerPanel),
       );
-      print('=== Finished Test: Preview Toggle ===\n');
+      print('=== Finished Test: Player Toggle ===\n'); // Updated log message
     },
   );
 }

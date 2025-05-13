@@ -4,7 +4,6 @@ import 'package:watch_it/watch_it.dart';
 import '../models/clip.dart';
 import '../persistence/database/project_database.dart' show Track;
 import '../services/project_database_service.dart';
-import '../services/preview_sync_service.dart';
 import '../services/canvas_dimensions_service.dart';
 import '../utils/logger.dart' as logger;
 
@@ -13,8 +12,7 @@ class TimelineStateViewModel extends ChangeNotifier {
 
   final ProjectDatabaseService _projectDatabaseService =
       di<ProjectDatabaseService>();
-  final PreviewSyncService _previewSyncService = di<PreviewSyncService>();
-  final CanvasDimensionsService _canvasDimensionsService = 
+  final CanvasDimensionsService _canvasDimensionsService =
       di<CanvasDimensionsService>();
 
   final ValueNotifier<List<ClipModel>> clipsNotifier =
@@ -90,9 +88,9 @@ class TimelineStateViewModel extends ChangeNotifier {
       // Update canvas dimensions service about clip count
       _canvasDimensionsService.updateHasClipsState(allClips.length);
       
-      _previewSyncService.sendClipsToPreviewServer(); // Sync after update
+      // _previewSyncService.sendClipsToPreviewServer(); // Sync after update - REMOVED
       logger.logDebug(
-        'Clips list updated in ViewModel (${allClips.length} clips). Notifier triggered.',
+        'Clips list updated in ViewModel (${allClips.length} clips). Notifier triggered. (Preview server sync removed)',
         _logTag,
       );
     } else {
@@ -120,10 +118,10 @@ class TimelineStateViewModel extends ChangeNotifier {
     if (contentChanged || instanceChanged) {
       clipsNotifier.value = newClipsList; // ValueNotifier will notify if its criteria are met
       _canvasDimensionsService.updateHasClipsState(newClipsList.length);
-      _previewSyncService.sendClipsToPreviewServer(); // Sync with preview server
+      // _previewSyncService.sendClipsToPreviewServer(); // Sync with preview server - REMOVED
 
       logger.logDebug(
-        'Clips list set by command. Content changed: $contentChanged, Instance changed: $instanceChanged. (${newClipsList.length} clips). Notifiers triggered.',
+        'Clips list set by command. Content changed: $contentChanged, Instance changed: $instanceChanged. (${newClipsList.length} clips). Notifiers triggered. (Preview server sync removed)',
         _logTag,
       );
       notifyListeners(); // TimelineStateViewModel (ChangeNotifier) notifies its listeners

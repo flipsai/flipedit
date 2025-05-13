@@ -19,7 +19,6 @@ import 'commands/add_track_command.dart';
 import 'package:flipedit/services/undo_redo_service.dart';
 import 'commands/roll_edit_command.dart';
 import 'package:flipedit/services/timeline_logic_service.dart';
-import 'package:flipedit/services/preview_sync_service.dart';
 import 'commands/update_clip_transform_command.dart';
 import 'package:flipedit/services/commands/undoable_command.dart'; // Added import
 import 'commands/move_clip_command.dart'; // Added import
@@ -37,17 +36,13 @@ class TimelineViewModel extends ChangeNotifier {
   final UndoRedoService _undoRedoService = di<UndoRedoService>();
   final TimelineLogicService _timelineLogicService =
       di<TimelineLogicService>(); // Needed for calculations
-  final PreviewSyncService _previewSyncService =
-      di<
-        PreviewSyncService
-      >(); // Needed by some commands directly? Review later.
   final TimelineStateViewModel _stateViewModel =
       di<TimelineStateViewModel>(); // Inject State VM
- final TimelineNavigationViewModel _navigationViewModel =
-     di<TimelineNavigationViewModel>(); // Inject Navigation VM
- final CanvasDimensionsService _canvasDimensionsService = di<CanvasDimensionsService>();
+  final TimelineNavigationViewModel _navigationViewModel =
+      di<TimelineNavigationViewModel>(); // Inject Navigation VM
+  final CanvasDimensionsService _canvasDimensionsService = di<CanvasDimensionsService>();
 
- // --- State Notifiers (Managed by this ViewModel - Interaction State Only) ---
+  // --- State Notifiers (Managed by this ViewModel - Interaction State Only) ---
 
   // Flag to track when playhead is being intentionally dragged (Interaction State)
   final ValueNotifier<bool> _isPlayheadDraggingNotifier = ValueNotifier<bool>(

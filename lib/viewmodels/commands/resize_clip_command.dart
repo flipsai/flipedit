@@ -19,16 +19,13 @@ import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 
 class ResizeClipCommand implements TimelineCommand, UndoableCommand {
   final int clipId;
-  final String direction; // 'left' or 'right'
+  final String direction;
   final int newBoundaryFrame;
 
   // Dependencies
   final ProjectDatabaseService _projectDatabaseService;
   final TimelineLogicService _timelineLogicService;
-  final PreviewSyncService _previewSyncService;
-  final PreviewHttpService _previewHttpService;
-  final TimelineNavigationViewModel _navigationViewModel;
-  final ValueNotifier<List<ClipModel>> _clipsNotifier; // To get current timeline state for neighbors
+  final ValueNotifier<List<ClipModel>> _clipsNotifier;
 
   // Core state
   // This is the state of the clip just before this command instance is supposed to act.
@@ -59,9 +56,6 @@ class ResizeClipCommand implements TimelineCommand, UndoableCommand {
     required ClipModel initialResolvedClipState, // This is the key: state before operation
     required ProjectDatabaseService projectDatabaseService,
     required TimelineLogicService timelineLogicService,
-    required PreviewSyncService previewSyncService,
-    required PreviewHttpService previewHttpService,
-    required TimelineNavigationViewModel navigationViewModel,
     required ValueNotifier<List<ClipModel>> clipsNotifier,
     // Optional: for fromJson to pass pre-loaded "old" states
     ClipModel? deserializedPersistedOldClipState,
@@ -70,9 +64,6 @@ class ResizeClipCommand implements TimelineCommand, UndoableCommand {
   })  : _initialClipState = initialResolvedClipState,
         _projectDatabaseService = projectDatabaseService,
         _timelineLogicService = timelineLogicService,
-        _previewSyncService = previewSyncService,
-        _previewHttpService = previewHttpService,
-        _navigationViewModel = navigationViewModel,
         _clipsNotifier = clipsNotifier,
         _persistedOldClipState = deserializedPersistedOldClipState,
         _persistedOldNeighborStates = deserializedPersistedOldNeighborStates,
@@ -378,13 +369,6 @@ class ResizeClipCommand implements TimelineCommand, UndoableCommand {
       
       di<TimelineStateViewModel>().setClips(updatedClipsForNotifier);
 
-
-      if (!_navigationViewModel.isPlayingNotifier.value) {
-        final frameToRefresh = _navigationViewModel.currentFrame;
-        await _previewHttpService.fetchAndUpdateFrame(frameToRefresh);
-      }
-      await _previewSyncService.sendClipsToPreviewServer();
-
     } catch (e, s) {
       logger.logError('[ResizeClipCommand] Error during execute: $e\n$s', _logTag);
       // Consider how to handle partial failure: revert optimistic UI?
@@ -458,14 +442,6 @@ class ResizeClipCommand implements TimelineCommand, UndoableCommand {
       if (_persistedOldDeletedNeighborsState != null) finalNotifierList.addAll(_persistedOldDeletedNeighborsState!);
       
       di<TimelineStateViewModel>().setClips(finalNotifierList);
-
-
-      if (!_navigationViewModel.isPlayingNotifier.value) {
-        final frameToRefresh = _navigationViewModel.currentFrame;
-        await _previewHttpService.fetchAndUpdateFrame(frameToRefresh);
-      }
-      await _previewSyncService.sendClipsToPreviewServer();
-
     } catch (e, s) {
       logger.logError('[ResizeClipCommand] Error during undo: $e\n$s', _logTag);
       rethrow;
@@ -582,9 +558,6 @@ class ResizeClipCommand implements TimelineCommand, UndoableCommand {
       initialResolvedClipState: initialForConstructor,
       projectDatabaseService: projectDatabaseService,
       timelineLogicService: timelineLogicService,
-      previewSyncService: previewSyncService,
-      previewHttpService: previewHttpService,
-      navigationViewModel: navigationViewModel,
       clipsNotifier: clipsNotifier,
       deserializedPersistedOldClipState: initialForConstructor.copyWith(),
       deserializedPersistedOldNeighborStates: originalNeighborsForConstructor,

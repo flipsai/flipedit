@@ -2,16 +2,11 @@
 import asyncio
 import signal
 import logging
-from typing import Any, List, Dict, Optional
-import threading
+from typing import Optional
 
 # Import the refactored modules
 import config
-import websocket_server
 import timeline_manager as timeline_manager_module
-# import frame_generator # Will be replaced by services
-import playback_controller
-import message_handler
 
 # Import new video services
 from video_services.timeline_state_service import TimelineStateService
@@ -19,7 +14,6 @@ from video_services.video_source_service import VideoSourceService
 from video_services.frame_transform_service import FrameTransformService
 from video_services.compositing_service import CompositingService
 from video_services.encoding_service import EncodingService
-from video_services.frame_cache_service import FrameCacheService # For intermediate frames
 from video_services.frame_pipeline_service import FramePipelineService
 import preview_server
 import db_access
@@ -65,7 +59,7 @@ class MainServer:
             canvas_height=self.args.default_canvas_height if hasattr(self.args, 'default_canvas_height') else 720
         )
         self.video_source_service = VideoSourceService()
-        self.intermediate_frame_cache_service = FrameCacheService(max_cache_entries=120) # Cache for transformed clip frames
+        # self.intermediate_frame_cache_service = FrameCacheService(max_cache_entries=120) # Removed
         self.frame_transform_service = FrameTransformService()
         self.compositing_service = CompositingService()
         self.encoding_service = EncodingService()
@@ -75,57 +69,47 @@ class MainServer:
             video_source_service=self.video_source_service,
             frame_transform_service=self.frame_transform_service,
             compositing_service=self.compositing_service,
-            encoding_service=self.encoding_service,
-            intermediate_frame_cache_service=self.intermediate_frame_cache_service
+            encoding_service=self.encoding_service
+            # intermediate_frame_cache_service argument removed
         )
+        
+        # Set debug verbosity to reduce excessive logging
+        self.frame_pipeline_service.set_debug_verbosity(False)
+        self.frame_transform_service.set_debug_verbosity(False)
+        
+        # Enable verbose debug only if explicitly requested
+        if hasattr(self.args, 'verbose_debug') and self.args.verbose_debug:
+            logger.info("Enabling verbose debug logging for video services")
+            self.frame_pipeline_service.set_debug_verbosity(True)
+            self.frame_transform_service.set_debug_verbosity(True)
+            
         # --- End new video services instantiation ---
         
         # self.frame_generator = frame_generator.FrameGenerator() # OLD
         
-        # Pass callbacks to the PlaybackController
-        self.playback_controller = playback_controller.PlaybackController(
-            frame_getter_callback=self.get_frame_for_playback,
-            send_frame_callback=self.send_frame_to_all_clients
-        )
+        # PlaybackController and MessageHandler removed.
+        # Their functionalities will be handled by HTTP endpoints in preview_server.py
         
-        # Pass callbacks to the MessageHandler
-        self.message_handler_instance = message_handler.MessageHandler(
-            update_timeline_callback=self.handle_update_timeline,
-            start_playback_callback=self.playback_controller.start_playback,
-            stop_playback_callback=self.playback_controller.stop_playback,
-            seek_callback=self.handle_seek,
-            get_frame_callback=self.get_frame_for_seek, # This will use the new pipeline
-            send_state_callback=self.send_state_update_to_client,
-            # update_canvas_dimensions_callback=self.frame_generator.update_canvas_dimensions, # OLD
-            update_canvas_dimensions_callback=self.handle_update_canvas_dimensions, # NEW
-            refresh_timeline_from_db_callback=self.refresh_timeline_from_database
-        )
-        
-        # Pass the message handling callback to the WebSocketServer
-        self.ws_server = websocket_server.WebSocketServer(
-            port=args.ws_port,
-            host=args.host,
-            message_handler_callback=self.message_handler_instance.handle_message
-        )
+        # self.ws_server instantiation removed
+
+    # dummy_send_frame_callback removed
+    # dummy_send_state_callback removed
 
     def refresh_timeline_from_database(self):
-        """Refresh timeline data directly from database and update playback controller"""
+        """Refresh timeline data directly from database."""
         logger.info("Refreshing timeline from database")
         
         # Refresh the timeline from database
         self.timeline_manager.refresh_from_database()
         
-        # Update playback controller with new timeline parameters
+        # Get timeline state
         timeline_manager_state = self.timeline_manager.get_timeline_state()
-        self.playback_controller.set_timeline_params(
-            timeline_manager_state["frame_rate"],
-            timeline_manager_state["total_frames"]
-        )
         
         # Also update the TimelineStateService with the refreshed data
         self.timeline_state_service.update_timeline_data(
             videos=timeline_manager_state["videos"],
-            total_frames=timeline_manager_state["total_frames"]
+            total_frames=timeline_manager_state["total_frames"],
+            frame_rate=timeline_manager_state.get("frame_rate", 30.0)  # Use default 30.0 if not available
             # Canvas dimensions are handled separately
         )
         logger.info("Timeline refreshed from database and TimelineStateService updated.")
@@ -145,114 +129,77 @@ class MainServer:
             # Potentially, if playback is active, send a new frame or trigger UI update.
             # For now, just updating the state service is the core responsibility here.
 
-    def get_frame_for_playback(self, frame_index: int) -> Optional[bytes]:
-        """
-        Wrapper to get a frame using the new FramePipelineService.
-        Ensures TimelineStateService is updated before fetching.
-        """
-        # Ensure TimelineStateService has the latest from TimelineManager
-        current_timeline_manager_state = self.timeline_manager.get_timeline_state()
-        self.timeline_state_service.update_timeline_data(
-            videos=current_timeline_manager_state["videos"],
-            total_frames=current_timeline_manager_state["total_frames"]
-            # Canvas dimensions are updated via handle_update_canvas_dimensions
-        )
-        
-        # FramePipelineService uses the state from TimelineStateService internally
-        return self.frame_pipeline_service.get_encoded_frame(frame_index)
-
-    async def send_frame_to_all_clients(self, frame_data: str):
-        """Wrapper to send frame data via WebSocket server"""
-        await self.ws_server.send_frame_to_all(frame_data)
-
-    def handle_update_timeline(self, video_data: List[Dict]):
-        """Handle timeline updates and propagate changes to TimelineManager and TimelineStateService"""
-        self.timeline_manager.handle_message_updates(video_data)
-        
-        # Get the updated state from TimelineManager
-        updated_timeline_manager_state = self.timeline_manager.get_timeline_state()
-        
-        # Push this updated state to TimelineStateService
-        self.timeline_state_service.update_timeline_data(
-            videos=updated_timeline_manager_state["videos"],
-            total_frames=updated_timeline_manager_state["total_frames"]
-            # Canvas dimensions are handled separately by handle_update_canvas_dimensions
-        )
-        logger.info("Timeline data updated in TimelineStateService via handle_update_timeline.")
-
-        # Update playback controller with new timeline parameters
-        self.playback_controller.set_timeline_params(
-            updated_timeline_manager_state["frame_rate"],
-            updated_timeline_manager_state["total_frames"]
-        )
-
-    def handle_seek(self, frame: int) -> int:
-        """Handle seek command and return the actual seeked frame"""
-        return self.playback_controller.seek(frame)
-
-    def get_frame_for_seek(self, frame_index: int) -> Optional[bytes]:
-        """Get a specific frame for seek response"""
-        return self.get_frame_for_playback(frame_index)
-
-    async def send_state_update_to_client(self, websocket: Any, is_playing: bool):
-        """Send playback state update to a specific client"""
-        playback_state = self.playback_controller.get_playback_state()
-        await self.ws_server.send_state_update(
-            websocket,
-            playback_state["playing"], # Use the definitive state from playback_controller
-            playback_state["current_frame"]
-        )
+    # get_frame_for_playback removed (will be handled by HTTP endpoint)
+    # async def send_frame_to_all_clients removed
+    # handle_update_timeline removed (will be handled by HTTP endpoint)
+    # handle_seek removed (will be handled by HTTP endpoint)
+    # get_frame_for_seek removed (will be handled by HTTP endpoint)
 
     def setup_signal_handlers(self):
-        """Set up signal handlers for graceful shutdown"""
-        loop = asyncio.get_running_loop()
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(sig, self.shutdown)
-        logger.info("Signal handlers registered for SIGINT and SIGTERM.")
+        """Set up signal handlers for graceful shutdown."""
+        # For a non-async main loop, signal handling might need adjustment.
+        # For now, let's assume the HTTP server thread handles its own termination.
+        # If the main thread just starts the HTTP server and exits, this might not be needed here.
+        # However, if we want the main thread to wait, we'll need a way to signal it.
+        try:
+            loop = asyncio.get_running_loop()
+            for sig in (signal.SIGINT, signal.SIGTERM):
+                loop.add_signal_handler(sig, self.shutdown)
+            logger.info("Signal handlers registered for SIGINT and SIGTERM (if asyncio loop is primary).")
+        except RuntimeError:
+            logger.info("No asyncio running loop for signal handlers, using direct signal.signal.")
+            signal.signal(signal.SIGINT, self.signal_handler_sync)
+            signal.signal(signal.SIGTERM, self.signal_handler_sync)
 
-    async def run(self):
-        """Run the HTTP and WebSocket servers."""
-        logger.info(f"Starting FlipEdit Video Stream Server with Database Integration")
-        logger.info(f"WebSocket server on port {self.args.ws_port}")
-        logger.info(f"HTTP API server on port {self.args.http_port}")
+
+    def signal_handler_sync(self, signum, frame):
+        """Synchronous signal handler."""
+        logger.info(f"Signal {signum} received. Initiating shutdown...")
+        self.shutdown()
+        # In a purely threaded model, we might need a more robust way to stop the http_thread.
+        # For Flask's dev server, KeyboardInterrupt on the main thread usually stops it.
+        # If running with a production server like Gunicorn, it handles signals.
+        # For now, this will call shutdown, and the daemon thread should exit with the main.
+        # Consider raising SystemExit to ensure main thread termination.
+        raise SystemExit("Shutdown initiated by signal.")
+
+
+    async def run(self): # Keep async for now, but WebSocket part is removed
+        """Run the HTTP streaming server."""
+        logger.info(f"Starting FlipEdit Video Streaming Server")
+        logger.info(f"HTTP Stream server on port {self.args.http_port}")
         
-        # Create and start the Flask preview server in a separate thread
-        # TODO: Update preview_server to use the new FramePipelineService or TimelineStateService
         preview_app = preview_server.create_preview_server(
-            # self.frame_generator, # OLD
-            self.frame_pipeline_service, # NEW - or pass specific services it needs
-            self.timeline_manager, # TimelineManager might still be useful for HTTP endpoints
-            self.timeline_state_service # Pass this too, as it holds current state
+            self.frame_pipeline_service,
+            self.timeline_manager,
+            self.timeline_state_service
         )
-        # Run Flask in a daemon thread so it exits when the main thread exits
-        preview_server_port = self.args.http_port
-        logger.info(f"Starting Preview HTTP server on port {preview_server_port}")
-        http_thread = threading.Thread(
-            target=preview_app.run_server,
-            kwargs={'host': self.args.host, 'port': preview_server_port},
-            daemon=True
-        )
-        http_thread.start()
         
-        # Set up signal handlers
-        self.setup_signal_handlers()
+        # Use a different port to avoid conflicts
+        preview_server_port = 8085  # Changed to 8085 to further avoid potential port conflicts
+        logger.info(f"Starting Preview HTTP (streaming) server on port {preview_server_port}")
         
-        # Run the WebSocket server (which waits for shutdown)
-        await self.ws_server.run()
-        
-        # Cleanup after WebSocket server finishes
-        self.perform_cleanup()
+        # Run Flask server. For simplicity, directly in the main thread.
+        # If main needs to do other async tasks, then threading is appropriate.
+        # For a dedicated streaming server, running Flask directly is fine.
+        self.setup_signal_handlers() # Setup signals before blocking call
+
+        try:
+            # Flask's app.run is blocking.
+            preview_app.run_server(host=self.args.host, port=preview_server_port)
+        except SystemExit:
+            logger.info("SystemExit caught, proceeding with cleanup.")
+        except KeyboardInterrupt:
+            logger.info("KeyboardInterrupt caught, initiating shutdown.")
+            self.shutdown()
+        finally:
+            self.perform_cleanup()
+
 
     def shutdown(self):
         """Initiate graceful shutdown of all components."""
         if logger: # Check if logger is initialized
             logger.info("Shutdown requested...")
-        
-        # Signal playback controller to stop
-        self.playback_controller.shutdown()
-        
-        # Signal WebSocket server to shut down
-        self.ws_server.shutdown()
         
         # Close database connections
         if self.db_manager:
@@ -268,9 +215,28 @@ class MainServer:
         if logger:
              logger.info("Server shutdown complete.")
 
+def parse_args():
+    """Parse command-line arguments with additional debug settings."""
+    # Get the base argument parser from config.py
+    parser = config.get_argument_parser() 
+    
+    # Add new arguments specific to main.py or for extended functionality
+    # Make sure this is a parent parser if we want to share help messages, or create a new one and parse known args.
+    # For simplicity here, we'll add to the existing one. Ensure add_help=False in get_argument_parser if conflicts arise.
+    # Or, use a parent parser approach:
+    # parent_parser = config.get_argument_parser()
+    # parser = argparse.ArgumentParser(parents=[parent_parser]) # This handles help combination better.
+
+    parser.add_argument('--verbose-debug', action='store_true',
+                        help='Enable verbose debug logging for video services')
+    # Add other main.py specific args here if needed
+    
+    args = parser.parse_args()
+    return args
+
 async def main():
     # Parse command-line arguments
-    args = config.parse_args()
+    args = parse_args()
     
     # Create and run the main server application
     main_server = MainServer(args)

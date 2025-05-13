@@ -10,9 +10,10 @@ class TimelineStateService:
     Manages the state of the timeline including clips, canvas dimensions,
     and provides a hashable representation of this state for caching purposes.
     """
-    def __init__(self, canvas_width: int = 1280, canvas_height: int = 720):
+    def __init__(self, canvas_width: int = 1280, canvas_height: int = 720, frame_rate: float = 30.0):
         self.canvas_width = canvas_width
         self.canvas_height = canvas_height
+        self.frame_rate = frame_rate
         self.current_videos: List[Dict[str, Any]] = []
         self.total_frames: int = 0 # Should be updated based on timeline duration
         self._current_object_for_hashing: Any = None # Helper for _make_hashable_cached
@@ -21,7 +22,7 @@ class TimelineStateService:
         # This cache helps when the same sub-objects (like metadata dicts) appear multiple times
         # across different calls to _get_hashable_videos_representation if the overall structure changes.
         # self._make_hashable_cached.cache_configure(maxsize=512) # REMOVED: This caused AttributeError. Maxsize is set in decorator.
-        logger.info(f"TimelineStateService initialized. Canvas: {canvas_width}x{canvas_height}")
+        logger.info(f"TimelineStateService initialized. Canvas: {canvas_width}x{canvas_height}, Frame Rate: {frame_rate}")
 
     def update_canvas_dimensions(self, width: int, height: int) -> bool:
         """
@@ -40,14 +41,16 @@ class TimelineStateService:
             changed = True
         return changed
 
-    def update_timeline_data(self, videos: List[Dict[str, Any]], total_frames: int):
+    def update_timeline_data(self, videos: List[Dict[str, Any]], total_frames: int, frame_rate: Optional[float] = None):
         """
-        Updates the list of videos/clips and total frames for the timeline.
+        Updates the list of videos/clips, total frames, and frame rate for the timeline.
         """
         # It might be beneficial to do a deep copy if videos list is mutable elsewhere
-        self.current_videos = videos 
+        self.current_videos = videos
         self.total_frames = total_frames
-        logger.debug(f"Timeline data updated. {len(videos)} videos, {total_frames} total frames.")
+        if frame_rate is not None:
+            self.frame_rate = frame_rate
+        logger.debug(f"Timeline data updated. {len(videos)} videos, {total_frames} total frames, Frame Rate: {self.frame_rate}.")
 
     @functools.lru_cache(maxsize=512) # MODIFIED: Set maxsize directly here
     def _make_hashable_cached(self, obj_str_representation: str, obj_type_representation: str) -> Any:
@@ -152,7 +155,8 @@ class TimelineStateService:
             self.canvas_width,
             self.canvas_height,
             self.total_frames,
-            hashable_videos_rep 
+            self.frame_rate, # Include frame_rate in the hashable state
+            hashable_videos_rep
         )
         return state_tuple
 

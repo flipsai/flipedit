@@ -14,7 +14,13 @@ class FrameTransformService:
     def __init__(self):
         # Configuration for transformations, e.g., default interpolation
         self.resize_interpolation = cv2.INTER_NEAREST # Fast, from original FrameGenerator
+        self._debug_verbose = False  # Flag to control detailed debug output
         logger.info("FrameTransformService initialized.")
+
+    def set_debug_verbosity(self, verbose: bool):
+        """Set debug verbosity level"""
+        self._debug_verbose = verbose
+        logger.info(f"FrameTransformService debug verbosity set to: {verbose}")
 
     def transform_frame(
         self,
@@ -47,14 +53,19 @@ class FrameTransformService:
         clip_id = clip_info.get('databaseId', 'unknown')
         preview_width = clip_info.get('previewWidth')
         preview_height = clip_info.get('previewHeight')
-        logger.info(f"[DEBUG] Processing clip {clip_id} with previewWidth={preview_width}, previewHeight={preview_height}, canvas={canvas_width}x{canvas_height}")
+        
+        # Only log this if debug verbose is enabled
+        if self._debug_verbose:
+            logger.info(f"Processing clip {clip_id} with previewWidth={preview_width}, previewHeight={preview_height}, canvas={canvas_width}x{canvas_height}")
         
         if not isinstance(frame, np.ndarray) or frame.size == 0:
             logger.warning("Transform_frame called with invalid or empty frame.")
             return None, 0, 0, 0, 0
 
         frame_height_orig, frame_width_orig = frame.shape[:2]
-        logger.info(f"[DEBUG] Original frame dimensions: {frame_width_orig}x{frame_height_orig}")
+        
+        if self._debug_verbose:
+            logger.info(f"Original frame dimensions: {frame_width_orig}x{frame_height_orig}")
         
         # --- Get transform parameters ---
         # Prioritize new direct properties, then fallback to metadata['previewRect'], then to defaults.
@@ -74,10 +85,15 @@ class FrameTransformService:
             target_y = int(direct_pos_y)
             target_width = max(1, int(direct_width))
             target_height = max(1, int(direct_height))
-            logger.debug(f"Using direct transform properties: x={target_x}, y={target_y}, w={target_width}, h={target_height}")
+            
+            if self._debug_verbose:
+                logger.debug(f"Using direct transform properties: x={target_x}, y={target_y}, w={target_width}, h={target_height}")
+            
             using_direct_props = True
         else:
-            logger.debug("Direct transform properties not fully available. Checking metadata['previewRect'].")
+            if self._debug_verbose:
+                logger.debug("Direct transform properties not fully available. Checking metadata['previewRect'].")
+            
             preview_rect_data = metadata.get('previewRect') # Expected: {'left': l, 'top': t, 'width': w, 'height': h}
 
         # --- Determine default positioning and sizing (fit and center) ---
@@ -101,7 +117,10 @@ class FrameTransformService:
             'left': default_left, 'top': default_top,
             'width': float(default_width), 'height': float(default_height)
         }
-        logger.debug(f"Default rect params: left={default_left}, top={default_top}, width={default_width}, height={default_height}")
+        
+        if self._debug_verbose:
+            logger.debug(f"Default rect params: left={default_left}, top={default_top}, width={default_width}, height={default_height}")
+        
         # --- End Default Positioning ---
 
         # Fallback logic if direct properties were not used
@@ -111,17 +130,22 @@ class FrameTransformService:
                 target_y = int(preview_rect_data.get('top', default_rect_params['top']))
                 target_width = max(1, int(preview_rect_data.get('width', default_rect_params['width'])))
                 target_height = max(1, int(preview_rect_data.get('height', default_rect_params['height'])))
-                logger.debug(f"Using previewRect from metadata: x={target_x}, y={target_y}, w={target_width}, h={target_height}")
+                
+                if self._debug_verbose:
+                    logger.debug(f"Using previewRect from metadata: x={target_x}, y={target_y}, w={target_width}, h={target_height}")
             else:
                 # If no direct props and no previewRect, use defaults that fit the canvas
                 target_x = int(default_rect_params['left'])
                 target_y = int(default_rect_params['top'])
                 target_width = int(default_rect_params['width'])
                 target_height = int(default_rect_params['height'])
-                logger.debug(f"Using default previewRect (centered, as neither direct props nor metadata.previewRect found): x={target_x}, y={target_y}, w={target_width}, h={target_height}")
+                
+                if self._debug_verbose:
+                    logger.debug(f"Using default previewRect (centered, as neither direct props nor metadata.previewRect found): x={target_x}, y={target_y}, w={target_width}, h={target_height}")
 
-        # Log the final dimensions being used
-        logger.info(f"[DEBUG] Final dimensions for clip {clip_id}: position=({target_x},{target_y}), size={target_width}x{target_height}")
+        # Log the final dimensions only if debug verbose is enabled
+        if self._debug_verbose:
+            logger.info(f"Final dimensions for clip {clip_id}: position=({target_x},{target_y}), size={target_width}x{target_height}")
         
         # Ensure width and height for resize are at least 1
         # target_width and target_height are already max(1, ...) from above logic
@@ -163,6 +187,7 @@ class FrameTransformService:
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
     transform_service = FrameTransformService()
+    transform_service.set_debug_verbosity(True)  # Enable verbose debug for testing
 
     # Create a dummy frame
     dummy_frame_orig = np.zeros((200, 300, 3), dtype=np.uint8) # H=200, W=300
