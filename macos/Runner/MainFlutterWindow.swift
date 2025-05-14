@@ -1,5 +1,6 @@
 import Cocoa
 import FlutterMacOS
+import texture_rgba_renderer
 
 class MainFlutterWindow: NSWindow {
   override func awakeFromNib() {

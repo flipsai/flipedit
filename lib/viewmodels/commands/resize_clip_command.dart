@@ -10,9 +10,6 @@ import 'package:flipedit/utils/logger.dart' as logger;
 import 'package:collection/collection.dart';
 import '../../services/timeline_logic_service.dart';
 import '../../services/project_database_service.dart';
-import '../../services/preview_sync_service.dart';
-import '../../services/preview_http_service.dart';
-import '../../viewmodels/timeline_navigation_viewmodel.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
@@ -546,9 +543,6 @@ class ResizeClipCommand implements TimelineCommand, UndoableCommand {
 
     // Get dependencies from DI
     final timelineLogicService = di<TimelineLogicService>();
-    final previewSyncService = di<PreviewSyncService>();
-    final previewHttpService = di<PreviewHttpService>();
-    final navigationViewModel = di<TimelineNavigationViewModel>();
     final clipsNotifier = di<TimelineViewModel>().clipsNotifier;
 
     return ResizeClipCommand(

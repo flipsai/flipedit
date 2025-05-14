@@ -22,6 +22,7 @@ import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flipedit/services/undo_redo_service.dart';
 import 'package:flipedit/viewmodels/preview_viewmodel.dart';
+import 'package:flipedit/services/video_texture_service.dart';
 import 'package:watch_it/watch_it.dart';
 
 // Get the instance of GetIt
@@ -119,6 +120,12 @@ Future<void> setupServiceLocator() async {
   );
 
   di.registerLazySingleton<MediaDurationService>(() => MediaDurationService());
+  
+  // Register video texture service
+  di.registerLazySingleton<VideoTextureService>(
+    () => VideoTextureService(),
+    dispose: (service) => service.dispose(),
+  );
   di.registerLazySingleton<PlaybackService>(
     () => PlaybackService(
       getCurrentFrame: () => 0,

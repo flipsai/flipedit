@@ -1,9 +1,45 @@
 PODS:
+  - DartCvMacOS (4.11.0.2):
+    - DartCvMacOS/calib3d (= 4.11.0.2)
+    - DartCvMacOS/contrib (= 4.11.0.2)
+    - DartCvMacOS/core (= 4.11.0.2)
+    - DartCvMacOS/features2d (= 4.11.0.2)
+    - DartCvMacOS/imgproc (= 4.11.0.2)
+    - DartCvMacOS/objdetect (= 4.11.0.2)
+    - DartCvMacOS/photo (= 4.11.0.2)
+    - DartCvMacOS/stitching (= 4.11.0.2)
+    - DartCvMacOS/video (= 4.11.0.2)
+  - DartCvMacOS/calib3d (4.11.0.2):
+    - DartCvMacOS/core
+  - DartCvMacOS/contrib (4.11.0.2):
+    - DartCvMacOS/core
+  - DartCvMacOS/core (4.11.0.2)
+  - DartCvMacOS/dnn (4.11.0.2):
+    - DartCvMacOS/core
+  - DartCvMacOS/features2d (4.11.0.2):
+    - DartCvMacOS/core
+  - DartCvMacOS/imgproc (4.11.0.2):
+    - DartCvMacOS/core
+  - DartCvMacOS/objdetect (4.11.0.2):
+    - DartCvMacOS/core
+  - DartCvMacOS/photo (4.11.0.2):
+    - DartCvMacOS/core
+  - DartCvMacOS/stitching (4.11.0.2):
+    - DartCvMacOS/core
+  - DartCvMacOS/video (4.11.0.2):
+    - DartCvMacOS/core
+  - DartCvMacOS/videoio (4.11.0.2):
+    - DartCvMacOS/core
   - file_picker (0.0.1):
     - FlutterMacOS
   - file_selector_macos (0.0.1):
     - FlutterMacOS
   - FlutterMacOS (1.0.0)
+  - opencv_dart (0.0.1):
+    - DartCvMacOS (= 4.11.0.2)
+    - DartCvMacOS/dnn (= 4.11.0.2)
+    - DartCvMacOS/videoio (= 4.11.0.2)
+    - FlutterMacOS
   - path_provider_foundation (0.0.1):
     - Flutter
     - FlutterMacOS
@@ -39,6 +75,8 @@ PODS:
     - sqlite3/rtree
   - store_checker (0.0.1):
     - FlutterMacOS
+  - texture_rgba_renderer (0.0.1):
+    - FlutterMacOS
   - url_launcher_macos (0.0.1):
     - FlutterMacOS
   - video_player_avfoundation (0.0.1):
@@ -51,18 +89,21 @@ DEPENDENCIES:
   - file_picker (from `Flutter/ephemeral/.symlinks/plugins/file_picker/macos`)
   - file_selector_macos (from `Flutter/ephemeral/.symlinks/plugins/file_selector_macos/macos`)
   - FlutterMacOS (from `Flutter/ephemeral`)
+  - opencv_dart (from `Flutter/ephemeral/.symlinks/plugins/opencv_dart/macos`)
   - path_provider_foundation (from `Flutter/ephemeral/.symlinks/plugins/path_provider_foundation/darwin`)
   - screen_retriever_macos (from `Flutter/ephemeral/.symlinks/plugins/screen_retriever_macos/macos`)
   - shared_preferences_foundation (from `Flutter/ephemeral/.symlinks/plugins/shared_preferences_foundation/darwin`)
   - sqflite_darwin (from `Flutter/ephemeral/.symlinks/plugins/sqflite_darwin/darwin`)
   - sqlite3_flutter_libs (from `Flutter/ephemeral/.symlinks/plugins/sqlite3_flutter_libs/darwin`)
   - store_checker (from `Flutter/ephemeral/.symlinks/plugins/store_checker/macos`)
+  - texture_rgba_renderer (from `Flutter/ephemeral/.symlinks/plugins/texture_rgba_renderer/macos`)
   - url_launcher_macos (from `Flutter/ephemeral/.symlinks/plugins/url_launcher_macos/macos`)
   - video_player_avfoundation (from `Flutter/ephemeral/.symlinks/plugins/video_player_avfoundation/darwin`)
   - window_manager (from `Flutter/ephemeral/.symlinks/plugins/window_manager/macos`)
 
 SPEC REPOS:
   trunk:
+    - DartCvMacOS
     - sqlite3
 
 EXTERNAL SOURCES:
@@ -72,6 +113,8 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral/.symlinks/plugins/file_selector_macos/macos
   FlutterMacOS:
     :path: Flutter/ephemeral
+  opencv_dart:
+    :path: Flutter/ephemeral/.symlinks/plugins/opencv_dart/macos
   path_provider_foundation:
     :path: Flutter/ephemeral/.symlinks/plugins/path_provider_foundation/darwin
   screen_retriever_macos:
@@ -84,6 +127,8 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral/.symlinks/plugins/sqlite3_flutter_libs/darwin
   store_checker:
     :path: Flutter/ephemeral/.symlinks/plugins/store_checker/macos
+  texture_rgba_renderer:
+    :path: Flutter/ephemeral/.symlinks/plugins/texture_rgba_renderer/macos
   url_launcher_macos:
     :path: Flutter/ephemeral/.symlinks/plugins/url_launcher_macos/macos
   video_player_avfoundation:
@@ -92,9 +137,11 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral/.symlinks/plugins/window_manager/macos
 
 SPEC CHECKSUMS:
+  DartCvMacOS: bc1107881a0773e367db08969df3544f842ebe3f
   file_picker: e716a70a9fe5fd9e09ebc922d7541464289443af
   file_selector_macos: cc3858c981fe6889f364731200d6232dac1d812d
   FlutterMacOS: 8f6f14fa908a6fb3fba0cd85dbd81ec4b251fb24
+  opencv_dart: 64a5f3469848046af5dd5d1e5297e108869ba441
   path_provider_foundation: 2b6b4c569c0fb62ec74538f866245ac84301af46
   screen_retriever_macos: 776e0fa5d42c6163d2bf772d22478df4b302b161
   shared_preferences_foundation: fcdcbc04712aee1108ac7fda236f363274528f78
@@ -102,10 +149,11 @@ SPEC CHECKSUMS:
   sqlite3: fc1400008a9b3525f5914ed715a5d1af0b8f4983
   sqlite3_flutter_libs: 487032b9008b28de37c72a3aa66849ef3745f3e6
   store_checker: 387169de0dffe57b6370d54cc027e9f95051b57f
+  texture_rgba_renderer: cbed959a3c127122194a364e14b8577bd62dc8f2
   url_launcher_macos: c82c93949963e55b228a30115bd219499a6fe404
   video_player_avfoundation: 7c6c11d8470e1675df7397027218274b6d2360b3
   window_manager: 3a1844359a6295ab1e47659b1a777e36773cd6e8
 
-PODFILE CHECKSUM: 7eb978b976557c8c1cd717d8185ec483fd090a82
+PODFILE CHECKSUM: 83c493776e796ff1f7045418a0799f83b55f1c21
 
 COCOAPODS: 1.16.2

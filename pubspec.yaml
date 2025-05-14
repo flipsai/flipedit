@@ -62,6 +62,11 @@ dependencies:
   collection: any
   equatable: ^2.0.7
   flutter_cache_manager: ^3.4.1
+  opencv_dart: ^1.4.1
+  texture_rgba_renderer:
+    git:
+      url: https://github.com/rustdesk-org/flutter_texture_rgba_renderer
+      ref: 42797e0f03141dc2b585f76c64a13974508058b4
 dev_dependencies:
   flutter_lints: ^5.0.0
   flutter_test:
