@@ -2,178 +2,209 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:opencv_dart/opencv_dart.dart' as cv;
 import 'package:watch_it/watch_it.dart';
-import 'package:flipedit/services/video_processing_service.dart';
 import 'package:flipedit/services/video_texture_service.dart';
 import 'package:flipedit/models/video_texture_model.dart';
 import 'package:flipedit/utils/logger.dart';
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart';
-import 'package:flipedit/services/canvas_dimensions_service.dart';
 
 class TimelineProcessingService implements Disposable {
-  late final VideoProcessingService _videoService;
   late final VideoTextureService _textureService;
   late final TimelineStateViewModel _timelineState;
-  late final CanvasDimensionsService _canvasDimensionsService;
   
   VideoTextureModel? _textureModel;
   String? _currentTextureModelId;
-  final Map<String, DateTime> _lastVideoLoad = {};
+  
+  final Map<String, cv.VideoCapture> _videoCaptures = {};
+  final Map<String, VideoInfo> _videoInfoCache = {};
+  
+  ClipModel? _currentClip;
+  cv.VideoCapture? _currentCapture;
+  int _lastRenderedFrame = -1;
   
   TimelineProcessingService() {
-    _videoService = di.get<VideoProcessingService>();
     _textureService = di.get<VideoTextureService>();
     _timelineState = di.get<TimelineStateViewModel>();
-    _canvasDimensionsService = di.get<CanvasDimensionsService>();
-    
     logInfo('TimelineProcessingService: Initialized');
   }
   
-  /// Initialize texture model for rendering
   Future<bool> initializeTexture(String id) async {
+    logInfo('TimelineProcessingService: Initializing texture model: $id');
     try {
       if (_currentTextureModelId == id && _textureModel != null) {
-        return true; // Already initialized
+        logInfo('TimelineProcessingService: Reusing existing texture model: $id');
+        return true;
       }
       
-      // Clean up previous texture model
       if (_currentTextureModelId != null && _currentTextureModelId != id) {
+        logInfo('TimelineProcessingService: Disposing previous texture model: $_currentTextureModelId');
         _textureService.disposeTextureModel(_currentTextureModelId!);
       }
       
+      logInfo('TimelineProcessingService: Creating new texture model: $id');
       _textureModel = _textureService.createTextureModel(id);
       _currentTextureModelId = id;
       
-      // Create session with single display
+      logInfo('TimelineProcessingService: Creating session for texture model: $id');
       await _textureModel!.createSession(id, numDisplays: 1);
       
-      logInfo('TimelineProcessingService: Initialized texture model: $id');
+      logInfo('TimelineProcessingService: Successfully initialized texture model: $id');
       return true;
-    } catch (e) {
-      logError('TimelineProcessingService', 'Error initializing texture: $e');
+    } catch (e, stack) {
+      logError('TimelineProcessingService', 'Error initializing texture: $e', stack);
       return false;
     }
   }
   
-  /// Get texture ID for display
   ValueNotifier<int>? getTextureId(int display) {
     return _textureModel?.getTextureId(display);
   }
   
-  /// Load all videos from timeline clips
   Future<void> loadTimelineVideos() async {
     final clips = _timelineState.clips;
-    final uniqueVideoPaths = clips.map((clip) => clip.sourcePath).toSet();
     
-    for (final path in uniqueVideoPaths) {
-      if (path.isNotEmpty) {
-        // Check if video was loaded recently (within last 5 minutes)
-        final lastLoad = _lastVideoLoad[path];
-        if (lastLoad != null && DateTime.now().difference(lastLoad).inMinutes < 5) {
-          continue; // Skip recent loads
-        }
-        
-        final videoId = path; // Use path as ID for simplicity
-        await _videoService.loadVideo(videoId, path);
-        _lastVideoLoad[path] = DateTime.now();
+    for (final clip in clips) {
+      if (clip.sourcePath.isNotEmpty) {
+        await _loadVideo(clip.sourcePath);
       }
     }
-    
-    logInfo('TimelineProcessingService: Loaded ${uniqueVideoPaths.length} unique videos');
+    logInfo('TimelineProcessingService: Loaded ${clips.length} videos');
   }
   
-  /// Render a specific frame from the timeline
+  Future<bool> _loadVideo(String path) async {
+    try {
+      if (_videoCaptures.containsKey(path)) {
+        return true; // Already loaded
+      }
+      
+      final capture = cv.VideoCapture.fromFile(path);
+      if (!capture.isOpened) {
+        logError('TimelineProcessingService', 'Failed to open video: $path');
+        return false;
+      }
+      
+      _videoCaptures[path] = capture;
+      
+      final info = VideoInfo(
+        frameCount: capture.get(cv.CAP_PROP_FRAME_COUNT).toInt(),
+        fps: capture.get(cv.CAP_PROP_FPS),
+        width: capture.get(cv.CAP_PROP_FRAME_WIDTH).toInt(),
+        height: capture.get(cv.CAP_PROP_FRAME_HEIGHT).toInt(),
+      );
+      _videoInfoCache[path] = info;
+      
+      logInfo('TimelineProcessingService: Loaded video from $path');
+      return true;
+    } catch (e) {
+      logError('TimelineProcessingService', 'Error loading video $path: $e');
+      return false;
+    }
+  }
+  
   Future<void> renderFrame(int frameIndex) async {
     if (_textureModel == null || !_textureModel!.isReady(0)) {
-      logWarning('TimelineProcessingService', 'Texture not ready for rendering');
+      // logWarning('TimelineProcessingService', 'Texture model not ready for rendering frame $frameIndex');
       return;
     }
-    
+
+    final overallStartTime = DateTime.now().microsecondsSinceEpoch;
+    int getClipTime = 0, calculateSourceFrameTime = 0, setFrameTime = 0, readFrameTime = 0, cvtColorTime = 0, textureRenderTime = 0;
+
     try {
-      // Get clips at this frame
-      final clips = getClipsAtFrame(frameIndex);
+      final getClipStart = DateTime.now().microsecondsSinceEpoch;
+      final clip = _getClipAtFrame(frameIndex);
+      getClipTime = DateTime.now().microsecondsSinceEpoch - getClipStart;
       
-      if (clips.isEmpty) {
-        // Render blank frame
-        await renderBlankFrame();
+      if (clip == null) {
+        // logDebug('TimelineProcessingService', 'No clip at frame $frameIndex, rendering blank.');
+        await _renderBlankFrame();
+        _lastRenderedFrame = frameIndex; 
         return;
       }
       
-      // Get canvas dimensions
-      final canvasWidth = _canvasDimensionsService.canvasWidthNotifier.value.toInt();
-      final canvasHeight = _canvasDimensionsService.canvasHeightNotifier.value.toInt();
+      if (_currentClip?.sourcePath != clip.sourcePath) {
+        _currentClip = clip;
+        _currentCapture = _videoCaptures[clip.sourcePath];
+      }
       
-      List<cv.Mat> frameLayers = [];
-      List<double> alphas = [];
+      if (_currentCapture == null || !_currentCapture!.isOpened) {
+        logWarning('TimelineProcessingService', 'Current capture for clip ${clip.sourcePath} is null or not open. Rendering blank.');
+        await _renderBlankFrame();
+        _lastRenderedFrame = frameIndex;
+        return;
+      }
       
-      for (final clip in clips) {
-        // Calculate source frame
-        final sourceFrame = calculateSourceFrame(clip, frameIndex);
+      final calculateSourceFrameStart = DateTime.now().microsecondsSinceEpoch;
+      final sourceFrame = _calculateSourceFrame(clip, frameIndex);
+      calculateSourceFrameTime = DateTime.now().microsecondsSinceEpoch - calculateSourceFrameStart;
+      
+      final setFrameStart = DateTime.now().microsecondsSinceEpoch;
+      _currentCapture!.set(cv.CAP_PROP_POS_FRAMES, sourceFrame.toDouble());
+      setFrameTime = DateTime.now().microsecondsSinceEpoch - setFrameStart;
+      
+      final readFrameStart = DateTime.now().microsecondsSinceEpoch;
+      final result = _currentCapture!.read();
+      readFrameTime = DateTime.now().microsecondsSinceEpoch - readFrameStart;
+      
+      if (result.$1 && !result.$2.isEmpty) {
+        final mat = result.$2;
         
-        // Get frame from video
-        final videoFrame = _videoService.getVideoFrame(clip.sourcePath, sourceFrame);
-        if (videoFrame == null) continue;
+        final cvtColorStart = DateTime.now().microsecondsSinceEpoch;
+        final pic = cv.cvtColor(mat, cv.COLOR_BGR2RGBA); // VideoTextureModel expects RGBA
+        cvtColorTime = DateTime.now().microsecondsSinceEpoch - cvtColorStart;
         
-        // Convert to RGBA
-        cv.Mat rgbaFrame = _videoService.convertToRGBA(videoFrame.mat);
-        
-        // Apply transformations based on preview position and size
-        final transformParams = TransformParams(
-          x: clip.previewPositionX,
-          y: clip.previewPositionY,
-          scale: calculateScale(clip, canvasWidth, canvasHeight),
-          rotation: 0, // Add rotation if needed
+        final textureRenderStart = DateTime.now().microsecondsSinceEpoch;
+        _textureModel!.renderFrame(
+          0, // display index
+          pic.dataPtr,
+          pic.total * pic.elemSize,
+          pic.cols,
+          pic.rows,
         );
+        textureRenderTime = DateTime.now().microsecondsSinceEpoch - textureRenderStart;
         
-        cv.Mat transformed = _videoService.transformFrame(rgbaFrame, transformParams);
-        
-        frameLayers.add(transformed);
-        alphas.add(1.0); // Full opacity for now
-        
-        // Clean up
-        videoFrame.dispose();
-        if (rgbaFrame != transformed) {
-          rgbaFrame.dispose();
-        }
+        mat.dispose();
+        pic.dispose();
+      } else {
+        logWarning('TimelineProcessingService', 'Failed to read frame $sourceFrame from ${clip.sourcePath}. Rendering blank.');
+        await _renderBlankFrame();
       }
       
-      // Composite all layers
-      cv.Mat composited = _videoService.compositeFrames(
-        frameLayers,
-        alphas,
-        canvasWidth,
-        canvasHeight,
-      );
+      _lastRenderedFrame = frameIndex;
       
-      // Render to texture
-      _textureModel!.renderFrame(
-        0, // display index
-        composited.dataPtr,
-        composited.total * composited.elemSize,
-        composited.cols,
-        composited.rows,
-      );
-      
-      // Clean up
-      for (final frame in frameLayers) {
-        frame.dispose();
+    } catch (e, stack) {
+      logError('TimelineProcessingService', 'Error rendering frame $frameIndex: $e', stack);
+      await _renderBlankFrame(); // Ensure a blank frame on error
+    } finally {
+      final totalTime = DateTime.now().microsecondsSinceEpoch - overallStartTime;
+      // Log timing breakdown occasionally (e.g., every 30 frames or if slow)
+      if (frameIndex % 30 == 0 || totalTime > 33000) { // Log if > ~33ms (30fps budget)
+        logDebug('TimelineProcessingService: Frame $frameIndex timing (µs):', 'RenderTiming');
+        logDebug('  GetClip: $getClipTime', 'RenderTiming');
+        logDebug('  CalcSrcFrame: $calculateSourceFrameTime', 'RenderTiming');
+        logDebug('  SetFramePos: $setFrameTime', 'RenderTiming');
+        logDebug('  ReadFrame: $readFrameTime', 'RenderTiming');
+        logDebug('  CvtColor: $cvtColorTime', 'RenderTiming');
+        logDebug('  TextureRender: $textureRenderTime', 'RenderTiming');
+        logDebug('  Total: $totalTime', 'RenderTiming');
       }
-      composited.dispose();
-      
-    } catch (e) {
-      logError('TimelineProcessingService', 'Error rendering frame $frameIndex: $e');
     }
   }
   
-  /// Render a blank frame
-  Future<void> renderBlankFrame() async {
-    final canvasWidth = _canvasDimensionsService.canvasWidthNotifier.value.toInt();
-    final canvasHeight = _canvasDimensionsService.canvasHeightNotifier.value.toInt();
+  Future<void> _renderBlankFrame() async {
+    if (_textureModel == null || !_textureModel!.isReady(0)) return;
+
+    const width = 1920; // Or get from CanvasDimensionsService if restored
+    const height = 1080;
     
-    cv.Mat blankFrame = cv.Mat.zeros(canvasHeight, canvasWidth, cv.MatType.CV_8UC4);
-    
+    // VideoTextureModel expects RGBA. Create a black RGBA frame.
+    cv.Mat blankFrame = cv.Mat.zeros(height, width, cv.MatType.CV_8UC4);
+    // cv.Vec4b blackColor = cv.Vec4b(0, 0, 0, 255); // Or use cv.Scalar.all(0) and then convert to RGBA with alpha
+    // blankFrame.setTo(blackColor);
+    // blackColor.dispose();
+
     _textureModel!.renderFrame(
-      0,
+      0, // display index
       blankFrame.dataPtr,
       blankFrame.total * blankFrame.elemSize,
       blankFrame.cols,
@@ -183,40 +214,29 @@ class TimelineProcessingService implements Disposable {
     blankFrame.dispose();
   }
   
-  /// Get clips that are visible at a specific frame
-  List<ClipModel> getClipsAtFrame(int frame) {
-    return _timelineState.clips.where((clip) {
-      final startFrame = msToFrame(clip.startTimeOnTrackMs, 30); // TODO: Get actual FPS
-      final endFrame = msToFrame(clip.endTimeOnTrackMs, 30);
-      return frame >= startFrame && frame < endFrame;
-    }).toList();
+  ClipModel? _getClipAtFrame(int frame) {
+    final clips = _timelineState.clips;
+    for (final clip in clips) {
+      final startFrame = _msToFrame(clip.startTimeOnTrackMs, 30.0);
+      final endFrame = _msToFrame(clip.endTimeOnTrackMs, 30.0);
+      if (frame >= startFrame && frame < endFrame) {
+        return clip;
+      }
+    }
+    return null;
   }
   
-  /// Calculate source frame index for a clip at timeline frame
-  int calculateSourceFrame(ClipModel clip, int timelineFrame) {
-    final fps = 30.0; // TODO: Get actual FPS from timeline or clip
-    final clipStartFrame = msToFrame(clip.startTimeOnTrackMs, fps);
-    final sourceStartFrame = msToFrame(clip.startTimeInSourceMs, fps);
-    final sourceEndFrame = msToFrame(clip.endTimeInSourceMs, fps);
-    
+  int _calculateSourceFrame(ClipModel clip, int timelineFrame) {
+    const fps = 30.0;
+    final clipStartFrame = _msToFrame(clip.startTimeOnTrackMs, fps);
+    final sourceStartFrame = _msToFrame(clip.startTimeInSourceMs, fps);
     final frameInClip = timelineFrame - clipStartFrame;
     final sourceFrame = sourceStartFrame + frameInClip;
-    
-    // Clamp to source bounds
-    return sourceFrame.clamp(sourceStartFrame, sourceEndFrame - 1);
+    final videoInfo = _videoInfoCache[clip.sourcePath];
+    return sourceFrame.clamp(0, videoInfo?.frameCount ?? sourceFrame);
   }
   
-  /// Calculate scale factor for clip
-  double calculateScale(ClipModel clip, int canvasWidth, int canvasHeight) {
-    // Preview dimensions are relative to canvas size
-    // If clip preview width is 100, it means 100% of canvas width
-    final scaleX = clip.previewWidth / 100.0;
-    final scaleY = clip.previewHeight / 100.0;
-    return (scaleX + scaleY) / 2.0; // Average scale for now
-  }
-  
-  /// Convert milliseconds to frame number
-  int msToFrame(int ms, double fps) {
+  int _msToFrame(int ms, double fps) {
     return (ms * fps / 1000).round();
   }
   
@@ -226,10 +246,43 @@ class TimelineProcessingService implements Disposable {
   }
   
   void dispose() {
+    logInfo('TimelineProcessingService: Starting disposal');
+    
+    // currentFrameNotifier.value?.dispose(); // Removed this
+    // currentFrameNotifier.dispose(); // Removed this
+
     if (_currentTextureModelId != null) {
+      logInfo('TimelineProcessingService: Disposing texture model: $_currentTextureModelId');
       _textureService.disposeTextureModel(_currentTextureModelId!);
+    } else {
+      logInfo('TimelineProcessingService: No texture model to dispose');
     }
+    
+    logInfo('TimelineProcessingService: Releasing video captures (count: ${_videoCaptures.length})');
+    for (final capture in _videoCaptures.values) {
+      capture.release();
+    }
+    _videoCaptures.clear();
+    _videoInfoCache.clear();
+    
     _textureModel = null;
-    logInfo('TimelineProcessingService: Disposed');
+    _currentClip = null;
+    _currentCapture = null;
+
+    logInfo('TimelineProcessingService: Disposal complete');
   }
+}
+
+class VideoInfo {
+  final int frameCount;
+  final double fps;
+  final int width;
+  final int height;
+  
+  VideoInfo({
+    required this.frameCount,
+    required this.fps,
+    required this.width,
+    required this.height,
+  });
 }

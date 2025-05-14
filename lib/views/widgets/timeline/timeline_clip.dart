@@ -10,7 +10,6 @@ import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/services/timeline_clip_resize_service.dart';
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/services/timeline_logic_service.dart';
-import 'package:flipedit/services/preview_http_service.dart';
 import 'package:flipedit/services/clip_update_service.dart';
 
 // Import extracted components
@@ -488,7 +487,6 @@ class _TimelineClipState extends State<TimelineClip> {
           newStartTimeOnTrackMs: newStartTimeMs,
           projectDatabaseService: di<ProjectDatabaseService>(),
           timelineLogicService: di<TimelineLogicService>(),
-          previewHttpService: di<PreviewHttpService>(),
           timelineNavViewModel: di<TimelineNavigationViewModel>(),
           clipsNotifier: di<TimelineViewModel>().clipsNotifier,
         );
@@ -583,7 +581,6 @@ class _TimelineClipState extends State<TimelineClip> {
     // Retrieve services via di
     final projectDatabaseService = di<ProjectDatabaseService>();
     final timelineLogicService = di<TimelineLogicService>();
-    final previewHttpService = di<PreviewHttpService>();
     final navigationViewModel = di<TimelineNavigationViewModel>();
 
     await _resizeService.handleResizeEnd(
@@ -599,7 +596,6 @@ class _TimelineClipState extends State<TimelineClip> {
       // Pass the required services
       projectDatabaseService: projectDatabaseService,
       timelineLogicService: timelineLogicService,
-      previewHttpService: previewHttpService,
       navigationViewModel: navigationViewModel,
     );
 
