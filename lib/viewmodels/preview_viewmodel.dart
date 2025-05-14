@@ -3,14 +3,12 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:watch_it/watch_it.dart';
 
-import 'package:flipedit/services/preview_http_service.dart';
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart';
 import 'package:flipedit/utils/logger.dart';
 import 'package:flipedit/services/canvas_dimensions_service.dart';
 
 class PreviewViewModel extends ChangeNotifier implements Disposable {
-  late final PreviewHttpService _previewHttpService;
   late final TimelineNavigationViewModel _timelineNavViewModel;
   late final TimelineStateViewModel _timelineStateViewModel;
   late final CanvasDimensionsService _canvasDimensionsService;
@@ -36,7 +34,6 @@ class PreviewViewModel extends ChangeNotifier implements Disposable {
 
   PreviewViewModel() {
     logDebug('PreviewViewModel initializing...');
-    _previewHttpService = di<PreviewHttpService>();
     _timelineNavViewModel = di<TimelineNavigationViewModel>();
     _timelineStateViewModel = di<TimelineStateViewModel>();
     _canvasDimensionsService = di<CanvasDimensionsService>(); // Added
@@ -61,21 +58,10 @@ class PreviewViewModel extends ChangeNotifier implements Disposable {
 
   Future<void> _checkInitialServerHealth() async {
     if (_isDisposed) return;
-    _statusNotifier.value = 'Checking server...';
-    final healthy = await _previewHttpService.checkHealth();
-    if (_isDisposed) return;
-
-    _isConnectedNotifier.value = healthy;
-    _statusNotifier.value = healthy ? 'Server Connected' : 'Server Offline';
-
-    if (healthy) {
-      // Initial sync
-      await _onClipsChanged(); // Send initial clips data
-      await _onCanvasDimensionsChanged(); // Send initial canvas dimensions
-      _updateStreamUrl(); // Set initial stream URL
-    } else {
-      _streamUrlNotifier.value = null;
-    }
+    // Initial sync
+    await _onClipsChanged(); // Send initial clips data
+    await _onCanvasDimensionsChanged(); // Send initial canvas dimensions
+    _updateStreamUrl(); // Set initial stream URL
   }
 
   void _handlePlaybackOrSeekChange() {
@@ -119,7 +105,6 @@ class PreviewViewModel extends ChangeNotifier implements Disposable {
        return;
     }
 
-    _streamUrlNotifier.value = _previewHttpService.getStreamUrl(startFrame: targetFrame);
     _lastNotifiedFrameForStream = targetFrame;
     logInfo('PreviewViewModel: Stream URL updated to: ${_streamUrlNotifier.value}');
   }
@@ -129,14 +114,6 @@ class PreviewViewModel extends ChangeNotifier implements Disposable {
 
     final clips = _timelineStateViewModel.clipsNotifier.value;
     final List<Map<String, dynamic>> serializableClips = clips.map((clip) => clip.toJson()).toList();
-
-    logVerbose('PreviewViewModel: Clips changed. Sending ${serializableClips.length} clips to server.');
-    final success = await _previewHttpService.updateTimeline(serializableClips);
-    if (!success && !_isDisposed) {
-      _isConnectedNotifier.value = false;
-      _statusNotifier.value = 'Server Error: Timeline Update Failed';
-      _streamUrlNotifier.value = null;
-    }
   }
 
   Future<void> _onCanvasDimensionsChanged() async {
@@ -148,14 +125,6 @@ class PreviewViewModel extends ChangeNotifier implements Disposable {
     if (width == 0 || height == 0) {
       logWarning('PreviewViewModel: Canvas dimensions are zero, skipping update.', 'PreviewViewModel');
       return;
-    }
-
-    logVerbose('PreviewViewModel: Canvas dimensions changed to $width x $height. Sending to server.');
-    final success = await _previewHttpService.updateCanvasDimensions(width.toInt(), height.toInt());
-    if (!success && !_isDisposed) {
-      _isConnectedNotifier.value = false;
-      _statusNotifier.value = 'Server Error: Canvas Update Failed';
-      _streamUrlNotifier.value = null;
     }
   }
 

@@ -48,4 +48,4 @@ extension VideoTextureServiceLocator on GetIt {
       dispose: (service) => service.dispose(),
     );
   }
-}
+} 

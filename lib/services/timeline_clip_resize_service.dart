@@ -4,7 +4,6 @@ import 'package:flipedit/viewmodels/commands/resize_clip_command.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/services/timeline_logic_service.dart';
-import 'package:flipedit/services/preview_http_service.dart';
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
 
 
@@ -49,8 +48,6 @@ class TimelineClipResizeService {
     required Future<void> Function(ResizeClipCommand) runCommand,
     required ProjectDatabaseService projectDatabaseService,
     required TimelineLogicService timelineLogicService,
-    // required PreviewSyncService previewSyncService, // Removed
-    required PreviewHttpService previewHttpService,
     required TimelineNavigationViewModel navigationViewModel,
   }) async {
     if (resizingDirection == null ||

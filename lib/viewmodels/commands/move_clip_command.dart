@@ -8,7 +8,6 @@ import 'package:flipedit/utils/logger.dart' as logger;
 import 'package:collection/collection.dart';
 import '../../services/timeline_logic_service.dart';
 import '../../services/project_database_service.dart';
-import '../../services/preview_http_service.dart';
 import '../../viewmodels/timeline_navigation_viewmodel.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart'; // Added for di
@@ -23,7 +22,6 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
   // but are needed for the command to function.
   final ProjectDatabaseService _projectDatabaseService;
   final TimelineLogicService _timelineLogicService;
-  final PreviewHttpService _previewHttpService;
   final TimelineNavigationViewModel _timelineNavViewModel;
   final ValueNotifier<List<ClipModel>> _clipsNotifier; // Made private
 
@@ -46,7 +44,6 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
     // Required dependencies for operation
     required ProjectDatabaseService projectDatabaseService,
     required TimelineLogicService timelineLogicService,
-    required PreviewHttpService previewHttpService,
     required TimelineNavigationViewModel timelineNavViewModel,
     required ValueNotifier<List<ClipModel>> clipsNotifier,
     // Optional: For deserialization, to restore state
@@ -55,7 +52,6 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
     List<ClipModel>? deletedNeighborsState,
   })  : _projectDatabaseService = projectDatabaseService,
         _timelineLogicService = timelineLogicService,
-        _previewHttpService = previewHttpService,
         _timelineNavViewModel = timelineNavViewModel,
         _clipsNotifier = clipsNotifier,
         _originalClipState = originalClipState,
@@ -227,8 +223,6 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
         logger.logDebug('[MoveClipCommand] Timeline paused, fetching frame via HTTP...', _logTag);
         // Pass the current frame from the navigation view model
         final frameToRefresh = _timelineNavViewModel.currentFrame;
-        // logger.logDebug('[MoveClipCommand] Attempting to refresh frame $frameToRefresh via HTTP', _logTag);
-        // await _previewHttpService.fetchAndUpdateFrame(frameToRefresh); // Removed
         logger.logDebug('[MoveClipCommand] Timeline paused. Frame refresh via HTTP removed, video player will update.', _logTag);
       }
 
@@ -461,7 +455,6 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
 
     // --- Retrieve dependencies using di ---
     final timelineLogicService = di<TimelineLogicService>();
-    final previewHttpService = di<PreviewHttpService>();
     final timelineNavViewModel = di<TimelineNavigationViewModel>();
     final clipsNotifier = di<TimelineViewModel>().clipsNotifier;
 
@@ -472,7 +465,6 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
       newStartTimeOnTrackMs: newStartTimeOnTrackMs,
       projectDatabaseService: projectDatabaseService, // Passed in
       timelineLogicService: timelineLogicService, // From di
-      previewHttpService: previewHttpService, // From di
       timelineNavViewModel: timelineNavViewModel, // From di
       clipsNotifier: clipsNotifier, // From di
       originalClipState: originalClipState, // For undo

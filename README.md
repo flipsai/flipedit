@@ -45,7 +45,7 @@ The `MdkPlayerService` and its helper classes provide a robust, MVVM-compliant a
 - **Purpose:** Central service for managing the MDK player instance.
 - **Responsibilities:**
   - Player lifecycle (creation, disposal, re-initialization)
-  - Exposes playback state via `ValueNotifier`s (`textureId`, `isPlaying`, `isPlayerReady`)
+  - Exposes playback state via `ValueNotifier`s (`currentFrameMatNotifier`, `isPlaying`, `isPlayerReady`)
   - Delegates error handling, texture management, and status monitoring to helper classes
   - Integrates with ViewModels in MVVM architecture
 
@@ -82,7 +82,7 @@ The `MdkPlayerService` and its helper classes provide a robust, MVVM-compliant a
 ```dart
 class MdkPlayerService {
   mdk.Player? get player;
-  ValueNotifier<int> textureIdNotifier;
+  ValueNotifier<cv.Mat?> currentFrameMatNotifier;
   int get textureId;
   ValueNotifier<bool> isPlayingNotifier;
   ValueNotifier<bool> isPlayerReadyNotifier;
@@ -93,7 +93,7 @@ class MdkPlayerService {
 ```
 
 - **player**: The underlying MDK player instance.
-- **textureIdNotifier**: Notifies listeners of the current texture ID.
+- **currentFrameMatNotifier**: Notifies listeners of the current video frame as a `cv.Mat`.
 - **isPlayingNotifier**: Notifies listeners of playback state.
 - **isPlayerReadyNotifier**: Notifies listeners when the player is ready.
 
@@ -236,3 +236,25 @@ python3 assets/video_stream_server.py
 The server must be running for the preview panel to display video content.
 
 ## Features
+
+### Player ViewModel (`NativePlayerViewModel`)
+
+- Manages native playback state (OpenCV-based).
+- Exposes playback state via `ValueNotifier`s (`currentFrameMatNotifier`, `isPlaying`, `isPlayerReady`)
+- Handles playback controls (play, pause, seek).
+
+### Player ViewModels
+
+#### `NativePlayerViewModel`
+Responsible for managing the state and logic of the native video player (using OpenCV frames).
+
+**Key Responsibilities:**
+- Initializes and manages the `TimelineProcessingService` for frame generation.
+- Provides `ValueNotifier<cv.Mat?> currentFrameMatNotifier` for the UI to listen to new frames.
+- Exposes playback status (isPlaying, isInitialized, status messages).
+- Handles playback timing and updates the current frame in `TimelineNavigationViewModel`.
+
+**Key Members:**
+- `ValueListenable<cv.Mat?> currentFrameMatNotifier`: Notifies listeners of the current video frame as a `cv.Mat`.
+- `ValueListenable<bool> isInitializedNotifier`: Indicates if the player is ready.
+- `ValueListenable<bool> isPlayingNotifier`: (Derived from `TimelineNavigationViewModel`) Indicates playback state.

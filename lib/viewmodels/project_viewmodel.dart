@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flipedit/models/project_asset.dart' as model;
 import 'package:flipedit/persistence/database/project_database.dart';
 import 'package:flipedit/persistence/database/project_metadata_database.dart';
-import 'package:flipedit/services/preview_http_service.dart'; // Added import
 import 'package:flipedit/services/project_metadata_service.dart';
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/services/undo_redo_service.dart';

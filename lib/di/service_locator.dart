@@ -1,13 +1,10 @@
-import 'package:flipedit/comfyui/comfyui_service.dart';
 import 'package:flipedit/persistence/dao/project_metadata_dao.dart';
 import 'package:flipedit/persistence/database/project_metadata_database.dart';
 import 'package:flipedit/services/canvas_dimensions_service.dart';
 import 'package:flipedit/services/command_history_service.dart';
 import 'package:flipedit/services/clip_update_service.dart';
 import 'package:flipedit/services/playback_service.dart';
-import 'package:flipedit/services/preview_http_service.dart';
 import 'package:flipedit/services/timeline_logic_service.dart';
-import 'package:flipedit/services/uv_manager.dart';
 import 'package:flipedit/services/layout_service.dart';
 import 'package:flipedit/services/area_dimensions_service.dart';
 import 'package:flipedit/services/project_database_service.dart';
@@ -22,11 +19,10 @@ import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flipedit/services/undo_redo_service.dart';
 import 'package:flipedit/viewmodels/preview_viewmodel.dart';
-import 'package:flipedit/services/video_texture_service.dart';
 import 'package:flipedit/services/video_processing_service.dart';
 import 'package:flipedit/services/timeline_processing_service.dart';
 import 'package:watch_it/watch_it.dart';
-import 'package:flipedit/viewmodels/player/native_player_viewmodel.dart';
+import 'package:flipedit/services/video_texture_service.dart';
 
 // Get the instance of GetIt
 Future<void> setupServiceLocator() async {
@@ -52,14 +48,8 @@ Future<void> setupServiceLocator() async {
   di.registerLazySingleton<ProjectDatabaseService>(
     () => ProjectDatabaseService(),
   );
-  di.registerLazySingleton<UvManager>(() => UvManager());
-  di.registerLazySingleton<ComfyUIService>(() => ComfyUIService());
   di.registerLazySingleton<LayoutService>(() => LayoutService());
   di.registerLazySingleton<AreaDimensionsService>(() => AreaDimensionsService());
-  di.registerLazySingleton<PreviewHttpService>(
-    () => PreviewHttpService(),
-    dispose: (service) => service.dispose(),
-  );
 
   // Register canvas dimensions service
   di.registerLazySingleton<CanvasDimensionsService>(
@@ -129,7 +119,7 @@ Future<void> setupServiceLocator() async {
     () => VideoTextureService(),
     dispose: (service) => service.dispose(),
   );
-  
+
   // Register video processing services
   di.registerLazySingleton<VideoProcessingService>(
     () => VideoProcessingService(),
@@ -139,11 +129,6 @@ Future<void> setupServiceLocator() async {
   di.registerLazySingleton<TimelineProcessingService>(
     () => TimelineProcessingService(),
     dispose: (service) => service.dispose(),
-  );
-
-  di.registerLazySingleton<NativePlayerViewModel>(
-    () => NativePlayerViewModel(),
-    dispose: (vm) => vm.dispose(),
   );
 
   di.registerLazySingleton<PlaybackService>(
