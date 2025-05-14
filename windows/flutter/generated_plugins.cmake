@@ -6,11 +6,13 @@ list(APPEND FLUTTER_PLUGIN_LIST
   file_selector_windows
   screen_retriever_windows
   sqlite3_flutter_libs
+  texture_rgba_renderer
   url_launcher_windows
   window_manager
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST
+  opencv_dart
 )
 
 set(PLUGIN_BUNDLED_LIBRARIES)
