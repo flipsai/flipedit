@@ -23,7 +23,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flipedit/services/undo_redo_service.dart';
 import 'package:flipedit/viewmodels/preview_viewmodel.dart';
 import 'package:flipedit/services/video_texture_service.dart';
+import 'package:flipedit/services/video_processing_service.dart';
+import 'package:flipedit/services/timeline_processing_service.dart';
 import 'package:watch_it/watch_it.dart';
+import 'package:flipedit/viewmodels/player/native_player_viewmodel.dart';
 
 // Get the instance of GetIt
 Future<void> setupServiceLocator() async {
@@ -126,6 +129,23 @@ Future<void> setupServiceLocator() async {
     () => VideoTextureService(),
     dispose: (service) => service.dispose(),
   );
+  
+  // Register video processing services
+  di.registerLazySingleton<VideoProcessingService>(
+    () => VideoProcessingService(),
+    dispose: (service) => service.dispose(),
+  );
+  
+  di.registerLazySingleton<TimelineProcessingService>(
+    () => TimelineProcessingService(),
+    dispose: (service) => service.dispose(),
+  );
+
+  di.registerLazySingleton<NativePlayerViewModel>(
+    () => NativePlayerViewModel(),
+    dispose: (vm) => vm.dispose(),
+  );
+
   di.registerLazySingleton<PlaybackService>(
     () => PlaybackService(
       getCurrentFrame: () => 0,
