@@ -8,7 +8,7 @@ typedef SetCurrentFrame = void Function(int frame);
 typedef GetTotalFrames = int Function();
 typedef GetDefaultEmptyDurationFrames = int Function();
 
-class PlaybackService extends ChangeNotifier {
+class OptimizedPlaybackService extends ChangeNotifier {
   final String _logTag = 'PlaybackService';
 
   final ValueNotifier<bool> isPlayingNotifier = ValueNotifier<bool>(false);
@@ -25,7 +25,7 @@ class PlaybackService extends ChangeNotifier {
   final GetTotalFrames _getTotalFrames;
   final GetDefaultEmptyDurationFrames _getDefaultEmptyDurationFrames;
 
-  PlaybackService({
+  OptimizedPlaybackService({
     required GetCurrentFrame getCurrentFrame,
     required SetCurrentFrame setCurrentFrame,
     required GetTotalFrames getTotalFrames,

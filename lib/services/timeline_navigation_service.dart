@@ -157,7 +157,8 @@ class TimelineNavigationService extends ChangeNotifier {
     final bool isLocked = isPlayheadLockedNotifier.value;
     final int frame = currentFrameNotifier.value;
 
-    if (isPlaying && isLocked && frame % 20 == 0) {
+    if (isPlaying && isLocked) {
+      // Always update scroll position instead of only every 20 frames
       scrollToFrameRequestNotifier.value = frame;
     }
   }

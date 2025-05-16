@@ -3,7 +3,7 @@ import 'package:flipedit/persistence/database/project_metadata_database.dart';
 import 'package:flipedit/services/canvas_dimensions_service.dart';
 import 'package:flipedit/services/command_history_service.dart';
 import 'package:flipedit/services/clip_update_service.dart';
-import 'package:flipedit/services/playback_service.dart';
+import 'package:flipedit/services/optimized_playback_service.dart';
 import 'package:flipedit/services/timeline_logic_service.dart';
 import 'package:flipedit/services/layout_service.dart';
 import 'package:flipedit/services/area_dimensions_service.dart';
@@ -131,8 +131,8 @@ Future<void> setupServiceLocator() async {
     dispose: (service) => service.dispose(),
   );
 
-  di.registerLazySingleton<PlaybackService>(
-    () => PlaybackService(
+  di.registerLazySingleton<OptimizedPlaybackService>(
+    () => OptimizedPlaybackService(
       getCurrentFrame: () => 0,
       setCurrentFrame: (int frame) {},
       getTotalFrames: () => 0,
