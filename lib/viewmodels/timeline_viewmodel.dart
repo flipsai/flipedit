@@ -8,7 +8,7 @@ import 'package:flipedit/utils/logger.dart' as logger;
 import 'package:flipedit/persistence/database/project_database.dart' show Track;
 import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart';
 
-import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart'; // Added import
+import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart'; 
 import 'package:watch_it/watch_it.dart';
 import 'commands/timeline_command.dart';
 import 'commands/add_clip_command.dart';
@@ -20,10 +20,10 @@ import 'package:flipedit/services/undo_redo_service.dart';
 import 'commands/roll_edit_command.dart';
 import 'package:flipedit/services/timeline_logic_service.dart';
 import 'commands/update_clip_transform_command.dart';
-import 'package:flipedit/services/commands/undoable_command.dart'; // Added import
-import 'commands/move_clip_command.dart'; // Added import
-import 'commands/resize_clip_command.dart'; // Added import
-import '../services/canvas_dimensions_service.dart'; // Add this import if it's not already there
+import 'package:flipedit/services/commands/undoable_command.dart'; 
+import 'commands/move_clip_command.dart'; 
+import 'commands/resize_clip_command.dart'; 
+import '../services/canvas_dimensions_service.dart'; 
 
 class TimelineViewModel extends ChangeNotifier {
   final String _logTag = 'TimelineViewModel';
@@ -498,20 +498,9 @@ class TimelineViewModel extends ChangeNotifier {
   @override
   void dispose() {
     logger.logInfo('Disposing TimelineViewModel', _logTag);
-
-    // Execute stored removal logic for listeners (if any remain in this VM)
-    // for (final removeListener in _internalListeners) {
-    //   removeListener();
-    // }
-    // _internalListeners.clear(); // Clear if used
-
-    // Dispose owned ValueNotifiers (Interaction State Only)
     _isPlayheadDraggingNotifier.dispose();
     trackLabelWidthNotifier.dispose();
-    // currentFrameNotifier and totalFramesNotifier are now delegated, not owned.
-    // No TODO needed here anymore for them.
     currentEditMode.dispose();
-    // Do NOT dispose notifiers owned by TimelineStateViewModel
 
     super.dispose();
   }
