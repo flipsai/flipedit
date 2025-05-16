@@ -113,8 +113,8 @@ class _TimelineState extends State<Timeline>
       final currentFrame =
           timelineNavigationViewModel.currentFrameNotifier.value;
       // Update the visual frame position if it's different
-      if (visualFramePositionNotifier.value != currentFrame) {
-        visualFramePositionNotifier.value = currentFrame;
+      if (visualFramePositionNotifier.value != currentFrame.toDouble()) {
+        visualFramePositionNotifier.value = currentFrame.toDouble();
       }
     };
     timelineNavigationViewModel.currentFrameNotifier.addListener(
@@ -371,7 +371,7 @@ class _TimelineState extends State<Timeline>
                                     ],
                                   ),
                                   if (tracks.isNotEmpty)
-                                    ValueListenableBuilder<int>(
+                                    ValueListenableBuilder<double>(
                                       valueListenable:
                                           visualFramePositionNotifier,
                                       builder: (context, visualFrame, _) {
@@ -473,3 +473,4 @@ class _TimelineState extends State<Timeline>
     );
   }
 }
+

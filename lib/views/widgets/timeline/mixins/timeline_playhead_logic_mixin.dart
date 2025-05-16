@@ -23,7 +23,9 @@ mixin TimelinePlayheadLogicMixin on State<Timeline> implements TickerProvider {
   // --- Local State for Playhead Logic (Managed by Mixin) ---
   // Made public: Direct frame position controller - needs careful sync with VM
   int currentFramePosition = 0;
-  late final ValueNotifier<int> visualFramePositionNotifier;
+  // Track exact frame position (as double) for smoother movement
+  double _exactFramePosition = 0.0;
+  late final ValueNotifier<double> visualFramePositionNotifier;
   // Track the mouse position for physics-based interactions
   Offset? _lastMousePosition;
   // Current horizontal velocity for momentum scrolling
@@ -45,7 +47,8 @@ mixin TimelinePlayheadLogicMixin on State<Timeline> implements TickerProvider {
     _ensurePlayheadVisibleCallback = ensurePlayheadVisible;
     // Sync initial frame position
     currentFramePosition = timelineNavigationViewModel.currentFrame;
-    visualFramePositionNotifier = ValueNotifier<int>(currentFramePosition);
+    _exactFramePosition = currentFramePosition.toDouble();
+    visualFramePositionNotifier = ValueNotifier<double>(_exactFramePosition);
 
     // Add listeners (controllers are created in the main State's initState)
     playheadPhysicsController.addListener(handlePlayheadPhysics);
@@ -71,8 +74,8 @@ mixin TimelinePlayheadLogicMixin on State<Timeline> implements TickerProvider {
         !playheadPhysicsController.isAnimating) {
       // Update local state and potentially trigger snap animation
       currentFramePosition = timelineNavigationViewModel.currentFrame;
-      visualFramePositionNotifier.value =
-          currentFramePosition; // Sync notifier too
+      _exactFramePosition = currentFramePosition.toDouble();
+      visualFramePositionNotifier.value = _exactFramePosition; // Sync notifier too
       // Consider if a snap animation is needed here or if direct update is fine
       // If snapping is desired:
       // scrubSnapController.forward(from: 0.0);
@@ -109,7 +112,8 @@ mixin TimelinePlayheadLogicMixin on State<Timeline> implements TickerProvider {
 
     if (newFrame != currentFramePosition) {
       currentFramePosition = newFrame;
-      visualFramePositionNotifier.value = newFrame; // Update visual notifier
+      _exactFramePosition = newFrame.toDouble();
+      visualFramePositionNotifier.value = _exactFramePosition; // Update visual notifier
       timelineNavigationViewModel.currentFrame = newFrame;
 
       setState(() {}); // Update UI
@@ -132,14 +136,16 @@ mixin TimelinePlayheadLogicMixin on State<Timeline> implements TickerProvider {
     // Only update visually during animation
     if (interpolatedFrame != currentFramePosition) {
       currentFramePosition = interpolatedFrame;
-      visualFramePositionNotifier.value = interpolatedFrame;
+      _exactFramePosition = interpolatedFrame.toDouble();
+      visualFramePositionNotifier.value = _exactFramePosition;
       setState(() {});
     }
 
     // When animation completes, ensure final state matches VM
     if (t >= 1.0) {
       currentFramePosition = targetFrame;
-      visualFramePositionNotifier.value = targetFrame;
+      _exactFramePosition = targetFrame.toDouble();
+      visualFramePositionNotifier.value = _exactFramePosition;
       setState(() {});
     }
   }
@@ -187,28 +193,30 @@ mixin TimelinePlayheadLogicMixin on State<Timeline> implements TickerProvider {
             scrollOffsetX)
         .clamp(0.0, double.infinity);
 
-    // Get the exact frame position without rounding first for more precise calculations
-    final double exactFramePosition = pointerRelX / pxPerFrame;
+    // Get the exact frame position without rounding for smooth movement
+    _exactFramePosition = pointerRelX / pxPerFrame;
 
-    // Only then round to get the final frame number
+    // Update the visual position notifier with the exact (fractional) position
+    visualFramePositionNotifier.value = _exactFramePosition;
+
+    // Only round to get the integer frame number for the view model
     final int maxAllowedFrame =
         timelineNavigationViewModel.totalFrames > 0
             ? timelineNavigationViewModel.totalFrames - 1
             : 0;
-    final int newFrame = exactFramePosition.round().clamp(0, maxAllowedFrame);
+    final int newFrame = _exactFramePosition.round().clamp(0, maxAllowedFrame);
 
     if (newFrame != currentFramePosition) {
       // For debugging potential frame synchronization issues
       if ((newFrame - currentFramePosition).abs() > 2) {
         developer.log(
           'Significant frame jump: $currentFramePosition → $newFrame '
-          '(pointer: ${exactFramePosition.toStringAsFixed(2)})',
+          '(pointer: ${_exactFramePosition.toStringAsFixed(2)})',
           name: 'Timeline.playhead',
         );
       }
 
       currentFramePosition = newFrame;
-      visualFramePositionNotifier.value = newFrame;
       timelineNavigationViewModel.currentFrame = newFrame;
       scrubSnapController.stop();
       _ensurePlayheadVisibleCallback(newFrame);
@@ -267,8 +275,9 @@ mixin TimelinePlayheadLogicMixin on State<Timeline> implements TickerProvider {
     _cumulativeDragDelta = 0.0;
     // Reset position to VM state? Or leave as is?
     currentFramePosition = timelineNavigationViewModel.currentFrame;
+    _exactFramePosition = currentFramePosition.toDouble();
     setState(() {});
-    visualFramePositionNotifier.value =
-        currentFramePosition; // Reset visual notifier too
+    visualFramePositionNotifier.value = _exactFramePosition; // Reset visual notifier too
   }
 }
+

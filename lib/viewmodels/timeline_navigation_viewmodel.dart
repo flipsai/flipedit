@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flipedit/models/clip.dart';
-import 'package:flipedit/services/playback_service.dart';
+import 'package:flipedit/services/optimized_playback_service.dart';
 import 'package:flipedit/services/timeline_navigation_service.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
 
@@ -9,7 +9,7 @@ class TimelineNavigationViewModel extends ChangeNotifier {
 
   final ValueNotifier<List<ClipModel>> _clipsNotifier;
   late final TimelineNavigationService _navigationService;
-  late final PlaybackService _playbackService;
+  late final OptimizedPlaybackService _playbackService;
 
   VoidCallback? _clipsListener;
 
@@ -26,7 +26,7 @@ class TimelineNavigationViewModel extends ChangeNotifier {
       getIsPlaying: () => isPlaying,
     );
 
-    _playbackService = PlaybackService(
+    _playbackService = OptimizedPlaybackService(
       getCurrentFrame: _navigationService.getCurrentFrameValue,
       setCurrentFrame: _navigationService.setCurrentFrameValue,
       getTotalFrames: _navigationService.getTotalFramesValue,
@@ -111,6 +111,9 @@ class TimelineNavigationViewModel extends ChangeNotifier {
 
   // --- Expose Navigation Service ---
   TimelineNavigationService get navigationService => _navigationService;
+  
+  // --- Expose Playback Service for Player Integration ---
+  OptimizedPlaybackService get playbackService => _playbackService;
 
   @override
   void dispose() {
