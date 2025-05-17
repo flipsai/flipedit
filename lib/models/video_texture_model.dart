@@ -1,7 +1,9 @@
 import 'dart:ffi';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:texture_rgba_renderer/texture_rgba_renderer.dart';
+import 'package:ffi/ffi.dart'; // Import for malloc
 
 // Native FFI interface for texture rendering
 class Native {
@@ -108,13 +110,32 @@ class PixelbufferTexture {
   }
 
   void renderFrame(Pointer<Uint8> data, int len, int width, int height) {
-    if (!isReady) {
-      debugPrint("Texture not ready for rendering");
-      return;
+    try {
+      if (!isReady) {
+        debugPrint("Texture not ready for rendering");
+        return;
+      }
+      
+      if (data == nullptr) {
+        debugPrint("Null data pointer provided for rendering");
+        return;
+      }
+      
+      if (len <= 0 || width <= 0 || height <= 0) {
+        debugPrint("Invalid dimensions for rendering: len=$len, width=$width, height=$height");
+        return;
+      }
+      
+      if (_texturePtr == 0) {
+        debugPrint("Texture pointer is zero");
+        return;
+      }
+      
+      final textureTargetPtr = Pointer.fromAddress(_texturePtr).cast<Void>();
+      Native.instance.onRgba(textureTargetPtr, data, len, width, height, strideAlign);
+    } catch (e) {
+      debugPrint("Error in renderFrame: $e");
     }
-
-    final textureTargetPtr = Pointer.fromAddress(_texturePtr).cast<Void>();
-    Native.instance.onRgba(textureTargetPtr, data, len, width, height, strideAlign);
   }
 }
 
@@ -235,17 +256,139 @@ class VideoTextureModel {
   }
 
   void renderFrame(int display, Pointer<Uint8> data, int len, int width, int height) {
-    _pixelbufferRenderTextures[display]?.renderFrame(data, len, width, height);
+    try {
+      if (data == nullptr || len <= 0 || width <= 0 || height <= 0) {
+        debugPrint("Invalid frame data parameters: len=$len, width=$width, height=$height");
+        return;
+      }
+      
+      final texture = _pixelbufferRenderTextures[display];
+      if (texture == null) {
+        debugPrint("No texture found for display $display");
+        return;
+      }
+      
+      texture.renderFrame(data, len, width, height);
+    } catch (e) {
+      debugPrint("Error rendering frame: $e");
+    }
+  }
+  
+  // Overload for Uint8List data
+  void renderFrameBytes(int display, Uint8List data, int width, int height) {
+    try {
+      if (data.isEmpty || width <= 0 || height <= 0) {
+        debugPrint("Invalid frame data parameters: dataLength=${data.length}, width=$width, height=$height");
+        return;
+      }
+      
+      final texture = _pixelbufferRenderTextures[display];
+      if (texture == null) {
+        debugPrint("No texture found for display $display");
+        return;
+      }
+      
+      if (!texture.isReady) {
+        debugPrint("Texture not ready for display $display");
+        return;
+      }
+      
+      // Log detailed information about the texture and data
+      debugPrint("Rendering to texture: id=${texture.textureId}, ptr=${texture.texturePtr.toRadixString(16)}, " +
+                "size=${width}x${height}, data length=${data.length}, first bytes: " +
+                "${data.length > 16 ? data.sublist(0, 16).map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ') : 'empty'}");
+      
+      // Try both rendering methods for redundancy
+      try {
+        // Method 1: Use the texture renderer directly
+        final result = texture.textureRenderer.onRgba(
+          texture.textureId,
+          data,
+          height,
+          width,
+          texture.strideAlign
+        );
+        
+        debugPrint("TextureRenderer.onRgba result: $result");
+        
+        // Method 2: If the first method fails, try using Native FFI directly
+        if (texture.texturePtr > 0) {
+          final textureTargetPtr = Pointer.fromAddress(texture.texturePtr).cast<Void>();
+          
+          // Create a temporary pointer to the data
+          final dataLength = data.length;
+          final dataPtr = malloc.allocate<Uint8>(dataLength);
+          final dataList = dataPtr.asTypedList(dataLength);
+          dataList.setAll(0, data);
+          
+          // Render using Native FFI
+          Native.instance.onRgba(
+            textureTargetPtr,
+            dataPtr,
+            dataLength,
+            width,
+            height,
+            texture.strideAlign
+          );
+          
+          // Free the temporary pointer
+          malloc.free(dataPtr);
+          
+          debugPrint("Backup Native FFI rendering completed");
+        }
+      } catch (renderError) {
+        debugPrint("Primary rendering method failed: $renderError, trying fallback...");
+        
+        // Final fallback: Try with a different stride alignment
+        final fallbackStride = texture.strideAlign == 64 ? 1 : 64;
+        final result = texture.textureRenderer.onRgba(
+          texture.textureId,
+          data,
+          height,
+          width,
+          fallbackStride
+        );
+        
+        debugPrint("Fallback rendering with stride=$fallbackStride result: $result");
+      }
+    } catch (e, stack) {
+      debugPrint("Error rendering frame bytes: $e");
+      debugPrint("Stack trace: $stack");
+    }
   }
 
   bool isReady(int display) {
-    return _pixelbufferRenderTextures[display]?.isReady ?? false;
+    try {
+      return _pixelbufferRenderTextures[display]?.isReady ?? false;
+    } catch (e) {
+      debugPrint("Error checking texture readiness: $e");
+      return false;
+    }
   }
 
   void dispose() {
-    for (final control in _control.values) {
-      control.dispose();
+    try {
+      debugPrint("Disposing VideoTextureModel");
+      
+      // Dispose all controls
+      for (final control in _control.values) {
+        try {
+          control.dispose();
+        } catch (e) {
+          debugPrint("Error disposing control: $e");
+        }
+      }
+      
+      // Destroy session (will clean up textures)
+      try {
+        destroySession();
+      } catch (e) {
+        debugPrint("Error destroying session during disposal: $e");
+      }
+      
+      debugPrint("VideoTextureModel disposed successfully");
+    } catch (e) {
+      debugPrint("Error disposing VideoTextureModel: $e");
     }
-    destroySession();
   }
 } 

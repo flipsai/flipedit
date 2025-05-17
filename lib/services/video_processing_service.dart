@@ -159,16 +159,59 @@ class VideoProcessingService implements Disposable {
       cv.Mat result = cv.Mat.zeros(canvasHeight, canvasWidth, cv.MatType.CV_8UC4);
       
       for (int i = 0; i < frames.length; i++) {
-        final frame = frames[i];
-        final alpha = i < alphas.length ? alphas[i] : 1.0;
-        
-        if (frame.cols != canvasWidth || frame.rows != canvasHeight) {
-          // Resize frame to match canvas if needed
-          final resized = cv.resize(frame, (canvasWidth, canvasHeight));
-          cv.addWeighted(result, 1.0 - alpha, resized, alpha, 0, dst: result);
+        try {
+          final frame = frames[i];
+          final alpha = i < alphas.length ? alphas[i] : 1.0;
+          
+          // Validate frame
+          if (frame.isEmpty) {
+            logWarning('VideoProcessingService', 'Empty frame at index $i, skipping');
+            continue;
+          }
+          
+          // Ensure frame has correct number of channels (4 for RGBA)
+          cv.Mat frameToUse;
+          if (frame.channels != 4) {
+            logInfo('VideoProcessingService', 'Converting frame from ${frame.channels} channels to 4 channels');
+            if (frame.channels == 3) {
+              frameToUse = cv.cvtColor(frame, cv.COLOR_BGR2RGBA);
+            } else if (frame.channels == 1) {
+              frameToUse = cv.cvtColor(frame, cv.COLOR_GRAY2RGBA);
+            } else {
+              logWarning('VideoProcessingService', 'Unsupported channel count: ${frame.channels}, skipping frame');
+              continue;
+            }
+          } else {
+            frameToUse = frame;
+          }
+          
+          // Always resize frame to match canvas dimensions
+          cv.Mat resized;
+          if (frameToUse.cols != canvasWidth || frameToUse.rows != canvasHeight) {
+            logInfo('VideoProcessingService', 'Resizing frame from ${frameToUse.cols}x${frameToUse.rows} to ${canvasWidth}x${canvasHeight}');
+            resized = cv.resize(frameToUse, (canvasWidth, canvasHeight));
+          } else {
+            resized = frameToUse.clone();
+          }
+          
+          // Add weighted with size validation
+          if (resized.cols == result.cols && resized.rows == result.rows &&
+              resized.channels == result.channels) {
+            cv.addWeighted(result, 1.0 - alpha, resized, alpha, 0, dst: result);
+          } else {
+            logWarning('VideoProcessingService',
+              'Size mismatch: result=${result.cols}x${result.rows}x${result.channels}, ' +
+              'frame=${resized.cols}x${resized.rows}x${resized.channels}, skipping frame');
+          }
+          
+          // Clean up
+          if (frameToUse != frame) {
+            frameToUse.dispose();
+          }
           resized.dispose();
-        } else {
-          cv.addWeighted(result, 1.0 - alpha, frame, alpha, 0, dst: result);
+        } catch (frameError) {
+          logError('VideoProcessingService', 'Error processing frame $i: $frameError');
+          // Continue with next frame
         }
       }
       
@@ -199,6 +242,12 @@ class VideoProcessingService implements Disposable {
   /// Get video information
   VideoInfo? getVideoInfo(String videoId) {
     return _videoInfoCache[videoId];
+  }
+  
+  /// Check if a video is loaded
+  bool isVideoLoaded(String videoId) {
+    final capture = _videoCaptures[videoId];
+    return capture != null && capture.isOpened;
   }
   
   /// Release a video capture
