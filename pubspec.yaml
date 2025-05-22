@@ -62,7 +62,6 @@ dependencies:
   collection: any
   equatable: ^2.0.7
   flutter_cache_manager: ^3.4.1
-  opencv_dart: ^1.4.1
   texture_rgba_renderer:
     git:
       url: https://github.com/rustdesk-org/flutter_texture_rgba_renderer
@@ -98,10 +97,11 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   # To add assets to your application, add an assets section, like this:
-  # assets:
-    # - assets/sample_video_1.mp4
-    # - assets/sample_video_2.mp4
-    # - assets/video_stream_server.py
+  assets:
+    - assets/
+    - assets/build_texture_bridge.sh
+    - assets/texture_bridge.cpp
+    - assets/CMakeLists.txt
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
   # For details regarding adding assets from package dependencies, see

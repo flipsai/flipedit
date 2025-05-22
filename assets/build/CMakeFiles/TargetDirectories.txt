@@ -1,0 +1,7 @@
+/Users/remymenard/code/flipedit/assets/build/CMakeFiles/texture_bridge.dir
+/Users/remymenard/code/flipedit/assets/build/CMakeFiles/edit_cache.dir
+/Users/remymenard/code/flipedit/assets/build/CMakeFiles/rebuild_cache.dir
+/Users/remymenard/code/flipedit/assets/build/CMakeFiles/list_install_components.dir
+/Users/remymenard/code/flipedit/assets/build/CMakeFiles/install.dir
+/Users/remymenard/code/flipedit/assets/build/CMakeFiles/install/local.dir
+/Users/remymenard/code/flipedit/assets/build/CMakeFiles/install/strip.dir

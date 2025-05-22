@@ -1,0 +1,1 @@
+/usr/bin/c++  -arch arm64 -dynamiclib -Wl,-headerpad_max_install_names -o lib/libtexture_bridge.dylib -install_name @rpath/libtexture_bridge.dylib CMakeFiles/texture_bridge.dir/texture_bridge.cpp.o

@@ -2,6 +2,7 @@ import 'package:flipedit/app.dart';
 import 'package:flipedit/di/service_locator.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
 import 'package:flipedit/services/uv_manager.dart';
+import 'package:flipedit/utils/texture_bridge_check.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flipedit/utils/logger.dart';
@@ -90,16 +91,22 @@ Future<void> main() async {
 
   // Set up dependency injection
   await setupServiceLocator();
-
-  // Initialize UvManager
-  try {
-    final uvManager = di.get<UvManager>();
-    await uvManager.initialize();
-    logInfo('main', 'UvManager initialized successfully');
-  } catch (e) {
-    logError('main', 'Failed to initialize UvManager: $e');
-    // Continue app execution even if UV initialization fails
+  
+  // Check and setup texture bridge
+  final textureBridgeAvailable = await TextureBridgeChecker.checkTextureBridge();
+  if (!textureBridgeAvailable) {
+    logWarning('main', 'Texture bridge not available, Python-based rendering may not work properly');
+  } else {
+    logInfo('main', 'Texture bridge is available for Python-based rendering');
   }
+
+  // UvManager is initialized asynchronously via its registration in service_locator.dart
+  // We can wait for it to be ready if needed for subsequent steps,
+  // or let parts of the app that depend on it (like OpenCvPythonPlayerViewModel)
+  // await its readiness.
+  // For now, we'll let dependent components handle awaiting.
+  // If an error occurs during UvManager.initialize(), it will be caught by
+  // di.getAsync<UvManager>() or di.isReady<UvManager>().
 
   // Ensure ViewModels are accessible to watch_it and load last project
   // Make sure ProjectViewModel is registered before trying to use it

@@ -6,66 +6,24 @@ import 'package:flipedit/utils/logger.dart';
 import 'package:flipedit/viewmodels/player/opencv_python_player_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
 
-class PlayerPanel extends StatefulWidget {
-  const PlayerPanel({super.key});
-
-  @override
-  State<PlayerPanel> createState() => _PlayerPanelState();
-}
-
-class _PlayerPanelState extends State<PlayerPanel> {
-  late final OpenCvPythonPlayerViewModel _playerViewModel;
-  late final TimelineNavigationViewModel _timelineNavViewModel;
-  
-  @override
-  void initState() {
-    super.initState();
-    logDebug("Initializing PlayerPanel...", 'PlayerPanel');
-    
-    _playerViewModel = OpenCvPythonPlayerViewModel();
-    _timelineNavViewModel = di<TimelineNavigationViewModel>();
-    
-    // Add listeners to rebuild on state changes
-    _playerViewModel.textureIdNotifier.addListener(_rebuild);
-    _playerViewModel.isReadyNotifier.addListener(_rebuild);
-    _playerViewModel.statusNotifier.addListener(_rebuild);
-    _playerViewModel.fpsNotifier.addListener(_rebuild);
-    _timelineNavViewModel.isPlayingNotifier.addListener(_rebuild);
-    _timelineNavViewModel.currentFrameNotifier.addListener(_rebuild);
-  }
-  
-  void _rebuild() {
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
-  @override
-  void dispose() {
-    // Remove listeners
-    _playerViewModel.textureIdNotifier.removeListener(_rebuild);
-    _playerViewModel.isReadyNotifier.removeListener(_rebuild);
-    _playerViewModel.statusNotifier.removeListener(_rebuild);
-    _playerViewModel.fpsNotifier.removeListener(_rebuild);
-    _timelineNavViewModel.isPlayingNotifier.removeListener(_rebuild);
-    _timelineNavViewModel.currentFrameNotifier.removeListener(_rebuild);
-    
-    // Dispose view model
-    _playerViewModel.dispose();
-    super.dispose();
-  }
+class PythonPlayerPanel extends StatelessWidget with WatchItMixin {
+  const PythonPlayerPanel({super.key});
 
   @override
   Widget build(BuildContext context) {
-    logDebug("Rebuilding PlayerPanel...", 'PlayerPanel');
+    logDebug('Building PythonPlayerPanel', 'PythonPlayerPanel');
     
-    // Get current values from notifiers
-    final textureId = _playerViewModel.textureIdNotifier.value;
-    final isReady = _playerViewModel.isReadyNotifier.value;
-    final status = _playerViewModel.statusNotifier.value;
-    final fps = _playerViewModel.fpsNotifier.value;
-    final isPlaying = _timelineNavViewModel.isPlayingNotifier.value;
-    final currentFrame = _timelineNavViewModel.currentFrameNotifier.value;
+    // Use watch() to get the viewmodels from DI
+    final playerViewModel = di<OpenCvPythonPlayerViewModel>();
+    final timelineNavViewModel = di<TimelineNavigationViewModel>();
+    
+    // Use watchValue() for reactive properties
+    final textureId = watchValue((OpenCvPythonPlayerViewModel vm) => vm.textureIdNotifier);
+    final isReady = watchValue((OpenCvPythonPlayerViewModel vm) => vm.isReadyNotifier);
+    final status = watchValue((OpenCvPythonPlayerViewModel vm) => vm.statusNotifier);
+    final fps = watchValue((OpenCvPythonPlayerViewModel vm) => vm.fpsNotifier);
+    final isPlaying = watchValue((TimelineNavigationViewModel vm) => vm.isPlayingNotifier);
+    final currentFrame = watchValue((TimelineNavigationViewModel vm) => vm.currentFrameNotifier);
     
     return Container(
       color: Colors.black,
@@ -77,7 +35,7 @@ class _PlayerPanelState extends State<PlayerPanel> {
             child: Center(
               child: textureId != -1
                   ? Container(
-                      color: Colors.blue.withOpacity(0.2), // Add a slight blue tint to see container boundaries
+                      color: Colors.blue.withOpacity(0.2),
                       width: double.infinity,
                       height: double.infinity,
                       child: Stack(
@@ -144,9 +102,9 @@ class _PlayerPanelState extends State<PlayerPanel> {
                 Button(
                   onPressed: () {
                     if (isPlaying) {
-                      _timelineNavViewModel.stopPlayback();
+                      timelineNavViewModel.stopPlayback();
                     } else {
-                      _timelineNavViewModel.startPlayback();
+                      timelineNavViewModel.startPlayback();
                     }
                   },
                   child: Icon(
@@ -194,18 +152,4 @@ class _PlayerPanelState extends State<PlayerPanel> {
       ),
     );
   }
-}
-
-// Simple ChangeNotifierProvider for the native player viewmodel
-class ChangeNotifierProvider<T extends ChangeNotifier> extends InheritedNotifier<T> {
-  const ChangeNotifierProvider({
-    super.key,
-    required T notifier,
-    required super.child,
-  }) : super(notifier: notifier);
-  
-  static T of<T extends ChangeNotifier>(BuildContext context) {
-    final provider = context.dependOnInheritedWidgetOfExactType<ChangeNotifierProvider<T>>();
-    return provider!.notifier!;
-  }
-}
+} 

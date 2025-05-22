@@ -10,6 +10,7 @@ import 'package:flipedit/services/area_dimensions_service.dart';
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/services/project_metadata_service.dart';
 import 'package:flipedit/services/media_duration_service.dart';
+import 'package:flipedit/services/uv_manager.dart';
 import 'package:flipedit/viewmodels/app_viewmodel.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
@@ -129,6 +130,18 @@ Future<void> setupServiceLocator() async {
   di.registerLazySingleton<TimelineProcessingService>(
     () => TimelineProcessingService(),
     dispose: (service) => service.dispose(),
+  );
+
+  // Register UvManager for Python integration
+  di.registerLazySingletonAsync<UvManager>(
+    () async {
+      final manager = UvManager();
+      await manager.initialize();
+      return manager;
+    },
+    dispose: (manager) async {
+      await manager.shutdownVideoStreamServer();
+    },
   );
 
   di.registerLazySingleton<OptimizedPlaybackService>(
