@@ -13,7 +13,7 @@ import 'package:window_manager/window_manager.dart';
 
 class FlipEditApp extends fluent.StatelessWidget with WatchItMixin {
   FlipEditApp({super.key});
-  
+
   final _logTag = 'FlipEditApp';
 
   @override
@@ -21,7 +21,7 @@ class FlipEditApp extends fluent.StatelessWidget with WatchItMixin {
     // Set global context immediately in build method
     GlobalContext.setContext(context);
     logger.logInfo('Global context set in build method', _logTag);
-    
+
     final editorVm = di<EditorViewModel>();
     final projectVm = di<ProjectViewModel>();
     final timelineVm = di<TimelineViewModel>();
@@ -37,10 +37,13 @@ class FlipEditApp extends fluent.StatelessWidget with WatchItMixin {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       windowManager.setTitle(windowTitle);
-      
+
       // Ensure global context is still valid
       GlobalContext.setContext(context);
-      logger.logInfo('Global context refreshed in post-frame callback', _logTag);
+      logger.logInfo(
+        'Global context refreshed in post-frame callback',
+        _logTag,
+      );
     });
 
     Widget homeWidget;

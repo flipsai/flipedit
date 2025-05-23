@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flipedit/services/commands/undoable_command.dart';
-import 'package:flipedit/persistence/database/project_database.dart' show ChangeLog; // For toChangeLog
+import 'package:flipedit/persistence/database/project_database.dart'
+    show ChangeLog; // For toChangeLog
 import 'timeline_command.dart';
 import '../../models/clip.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
@@ -17,7 +18,7 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
   final int clipId;
   final int newTrackId;
   final int newStartTimeOnTrackMs;
-  
+
   // Dependencies - these are not part of the serialized state directly
   // but are needed for the command to function.
   final ProjectDatabaseService _projectDatabaseService;
@@ -27,11 +28,14 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
 
   // State for undo/redo and serialization
   ClipModel? _originalClipState; // State of the main clip before move
-  Map<int, ClipModel>? _originalNeighborStates; // Original states of updated neighbors
-  List<ClipModel>? _deletedNeighborsState; // Original states of deleted neighbors
-  
+  Map<int, ClipModel>?
+  _originalNeighborStates; // Original states of updated neighbors
+  List<ClipModel>?
+  _deletedNeighborsState; // Original states of deleted neighbors
+
   ClipModel? _movedClipStateAfterExecute; // State of the main clip after move
-  Map<int, ClipModel>? _updatedNeighborStatesAfterExecute; // State of neighbors after update
+  Map<int, ClipModel>?
+  _updatedNeighborStatesAfterExecute; // State of neighbors after update
   // Note: We don't explicitly store "added" neighbors during a move, as move primarily updates/deletes.
 
   static const String commandType = 'moveClip';
@@ -50,14 +54,13 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
     ClipModel? originalClipState,
     Map<int, ClipModel>? originalNeighborStates,
     List<ClipModel>? deletedNeighborsState,
-  })  : _projectDatabaseService = projectDatabaseService,
-        _timelineLogicService = timelineLogicService,
-        _timelineNavViewModel = timelineNavViewModel,
-        _clipsNotifier = clipsNotifier,
-        _originalClipState = originalClipState,
-        _originalNeighborStates = originalNeighborStates,
-        _deletedNeighborsState = deletedNeighborsState;
-
+  }) : _projectDatabaseService = projectDatabaseService,
+       _timelineLogicService = timelineLogicService,
+       _timelineNavViewModel = timelineNavViewModel,
+       _clipsNotifier = clipsNotifier,
+       _originalClipState = originalClipState,
+       _originalNeighborStates = originalNeighborStates,
+       _deletedNeighborsState = deletedNeighborsState;
 
   @override
   Future<void> execute() async {
@@ -75,18 +78,19 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
       // and _neighborsDeletedForUndo (which will become _deletedNeighborsState).
     }
 
-
     logger.logInfo(
       '[MoveClipCommand] Executing: clipId=$clipId, newTrackId=$newTrackId, newStartTimeMs=$newStartTimeOnTrackMs',
       _logTag,
     );
 
     // Make a mutable, sorted copy of currentClips to ensure consistent input for TimelineLogicService
-    final List<ClipModel> currentClips = List<ClipModel>.from(_clipsNotifier.value);
+    final List<ClipModel> currentClips = List<ClipModel>.from(
+      _clipsNotifier.value,
+    );
     currentClips.sort((a, b) {
-        int trackCompare = a.trackId.compareTo(b.trackId);
-        if (trackCompare != 0) return trackCompare;
-        return a.startTimeOnTrackMs.compareTo(b.startTimeOnTrackMs);
+      int trackCompare = a.trackId.compareTo(b.trackId);
+      if (trackCompare != 0) return trackCompare;
+      return a.startTimeOnTrackMs.compareTo(b.startTimeOnTrackMs);
     });
 
     final clipToMove = currentClips.firstWhereOrNull(
@@ -115,7 +119,8 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
     // else, _originalClipState etc., are already populated from fromJson or previous execute.
 
     final int newEndTimeMs =
-        newStartTimeOnTrackMs + clipToMove.durationOnTrackMs; // Duration of the clip being moved
+        newStartTimeOnTrackMs +
+        clipToMove.durationOnTrackMs; // Duration of the clip being moved
 
     // Clear states for "after" execute, to be populated
     _movedClipStateAfterExecute = null;
@@ -123,14 +128,16 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
 
     try {
       // First create a direct visual update for immediate feedback
-      final List<ClipModel> visualUpdateClips = List<ClipModel>.from(currentClips);
+      final List<ClipModel> visualUpdateClips = List<ClipModel>.from(
+        currentClips,
+      );
       // Remove the current version of the clip
       visualUpdateClips.removeWhere((c) => c.databaseId == clipId);
       // Add updated clip with new position
       final updatedVisualClip = clipToMove.copyWith(
         trackId: newTrackId,
         startTimeOnTrackMs: newStartTimeOnTrackMs,
-        endTimeOnTrackMs: newEndTimeMs
+        endTimeOnTrackMs: newEndTimeMs,
       );
       visualUpdateClips.add(updatedVisualClip);
       // Update UI immediately for responsiveness
@@ -168,14 +175,17 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
       for (final update in neighborUpdates) {
         final int neighborId = update['id'];
         final Map<String, dynamic> fieldsToUpdate = Map.from(update['fields']);
-        
-        if (!isRedo) { // Only capture original state on first execute
-            final originalNeighbor = currentClips.firstWhereOrNull((c) => c.databaseId == neighborId);
-            if (originalNeighbor != null) {
-                _originalNeighborStates![neighborId] = originalNeighbor.copyWith();
-            }
+
+        if (!isRedo) {
+          // Only capture original state on first execute
+          final originalNeighbor = currentClips.firstWhereOrNull(
+            (c) => c.databaseId == neighborId,
+          );
+          if (originalNeighbor != null) {
+            _originalNeighborStates![neighborId] = originalNeighbor.copyWith();
+          }
         }
-        
+
         await _projectDatabaseService.clipDao!.updateClipFields(
           neighborId,
           fieldsToUpdate,
@@ -184,15 +194,18 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
       }
 
       for (final int neighborId in neighborsToDelete) {
-        if (!isRedo) { // Only capture original state on first execute
-            final deletedNeighbor = currentClips.firstWhereOrNull((c) => c.databaseId == neighborId);
-            if (deletedNeighbor != null) {
-                _deletedNeighborsState!.add(deletedNeighbor.copyWith());
-            }
+        if (!isRedo) {
+          // Only capture original state on first execute
+          final deletedNeighbor = currentClips.firstWhereOrNull(
+            (c) => c.databaseId == neighborId,
+          );
+          if (deletedNeighbor != null) {
+            _deletedNeighborsState!.add(deletedNeighbor.copyWith());
+          }
         }
         await _projectDatabaseService.clipDao!.deleteClip(neighborId);
       }
-      
+
       // Update the main clip
       await _projectDatabaseService.clipDao!.updateClipFields(clipId, {
         'trackId': mainClipUpdateData['trackId'],
@@ -203,27 +216,42 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
       }, log: false); // Log handled by UndoRedoService
 
       logger.logDebug('[MoveClipCommand] Updating ViewModel state...', _logTag);
-      
+
       // The placementResult['updatedClips'] contains ClipModel instances reflecting the new state.
       // We need to store these for `newData` serialization.
-      final List<ClipModel> updatedClipModels = List<ClipModel>.from(placementResult['updatedClips']);
+      final List<ClipModel> updatedClipModels = List<ClipModel>.from(
+        placementResult['updatedClips'],
+      );
       // _clipsNotifier.value = updatedClipModels; // Update UI - Old way
       di<TimelineStateViewModel>().setClips(updatedClipModels); // New way
-      
+
       // Store the "after" states for serialization
-      _movedClipStateAfterExecute = updatedClipModels.firstWhereOrNull((c) => c.databaseId == clipId)?.copyWith();
+      _movedClipStateAfterExecute =
+          updatedClipModels
+              .firstWhereOrNull((c) => c.databaseId == clipId)
+              ?.copyWith();
       for (final updatedClipModel in updatedClipModels) {
-        if (updatedClipModel.databaseId != clipId && neighborUpdates.any((nu) => nu['id'] == updatedClipModel.databaseId)) {
-          _updatedNeighborStatesAfterExecute![updatedClipModel.databaseId!] = updatedClipModel.copyWith();
+        if (updatedClipModel.databaseId != clipId &&
+            neighborUpdates.any(
+              (nu) => nu['id'] == updatedClipModel.databaseId,
+            )) {
+          _updatedNeighborStatesAfterExecute![updatedClipModel.databaseId!] =
+              updatedClipModel.copyWith();
         }
       }
 
       // Fetch frame if paused
       if (!_timelineNavViewModel.isPlayingNotifier.value) {
-        logger.logDebug('[MoveClipCommand] Timeline paused, fetching frame via HTTP...', _logTag);
+        logger.logDebug(
+          '[MoveClipCommand] Timeline paused, fetching frame via HTTP...',
+          _logTag,
+        );
         // Pass the current frame from the navigation view model
         final frameToRefresh = _timelineNavViewModel.currentFrame;
-        logger.logDebug('[MoveClipCommand] Timeline paused. Frame refresh via HTTP removed, video player will update.', _logTag);
+        logger.logDebug(
+          '[MoveClipCommand] Timeline paused. Frame refresh via HTTP removed, video player will update.',
+          _logTag,
+        );
       }
 
       logger.logInfo(
@@ -241,7 +269,10 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
 
   @override
   Future<void> undo() async {
-    logger.logInfo('[MoveClipCommand] Undoing move for clipId=$clipId', _logTag);
+    logger.logInfo(
+      '[MoveClipCommand] Undoing move for clipId=$clipId',
+      _logTag,
+    );
 
     if (_originalClipState == null) {
       logger.logError(
@@ -254,38 +285,42 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
     try {
       if (_originalClipState != null) {
         // Create a direct visual representation first
-        final List<ClipModel> updatedClips = List<ClipModel>.from(_clipsNotifier.value);
-        
+        final List<ClipModel> updatedClips = List<ClipModel>.from(
+          _clipsNotifier.value,
+        );
+
         // Remove the current version of the clip
         updatedClips.removeWhere((c) => c.databaseId == clipId);
-        
+
         // Add the original clip state
         updatedClips.add(_originalClipState!.copyWith());
 
         // Update UI immediately with the correct visual position
         di<TimelineStateViewModel>().setClips(updatedClips);
-        
+
         // Update the database directly with the EXACT original values to ensure complete reset
-        await _projectDatabaseService.clipDao!.updateClipFields(
-          clipId,
-          {
-            'trackId': _originalClipState!.trackId,
-            'startTimeOnTrackMs': _originalClipState!.startTimeOnTrackMs,
-            'endTimeOnTrackMs': _originalClipState!.endTimeOnTrackMs,
-            'startTimeInSourceMs': _originalClipState!.startTimeInSourceMs,
-            'endTimeInSourceMs': _originalClipState!.endTimeInSourceMs,
-          },
-          log: true,
-        );
-        
+        await _projectDatabaseService.clipDao!.updateClipFields(clipId, {
+          'trackId': _originalClipState!.trackId,
+          'startTimeOnTrackMs': _originalClipState!.startTimeOnTrackMs,
+          'endTimeOnTrackMs': _originalClipState!.endTimeOnTrackMs,
+          'startTimeInSourceMs': _originalClipState!.startTimeInSourceMs,
+          'endTimeInSourceMs': _originalClipState!.endTimeInSourceMs,
+        }, log: true);
+
         // One more visual update from db to ensure UI matches
         final freshClips = await _projectDatabaseService.getAllTimelineClips();
         di<TimelineStateViewModel>().setClips(freshClips);
-        
-        logger.logDebug('[MoveClipCommand][Undo] HTTP frame fetch removed, video player will update.', _logTag);
+
+        logger.logDebug(
+          '[MoveClipCommand][Undo] HTTP frame fetch removed, video player will update.',
+          _logTag,
+        );
       }
     } catch (e) {
-      logger.logError('[MoveClipCommand] Error during final position fix: $e', _logTag);
+      logger.logError(
+        '[MoveClipCommand] Error during final position fix: $e',
+        _logTag,
+      );
     }
 
     try {
@@ -329,14 +364,15 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
             effects: deletedNeighbor.effects,
             metadata: deletedNeighbor.metadata,
           );
-          await _projectDatabaseService.clipDao!.insertClip(reconstructedClip.toDbCompanion());
+          await _projectDatabaseService.clipDao!.insertClip(
+            reconstructedClip.toDbCompanion(),
+          );
         }
       }
 
       // Refresh UI with fresh clips after all DB operations
       final freshClips = await _projectDatabaseService.getAllTimelineClips();
       di<TimelineStateViewModel>().setClips(freshClips);
-
 
       logger.logInfo(
         '[MoveClipCommand] Successfully undone move for clip $clipId',
@@ -358,11 +394,15 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
       'newTrackId': newTrackId,
       'newStartTimeOnTrackMs': newStartTimeOnTrackMs,
       'originalClipState': _originalClipState?.toJson(),
-      'originalNeighborStates': _originalNeighborStates?.map((key, value) => MapEntry(key.toString(), value.toJson())),
-      'deletedNeighborsState': _deletedNeighborsState?.map((clip) => clip.toJson()).toList(),
+      'originalNeighborStates': _originalNeighborStates?.map(
+        (key, value) => MapEntry(key.toString(), value.toJson()),
+      ),
+      'deletedNeighborsState':
+          _deletedNeighborsState?.map((clip) => clip.toJson()).toList(),
       // "After" state for redo
       'movedClipStateAfterExecute': _movedClipStateAfterExecute?.toJson(),
-      'updatedNeighborStatesAfterExecute': _updatedNeighborStatesAfterExecute?.map((key, value) => MapEntry(key.toString(), value.toJson())),
+      'updatedNeighborStatesAfterExecute': _updatedNeighborStatesAfterExecute
+          ?.map((key, value) => MapEntry(key.toString(), value.toJson())),
     };
   }
 
@@ -370,7 +410,7 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
   ChangeLog toChangeLog(String entityId) {
     // entityId for MoveClipCommand is the clipId being moved.
     final fullJson = toJson();
-    
+
     // oldData: Represents the state *before* the command executed.
     // This is what `undo` needs to restore.
     final Map<String, dynamic> oldData = {
@@ -388,10 +428,12 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
       'newTrackId': fullJson['newTrackId'],
       'newStartTimeOnTrackMs': fullJson['newStartTimeOnTrackMs'],
       'movedClipStateAfterExecute': fullJson['movedClipStateAfterExecute'],
-      'updatedNeighborStatesAfterExecute': fullJson['updatedNeighborStatesAfterExecute'],
+      'updatedNeighborStatesAfterExecute':
+          fullJson['updatedNeighborStatesAfterExecute'],
       // We also need to know which neighbors were deleted to correctly redo the deletion.
       // The `deletedNeighborsState` contains their original state, but for redo, we just need their IDs.
-      'deletedNeighborIds': _deletedNeighborsState?.map((c) => c.databaseId).toList(),
+      'deletedNeighborIds':
+          _deletedNeighborsState?.map((c) => c.databaseId).toList(),
     };
 
     return ChangeLog(
@@ -408,33 +450,42 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
   // Factory for deserialization, aligning with CommandFromJsonFactory
   // The commandData map contains 'newData', 'oldData', and 'entityId'
   factory MoveClipCommand.fromJson(
-      ProjectDatabaseService projectDatabaseService, // Passed by UndoRedoService
-      Map<String, dynamic> commandData) {
-    
-    final Map<String, dynamic>? oldData = commandData['oldData'] as Map<String, dynamic>?;
-    final Map<String, dynamic> newData = commandData['newData'] as Map<String, dynamic>;
+    ProjectDatabaseService projectDatabaseService, // Passed by UndoRedoService
+    Map<String, dynamic> commandData,
+  ) {
+    final Map<String, dynamic>? oldData =
+        commandData['oldData'] as Map<String, dynamic>?;
+    final Map<String, dynamic> newData =
+        commandData['newData'] as Map<String, dynamic>;
     // final String entityId = commandData['entityId'] as String; // clipId as string
 
     // --- Extract data for "original" state (for undo) from oldData ---
     ClipModel? originalClipState;
     if (oldData?['originalClipState'] != null) {
-      originalClipState = ClipModel.fromJson(oldData!['originalClipState'] as Map<String, dynamic>);
+      originalClipState = ClipModel.fromJson(
+        oldData!['originalClipState'] as Map<String, dynamic>,
+      );
     }
 
     Map<int, ClipModel>? originalNeighborStates;
     if (oldData?['originalNeighborStates'] != null) {
-      originalNeighborStates = (oldData!['originalNeighborStates'] as Map<String, dynamic>).map(
-        (key, value) => MapEntry(int.parse(key), ClipModel.fromJson(value as Map<String, dynamic>)),
-      );
+      originalNeighborStates =
+          (oldData!['originalNeighborStates'] as Map<String, dynamic>).map(
+            (key, value) => MapEntry(
+              int.parse(key),
+              ClipModel.fromJson(value as Map<String, dynamic>),
+            ),
+          );
     }
 
     List<ClipModel>? deletedNeighborsState;
     if (oldData?['deletedNeighborsState'] != null) {
-      deletedNeighborsState = (oldData!['deletedNeighborsState'] as List<dynamic>)
-          .map((item) => ClipModel.fromJson(item as Map<String, dynamic>))
-          .toList();
+      deletedNeighborsState =
+          (oldData!['deletedNeighborsState'] as List<dynamic>)
+              .map((item) => ClipModel.fromJson(item as Map<String, dynamic>))
+              .toList();
     }
-    
+
     // --- Extract data for "new" state (parameters for execute/redo) from newData ---
     final int clipId = newData['clipId'] as int;
     final int newTrackId = newData['newTrackId'] as int;
@@ -443,21 +494,27 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
     // For re-populating "after execute" states if needed for consistency, though execute() recalculates.
     ClipModel? movedClipStateAfterExecute;
     if (newData['movedClipStateAfterExecute'] != null) {
-        movedClipStateAfterExecute = ClipModel.fromJson(newData['movedClipStateAfterExecute'] as Map<String, dynamic>);
+      movedClipStateAfterExecute = ClipModel.fromJson(
+        newData['movedClipStateAfterExecute'] as Map<String, dynamic>,
+      );
     }
 
     Map<int, ClipModel>? updatedNeighborStatesAfterExecute;
     if (newData['updatedNeighborStatesAfterExecute'] != null) {
-        updatedNeighborStatesAfterExecute = (newData['updatedNeighborStatesAfterExecute'] as Map<String, dynamic>).map(
-            (key, value) => MapEntry(int.parse(key), ClipModel.fromJson(value as Map<String, dynamic>)),
-        );
+      updatedNeighborStatesAfterExecute =
+          (newData['updatedNeighborStatesAfterExecute'] as Map<String, dynamic>)
+              .map(
+                (key, value) => MapEntry(
+                  int.parse(key),
+                  ClipModel.fromJson(value as Map<String, dynamic>),
+                ),
+              );
     }
 
     // --- Retrieve dependencies using di ---
     final timelineLogicService = di<TimelineLogicService>();
     final timelineNavViewModel = di<TimelineNavigationViewModel>();
     final clipsNotifier = di<TimelineViewModel>().clipsNotifier;
-
 
     final command = MoveClipCommand(
       clipId: clipId,
@@ -475,8 +532,9 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
     // Restore "after execute" states to the command instance,
     // these were captured by toJson and stored in newData.
     command._movedClipStateAfterExecute = movedClipStateAfterExecute;
-    command._updatedNeighborStatesAfterExecute = updatedNeighborStatesAfterExecute;
-    
+    command._updatedNeighborStatesAfterExecute =
+        updatedNeighborStatesAfterExecute;
+
     return command;
   }
 }

@@ -10,7 +10,7 @@ class Effect extends Equatable {
   final int startFrame; // Relative to the clip's start
   final int durationFrames;
 
-  Effect({
+  const Effect({
     required this.id,
     required this.name,
     required this.type,
@@ -73,14 +73,14 @@ class Effect extends Equatable {
 
   @override
   List<Object?> get props => [
-        id,
-        name,
-        type,
-        parameters,
-        childEffects,
-        startFrame,
-        durationFrames,
-      ];
+    id,
+    name,
+    type,
+    parameters,
+    childEffects,
+    startFrame,
+    durationFrames,
+  ];
 
   // Optional: If you want a string representation for debugging that includes all props.
   // @override

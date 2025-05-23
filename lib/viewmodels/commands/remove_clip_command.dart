@@ -47,7 +47,9 @@ class RemoveClipCommand implements TimelineCommand {
         currentClips.removeAt(indexToRemove);
         // vm.clipsNotifier.value = currentClips; // Old way
         // vm.clipsNotifier.value = currentClips; // Original old way
-        di<TimelineStateViewModel>().setClips(currentClips); // Corrected new way
+        di<TimelineStateViewModel>().setClips(
+          currentClips,
+        ); // Corrected new way
         di<TimelineNavigationViewModel>().navigationService
             .recalculateAndUpdateTotalFrames();
         logger.logInfo(

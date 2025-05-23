@@ -19,4 +19,5 @@ abstract class UndoableCommand {
 }
 
 /// Factory function type to deserialize a command from JSON.
-typedef CommandFromJson = UndoableCommand Function(Map<String, dynamic> jsonData);
+typedef CommandFromJson =
+    UndoableCommand Function(Map<String, dynamic> jsonData);

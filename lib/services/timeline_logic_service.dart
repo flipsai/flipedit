@@ -142,7 +142,8 @@ class TimelineLogicService {
           final newNeighborTrackStart = newEnd;
           final trackTrimAmount = newNeighborTrackStart - ns;
           final minSourceDuration = neighbor.sourceDurationMs > 0 ? 1 : 0;
-          final newNeighborSourceStart = (neighbor.startTimeInSourceMs + trackTrimAmount)
+          final newNeighborSourceStart = (neighbor.startTimeInSourceMs +
+                  trackTrimAmount)
               .clamp(0, neighbor.sourceDurationMs - minSourceDuration);
 
           final updated = neighbor.copyWith(

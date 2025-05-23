@@ -93,7 +93,10 @@ void main() {
       tester: tester,
       editorVm: editorVm,
       panelName: 'Player', // Updated panel name
-      isVisibleGetter: () => editorVm.isPreviewVisible, // ViewModel property is still isPreviewVisible
+      isVisibleGetter:
+          () =>
+              editorVm
+                  .isPreviewVisible, // ViewModel property is still isPreviewVisible
       viewMenuButtonFinder: viewMenuButtonFinder,
       panelWidgetFinder: find.byType(PlayerPanel), // Updated to PlayerPanel
     );

@@ -10,4 +10,4 @@ class GlobalContext {
   static void setContext(BuildContext ctx) {
     context = ctx;
   }
-} 
+}

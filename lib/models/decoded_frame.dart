@@ -9,7 +9,7 @@ class DecodedFrame {
   final int width;
   final int height;
   final int timestamp;
-  
+
   DecodedFrame({
     required this.frameNumber,
     required this.dataPtr,
@@ -18,9 +18,9 @@ class DecodedFrame {
     required this.height,
     required this.timestamp,
   });
-  
+
   Uint8List get data => dataPtr.asTypedList(dataSize);
-  
+
   void dispose() {
     malloc.free(dataPtr);
   }

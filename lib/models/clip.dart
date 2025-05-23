@@ -59,7 +59,8 @@ class ClipModel extends Equatable {
   // Frame-based getters
   int get startFrame => ClipModel.msToFrames(startTimeOnTrackMs);
   int get endFrame => ClipModel.msToFrames(endTimeOnTrackMs);
-  int get durationFrames => endFrame - startFrame; // Derived from on-track times
+  int get durationFrames =>
+      endFrame - startFrame; // Derived from on-track times
 
   int get startFrameInSource => ClipModel.msToFrames(startTimeInSourceMs);
   int get endFrameInSource => ClipModel.msToFrames(endTimeInSourceMs);
@@ -217,12 +218,15 @@ class ClipModel extends Equatable {
       endTimeInSourceMs: endTimeInSourceMs ?? this.endTimeInSourceMs,
       startTimeOnTrackMs: startTimeOnTrackMs ?? this.startTimeOnTrackMs,
       endTimeOnTrackMs: endTimeOnTrackMs ?? this.endTimeOnTrackMs,
-      effects: effects != null ? List<Effect>.from(effects) : List<Effect>.from(this.effects),
+      effects:
+          effects != null
+              ? List<Effect>.from(effects)
+              : List<Effect>.from(this.effects),
       metadata: updatedMetadata, // Use the synchronized metadata
       previewPositionX: finalPreviewPositionX, // Use the final value
       previewPositionY: finalPreviewPositionY, // Use the final value
-      previewWidth: finalPreviewWidth,         // Use the final value
-      previewHeight: finalPreviewHeight,       // Use the final value
+      previewWidth: finalPreviewWidth, // Use the final value
+      previewHeight: finalPreviewHeight, // Use the final value
     );
   }
 
@@ -405,15 +409,17 @@ class ClipModel extends Equatable {
 
   Map<String, dynamic> toJson() {
     // Debug log for clip conversion to json
-    print('ClipModel.toJson: Converting clip ${databaseId} to JSON');
-    print('ClipModel.toJson: previewWidth=${previewWidth}, previewHeight=${previewHeight}');
+    print('ClipModel.toJson: Converting clip $databaseId to JSON');
+    print(
+      'ClipModel.toJson: previewWidth=$previewWidth, previewHeight=$previewHeight',
+    );
     print('ClipModel.toJson: metadata content: $metadata');
     if (metadata.containsKey('previewRect')) {
       print('ClipModel.toJson: previewRect found: ${metadata['previewRect']}');
     } else {
       print('ClipModel.toJson: No previewRect found in metadata');
     }
-    
+
     // Select fields relevant for the preview server
     final jsonData = {
       'databaseId': databaseId,
@@ -433,8 +439,10 @@ class ClipModel extends Equatable {
       'effects': effects.map((e) => e.toJson()).toList(),
       'metadata': metadata,
     };
-    
-    print('ClipModel.toJson: Final JSON contains previewWidth=${jsonData['previewWidth']}, previewHeight=${jsonData['previewHeight']}');
+
+    print(
+      'ClipModel.toJson: Final JSON contains previewWidth=${jsonData['previewWidth']}, previewHeight=${jsonData['previewHeight']}',
+    );
     return jsonData;
   }
 
@@ -458,39 +466,45 @@ class ClipModel extends Equatable {
     } else if (json['metadata'] is String) {
       // Attempt to decode if it's a JSON string
       try {
-        parsedMetadata = jsonDecode(json['metadata'] as String) as Map<String, dynamic>;
+        parsedMetadata =
+            jsonDecode(json['metadata'] as String) as Map<String, dynamic>;
       } catch (e) {
         // Log error or handle as appropriate if metadata string is malformed
         print('Error decoding metadata from JSON string: $e');
       }
     }
- 
+
     // Extract preview transform properties from metadata if they exist
     // Safely parse effects
     final List<dynamic> effectsJson = json['effects'] as List<dynamic>? ?? [];
-    final List<Effect> parsedEffects = effectsJson
-        .map((eJson) {
-          if (eJson is Map<String, dynamic>) {
-            return Effect.fromJson(eJson); // Assumes Effect.fromJson exists
-          }
-          return null;
-        })
-        .whereType<Effect>() // Filters out any nulls
-        .toList();
+    final List<Effect> parsedEffects =
+        effectsJson
+            .map((eJson) {
+              if (eJson is Map<String, dynamic>) {
+                return Effect.fromJson(eJson); // Assumes Effect.fromJson exists
+              }
+              return null;
+            })
+            .whereType<Effect>() // Filters out any nulls
+            .toList();
 
     // Extract preview transform properties, preferring top-level, then metadata, then default
-    final double posX = (json['previewPositionX'] as num?)?.toDouble() ??
-                        (parsedMetadata['preview_position_x'] as num?)?.toDouble() ??
-                        0.0;
-    final double posY = (json['previewPositionY'] as num?)?.toDouble() ??
-                        (parsedMetadata['preview_position_y'] as num?)?.toDouble() ??
-                        0.0;
-    final double width = (json['previewWidth'] as num?)?.toDouble() ??
-                         (parsedMetadata['preview_width'] as num?)?.toDouble() ??
-                         100.0;
-    final double height = (json['previewHeight'] as num?)?.toDouble() ??
-                          (parsedMetadata['preview_height'] as num?)?.toDouble() ??
-                          100.0;
+    final double posX =
+        (json['previewPositionX'] as num?)?.toDouble() ??
+        (parsedMetadata['preview_position_x'] as num?)?.toDouble() ??
+        0.0;
+    final double posY =
+        (json['previewPositionY'] as num?)?.toDouble() ??
+        (parsedMetadata['preview_position_y'] as num?)?.toDouble() ??
+        0.0;
+    final double width =
+        (json['previewWidth'] as num?)?.toDouble() ??
+        (parsedMetadata['preview_width'] as num?)?.toDouble() ??
+        100.0;
+    final double height =
+        (json['previewHeight'] as num?)?.toDouble() ??
+        (parsedMetadata['preview_height'] as num?)?.toDouble() ??
+        100.0;
 
     return ClipModel(
       databaseId: json['databaseId'] as int?,
@@ -514,24 +528,24 @@ class ClipModel extends Equatable {
 
   @override
   List<Object?> get props => [
-        databaseId,
-        trackId,
-        name,
-        type,
-        sourcePath,
-        sourceDurationMs,
-        startTimeInSourceMs,
-        endTimeInSourceMs,
-        startTimeOnTrackMs,
-        endTimeOnTrackMs,
-        effects,
-        metadata,
-        previewPositionX,
-        previewPositionY,
-        previewWidth,
-        previewHeight,
-      ];
-  
+    databaseId,
+    trackId,
+    name,
+    type,
+    sourcePath,
+    sourceDurationMs,
+    startTimeInSourceMs,
+    endTimeInSourceMs,
+    startTimeOnTrackMs,
+    endTimeOnTrackMs,
+    effects,
+    metadata,
+    previewPositionX,
+    previewPositionY,
+    previewWidth,
+    previewHeight,
+  ];
+
   // By extending Equatable, we also get a default `stringify` for `toString` if needed.
   // Setting stringify = true for Equatable is an option:
   // @override

@@ -8,36 +8,36 @@ import 'package:watch_it/watch_it.dart';
 class ResizableDocking extends StatefulWidget {
   /// The docking layout
   final DockingLayout? layout;
-  
+
   /// Callback for item selection
   final OnItemSelection? onItemSelection;
-  
+
   /// Callback for item close
   final OnItemClose? onItemClose;
-  
+
   /// Interceptor for item close
   final ItemCloseInterceptor? itemCloseInterceptor;
-  
+
   /// Builder for docking buttons
   final DockingButtonsBuilder? dockingButtonsBuilder;
-  
+
   /// Whether items are maximizable
   final bool maximizableItem;
-  
+
   /// Whether tabs are maximizable
   final bool maximizableTab;
-  
+
   /// Whether tabs areas are maximizable
   final bool maximizableTabsArea;
-  
+
   /// Anti-aliasing workaround flag
   final bool antiAliasingWorkaround;
-  
+
   /// Whether the layout is draggable
   final bool draggable;
 
   const ResizableDocking({
-    Key? key,
+    super.key,
     this.layout,
     this.onItemSelection,
     this.onItemClose,
@@ -48,15 +48,16 @@ class ResizableDocking extends StatefulWidget {
     this.maximizableTabsArea = true,
     this.antiAliasingWorkaround = true,
     this.draggable = true,
-  }) : super(key: key);
+  });
 
   @override
   State<ResizableDocking> createState() => _ResizableDockingState();
 }
 
 class _ResizableDockingState extends State<ResizableDocking> {
-  final EditorLayoutViewModel _layoutViewModel = di<EditorViewModel>().layoutManager;
-  
+  final EditorLayoutViewModel _layoutViewModel =
+      di<EditorViewModel>().layoutManager;
+
   @override
   void initState() {
     super.initState();
@@ -64,7 +65,7 @@ class _ResizableDockingState extends State<ResizableDocking> {
       widget.layout!.addListener(_onLayoutChanged);
     }
   }
-  
+
   @override
   void didUpdateWidget(ResizableDocking oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -73,18 +74,18 @@ class _ResizableDockingState extends State<ResizableDocking> {
       widget.layout?.addListener(_onLayoutChanged);
     }
   }
-  
+
   @override
   void dispose() {
     widget.layout?.removeListener(_onLayoutChanged);
     super.dispose();
   }
-  
+
   void _onLayoutChanged() {
     // Save the complete layout when it changes
     _layoutViewModel.updateAreaDimensions();
   }
-  
+
   @override
   Widget build(BuildContext context) {
     return Docking(
@@ -111,4 +112,4 @@ class _ResizableDockingState extends State<ResizableDocking> {
       },
     );
   }
-} 
+}

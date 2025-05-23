@@ -13,7 +13,7 @@ const _logTag = 'ClipsListPanel';
 /// Panel for displaying project assets in the media tab
 class MediasListPanel extends StatelessWidget with WatchItMixin {
   final String selectedExtension;
-  
+
   // Track tap position for context menu
   static Offset _tapPosition = Offset.zero;
 
@@ -123,7 +123,7 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
   Widget _buildClipListItem(BuildContext context, model.ProjectAsset asset) {
     final theme = FluentTheme.of(context);
     final projectVm = di<ProjectViewModel>();
-    
+
     // Use durationMs from model.ProjectAsset
     final String durationString =
         asset.type == ClipType.image
@@ -160,9 +160,12 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
         onSecondaryTapDown: (details) {
           _storePosition(details);
         },
-        onSecondaryTap: asset.databaseId != null ? () {
-          _showMediaContextMenu(context, asset);
-        } : null,
+        onSecondaryTap:
+            asset.databaseId != null
+                ? () {
+                  _showMediaContextMenu(context, asset);
+                }
+                : null,
         child: ListTile(
           title: Text(asset.name, style: theme.typography.bodyStrong),
           subtitle: Text(durationString, style: theme.typography.caption),
@@ -253,14 +256,15 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
 
   void _showMediaContextMenu(BuildContext context, model.ProjectAsset asset) {
     final theme = FluentTheme.of(context);
-    
+
     // Get the current position of the mouse cursor
-    final RenderBox overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final RenderBox overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox;
     final position = material.RelativeRect.fromRect(
       _tapPosition & const Size(1, 1),
       Offset.zero & overlay.size,
     );
-    
+
     material.showMenu(
       context: context,
       position: position,
@@ -268,7 +272,8 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
         material.PopupMenuItem(
           child: Row(
             children: [
-              Icon(FluentIcons.delete, 
+              Icon(
+                FluentIcons.delete,
                 color: theme.resources.textFillColorPrimary,
                 size: 18,
               ),
@@ -284,45 +289,49 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
             Future.delayed(const Duration(milliseconds: 50), () async {
               await showDialog(
                 context: context,
-                builder: (context) => ContentDialog(
-                  title: const Text('Delete Media'),
-                  content: Text('Are you sure you want to delete "${asset.name}"?\n\nThis will also remove any clips using this media from the timeline.'),
-                  actions: [
-                    Button(
-                      child: const Text('Cancel'),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                    FilledButton(
-                      style: ButtonStyle(
-                        backgroundColor: ButtonState.resolveWith(
-                          (states) => Colors.red,
-                        ),
+                builder:
+                    (context) => ContentDialog(
+                      title: const Text('Delete Media'),
+                      content: Text(
+                        'Are you sure you want to delete "${asset.name}"?\n\nThis will also remove any clips using this media from the timeline.',
                       ),
-                      child: const Text('Delete'),
-                      onPressed: () async {
-                        Navigator.pop(context);
-                        if (asset.databaseId != null) {
-                          // Delete the asset using the project service
-                          final projectVm = di<ProjectViewModel>();
-                          final success = await projectVm.deleteAssetCommand(asset.databaseId!);
-                          if (success) {
-                            _showNotification(
-                              context, 
-                              'Media and associated timeline clips have been deleted',
-                              severity: InfoBarSeverity.success,
-                            );
-                          } else {
-                            _showNotification(
-                              context,
-                              'Failed to delete media',
-                              severity: InfoBarSeverity.error,
-                            );
-                          }
-                        }
-                      },
+                      actions: [
+                        Button(
+                          child: const Text('Cancel'),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                        FilledButton(
+                          style: ButtonStyle(
+                            backgroundColor: ButtonState.resolveWith(
+                              (states) => Colors.red,
+                            ),
+                          ),
+                          child: const Text('Delete'),
+                          onPressed: () async {
+                            Navigator.pop(context);
+                            if (asset.databaseId != null) {
+                              // Delete the asset using the project service
+                              final projectVm = di<ProjectViewModel>();
+                              final success = await projectVm
+                                  .deleteAssetCommand(asset.databaseId!);
+                              if (success) {
+                                _showNotification(
+                                  context,
+                                  'Media and associated timeline clips have been deleted',
+                                  severity: InfoBarSeverity.success,
+                                );
+                              } else {
+                                _showNotification(
+                                  context,
+                                  'Failed to delete media',
+                                  severity: InfoBarSeverity.error,
+                                );
+                              }
+                            }
+                          },
+                        ),
+                      ],
                     ),
-                  ],
-                ),
               );
             });
           },

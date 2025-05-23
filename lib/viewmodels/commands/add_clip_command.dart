@@ -15,8 +15,10 @@ import '../../services/canvas_dimensions_service.dart';
 import 'package:watch_it/watch_it.dart';
 import '../../viewmodels/timeline_navigation_viewmodel.dart';
 
-class AddClipCommand implements TimelineCommand, UndoableCommand { // Implement UndoableCommand
-  final ClipModel clipDataInput; // Renamed to avoid confusion with internal state
+class AddClipCommand implements TimelineCommand, UndoableCommand {
+  // Implement UndoableCommand
+  final ClipModel
+  clipDataInput; // Renamed to avoid confusion with internal state
   final int trackId;
   final int startTimeOnTrackMs;
 
@@ -24,9 +26,11 @@ class AddClipCommand implements TimelineCommand, UndoableCommand { // Implement 
   final ProjectDatabaseService _databaseService = di<ProjectDatabaseService>();
   final TimelineStateViewModel _stateViewModel = di<TimelineStateViewModel>();
   final MediaDurationService _mediaDurationService = di<MediaDurationService>();
-  final CanvasDimensionsService _canvasDimensionsService = di<CanvasDimensionsService>();
-  final TimelineNavigationViewModel _timelineNavViewModel = di<TimelineNavigationViewModel>();
- 
+  final CanvasDimensionsService _canvasDimensionsService =
+      di<CanvasDimensionsService>();
+  final TimelineNavigationViewModel _timelineNavViewModel =
+      di<TimelineNavigationViewModel>();
+
   int? _insertedClipId;
   List<ClipModel>? _originalNeighborStates;
   List<int>? _removedNeighborIds;
@@ -39,13 +43,15 @@ class AddClipCommand implements TimelineCommand, UndoableCommand { // Implement 
     required this.trackId,
     required this.startTimeOnTrackMs,
     // Fields for fromJson restoration
-    int? insertedClipId, 
+    int? insertedClipId,
     List<ClipModel>? originalNeighborStates,
     List<int>? removedNeighborIds,
-  }) : clipDataInput = clipData { // Assign to new field
+  }) : clipDataInput = clipData {
+    // Assign to new field
     // Restore state if provided (e.g., fromJson)
     if (insertedClipId != null) _insertedClipId = insertedClipId;
-    if (originalNeighborStates != null) _originalNeighborStates = originalNeighborStates;
+    if (originalNeighborStates != null)
+      _originalNeighborStates = originalNeighborStates;
     if (removedNeighborIds != null) _removedNeighborIds = removedNeighborIds;
   }
 
@@ -60,30 +66,32 @@ class AddClipCommand implements TimelineCommand, UndoableCommand { // Implement 
       '[AddClipCommand] Validating source duration for: ${clip.sourcePath}',
       _logTag,
     );
-    
+
     // Get duration from the Python server
-    final actualDurationMs = await _mediaDurationService.getMediaDurationMs(clip.sourcePath);
-    
+    final actualDurationMs = await _mediaDurationService.getMediaDurationMs(
+      clip.sourcePath,
+    );
+
     // If duration is significantly different (over 100ms), update it
-    if (actualDurationMs > 0 && 
-        (clip.sourceDurationMs == 0 || 
-        (clip.sourceDurationMs - actualDurationMs).abs() > 100)) {
-      
+    if (actualDurationMs > 0 &&
+        (clip.sourceDurationMs == 0 ||
+            (clip.sourceDurationMs - actualDurationMs).abs() > 100)) {
       logger.logInfo(
         '[AddClipCommand] Updating source duration from ${clip.sourceDurationMs}ms to ${actualDurationMs}ms',
         _logTag,
       );
-      
+
       // Create a copy with the updated duration
       return clip.copyWith(
         sourceDurationMs: actualDurationMs,
         // If clip is using full duration, update the endTimeInSourceMs as well
-        endTimeInSourceMs: clip.endTimeInSourceMs >= clip.sourceDurationMs ? 
-          actualDurationMs : 
-          clip.endTimeInSourceMs,
+        endTimeInSourceMs:
+            clip.endTimeInSourceMs >= clip.sourceDurationMs
+                ? actualDurationMs
+                : clip.endTimeInSourceMs,
       );
     }
-    
+
     return clip; // No changes needed
   }
 
@@ -96,12 +104,12 @@ class AddClipCommand implements TimelineCommand, UndoableCommand { // Implement 
     // Get appropriate preview size based on canvas dimensions
     final previewWidth = canvasWidth;
     final previewHeight = canvasHeight;
-    
+
     logger.logInfo(
-      '[AddClipCommand] Setting clip preview dimensions to match canvas: ${previewWidth}x${previewHeight}',
+      '[AddClipCommand] Setting clip preview dimensions to match canvas: ${previewWidth}x$previewHeight',
       _logTag,
     );
-    
+
     return clip.copyWith(
       previewWidth: previewWidth,
       previewHeight: previewHeight,
@@ -118,12 +126,15 @@ class AddClipCommand implements TimelineCommand, UndoableCommand { // Implement 
     // Check if this is the first clip being added to the timeline
     final isFirstClip = _stateViewModel.clips.isEmpty;
     if (isFirstClip) {
-      logger.logInfo('[AddClipCommand] This is the first clip being added to the timeline', _logTag);
+      logger.logInfo(
+        '[AddClipCommand] This is the first clip being added to the timeline',
+        _logTag,
+      );
     }
 
     // Step 1: Validate and potentially update the clip source duration
     var processedClipData = await _validateClipSourceDuration(clipDataInput);
-    
+
     // Step 2: Adjust preview dimensions based on canvas settings
     processedClipData = _adjustPreviewDimensions(processedClipData);
 
@@ -240,7 +251,8 @@ class AddClipCommand implements TimelineCommand, UndoableCommand { // Implement 
 
     final newClipIndex = finalUpdatedClips.indexWhere(
       (clip) =>
-          clip.databaseId == null && // The new clip doesn't have an ID yet in this list
+          clip.databaseId ==
+              null && // The new clip doesn't have an ID yet in this list
           clip.sourcePath == processedClipData.sourcePath &&
           clip.startTimeOnTrackMs == newClipDataMap['startTimeOnTrackMs'],
     );
@@ -270,7 +282,7 @@ class AddClipCommand implements TimelineCommand, UndoableCommand { // Implement 
 
     // Remove direct call to undoRedoService.init()
     // final UndoRedoService undoRedoService = di<UndoRedoService>();
-    // await undoRedoService.init(); 
+    // await undoRedoService.init();
   }
 
   @override
@@ -332,7 +344,7 @@ class AddClipCommand implements TimelineCommand, UndoableCommand { // Implement 
           _logTag,
         );
         await _databaseService.clipDao!.insertClip(
-          originalRemovedNeighbor.toDbCompanion(), 
+          originalRemovedNeighbor.toDbCompanion(),
           // log: false, // Removed: ClipDao.insertClip doesn't have this param
         );
       }
@@ -351,55 +363,61 @@ class AddClipCommand implements TimelineCommand, UndoableCommand { // Implement 
   @override
   project_db.ChangeLog toChangeLog(String entityId) {
     return project_db.ChangeLog(
-      id: -1, 
-      entity: 'clip', 
-      entityId: _insertedClipId?.toString() ?? entityId, 
+      id: -1,
+      entity: 'clip',
+      entityId: _insertedClipId?.toString() ?? entityId,
       action: commandType,
       oldData: jsonEncode({
-        'originalNeighborStates': _originalNeighborStates?.map((c) => c.toJson()).toList(),
+        'originalNeighborStates':
+            _originalNeighborStates?.map((c) => c.toJson()).toList(),
         'removedNeighborIds': _removedNeighborIds,
       }),
       newData: jsonEncode({
         'clipDataInput': clipDataInput.toJson(),
         'trackId': trackId,
         'startTimeOnTrackMs': startTimeOnTrackMs,
-        'insertedClipId': _insertedClipId, 
+        'insertedClipId': _insertedClipId,
       }),
       timestamp: DateTime.now().millisecondsSinceEpoch,
     );
   }
 
   factory AddClipCommand.fromJson(
-      ProjectDatabaseService projectDatabaseService, 
-      Map<String, dynamic> commandData) {
-    
+    ProjectDatabaseService projectDatabaseService,
+    Map<String, dynamic> commandData,
+  ) {
     final newData = commandData['newData'] as Map<String, dynamic>;
     final oldData = commandData['oldData'] as Map<String, dynamic>? ?? {};
 
-    final clipDataInput = ClipModel.fromJson(newData['clipDataInput'] as Map<String, dynamic>);
+    final clipDataInput = ClipModel.fromJson(
+      newData['clipDataInput'] as Map<String, dynamic>,
+    );
     final trackId = newData['trackId'] as int;
     final startTimeOnTrackMs = newData['startTimeOnTrackMs'] as int;
     final insertedClipId = newData['insertedClipId'] as int?;
 
     List<ClipModel>? originalNeighborStates;
     if (oldData['originalNeighborStates'] != null) {
-      originalNeighborStates = (oldData['originalNeighborStates'] as List<dynamic>)
-          .map((item) => ClipModel.fromJson(item as Map<String, dynamic>))
-          .toList();
+      originalNeighborStates =
+          (oldData['originalNeighborStates'] as List<dynamic>)
+              .map((item) => ClipModel.fromJson(item as Map<String, dynamic>))
+              .toList();
     }
 
     List<int>? removedNeighborIds;
     if (oldData['removedNeighborIds'] != null) {
-      removedNeighborIds = List<int>.from(oldData['removedNeighborIds'] as List<dynamic>);
+      removedNeighborIds = List<int>.from(
+        oldData['removedNeighborIds'] as List<dynamic>,
+      );
     }
-    
+
     return AddClipCommand(
       clipData: clipDataInput,
       trackId: trackId,
       startTimeOnTrackMs: startTimeOnTrackMs,
-      insertedClipId: insertedClipId, 
-      originalNeighborStates: originalNeighborStates, 
-      removedNeighborIds: removedNeighborIds, 
+      insertedClipId: insertedClipId,
+      originalNeighborStates: originalNeighborStates,
+      removedNeighborIds: removedNeighborIds,
     );
   }
 
@@ -407,9 +425,10 @@ class AddClipCommand implements TimelineCommand, UndoableCommand { // Implement 
   Map<String, dynamic> toJson() {
     return {
       'actionType': commandType,
-      'entityId': _insertedClipId?.toString() ?? 'unknown', 
+      'entityId': _insertedClipId?.toString() ?? 'unknown',
       'oldData': {
-        'originalNeighborStates': _originalNeighborStates?.map((c) => c.toJson()).toList(),
+        'originalNeighborStates':
+            _originalNeighborStates?.map((c) => c.toJson()).toList(),
         'removedNeighborIds': _removedNeighborIds,
       },
       'newData': {

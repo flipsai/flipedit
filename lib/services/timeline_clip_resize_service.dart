@@ -6,7 +6,6 @@ import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/services/timeline_logic_service.dart';
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
 
-
 /// Service to encapsulate timeline clip resize logic.
 /// Stateless: all state is passed as parameters and returned as needed.
 class TimelineClipResizeService {

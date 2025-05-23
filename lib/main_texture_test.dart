@@ -7,23 +7,20 @@ void main() {
 }
 
 class ComprehensiveTextureTestApp extends StatelessWidget {
-  const ComprehensiveTextureTestApp({Key? key}) : super(key: key);
+  const ComprehensiveTextureTestApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'FlipEdit Texture System Test',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        useMaterial3: true,
-      ),
+      theme: ThemeData(primarySwatch: Colors.blue, useMaterial3: true),
       home: const TextureTestHomePage(),
     );
   }
 }
 
 class TextureTestHomePage extends StatefulWidget {
-  const TextureTestHomePage({Key? key}) : super(key: key);
+  const TextureTestHomePage({super.key});
 
   @override
   State<TextureTestHomePage> createState() => _TextureTestHomePageState();
@@ -57,10 +54,7 @@ class _TextureTestHomePageState extends State<TextureTestHomePage> {
           ),
         ],
       ),
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: _pages,
-      ),
+      body: IndexedStack(index: _selectedIndex, children: _pages),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
         onDestinationSelected: (index) {
@@ -92,72 +86,77 @@ class _TextureTestHomePageState extends State<TextureTestHomePage> {
   void _showInfoDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('FlipEdit Texture System'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'This test app validates the texture rendering system fixes.',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 16),
-            Text('Test Pages:'),
-            SizedBox(height: 8),
-            Text('• Basic Test: Animated texture patterns'),
-            Text('• Video Demo: Simulated video rendering'),
-            Text('• Status: System information and cleanup'),
-            SizedBox(height: 16),
-            Container(
-              padding: EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.green.withOpacity(0.3)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+      builder:
+          (context) => AlertDialog(
+            title: Text('FlipEdit Texture System'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'This test app validates the texture rendering system fixes.',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: 16),
+                Text('Test Pages:'),
+                SizedBox(height: 8),
+                Text('• Basic Test: Animated texture patterns'),
+                Text('• Video Demo: Simulated video rendering'),
+                Text('• Status: System information and cleanup'),
+                SizedBox(height: 16),
+                Container(
+                  padding: EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.green.withOpacity(0.3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.check_circle, color: Colors.green, size: 18),
-                      SizedBox(width: 8),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.check_circle,
+                            color: Colors.green,
+                            size: 18,
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            'Key Fixes Applied:',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.green,
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 8),
                       Text(
-                        'Key Fixes Applied:',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green,
-                        ),
+                        '✓ Removed broken FFI pointer logic\n'
+                        '✓ Simplified texture creation process\n'
+                        '✓ Focus on Flutter-side rendering only\n'
+                        '✓ Proper texture lifecycle management',
+                        style: TextStyle(fontSize: 12),
                       ),
                     ],
                   ),
-                  SizedBox(height: 8),
-                  Text(
-                    '✓ Removed broken FFI pointer logic\n'
-                    '✓ Simplified texture creation process\n'
-                    '✓ Focus on Flutter-side rendering only\n'
-                    '✓ Proper texture lifecycle management',
-                    style: TextStyle(fontSize: 12),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text('OK'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text('OK'),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 }
 
 class TextureIntegrationDemoPage extends StatelessWidget {
-  const TextureIntegrationDemoPage({Key? key}) : super(key: key);
+  const TextureIntegrationDemoPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -202,7 +201,7 @@ class TextureIntegrationDemoPage extends StatelessWidget {
 }
 
 class TextureStatusPage extends StatefulWidget {
-  const TextureStatusPage({Key? key}) : super(key: key);
+  const TextureStatusPage({super.key});
 
   @override
   State<TextureStatusPage> createState() => _TextureStatusPageState();
@@ -234,7 +233,11 @@ class _TextureStatusPageState extends State<TextureStatusPage> {
                   ),
                   SizedBox(height: 16),
                   _buildStatusItem('Flutter Framework', 'Available', true),
-                  _buildStatusItem('texture_rgba_renderer Plugin', 'Available', true),
+                  _buildStatusItem(
+                    'texture_rgba_renderer Plugin',
+                    'Available',
+                    true,
+                  ),
                   _buildStatusItem('Fixed Texture Helper', 'Implemented', true),
                   _buildStatusItem('Legacy FFI Pointers', 'Deprecated', false),
                   SizedBox(height: 16),
@@ -251,7 +254,11 @@ class _TextureStatusPageState extends State<TextureStatusPage> {
                       children: [
                         Row(
                           children: [
-                            Icon(Icons.check_circle, color: Colors.green, size: 20),
+                            Icon(
+                              Icons.check_circle,
+                              color: Colors.green,
+                              size: 20,
+                            ),
                             SizedBox(width: 8),
                             Text(
                               'All Systems Ready',
@@ -327,21 +334,21 @@ class _TextureStatusPageState extends State<TextureStatusPage> {
             size: 20,
           ),
           SizedBox(width: 12),
-          Expanded(
-            child: Text(label),
-          ),
+          Expanded(child: Text(label)),
           Container(
             padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: isPositive 
-                ? Colors.green.withOpacity(0.1)
-                : Colors.orange.withOpacity(0.1),
+              color:
+                  isPositive
+                      ? Colors.green.withOpacity(0.1)
+                      : Colors.orange.withOpacity(0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
               status,
               style: TextStyle(
-                color: isPositive ? Colors.green.shade700 : Colors.orange.shade700,
+                color:
+                    isPositive ? Colors.green.shade700 : Colors.orange.shade700,
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
               ),
@@ -373,18 +380,12 @@ class _TextureStatusPageState extends State<TextureStatusPage> {
               children: [
                 Text(
                   title,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                 ),
                 SizedBox(height: 4),
                 Text(
                   description,
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 12,
-                  ),
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                 ),
               ],
             ),

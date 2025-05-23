@@ -13,7 +13,10 @@ import 'package:flipedit/persistence/database/project_database.dart'
 import 'package:watch_it/watch_it.dart';
 
 // Mocks
-@GenerateMocks([TimelineViewModel, TimelineNavigationViewModel]) // Added TimelineNavigationViewModel
+@GenerateMocks([
+  TimelineViewModel,
+  TimelineNavigationViewModel,
+]) // Added TimelineNavigationViewModel
 // Removed manual definition: class MockTimelineViewModel extends Mock implements TimelineViewModel {}
 class MockProjectDatabaseService extends Mock
     implements ProjectDatabaseService {}
@@ -39,7 +42,8 @@ void main() {
 
     // 2. Create mocks
     mockTimelineViewModel = MockTimelineViewModel();
-    mockTimelineNavigationViewModel = MockTimelineNavigationViewModel(); // Added
+    mockTimelineNavigationViewModel =
+        MockTimelineNavigationViewModel(); // Added
     mockProjectDatabaseService = MockProjectDatabaseService();
 
     // Create the test track
@@ -60,12 +64,16 @@ void main() {
 
     // 4. Stub properties BEFORE registering mocks
     // Correctly stub ValueNotifier properties by returning the pre-initialized notifiers
-    when(mockTimelineNavigationViewModel.zoomNotifier).thenReturn(testZoomNotifier); // Changed to mockTimelineNavigationViewModel
+    when(mockTimelineNavigationViewModel.zoomNotifier).thenReturn(
+      testZoomNotifier,
+    ); // Changed to mockTimelineNavigationViewModel
     when(mockTimelineViewModel.clipsNotifier).thenReturn(testClipsNotifier);
 
     // 5. Register mocks AFTER stubbing
     di.registerSingleton<TimelineViewModel>(mockTimelineViewModel);
-    di.registerSingleton<TimelineNavigationViewModel>(mockTimelineNavigationViewModel); // Added
+    di.registerSingleton<TimelineNavigationViewModel>(
+      mockTimelineNavigationViewModel,
+    ); // Added
     di.registerSingleton<ProjectDatabaseService>(mockProjectDatabaseService);
   });
 

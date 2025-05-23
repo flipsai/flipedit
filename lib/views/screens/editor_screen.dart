@@ -82,23 +82,30 @@ class EditorScreen extends StatelessWidget with WatchItMixin {
 
     if (event is KeyDownEvent && isDeleteKey) {
       logInfo('Delete/Backspace key pressed', 'EditorScreen');
-      
+
       // Check if there's any text input field focused
       final primaryFocus = FocusManager.instance.primaryFocus;
       if (primaryFocus != null) {
         final focusedWidget = primaryFocus.context?.widget;
         // Don't process delete key if a text field has focus
-        if (focusedWidget is TextBox || 
-            focusedWidget is TextFormBox || 
+        if (focusedWidget is TextBox ||
+            focusedWidget is TextFormBox ||
             focusedWidget is NumberBox ||
-            primaryFocus.context?.findAncestorWidgetOfExactType<TextBox>() != null ||
-            primaryFocus.context?.findAncestorWidgetOfExactType<TextFormBox>() != null ||
-            primaryFocus.context?.findAncestorWidgetOfExactType<NumberBox>() != null) {
-          logDebug('Ignoring delete key as text field has focus', 'EditorScreen');
+            primaryFocus.context?.findAncestorWidgetOfExactType<TextBox>() !=
+                null ||
+            primaryFocus.context
+                    ?.findAncestorWidgetOfExactType<TextFormBox>() !=
+                null ||
+            primaryFocus.context?.findAncestorWidgetOfExactType<NumberBox>() !=
+                null) {
+          logDebug(
+            'Ignoring delete key as text field has focus',
+            'EditorScreen',
+          );
           return KeyEventResult.ignored;
         }
       }
-      
+
       final editorVm = di<EditorViewModel>();
       final timelineVm = di<TimelineViewModel>();
       final selectedIdString = editorVm.selectedClipId;

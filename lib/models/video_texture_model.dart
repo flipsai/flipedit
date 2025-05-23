@@ -15,17 +15,25 @@ class Native {
     return _internalInstance!;
   }
 
-  late final void Function(Pointer<Void>, Pointer<Uint8>, int, int, int, int) _onRgbaFP;
+  late final void Function(Pointer<Void>, Pointer<Uint8>, int, int, int, int)
+  _onRgbaFP;
 
   void _init() {
     final lib = DynamicLibrary.process();
     _onRgbaFP = lib.lookupFunction<
-        Void Function(Pointer<Void>, Pointer<Uint8>, Int32, Int32, Int32, Int32),
-        void Function(Pointer<Void>, Pointer<Uint8>, int, int, int, int)
-      >("FlutterRgbaRendererPluginOnRgba");
+      Void Function(Pointer<Void>, Pointer<Uint8>, Int32, Int32, Int32, Int32),
+      void Function(Pointer<Void>, Pointer<Uint8>, int, int, int, int)
+    >("FlutterRgbaRendererPluginOnRgba");
   }
 
-  void onRgba(Pointer<Void> texture, Pointer<Uint8> data, int len, int width, int height, int strideAlign) {
+  void onRgba(
+    Pointer<Void> texture,
+    Pointer<Uint8> data,
+    int len,
+    int width,
+    int height,
+    int strideAlign,
+  ) {
     _onRgbaFP(texture, data, len, width, height, strideAlign);
   }
 }
@@ -34,20 +42,20 @@ class Native {
 class VideoSessionID {
   final String id;
   final int displayIndex;
-  
+
   VideoSessionID({required this.id, this.displayIndex = 0});
-  
+
   @override
   String toString() => '${id}_$displayIndex';
-  
+
   @override
   bool operator ==(Object other) =>
-    identical(this, other) ||
-    other is VideoSessionID &&
-      runtimeType == other.runtimeType &&
-      id == other.id &&
-      displayIndex == other.displayIndex;
-      
+      identical(this, other) ||
+      other is VideoSessionID &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          displayIndex == other.displayIndex;
+
   @override
   int get hashCode => id.hashCode ^ displayIndex.hashCode;
 }
@@ -69,7 +77,11 @@ class PixelbufferTexture {
   int get texturePtr => _texturePtr;
   bool get isReady => _id != null && _id != -1 && _texturePtr != 0;
 
-  Future<void> create(int displayIndex, VideoSessionID sessionId, VideoTextureModel parent) async {
+  Future<void> create(
+    int displayIndex,
+    VideoSessionID sessionId,
+    VideoTextureModel parent,
+  ) async {
     _display = displayIndex;
     _textureKey = DateTime.now().millisecondsSinceEpoch + displayIndex;
     _sessionId = sessionId;
@@ -77,14 +89,18 @@ class PixelbufferTexture {
     try {
       final id = await textureRenderer.createTexture(_textureKey);
       _id = id;
-      
+
       if (id != -1) {
         parent.setRgbaTextureId(display: displayIndex, id: id);
         final ptr = await textureRenderer.getTexturePtr(_textureKey);
         _texturePtr = ptr;
-        debugPrint("Created pixelbuffer texture: sessionId=$sessionId display=$_display, textureId=$id, texturePtr=${ptr.toRadixString(16)}");
+        debugPrint(
+          "Created pixelbuffer texture: sessionId=$sessionId display=$_display, textureId=$id, texturePtr=${ptr.toRadixString(16)}",
+        );
       } else {
-        debugPrint("Failed to create texture for sessionId=$sessionId display=$_display");
+        debugPrint(
+          "Failed to create texture for sessionId=$sessionId display=$_display",
+        );
       }
     } catch (e) {
       debugPrint("Error creating texture: $e");
@@ -94,18 +110,20 @@ class PixelbufferTexture {
   Future<void> destroy(bool unregisterTexture, VideoTextureModel parent) async {
     if (!_destroying && _textureKey != -1 && _sessionId != null) {
       _destroying = true;
-      
+
       if (unregisterTexture) {
         // Sleep briefly to avoid texture being used after it's unregistered
         await Future.delayed(const Duration(milliseconds: 100));
       }
-      
+
       await textureRenderer.closeTexture(_textureKey);
       _textureKey = -1;
       _texturePtr = 0;
       _destroying = false;
-      
-      debugPrint("Destroyed pixelbuffer texture: sessionId=$_sessionId display=$_display, textureId=$_id");
+
+      debugPrint(
+        "Destroyed pixelbuffer texture: sessionId=$_sessionId display=$_display, textureId=$_id",
+      );
     }
   }
 
@@ -115,24 +133,33 @@ class PixelbufferTexture {
         debugPrint("Texture not ready for rendering");
         return;
       }
-      
+
       if (data == nullptr) {
         debugPrint("Null data pointer provided for rendering");
         return;
       }
-      
+
       if (len <= 0 || width <= 0 || height <= 0) {
-        debugPrint("Invalid dimensions for rendering: len=$len, width=$width, height=$height");
+        debugPrint(
+          "Invalid dimensions for rendering: len=$len, width=$width, height=$height",
+        );
         return;
       }
-      
+
       if (_texturePtr == 0) {
         debugPrint("Texture pointer is zero");
         return;
       }
-      
+
       final textureTargetPtr = Pointer.fromAddress(_texturePtr).cast<Void>();
-      Native.instance.onRgba(textureTargetPtr, data, len, width, height, strideAlign);
+      Native.instance.onRgba(
+        textureTargetPtr,
+        data,
+        len,
+        width,
+        height,
+        strideAlign,
+      );
     } catch (e) {
       debugPrint("Error in renderFrame: $e");
     }
@@ -178,10 +205,10 @@ class _Control {
 class VideoTextureModel {
   final Map<int, _Control> _control = {};
   final Map<int, PixelbufferTexture> _pixelbufferRenderTextures = {};
-  
+
   // Current session information
   VideoSessionID? _currentSessionId;
-  
+
   VideoTextureModel();
 
   void setTextureType({required int display, required bool gpuTexture}) {
@@ -215,7 +242,7 @@ class VideoTextureModel {
 
   Future<void> createSession(String sessionId, {int numDisplays = 1}) async {
     _currentSessionId = VideoSessionID(id: sessionId);
-    
+
     for (int i = 0; i < numDisplays; i++) {
       await createDisplay(i);
     }
@@ -240,7 +267,7 @@ class VideoTextureModel {
       control.dispose();
       _control.remove(displayIndex);
     }
-    
+
     if (_pixelbufferRenderTextures.containsKey(displayIndex)) {
       await _pixelbufferRenderTextures[displayIndex]!.destroy(true, this);
       _pixelbufferRenderTextures.remove(displayIndex);
@@ -255,49 +282,59 @@ class VideoTextureModel {
     _currentSessionId = null;
   }
 
-  void renderFrame(int display, Pointer<Uint8> data, int len, int width, int height) {
+  void renderFrame(
+    int display,
+    Pointer<Uint8> data,
+    int len,
+    int width,
+    int height,
+  ) {
     try {
       if (data == nullptr || len <= 0 || width <= 0 || height <= 0) {
-        debugPrint("Invalid frame data parameters: len=$len, width=$width, height=$height");
+        debugPrint(
+          "Invalid frame data parameters: len=$len, width=$width, height=$height",
+        );
         return;
       }
-      
+
       final texture = _pixelbufferRenderTextures[display];
       if (texture == null) {
         debugPrint("No texture found for display $display");
         return;
       }
-      
+
       texture.renderFrame(data, len, width, height);
     } catch (e) {
       debugPrint("Error rendering frame: $e");
     }
   }
-  
+
   // Overload for Uint8List data
   void renderFrameBytes(int display, Uint8List data, int width, int height) {
     try {
       if (data.isEmpty || width <= 0 || height <= 0) {
-        debugPrint("Invalid frame data parameters: dataLength=${data.length}, width=$width, height=$height");
+        debugPrint(
+          "Invalid frame data parameters: dataLength=${data.length}, width=$width, height=$height",
+        );
         return;
       }
-      
+
       final texture = _pixelbufferRenderTextures[display];
       if (texture == null) {
         debugPrint("No texture found for display $display");
         return;
       }
-      
+
       if (!texture.isReady) {
         debugPrint("Texture not ready for display $display");
         return;
       }
-      
+
       // Log detailed information about the texture and data
-      debugPrint("Rendering to texture: id=${texture.textureId}, ptr=${texture.texturePtr.toRadixString(16)}, " +
-                "size=${width}x${height}, data length=${data.length}, first bytes: " +
-                "${data.length > 16 ? data.sublist(0, 16).map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ') : 'empty'}");
-      
+      debugPrint(
+        "Rendering to texture: id=${texture.textureId}, ptr=${texture.texturePtr.toRadixString(16)}, size=${width}x$height, data length=${data.length}, first bytes: ${data.length > 16 ? data.sublist(0, 16).map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ') : 'empty'}",
+      );
+
       // Try both rendering methods for redundancy
       try {
         // Method 1: Use the texture renderer directly
@@ -306,21 +343,22 @@ class VideoTextureModel {
           data,
           height,
           width,
-          texture.strideAlign
+          texture.strideAlign,
         );
-        
+
         debugPrint("TextureRenderer.onRgba result: $result");
-        
+
         // Method 2: If the first method fails, try using Native FFI directly
         if (texture.texturePtr > 0) {
-          final textureTargetPtr = Pointer.fromAddress(texture.texturePtr).cast<Void>();
-          
+          final textureTargetPtr =
+              Pointer.fromAddress(texture.texturePtr).cast<Void>();
+
           // Create a temporary pointer to the data
           final dataLength = data.length;
           final dataPtr = malloc.allocate<Uint8>(dataLength);
           final dataList = dataPtr.asTypedList(dataLength);
           dataList.setAll(0, data);
-          
+
           // Render using Native FFI
           Native.instance.onRgba(
             textureTargetPtr,
@@ -328,17 +366,19 @@ class VideoTextureModel {
             dataLength,
             width,
             height,
-            texture.strideAlign
+            texture.strideAlign,
           );
-          
+
           // Free the temporary pointer
           malloc.free(dataPtr);
-          
+
           debugPrint("Backup Native FFI rendering completed");
         }
       } catch (renderError) {
-        debugPrint("Primary rendering method failed: $renderError, trying fallback...");
-        
+        debugPrint(
+          "Primary rendering method failed: $renderError, trying fallback...",
+        );
+
         // Final fallback: Try with a different stride alignment
         final fallbackStride = texture.strideAlign == 64 ? 1 : 64;
         final result = texture.textureRenderer.onRgba(
@@ -346,10 +386,12 @@ class VideoTextureModel {
           data,
           height,
           width,
-          fallbackStride
+          fallbackStride,
         );
-        
-        debugPrint("Fallback rendering with stride=$fallbackStride result: $result");
+
+        debugPrint(
+          "Fallback rendering with stride=$fallbackStride result: $result",
+        );
       }
     } catch (e, stack) {
       debugPrint("Error rendering frame bytes: $e");
@@ -369,7 +411,7 @@ class VideoTextureModel {
   void dispose() {
     try {
       debugPrint("Disposing VideoTextureModel");
-      
+
       // Dispose all controls
       for (final control in _control.values) {
         try {
@@ -378,17 +420,17 @@ class VideoTextureModel {
           debugPrint("Error disposing control: $e");
         }
       }
-      
+
       // Destroy session (will clean up textures)
       try {
         destroySession();
       } catch (e) {
         debugPrint("Error destroying session during disposal: $e");
       }
-      
+
       debugPrint("VideoTextureModel disposed successfully");
     } catch (e) {
       debugPrint("Error disposing VideoTextureModel: $e");
     }
   }
-} 
+}
