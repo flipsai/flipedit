@@ -9,26 +9,31 @@ class CanvasDimensionsDialog extends StatelessWidget {
   final int clipWidth;
   final int clipHeight;
   final String _logTag = 'CanvasDimensionsDialog';
-  
+
   const CanvasDimensionsDialog({
     super.key,
     required this.clipWidth,
     required this.clipHeight,
   });
 
-  static Future<bool?> show(BuildContext context, int clipWidth, int clipHeight) async {
+  static Future<bool?> show(
+    BuildContext context,
+    int clipWidth,
+    int clipHeight,
+  ) async {
     logger.logInfo(
       'Showing canvas dimensions dialog for clip: ${clipWidth}x$clipHeight',
       'CanvasDimensionsDialog',
     );
-    
+
     return await showDialog<bool>(
       context: context,
       barrierDismissible: false, // Prevent dismissing by tapping outside
-      builder: (context) => CanvasDimensionsDialog(
-        clipWidth: clipWidth,
-        clipHeight: clipHeight,
-      ),
+      builder:
+          (context) => CanvasDimensionsDialog(
+            clipWidth: clipWidth,
+            clipHeight: clipHeight,
+          ),
     );
   }
 
@@ -37,21 +42,18 @@ class CanvasDimensionsDialog extends StatelessWidget {
     final canvasDimensionsService = di<CanvasDimensionsService>();
     final defaultWidth = AppConstants.defaultVideoWidth;
     final defaultHeight = AppConstants.defaultVideoHeight;
-    
+
     // Get theme colors for consistent styling
     final FluentThemeData theme = FluentTheme.of(context);
-    
+
     logger.logInfo(
-      'Building dialog with canvas: ${canvasDimensionsService.canvasWidth.toInt()}x${canvasDimensionsService.canvasHeight.toInt()}, ' +
+      'Building dialog with canvas: ${canvasDimensionsService.canvasWidth.toInt()}x${canvasDimensionsService.canvasHeight.toInt()}, '
       'clip: ${clipWidth}x$clipHeight, default: ${defaultWidth}x$defaultHeight',
       _logTag,
     );
-    
+
     return ContentDialog(
-      title: Text(
-        'Set Canvas Dimensions',
-        style: theme.typography.title,
-      ),
+      title: Text('Set Canvas Dimensions', style: theme.typography.title),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -70,7 +72,7 @@ class CanvasDimensionsDialog extends StatelessWidget {
             severity: InfoBarSeverity.info,
           ),
           const SizedBox(height: 16),
-          
+
           // Dimensions display in a card-like container
           Container(
             padding: const EdgeInsets.all(12),
@@ -123,15 +125,20 @@ class CanvasDimensionsDialog extends StatelessWidget {
             Navigator.of(context).pop(false);
           },
           style: ButtonStyle(
-            padding: ButtonState.all(const EdgeInsets.symmetric(horizontal: 16, vertical: 8)),
+            padding: ButtonState.all(
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            ),
           ),
           child: const Text('Keep Default Dimensions'),
         ),
-        
+
         // Confirm button with accent color
         FilledButton(
           onPressed: () {
-            logger.logInfo('User chose to use clip dimensions: ${clipWidth}x$clipHeight', _logTag);
+            logger.logInfo(
+              'User chose to use clip dimensions: ${clipWidth}x$clipHeight',
+              _logTag,
+            );
             canvasDimensionsService.updateCanvasDimensions(
               clipWidth.toDouble(),
               clipHeight.toDouble(),
@@ -140,11 +147,13 @@ class CanvasDimensionsDialog extends StatelessWidget {
             Navigator.of(context).pop(true);
           },
           style: ButtonStyle(
-            padding: ButtonState.all(const EdgeInsets.symmetric(horizontal: 16, vertical: 8)),
+            padding: ButtonState.all(
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            ),
           ),
           child: const Text('Use Clip Dimensions'),
         ),
       ],
     );
   }
-} 
+}

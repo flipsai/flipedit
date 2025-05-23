@@ -24,7 +24,9 @@ class PreviewViewModel extends ChangeNotifier implements Disposable {
   final ValueNotifier<bool> _isConnectedNotifier = ValueNotifier(false);
   ValueListenable<bool> get isConnectedNotifier => _isConnectedNotifier;
 
-  final ValueNotifier<String> _statusNotifier = ValueNotifier('Initializing...');
+  final ValueNotifier<String> _statusNotifier = ValueNotifier(
+    'Initializing...',
+  );
   ValueListenable<String> get statusNotifier => _statusNotifier;
 
   final ValueNotifier<String?> _streamUrlNotifier = ValueNotifier(null);
@@ -42,14 +44,20 @@ class PreviewViewModel extends ChangeNotifier implements Disposable {
     _timelineNavViewModel.isPlayingNotifier.addListener(_isPlayingListener!);
 
     _currentFrameListener = _handlePlaybackOrSeekChange;
-    _timelineNavViewModel.currentFrameNotifier.addListener(_currentFrameListener!);
+    _timelineNavViewModel.currentFrameNotifier.addListener(
+      _currentFrameListener!,
+    );
 
     _clipsListener = _onClipsChanged;
     _timelineStateViewModel.clipsNotifier.addListener(_clipsListener!);
 
     _canvasDimensionsListener = _onCanvasDimensionsChanged; // Added
-    _canvasDimensionsService.canvasWidthNotifier.addListener(_canvasDimensionsListener!); // Added
-    _canvasDimensionsService.canvasHeightNotifier.addListener(_canvasDimensionsListener!); // Added
+    _canvasDimensionsService.canvasWidthNotifier.addListener(
+      _canvasDimensionsListener!,
+    ); // Added
+    _canvasDimensionsService.canvasHeightNotifier.addListener(
+      _canvasDimensionsListener!,
+    ); // Added
 
     _checkInitialServerHealth();
 
@@ -74,15 +82,21 @@ class PreviewViewModel extends ChangeNotifier implements Disposable {
 
     if (isPlaying) {
       // If playing, and the stream isn't already set to play from the current frame (or start)
-      if (_lastNotifiedFrameForStream != currentFrame || _streamUrlNotifier.value == null) {
-         logVerbose('PreviewViewModel: Playback started or resumed. Updating stream for frame $currentFrame.');
+      if (_lastNotifiedFrameForStream != currentFrame ||
+          _streamUrlNotifier.value == null) {
+        logVerbose(
+          'PreviewViewModel: Playback started or resumed. Updating stream for frame $currentFrame.',
+        );
         _updateStreamUrl(startFrame: currentFrame);
       }
     } else {
       // If paused, debounce the seek operation
       _seekDebounceTimer = Timer(_seekDebounceDuration, () {
-        if (_isDisposed || _timelineNavViewModel.isPlayingNotifier.value) return; // Check again in case state changed
-        logVerbose('PreviewViewModel: Debounced seek. Updating stream for frame $currentFrame.');
+        if (_isDisposed || _timelineNavViewModel.isPlayingNotifier.value)
+          return; // Check again in case state changed
+        logVerbose(
+          'PreviewViewModel: Debounced seek. Updating stream for frame $currentFrame.',
+        );
         _updateStreamUrl(startFrame: currentFrame);
       });
     }
@@ -90,30 +104,37 @@ class PreviewViewModel extends ChangeNotifier implements Disposable {
 
   void _updateStreamUrl({int? startFrame}) {
     if (_isDisposed || !_isConnectedNotifier.value) {
-       _streamUrlNotifier.value = null;
-       return;
+      _streamUrlNotifier.value = null;
+      return;
     }
 
-    final targetFrame = startFrame ?? _timelineNavViewModel.currentFrameNotifier.value;
+    final targetFrame =
+        startFrame ?? _timelineNavViewModel.currentFrameNotifier.value;
 
     // Only update if the target frame for the stream has changed.
     // This prevents unnecessary URL changes if currentFrameNotifier updates rapidly during seeking
     // but the debounced/actual stream start point shouldn't change yet.
-    if (targetFrame == _lastNotifiedFrameForStream && _streamUrlNotifier.value != null && startFrame == null && !_timelineNavViewModel.isPlayingNotifier.value) {
-       // If not playing, and we are not forcing a startFrame, and the target is same as last, do nothing.
-       // This helps keep the player stable during rapid scrubbing when paused.
-       return;
+    if (targetFrame == _lastNotifiedFrameForStream &&
+        _streamUrlNotifier.value != null &&
+        startFrame == null &&
+        !_timelineNavViewModel.isPlayingNotifier.value) {
+      // If not playing, and we are not forcing a startFrame, and the target is same as last, do nothing.
+      // This helps keep the player stable during rapid scrubbing when paused.
+      return;
     }
 
     _lastNotifiedFrameForStream = targetFrame;
-    logInfo('PreviewViewModel: Stream URL updated to: ${_streamUrlNotifier.value}');
+    logInfo(
+      'PreviewViewModel: Stream URL updated to: ${_streamUrlNotifier.value}',
+    );
   }
 
   Future<void> _onClipsChanged() async {
     if (_isDisposed || !_isConnectedNotifier.value) return;
 
     final clips = _timelineStateViewModel.clipsNotifier.value;
-    final List<Map<String, dynamic>> serializableClips = clips.map((clip) => clip.toJson()).toList();
+    final List<Map<String, dynamic>> serializableClips =
+        clips.map((clip) => clip.toJson()).toList();
   }
 
   Future<void> _onCanvasDimensionsChanged() async {
@@ -123,7 +144,10 @@ class PreviewViewModel extends ChangeNotifier implements Disposable {
     final height = _canvasDimensionsService.canvasHeightNotifier.value;
 
     if (width == 0 || height == 0) {
-      logWarning('PreviewViewModel: Canvas dimensions are zero, skipping update.', 'PreviewViewModel');
+      logWarning(
+        'PreviewViewModel: Canvas dimensions are zero, skipping update.',
+        'PreviewViewModel',
+      );
       return;
     }
   }
@@ -135,10 +159,16 @@ class PreviewViewModel extends ChangeNotifier implements Disposable {
     logDebug('PreviewViewModel disposing...');
 
     _timelineNavViewModel.isPlayingNotifier.removeListener(_isPlayingListener!);
-    _timelineNavViewModel.currentFrameNotifier.removeListener(_currentFrameListener!);
+    _timelineNavViewModel.currentFrameNotifier.removeListener(
+      _currentFrameListener!,
+    );
     _timelineStateViewModel.clipsNotifier.removeListener(_clipsListener!);
-    _canvasDimensionsService.canvasWidthNotifier.removeListener(_canvasDimensionsListener!);
-    _canvasDimensionsService.canvasHeightNotifier.removeListener(_canvasDimensionsListener!);
+    _canvasDimensionsService.canvasWidthNotifier.removeListener(
+      _canvasDimensionsListener!,
+    );
+    _canvasDimensionsService.canvasHeightNotifier.removeListener(
+      _canvasDimensionsListener!,
+    );
 
     _seekDebounceTimer?.cancel();
     _streamUrlNotifier.dispose();

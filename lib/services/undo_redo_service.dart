@@ -13,9 +13,11 @@ import 'package:drift/drift.dart';
 // Factory function type to deserialize a command from its ChangeLog data.
 // It needs access to services (like ProjectDatabaseService) to instantiate commands
 // that might depend on DAOs or other services.
-typedef CommandFromJsonFactory = UndoableCommand Function(
-    ProjectDatabaseService projectDatabaseService,
-    Map<String, dynamic> jsonData);
+typedef CommandFromJsonFactory =
+    UndoableCommand Function(
+      ProjectDatabaseService projectDatabaseService,
+      Map<String, dynamic> jsonData,
+    );
 
 class UndoRedoService {
   final ProjectDatabaseService _projectDatabaseService;
@@ -29,26 +31,29 @@ class UndoRedoService {
   // Map to store command deserialization factories
   // Key: command type string (from ChangeLog.action)
   // Value: Factory function to create the command instance
-  final Map<String, CommandFromJsonFactory> _commandFactories = {}; // Initialize empty
+  final Map<String, CommandFromJsonFactory> _commandFactories =
+      {}; // Initialize empty
 
   UndoRedoService({required ProjectDatabaseService projectDatabaseService})
-      : _projectDatabaseService = projectDatabaseService {
+    : _projectDatabaseService = projectDatabaseService {
     // Register command factories here
     registerCommandFactory(
       MoveClipCommand.commandType,
-      (dbService, jsonData) => MoveClipCommand.fromJson(dbService, jsonData)
+      (dbService, jsonData) => MoveClipCommand.fromJson(dbService, jsonData),
     );
     registerCommandFactory(
       RollEditCommand.commandType,
-      (dbService, jsonData) => RollEditCommand.fromJson(dbService, jsonData)
+      (dbService, jsonData) => RollEditCommand.fromJson(dbService, jsonData),
     );
-    registerCommandFactory( // Register AddClipCommand
+    registerCommandFactory(
+      // Register AddClipCommand
       AddClipCommand.commandType,
-      (dbService, jsonData) => AddClipCommand.fromJson(dbService, jsonData)
+      (dbService, jsonData) => AddClipCommand.fromJson(dbService, jsonData),
     );
-    registerCommandFactory( // Register ResizeClipCommand
+    registerCommandFactory(
+      // Register ResizeClipCommand
       ResizeClipCommand.commandType,
-      (dbService, jsonData) => ResizeClipCommand.fromJson(dbService, jsonData)
+      (dbService, jsonData) => ResizeClipCommand.fromJson(dbService, jsonData),
     );
     // Example for other commands:
     // registerCommandFactory(
@@ -76,7 +81,10 @@ class UndoRedoService {
 
     final commandData = {
       'newData': jsonDecode(entry.newData!) as Map<String, dynamic>,
-      'oldData': entry.oldData != null ? jsonDecode(entry.oldData!) as Map<String, dynamic> : null,
+      'oldData':
+          entry.oldData != null
+              ? jsonDecode(entry.oldData!) as Map<String, dynamic>
+              : null,
       'entityId': entry.entityId, // Pass entityId too
     };
     return factory(_projectDatabaseService, commandData);
@@ -89,23 +97,27 @@ class UndoRedoService {
     await command.execute();
 
     final changeLogDataFromCommand = command.toChangeLog(entityId);
-    
+
     // Create a companion for insertion, ensuring the ID field is absent for auto-increment.
     final companionForInsert = ChangeLogsCompanion(
       entity: Value(changeLogDataFromCommand.entity),
       entityId: Value(changeLogDataFromCommand.entityId),
       action: Value(changeLogDataFromCommand.action),
-      oldData: changeLogDataFromCommand.oldData == null
-               ? const Value.absent()
-               : Value(changeLogDataFromCommand.oldData!),
-      newData: changeLogDataFromCommand.newData == null
-               ? const Value.absent()
-               : Value(changeLogDataFromCommand.newData!),
+      oldData:
+          changeLogDataFromCommand.oldData == null
+              ? const Value.absent()
+              : Value(changeLogDataFromCommand.oldData!),
+      newData:
+          changeLogDataFromCommand.newData == null
+              ? const Value.absent()
+              : Value(changeLogDataFromCommand.newData!),
       timestamp: Value(changeLogDataFromCommand.timestamp),
     );
 
     final int newLogId = await _changeLogDao.insertChange(companionForInsert);
-    final ChangeLog insertedLog = changeLogDataFromCommand.copyWith(id: newLogId);
+    final ChangeLog insertedLog = changeLogDataFromCommand.copyWith(
+      id: newLogId,
+    );
 
     _undoStack.add(insertedLog);
     _redoStack.clear();
@@ -142,10 +154,15 @@ class UndoRedoService {
   }
 
   /// Registers a factory for deserializing a specific command type.
-  void registerCommandFactory(String actionType, CommandFromJsonFactory factory) {
+  void registerCommandFactory(
+    String actionType,
+    CommandFromJsonFactory factory,
+  ) {
     if (_commandFactories.containsKey(actionType)) {
       if (kDebugMode) {
-        print("Warning: Overwriting command factory for action type '$actionType'");
+        print(
+          "Warning: Overwriting command factory for action type '$actionType'",
+        );
       }
     }
     _commandFactories[actionType] = factory;

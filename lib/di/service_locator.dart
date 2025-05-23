@@ -50,7 +50,9 @@ Future<void> setupServiceLocator() async {
     () => ProjectDatabaseService(),
   );
   di.registerLazySingleton<LayoutService>(() => LayoutService());
-  di.registerLazySingleton<AreaDimensionsService>(() => AreaDimensionsService());
+  di.registerLazySingleton<AreaDimensionsService>(
+    () => AreaDimensionsService(),
+  );
 
   // Register canvas dimensions service
   di.registerLazySingleton<CanvasDimensionsService>(
@@ -67,9 +69,9 @@ Future<void> setupServiceLocator() async {
   di.registerLazySingleton<CommandHistoryService>(
     () => CommandHistoryService(),
   );
-  
+
   // ClipUpdateService depends on Timeline State ViewModel, register after it
-  
+
   // ViewModels
   di.registerLazySingleton<AppViewModel>(() => AppViewModel());
   di.registerLazySingleton<ProjectViewModel>(
@@ -82,7 +84,7 @@ Future<void> setupServiceLocator() async {
     () => TimelineStateViewModel(),
     dispose: (vm) => vm.dispose(),
   );
-  
+
   // Register ClipUpdateService after TimelineStateViewModel
   di.registerLazySingleton<ClipUpdateService>(
     () => ClipUpdateService(
@@ -114,7 +116,7 @@ Future<void> setupServiceLocator() async {
   );
 
   di.registerLazySingleton<MediaDurationService>(() => MediaDurationService());
-  
+
   // Register video texture service
   di.registerLazySingleton<VideoTextureService>(
     () => VideoTextureService(),
@@ -126,7 +128,7 @@ Future<void> setupServiceLocator() async {
     () => VideoProcessingService(),
     dispose: (service) => service.dispose(),
   );
-  
+
   di.registerLazySingleton<TimelineProcessingService>(
     () => TimelineProcessingService(),
     dispose: (service) => service.dispose(),

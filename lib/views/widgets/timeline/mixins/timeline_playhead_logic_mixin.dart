@@ -75,7 +75,8 @@ mixin TimelinePlayheadLogicMixin on State<Timeline> implements TickerProvider {
       // Update local state and potentially trigger snap animation
       currentFramePosition = timelineNavigationViewModel.currentFrame;
       _exactFramePosition = currentFramePosition.toDouble();
-      visualFramePositionNotifier.value = _exactFramePosition; // Sync notifier too
+      visualFramePositionNotifier.value =
+          _exactFramePosition; // Sync notifier too
       // Consider if a snap animation is needed here or if direct update is fine
       // If snapping is desired:
       // scrubSnapController.forward(from: 0.0);
@@ -113,7 +114,8 @@ mixin TimelinePlayheadLogicMixin on State<Timeline> implements TickerProvider {
     if (newFrame != currentFramePosition) {
       currentFramePosition = newFrame;
       _exactFramePosition = newFrame.toDouble();
-      visualFramePositionNotifier.value = _exactFramePosition; // Update visual notifier
+      visualFramePositionNotifier.value =
+          _exactFramePosition; // Update visual notifier
       timelineNavigationViewModel.currentFrame = newFrame;
 
       setState(() {}); // Update UI
@@ -277,7 +279,7 @@ mixin TimelinePlayheadLogicMixin on State<Timeline> implements TickerProvider {
     currentFramePosition = timelineNavigationViewModel.currentFrame;
     _exactFramePosition = currentFramePosition.toDouble();
     setState(() {});
-    visualFramePositionNotifier.value = _exactFramePosition; // Reset visual notifier too
+    visualFramePositionNotifier.value =
+        _exactFramePosition; // Reset visual notifier too
   }
 }
-

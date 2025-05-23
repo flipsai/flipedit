@@ -25,7 +25,8 @@ class ProjectViewModel {
   final ProjectDatabaseService _databaseService = di<ProjectDatabaseService>();
   final SharedPreferences _prefs;
   final UndoRedoService _undoRedoService = di<UndoRedoService>();
-  final TimelineNavigationViewModel _timelineNavViewModel = di<TimelineNavigationViewModel>(); // Added injection
+  final TimelineNavigationViewModel _timelineNavViewModel =
+      di<TimelineNavigationViewModel>(); // Added injection
 
   // Commands
   late final ImportMediaCommand importMediaCommand;
@@ -92,12 +93,18 @@ class ProjectViewModel {
     await loadProjectCommand.execute(projectId);
     const int initialFrameIndex = 0;
     try {
-      
       _timelineNavViewModel.currentFrame = initialFrameIndex;
-      logInfo('Set TimelineNavigationViewModel currentFrame to $initialFrameIndex', _logTag);
-
+      logInfo(
+        'Set TimelineNavigationViewModel currentFrame to $initialFrameIndex',
+        _logTag,
+      );
     } catch (e, stackTrace) {
-      logError('Failed to fetch initial frame $initialFrameIndex for project $projectId', e, stackTrace, _logTag);
+      logError(
+        'Failed to fetch initial frame $initialFrameIndex for project $projectId',
+        e,
+        stackTrace,
+        _logTag,
+      );
     }
   }
 
@@ -374,13 +381,16 @@ class ProjectViewModel {
         timelineStateViewModel = di<TimelineStateViewModel>();
       } catch (e) {
         // TimelineStateViewModel might not be registered yet if we're not in the editor
-        logInfo(_logTag, "TimelineStateViewModel not available, timeline refresh will be skipped");
+        logInfo(
+          _logTag,
+          "TimelineStateViewModel not available, timeline refresh will be skipped",
+        );
       }
-      
+
       // First, get the asset to find its source path
       final assets = projectAssets;
       model.ProjectAsset? asset;
-      
+
       // Find the asset with the given ID
       for (final a in assets) {
         if (a.databaseId == assetId) {
@@ -388,27 +398,32 @@ class ProjectViewModel {
           break;
         }
       }
-      
+
       if (asset == null) {
         logError(_logTag, "Asset with ID $assetId not found");
         return false;
       }
-      
+
       // Delete all clips that use this asset's source path
       final sourcePath = asset.sourcePath;
-      final clipsDeleted = await _databaseService.deleteClipsBySourcePath(sourcePath);
-      logInfo(_logTag, "Deleted $clipsDeleted clips using asset with ID $assetId");
-      
+      final clipsDeleted = await _databaseService.deleteClipsBySourcePath(
+        sourcePath,
+      );
+      logInfo(
+        _logTag,
+        "Deleted $clipsDeleted clips using asset with ID $assetId",
+      );
+
       // Now delete the asset itself
       final success = await _databaseService.deleteAsset(assetId);
-      
+
       // Force the timeline to refresh its clips state
       if (success && clipsDeleted > 0 && timelineStateViewModel != null) {
         // This ensures the timeline UI updates immediately
         await timelineStateViewModel.refreshClips();
         logInfo(_logTag, "Refreshed timeline clips after deleting media");
       }
-      
+
       return success;
     } catch (e) {
       logError(_logTag, "Error deleting asset: $e");

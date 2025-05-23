@@ -8,7 +8,7 @@ import 'package:flipedit/utils/logger.dart';
 /// Example of how to properly integrate the texture system with video rendering
 /// This shows the correct approach for FlipEdit's use case
 class VideoTextureRenderer extends StatefulWidget {
-  const VideoTextureRenderer({Key? key}) : super(key: key);
+  const VideoTextureRenderer({super.key});
 
   @override
   State<VideoTextureRenderer> createState() => _VideoTextureRendererState();
@@ -19,47 +19,49 @@ class _VideoTextureRendererState extends State<VideoTextureRenderer> {
   int _textureId = -1;
   bool _isInitialized = false;
   Timer? _simulationTimer;
-  
+
   static const int _width = 640;
   static const int _height = 480;
-  
+
   @override
   void initState() {
     super.initState();
     _initializeVideoTexture();
   }
-  
+
   Future<void> _initializeVideoTexture() async {
     try {
       logInfo('VideoTextureRenderer', 'Initializing video texture...');
-      
+
       // Create texture for video rendering
       final textureId = await FixedTextureHelper.createTexture(
-        _renderer, 
-        _width, 
-        _height
+        _renderer,
+        _width,
+        _height,
       );
-      
+
       if (textureId == -1) {
         logError('VideoTextureRenderer', 'Failed to create video texture');
         return;
       }
-      
+
       setState(() {
         _textureId = textureId;
         _isInitialized = true;
       });
-      
-      logInfo('VideoTextureRenderer', 'Video texture ready with ID: $textureId');
-      
+
+      logInfo(
+        'VideoTextureRenderer',
+        'Video texture ready with ID: $textureId',
+      );
+
       // Start simulating video frames
       _startVideoSimulation();
-      
     } catch (e) {
       logError('VideoTextureRenderer', 'Error initializing video texture: $e');
     }
   }
-  
+
   /// Simulate receiving video frames from Python/external source
   void _startVideoSimulation() {
     _simulationTimer = Timer.periodic(Duration(milliseconds: 33), (timer) {
@@ -67,50 +69,60 @@ class _VideoTextureRendererState extends State<VideoTextureRenderer> {
       _renderSimulatedFrame();
     });
   }
-  
+
   /// This is where you would integrate with your Python video processing
   void _renderSimulatedFrame() {
     if (!_isInitialized) return;
-    
+
     // Generate a simulated video frame
     final frameData = _generateSimulatedVideoFrame(
-      _width, 
-      _height, 
-      DateTime.now().millisecondsSinceEpoch
+      _width,
+      _height,
+      DateTime.now().millisecondsSinceEpoch,
     );
-    
+
     // Update the texture with the new frame
     // In your real implementation, this frameData would come from Python
-    FixedTextureHelper.updateTextureData(_textureId, frameData, _width, _height);
+    FixedTextureHelper.updateTextureData(
+      _textureId,
+      frameData,
+      _width,
+      _height,
+    );
   }
-  
+
   /// Generate a simulated video frame
   /// In your real app, this would be replaced with frames from Python
   Uint8List _generateSimulatedVideoFrame(int width, int height, int timestamp) {
     const bytesPerPixel = 4; // RGBA
     final data = Uint8List(width * height * bytesPerPixel);
-    
+
     // Create animated pattern based on timestamp
     final time = timestamp / 1000.0; // Convert to seconds
-    
+
     for (int y = 0; y < height; y++) {
       for (int x = 0; x < width; x++) {
         final offset = (y * width + x) * bytesPerPixel;
-        
+
         // Create moving wave pattern
-        final wave1 = (128 + 127 * (x / width * 6.28 + time)).round().clamp(0, 255);
-        final wave2 = (128 + 127 * (y / height * 6.28 + time * 0.5)).round().clamp(0, 255);
-        
+        final wave1 = (128 + 127 * (x / width * 6.28 + time)).round().clamp(
+          0,
+          255,
+        );
+        final wave2 = (128 + 127 * (y / height * 6.28 + time * 0.5))
+            .round()
+            .clamp(0, 255);
+
         data[offset] = wave1; // R
         data[offset + 1] = wave2; // G
         data[offset + 2] = ((wave1 + wave2) / 2).round(); // B
         data[offset + 3] = 255; // A (fully opaque)
       }
     }
-    
+
     return data;
   }
-  
+
   @override
   void dispose() {
     _simulationTimer?.cancel();
@@ -119,7 +131,7 @@ class _VideoTextureRendererState extends State<VideoTextureRenderer> {
     }
     super.dispose();
   }
-  
+
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -144,7 +156,7 @@ class _VideoTextureRendererState extends State<VideoTextureRenderer> {
               ],
             ),
           ),
-          
+
           if (_isInitialized) ...[
             // Video display area
             Container(
@@ -163,7 +175,7 @@ class _VideoTextureRendererState extends State<VideoTextureRenderer> {
                 ),
               ),
             ),
-            
+
             Padding(
               padding: EdgeInsets.all(16),
               child: Column(
@@ -175,12 +187,15 @@ class _VideoTextureRendererState extends State<VideoTextureRenderer> {
                       SizedBox(width: 8),
                       Text(
                         'Texture rendering active',
-                        style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          color: Colors.green,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ],
                   ),
                   SizedBox(height: 8),
-                  Text('Resolution: ${_width}x${_height}'),
+                  Text('Resolution: ${_width}x$_height'),
                   Text('Texture ID: $_textureId'),
                   Text('Frame Rate: ~30 FPS'),
                   SizedBox(height: 16),
@@ -241,6 +256,8 @@ class _VideoTextureRendererState extends State<VideoTextureRenderer> {
 
 /// Example widget showing proper texture cleanup
 class TextureCleanupExample extends StatefulWidget {
+  const TextureCleanupExample({super.key});
+
   @override
   _TextureCleanupExampleState createState() => _TextureCleanupExampleState();
 }
@@ -248,23 +265,27 @@ class TextureCleanupExample extends StatefulWidget {
 class _TextureCleanupExampleState extends State<TextureCleanupExample> {
   final List<int> _activeTextures = [];
   final TextureRgbaRenderer _renderer = TextureRgbaRenderer();
-  
+
   Future<void> _createTestTexture() async {
-    final textureId = await FixedTextureHelper.createTexture(_renderer, 100, 100);
+    final textureId = await FixedTextureHelper.createTexture(
+      _renderer,
+      100,
+      100,
+    );
     if (textureId != -1) {
       setState(() {
         _activeTextures.add(textureId);
       });
     }
   }
-  
+
   Future<void> _closeTexture(int textureId) async {
     await FixedTextureHelper.closeTexture(textureId);
     setState(() {
       _activeTextures.remove(textureId);
     });
   }
-  
+
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -287,9 +308,10 @@ class _TextureCleanupExampleState extends State<TextureCleanupExample> {
                 ),
                 SizedBox(width: 8),
                 ElevatedButton(
-                  onPressed: _activeTextures.isNotEmpty 
-                    ? () => _closeTexture(_activeTextures.last)
-                    : null,
+                  onPressed:
+                      _activeTextures.isNotEmpty
+                          ? () => _closeTexture(_activeTextures.last)
+                          : null,
                   child: Text('Close Last'),
                 ),
               ],
@@ -300,12 +322,15 @@ class _TextureCleanupExampleState extends State<TextureCleanupExample> {
               SizedBox(height: 8),
               Wrap(
                 spacing: 8,
-                children: _activeTextures.map((id) => 
-                  Chip(
-                    label: Text('ID: $id'),
-                    onDeleted: () => _closeTexture(id),
-                  )
-                ).toList(),
+                children:
+                    _activeTextures
+                        .map(
+                          (id) => Chip(
+                            label: Text('ID: $id'),
+                            onDeleted: () => _closeTexture(id),
+                          ),
+                        )
+                        .toList(),
               ),
             ],
           ],

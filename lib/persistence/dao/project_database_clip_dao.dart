@@ -83,7 +83,8 @@ class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase>
         previewWidth: clip.previewWidth.value,
         previewHeight: clip.previewHeight.value,
         metadata: clip.metadata.present ? clip.metadata.value : null,
-        createdAt: clip.createdAt.present ? clip.createdAt.value : DateTime.now(),
+        createdAt:
+            clip.createdAt.present ? clip.createdAt.value : DateTime.now(),
         updatedAt:
             clip.updatedAt.present ? clip.updatedAt.value : DateTime.now(),
       );
@@ -126,14 +127,21 @@ class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase>
         name: Value(oldRow.name),
         type: Value(oldRow.type),
         sourcePath: Value(oldRow.sourcePath),
-        sourceDurationMs: oldRow.sourceDurationMs == null ? const Value.absent() : Value(oldRow.sourceDurationMs!),
+        sourceDurationMs:
+            oldRow.sourceDurationMs == null
+                ? const Value.absent()
+                : Value(oldRow.sourceDurationMs!),
         startTimeInSourceMs: Value(oldRow.startTimeInSourceMs),
         endTimeInSourceMs: Value(oldRow.endTimeInSourceMs),
         startTimeOnTrackMs: Value(oldRow.startTimeOnTrackMs),
-        endTimeOnTrackMs: oldRow.endTimeOnTrackMs == null ? const Value.absent() : Value(oldRow.endTimeOnTrackMs!),
-        metadata: oldRow.metadata == null
-            ? const Value.absent()
-            : Value(oldRow.metadata!),
+        endTimeOnTrackMs:
+            oldRow.endTimeOnTrackMs == null
+                ? const Value.absent()
+                : Value(oldRow.endTimeOnTrackMs!),
+        metadata:
+            oldRow.metadata == null
+                ? const Value.absent()
+                : Value(oldRow.metadata!),
         previewPositionX: Value(oldRow.previewPositionX),
         previewPositionY: Value(oldRow.previewPositionY),
         previewWidth: Value(oldRow.previewWidth),
@@ -142,9 +150,7 @@ class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase>
             oldRow.createdAt != null
                 ? Value(oldRow.createdAt)
                 : Value(DateTime.now()),
-        updatedAt: Value(
-          DateTime.now(),
-        ),
+        updatedAt: Value(DateTime.now()),
       );
 
       final updatedCompanion = _applyFieldUpdates(companion, fields);
@@ -160,12 +166,14 @@ class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase>
           startTimeInSourceMs: updatedCompanion.startTimeInSourceMs.value,
           endTimeInSourceMs: updatedCompanion.endTimeInSourceMs.value,
           startTimeOnTrackMs: updatedCompanion.startTimeOnTrackMs.value,
-          endTimeOnTrackMs: updatedCompanion.endTimeOnTrackMs.present
-              ? updatedCompanion.endTimeOnTrackMs.value
-              : null,
-          metadata: updatedCompanion.metadata.present
-              ? updatedCompanion.metadata.value
-              : null,
+          endTimeOnTrackMs:
+              updatedCompanion.endTimeOnTrackMs.present
+                  ? updatedCompanion.endTimeOnTrackMs.value
+                  : null,
+          metadata:
+              updatedCompanion.metadata.present
+                  ? updatedCompanion.metadata.value
+                  : null,
           previewPositionX: updatedCompanion.previewPositionX.value,
           previewPositionY: updatedCompanion.previewPositionY.value,
           previewWidth: updatedCompanion.previewWidth.value,
@@ -240,9 +248,10 @@ class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase>
         case 'metadata':
           final metadataValue = value as String?;
           result = result.copyWith(
-            metadata: metadataValue == null
-                ? const Value.absent()
-                : Value(metadataValue),
+            metadata:
+                metadataValue == null
+                    ? const Value.absent()
+                    : Value(metadataValue),
           );
           break;
         case 'previewPositionX':

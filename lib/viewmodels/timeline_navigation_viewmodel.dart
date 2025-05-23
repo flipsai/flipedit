@@ -111,7 +111,7 @@ class TimelineNavigationViewModel extends ChangeNotifier {
 
   // --- Expose Navigation Service ---
   TimelineNavigationService get navigationService => _navigationService;
-  
+
   // --- Expose Playback Service for Player Integration ---
   OptimizedPlaybackService get playbackService => _playbackService;
 

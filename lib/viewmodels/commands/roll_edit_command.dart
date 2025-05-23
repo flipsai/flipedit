@@ -3,20 +3,20 @@ import 'package:flutter/foundation.dart';
 import 'package:flipedit/services/commands/undoable_command.dart';
 import 'timeline_command.dart';
 import '../../models/clip.dart';
-import 'package:flipedit/persistence/database/project_database.dart' show ChangeLog;
+import 'package:flipedit/persistence/database/project_database.dart'
+    show ChangeLog;
 import 'package:flipedit/utils/logger.dart' as logger;
 import 'package:collection/collection.dart';
 import 'dart:math';
 import '../../services/project_database_service.dart';
 import 'package:watch_it/watch_it.dart';
-import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart';
 
 class RollEditCommand implements TimelineCommand, UndoableCommand {
   final int leftClipId;
   final int rightClipId;
   final int newBoundaryFrame;
-  
+
   // Dependencies
   final ProjectDatabaseService _projectDatabaseService;
   final ValueNotifier<List<ClipModel>> _clipsNotifier;
@@ -42,15 +42,16 @@ class RollEditCommand implements TimelineCommand, UndoableCommand {
     // Optional for deserialization
     ClipModel? originalLeftClipState,
     ClipModel? originalRightClipState,
-  })  : _projectDatabaseService = projectDatabaseService,
-        _clipsNotifier = clipsNotifier,
-        _stateViewModel = stateViewModel,
-        _originalLeftClipState = originalLeftClipState,
-        _originalRightClipState = originalRightClipState;
+  }) : _projectDatabaseService = projectDatabaseService,
+       _clipsNotifier = clipsNotifier,
+       _stateViewModel = stateViewModel,
+       _originalLeftClipState = originalLeftClipState,
+       _originalRightClipState = originalRightClipState;
 
   @override
   Future<void> execute() async {
-    final bool isRedo = _originalLeftClipState != null && _originalRightClipState != null;
+    final bool isRedo =
+        _originalLeftClipState != null && _originalRightClipState != null;
 
     logger.logInfo(
       '[RollEditCommand] Executing: left=$leftClipId, right=$rightClipId, boundaryFrame=$newBoundaryFrame',
@@ -103,13 +104,15 @@ class RollEditCommand implements TimelineCommand, UndoableCommand {
       return;
     }
 
-    final leftMinBoundaryFrame = left.startFrame + 1; // Cannot be shorter than 1 frame
+    final leftMinBoundaryFrame =
+        left.startFrame + 1; // Cannot be shorter than 1 frame
     final leftMaxBoundaryFrame =
-        left.startFrame + (left.sourceTotalDurationFrames - left.startFrameInSource);
+        left.startFrame +
+        (left.sourceTotalDurationFrames - left.startFrameInSource);
 
-    final rightMinBoundaryFrame =
-        right.endFrame - right.endFrameInSource;
-    final rightMaxBoundaryFrame = right.endFrame - 1; // Cannot be shorter than 1 frame
+    final rightMinBoundaryFrame = right.endFrame - right.endFrameInSource;
+    final rightMaxBoundaryFrame =
+        right.endFrame - 1; // Cannot be shorter than 1 frame
 
     final minValidBoundaryFrame = max(
       leftMinBoundaryFrame,
@@ -162,10 +165,17 @@ class RollEditCommand implements TimelineCommand, UndoableCommand {
       await _stateViewModel.refreshClips();
 
       // Capture the state of the clips *after* the operation for redo/serialization
-      final refreshedClips = _clipsNotifier.value; // Get the latest clips after refresh
-      _newLeftClipStateAfterExecute = refreshedClips.firstWhereOrNull((c) => c.databaseId == leftClipId)?.copyWith();
-      _newRightClipStateAfterExecute = refreshedClips.firstWhereOrNull((c) => c.databaseId == rightClipId)?.copyWith();
-      
+      final refreshedClips =
+          _clipsNotifier.value; // Get the latest clips after refresh
+      _newLeftClipStateAfterExecute =
+          refreshedClips
+              .firstWhereOrNull((c) => c.databaseId == leftClipId)
+              ?.copyWith();
+      _newRightClipStateAfterExecute =
+          refreshedClips
+              .firstWhereOrNull((c) => c.databaseId == rightClipId)
+              ?.copyWith();
+
       logger.logInfo(
         '[RollEditCommand] Successfully performed roll edit.',
         _logTag,
@@ -246,7 +256,8 @@ class RollEditCommand implements TimelineCommand, UndoableCommand {
         'newBoundaryFrame': newBoundaryFrame,
         // State after execution for potential re-application or inspection
         'newLeftClipStateAfterExecute': _newLeftClipStateAfterExecute?.toJson(),
-        'newRightClipStateAfterExecute': _newRightClipStateAfterExecute?.toJson(),
+        'newRightClipStateAfterExecute':
+            _newRightClipStateAfterExecute?.toJson(),
       },
     };
   }
@@ -301,42 +312,54 @@ class RollEditCommand implements TimelineCommand, UndoableCommand {
   }
 
   factory RollEditCommand.fromJson(
-      ProjectDatabaseService projectDatabaseService,
-      Map<String, dynamic> commandData) { // commandData is the decoded jsonData from ChangeLog
+    ProjectDatabaseService projectDatabaseService,
+    Map<String, dynamic> commandData,
+  ) {
+    // commandData is the decoded jsonData from ChangeLog
 
     final oldData = commandData['oldData'] as Map<String, dynamic>?;
     final newData = commandData['newData'] as Map<String, dynamic>;
 
     ClipModel? originalLeftClipState;
     if (oldData?['originalLeftClipState'] != null) {
-      originalLeftClipState = ClipModel.fromJson(oldData!['originalLeftClipState'] as Map<String, dynamic>);
+      originalLeftClipState = ClipModel.fromJson(
+        oldData!['originalLeftClipState'] as Map<String, dynamic>,
+      );
     }
     ClipModel? originalRightClipState;
     if (oldData?['originalRightClipState'] != null) {
-      originalRightClipState = ClipModel.fromJson(oldData!['originalRightClipState'] as Map<String, dynamic>);
+      originalRightClipState = ClipModel.fromJson(
+        oldData!['originalRightClipState'] as Map<String, dynamic>,
+      );
     }
 
-    final stateViewModelInstance = di<TimelineStateViewModel>(); // Get StateVM from DI
+    final stateViewModelInstance =
+        di<TimelineStateViewModel>(); // Get StateVM from DI
 
     final command = RollEditCommand(
       leftClipId: newData['leftClipId'] as int,
       rightClipId: newData['rightClipId'] as int,
       newBoundaryFrame: newData['newBoundaryFrame'] as int,
       projectDatabaseService: projectDatabaseService, // Passed in
-      clipsNotifier: stateViewModelInstance.clipsNotifier, // Use StateVM's notifier
-      stateViewModel: stateViewModelInstance,             // Pass StateVM
+      clipsNotifier:
+          stateViewModelInstance.clipsNotifier, // Use StateVM's notifier
+      stateViewModel: stateViewModelInstance, // Pass StateVM
       originalLeftClipState: originalLeftClipState, // For undo
       originalRightClipState: originalRightClipState, // For undo
     );
 
     // Restore "after execute" states for redo consistency, if present in newData
     if (newData['newLeftClipStateAfterExecute'] != null) {
-      command._newLeftClipStateAfterExecute = ClipModel.fromJson(newData['newLeftClipStateAfterExecute'] as Map<String, dynamic>);
+      command._newLeftClipStateAfterExecute = ClipModel.fromJson(
+        newData['newLeftClipStateAfterExecute'] as Map<String, dynamic>,
+      );
     }
     if (newData['newRightClipStateAfterExecute'] != null) {
-      command._newRightClipStateAfterExecute = ClipModel.fromJson(newData['newRightClipStateAfterExecute'] as Map<String, dynamic>);
+      command._newRightClipStateAfterExecute = ClipModel.fromJson(
+        newData['newRightClipStateAfterExecute'] as Map<String, dynamic>,
+      );
     }
-    
+
     return command;
   }
 }

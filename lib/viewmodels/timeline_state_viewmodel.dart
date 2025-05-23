@@ -87,7 +87,7 @@ class TimelineStateViewModel extends ChangeNotifier {
       clipsNotifier.value = allClips;
       // Update canvas dimensions service about clip count
       _canvasDimensionsService.updateHasClipsState(allClips.length);
-      
+
       // _previewSyncService.sendClipsToPreviewServer(); // Sync after update - REMOVED
       logger.logDebug(
         'Clips list updated in ViewModel (${allClips.length} clips). Notifier triggered. (Preview server sync removed)',
@@ -116,7 +116,8 @@ class TimelineStateViewModel extends ChangeNotifier {
     final bool instanceChanged = !identical(clipsNotifier.value, newClipsList);
 
     if (contentChanged || instanceChanged) {
-      clipsNotifier.value = newClipsList; // ValueNotifier will notify if its criteria are met
+      clipsNotifier.value =
+          newClipsList; // ValueNotifier will notify if its criteria are met
       _canvasDimensionsService.updateHasClipsState(newClipsList.length);
       // _previewSyncService.sendClipsToPreviewServer(); // Sync with preview server - REMOVED
 

@@ -156,17 +156,25 @@ class InspectorPanel extends StatelessWidget with WatchItMixin {
 
   Widget _buildPositionAndSizeSection(BuildContext context, ClipModel clip) {
     final timelineVm = di<TimelineViewModel>();
-    
+
     // Get current transform values from the clip
     final double currentX = clip.previewPositionX;
     final double currentY = clip.previewPositionY;
     final double currentWidth = clip.previewWidth;
     final double currentHeight = clip.previewHeight;
 
-    final xController = TextEditingController(text: currentX.toStringAsFixed(0));
-    final yController = TextEditingController(text: currentY.toStringAsFixed(0));
-    final widthController = TextEditingController(text: currentWidth.toStringAsFixed(0));
-    final heightController = TextEditingController(text: currentHeight.toStringAsFixed(0));
+    final xController = TextEditingController(
+      text: currentX.toStringAsFixed(0),
+    );
+    final yController = TextEditingController(
+      text: currentY.toStringAsFixed(0),
+    );
+    final widthController = TextEditingController(
+      text: currentWidth.toStringAsFixed(0),
+    );
+    final heightController = TextEditingController(
+      text: currentHeight.toStringAsFixed(0),
+    );
 
     // Feedback for update success/failure
     final ValueNotifier<String?> feedbackNotifier = ValueNotifier(null);
@@ -184,23 +192,24 @@ class InspectorPanel extends StatelessWidget with WatchItMixin {
             y != clip.previewPositionY ||
             w != clip.previewWidth ||
             h != clip.previewHeight) {
-          timelineVm.updateClipPreviewTransform(clip.databaseId!, x, y, w, h)
-            .then((_) {
-              feedbackNotifier.value = 'Updated transform';
-              Future.delayed(const Duration(seconds: 2), () {
-                if (feedbackNotifier.value == 'Updated transform') {
-                  feedbackNotifier.value = null;
-                }
+          timelineVm
+              .updateClipPreviewTransform(clip.databaseId!, x, y, w, h)
+              .then((_) {
+                feedbackNotifier.value = 'Updated transform';
+                Future.delayed(const Duration(seconds: 2), () {
+                  if (feedbackNotifier.value == 'Updated transform') {
+                    feedbackNotifier.value = null;
+                  }
+                });
+              })
+              .catchError((e) {
+                feedbackNotifier.value = 'Error updating transform: $e';
+                Future.delayed(const Duration(seconds: 3), () {
+                  if (feedbackNotifier.value?.startsWith('Error:') ?? false) {
+                    feedbackNotifier.value = null;
+                  }
+                });
               });
-            })
-            .catchError((e) {
-              feedbackNotifier.value = 'Error updating transform: $e';
-              Future.delayed(const Duration(seconds: 3), () {
-                if (feedbackNotifier.value?.startsWith('Error:') ?? false) {
-                  feedbackNotifier.value = null;
-                }
-              });
-            });
         }
       } catch (e) {
         logError(
@@ -223,25 +232,28 @@ class InspectorPanel extends StatelessWidget with WatchItMixin {
         ),
         const SizedBox(height: 8),
         InfoBar(
-          title: const Text('These values control how the clip appears in the preview.'),
+          title: const Text(
+            'These values control how the clip appears in the preview.',
+          ),
           severity: InfoBarSeverity.info,
         ),
         const SizedBox(height: 8),
-        
+
         // Show feedback if available
         ValueListenableBuilder<String?>(
           valueListenable: feedbackNotifier,
           builder: (context, feedback, _) {
             if (feedback == null) return const SizedBox.shrink();
-            
+
             final isError = feedback.startsWith('Error:');
             return InfoBar(
               title: Text(feedback),
-              severity: isError ? InfoBarSeverity.error : InfoBarSeverity.success,
+              severity:
+                  isError ? InfoBarSeverity.error : InfoBarSeverity.success,
             );
           },
         ),
-        
+
         Row(
           children: [
             Expanded(
@@ -319,20 +331,22 @@ class InspectorPanel extends StatelessWidget with WatchItMixin {
         Button(
           child: const Text('Reset to Default'),
           onPressed: () {
-            final defaultWidth = clip.metadata['source_width']?.toDouble() ?? 100.0;
-            final defaultHeight = clip.metadata['source_height']?.toDouble() ?? 100.0;
+            final defaultWidth =
+                clip.metadata['source_width']?.toDouble() ?? 100.0;
+            final defaultHeight =
+                clip.metadata['source_height']?.toDouble() ?? 100.0;
 
             xController.text = "0";
             yController.text = "0";
             widthController.text = defaultWidth.toStringAsFixed(0);
             heightController.text = defaultHeight.toStringAsFixed(0);
-            
+
             timelineVm.updateClipPreviewTransform(
               clip.databaseId!,
               0,
               0,
               defaultWidth,
-              defaultHeight
+              defaultHeight,
             );
             feedbackNotifier.value = 'Transform reset to default';
             Future.delayed(const Duration(seconds: 2), () {

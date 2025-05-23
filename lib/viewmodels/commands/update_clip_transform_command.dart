@@ -34,12 +34,18 @@ class UpdateClipTransformCommand extends TimelineCommand {
     required this.oldWidth,
     required this.oldHeight,
   }) {
-    logger.logInfo('UpdateClipTransformCommand created for clip $clipId', 'Command');
+    logger.logInfo(
+      'UpdateClipTransformCommand created for clip $clipId',
+      'Command',
+    );
   }
 
   @override
   Future<void> execute() async {
-    logger.logInfo('Executing UpdateClipTransformCommand for clip $clipId', 'Command');
+    logger.logInfo(
+      'Executing UpdateClipTransformCommand for clip $clipId',
+      'Command',
+    );
     await _applyPropertiesToDb(
       posX: newPositionX,
       posY: newPositionY,
@@ -51,7 +57,10 @@ class UpdateClipTransformCommand extends TimelineCommand {
 
   @override
   Future<void> undo() async {
-    logger.logInfo('Undoing UpdateClipTransformCommand for clip $clipId', 'Command');
+    logger.logInfo(
+      'Undoing UpdateClipTransformCommand for clip $clipId',
+      'Command',
+    );
     await _applyPropertiesToDb(
       posX: oldPositionX,
       posY: oldPositionY,
@@ -85,7 +94,9 @@ class UpdateClipTransformCommand extends TimelineCommand {
 
     try {
       if (projectDatabaseService.clipDao == null) {
-        throw StateError('ClipDao is not initialized in ProjectDatabaseService.');
+        throw StateError(
+          'ClipDao is not initialized in ProjectDatabaseService.',
+        );
       }
       await projectDatabaseService.clipDao!.updateClip(
         updatedClip.toDbCompanion(),
@@ -95,7 +106,10 @@ class UpdateClipTransformCommand extends TimelineCommand {
         'Command',
       );
     } catch (e) {
-      logger.logError('Failed to update clip $clipId transform in DB: $e', 'Command');
+      logger.logError(
+        'Failed to update clip $clipId transform in DB: $e',
+        'Command',
+      );
       rethrow;
     }
   }

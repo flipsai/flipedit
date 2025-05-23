@@ -14,19 +14,19 @@ class ClipCommands {
       'startTimeOnTrackMs': clip.startTimeOnTrackMs,
       'endTimeOnTrackMs': clip.endTimeOnTrackMs,
     };
-    
+
     final newEndTimeOnTrackMs = newStartTimeOnTrackMs + clip.durationOnTrackMs;
-    
+
     final newState = {
       'clipId': clip.databaseId,
       'trackId': newTrackId,
       'startTimeOnTrackMs': newStartTimeOnTrackMs,
       'endTimeOnTrackMs': newEndTimeOnTrackMs,
     };
-    
+
     return ClipCommand(oldState, newState, updateFunction);
   }
-  
+
   static ClipCommand createResizeClipCommand({
     required ClipModel clip,
     required int newStartTimeOnTrackMs,
@@ -42,7 +42,7 @@ class ClipCommands {
       'startTimeInSourceMs': clip.startTimeInSourceMs,
       'endTimeInSourceMs': clip.endTimeInSourceMs,
     };
-    
+
     final newState = {
       'clipId': clip.databaseId,
       'startTimeOnTrackMs': newStartTimeOnTrackMs,
@@ -50,7 +50,7 @@ class ClipCommands {
       'startTimeInSourceMs': newStartTimeInSourceMs,
       'endTimeInSourceMs': newEndTimeInSourceMs,
     };
-    
+
     return ClipCommand(oldState, newState, updateFunction);
   }
-} 
+}

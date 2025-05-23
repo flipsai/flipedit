@@ -67,6 +67,9 @@ dependencies:
       url: https://github.com/rustdesk-org/flutter_texture_rgba_renderer
       ref: 42797e0f03141dc2b585f76c64a13974508058b4
   ffi: ^2.1.4
+  rust_lib_flipedit:
+    path: rust_builder
+  flutter_rust_bridge: 2.7.0
 dev_dependencies:
   flutter_lints: ^5.0.0
   flutter_test:

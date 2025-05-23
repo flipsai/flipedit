@@ -10,15 +10,16 @@ class MediaInfo {
   final int durationMs;
   final int width;
   final int height;
-  
+
   MediaInfo({
     required this.durationMs,
     required this.width,
     required this.height,
   });
-  
+
   @override
-  String toString() => 'MediaInfo(durationMs: $durationMs, width: $width, height: $height)';
+  String toString() =>
+      'MediaInfo(durationMs: $durationMs, width: $width, height: $height)';
 }
 
 /// Service for retrieving media durations from the Python server
@@ -36,19 +37,21 @@ class MediaDurationService {
       // Encode the file path for URL
       final encodedPath = Uri.encodeQueryComponent(filePath);
       final url = '$serverUrl/api/duration?path=$encodedPath';
-      
+
       logInfo(_logTag, 'Getting duration for: $filePath');
-      
+
       // Make HTTP request to the Python server
       try {
-        final response = await http.get(Uri.parse(url)).timeout(
-          const Duration(seconds: 10),
-          onTimeout: () {
-            logError(_logTag, 'Request timed out for: $filePath');
-            throw TimeoutException('Request timed out');
-          },
-        );
-        
+        final response = await http
+            .get(Uri.parse(url))
+            .timeout(
+              const Duration(seconds: 10),
+              onTimeout: () {
+                logError(_logTag, 'Request timed out for: $filePath');
+                throw TimeoutException('Request timed out');
+              },
+            );
+
         if (response.statusCode == 200) {
           final data = jsonDecode(response.body);
           final durationMs = data['duration_ms'] as int;
@@ -56,7 +59,7 @@ class MediaDurationService {
           return durationMs;
         } else {
           logError(
-            _logTag, 
+            _logTag,
             'Error getting duration: ${response.statusCode} - ${response.body}',
           );
           // Server returned an error, use fallback
@@ -73,7 +76,7 @@ class MediaDurationService {
       return _getFallbackDuration(filePath);
     }
   }
-  
+
   /// Get both duration and dimensions of a media file
   /// Returns MediaInfo with zeros if the info cannot be determined
   Future<MediaInfo> getMediaInfo(String filePath) async {
@@ -81,19 +84,21 @@ class MediaDurationService {
       // Encode the file path for URL
       final encodedPath = Uri.encodeQueryComponent(filePath);
       final url = '$serverUrl/api/mediainfo?path=$encodedPath';
-      
+
       logInfo(_logTag, 'Getting media info for: $filePath');
-      
+
       // Make HTTP request to the Python server
       try {
-        final response = await http.get(Uri.parse(url)).timeout(
-          const Duration(seconds: 10),
-          onTimeout: () {
-            logError(_logTag, 'Request timed out for: $filePath');
-            throw TimeoutException('Request timed out');
-          },
-        );
-        
+        final response = await http
+            .get(Uri.parse(url))
+            .timeout(
+              const Duration(seconds: 10),
+              onTimeout: () {
+                logError(_logTag, 'Request timed out for: $filePath');
+                throw TimeoutException('Request timed out');
+              },
+            );
+
         if (response.statusCode == 200) {
           final data = jsonDecode(response.body);
           final mediaInfo = MediaInfo(
@@ -105,7 +110,7 @@ class MediaDurationService {
           return mediaInfo;
         } else {
           logError(
-            _logTag, 
+            _logTag,
             'Error getting media info: ${response.statusCode} - ${response.body}',
           );
           // Server returned an error, use fallback
@@ -122,7 +127,7 @@ class MediaDurationService {
       return _getFallbackMediaInfo(filePath);
     }
   }
-  
+
   /// Provides a fallback duration estimation based on file size and type
   /// This is used when the Python server is unavailable
   Future<int> _getFallbackDuration(String filePath) async {
@@ -133,14 +138,14 @@ class MediaDurationService {
         logError(_logTag, 'File does not exist: $filePath');
         return 0;
       }
-      
+
       final fileSize = await file.length();
       final extension = p.extension(filePath).toLowerCase();
-      
+
       // Estimate duration based on file type and size
       // These are rough estimates for common formats
       int estimatedDurationMs = 0;
-      
+
       switch (extension) {
         case '.mp4':
         case '.mov':
@@ -171,31 +176,42 @@ class MediaDurationService {
           // Generic fallback
           estimatedDurationMs = 30000;
       }
-      
+
       // Ensure we return at least 1 second for any media
-      estimatedDurationMs = estimatedDurationMs < 1000 ? 1000 : estimatedDurationMs;
-      
-      logInfo(_logTag, 'Estimated duration for $filePath: $estimatedDurationMs ms (fallback)');
+      estimatedDurationMs =
+          estimatedDurationMs < 1000 ? 1000 : estimatedDurationMs;
+
+      logInfo(
+        _logTag,
+        'Estimated duration for $filePath: $estimatedDurationMs ms (fallback)',
+      );
       return estimatedDurationMs;
     } catch (e) {
       logError(_logTag, 'Error in fallback duration estimation: $e');
       return 30000; // Default 30 seconds if all else fails
     }
   }
-  
+
   /// Provides fallback media info with estimated duration and default dimensions
   Future<MediaInfo> _getFallbackMediaInfo(String filePath) async {
     logInfo(_logTag, 'Using fallback media info for: $filePath');
     final durationMs = await _getFallbackDuration(filePath);
-    
+
     // Default dimensions for common video formats (720p)
     const defaultWidth = 1280;
     const defaultHeight = 720;
-    
+
     final extension = p.extension(filePath).toLowerCase();
-    
+
     // For images, try to get dimensions directly
-    if (['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'].contains(extension)) {
+    if ([
+      '.jpg',
+      '.jpeg',
+      '.png',
+      '.gif',
+      '.bmp',
+      '.webp',
+    ].contains(extension)) {
       try {
         // Direct file handling for images could be added here if needed
         // For now, return default dimensions
@@ -208,15 +224,15 @@ class MediaDurationService {
         logError(_logTag, 'Error getting image dimensions: $e');
       }
     }
-    
+
     // Return default media info
     final mediaInfo = MediaInfo(
       durationMs: durationMs,
       width: defaultWidth,
       height: defaultHeight,
     );
-    
+
     logInfo(_logTag, 'Fallback media info for $filePath: $mediaInfo');
     return mediaInfo;
   }
-} 
+}

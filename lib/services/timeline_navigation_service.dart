@@ -9,13 +9,13 @@ typedef GetIsPlaying = bool Function();
 
 class TimelineNavigationService extends ChangeNotifier {
   final String _logTag = 'TimelineNavigationService';
-  
+
   // Key for storing zoom level in SharedPreferences
   static const String _zoomLevelKey = 'timeline_zoom_level';
 
   final GetClips _getClips;
   final GetIsPlaying _getIsPlaying;
-  
+
   late final SharedPreferences _prefs;
 
   final ValueNotifier<double> zoomNotifier = ValueNotifier<double>(1.0);
@@ -34,9 +34,10 @@ class TimelineNavigationService extends ChangeNotifier {
   set currentFrame(int value) {
     // Allow scrolling to the timelineEnd, not just to totalFrames
     final timelineEndValue = timelineEndNotifier.value;
-    final int maxAllowedFrame = timelineEndValue > 0
-        ? timelineEndValue - 1
-        : defaultEmptyDurationFrames;
+    final int maxAllowedFrame =
+        timelineEndValue > 0
+            ? timelineEndValue - 1
+            : defaultEmptyDurationFrames;
     final clampedValue = value.clamp(0, maxAllowedFrame);
     if (currentFrameNotifier.value == clampedValue) return;
     currentFrameNotifier.value = clampedValue;
@@ -59,14 +60,14 @@ class TimelineNavigationService extends ChangeNotifier {
 
   // Default duration when no clips exist (10 minutes)
   static const int DEFAULT_EMPTY_DURATION_MS = 600000; // 10 minutes
-  
+
   // Minimum scrollable area beyond the last clip (60 minutes for a more 'infinite' feel)
   static const int MINIMUM_SCROLL_BEYOND_MS = 3600000; // 60 minutes
-  
+
   final int defaultEmptyDurationFrames = ClipModel.msToFrames(
     DEFAULT_EMPTY_DURATION_MS,
   );
-  
+
   final int minimumScrollBeyondFrames = ClipModel.msToFrames(
     MINIMUM_SCROLL_BEYOND_MS,
   );
@@ -80,11 +81,11 @@ class TimelineNavigationService extends ChangeNotifier {
   }) : _getClips = getClips,
        _getIsPlaying = getIsPlaying {
     logger.logInfo('Initializing TimelineNavigationService', _logTag);
-    
+
     // Initialize SharedPreferences and load saved zoom level
     _prefs = di<SharedPreferences>();
     _loadZoomLevel();
-    
+
     _setupInternalListeners();
     // Initial calculation
     recalculateAndUpdateTotalFrames();
@@ -125,10 +126,11 @@ class TimelineNavigationService extends ChangeNotifier {
 
     // Calculate timeline end: either total frames + minimum scroll area or default duration
     // This ensures we always have scrollable area beyond the last clip
-    final newTimelineEnd = newTotalFrames > 0
-        ? newTotalFrames + minimumScrollBeyondFrames
-        : defaultEmptyDurationFrames;
-        
+    final newTimelineEnd =
+        newTotalFrames > 0
+            ? newTotalFrames + minimumScrollBeyondFrames
+            : defaultEmptyDurationFrames;
+
     if (timelineEndNotifier.value != newTimelineEnd) {
       timelineEndNotifier.value = newTimelineEnd;
       logger.logInfo(
@@ -186,7 +188,7 @@ class TimelineNavigationService extends ChangeNotifier {
       logger.logError('Failed to save zoom level: $e', _logTag);
     }
   }
-  
+
   // Method to load zoom level from SharedPreferences
   void _loadZoomLevel() {
     try {
@@ -195,7 +197,10 @@ class TimelineNavigationService extends ChangeNotifier {
       if (savedZoom != null) {
         // Set initial value directly to prevent unnecessary save
         zoomNotifier.value = savedZoom.clamp(0.1, 5.0);
-        logger.logInfo('Loaded saved zoom level: ${zoomNotifier.value}', _logTag);
+        logger.logInfo(
+          'Loaded saved zoom level: ${zoomNotifier.value}',
+          _logTag,
+        );
       }
     } catch (e) {
       logger.logError('Failed to load zoom level: $e', _logTag);

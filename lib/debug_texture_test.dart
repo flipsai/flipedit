@@ -7,7 +7,7 @@ import 'package:flipedit/utils/logger.dart';
 import 'package:flipedit/services/texture_helper.dart';
 
 class DebugTextureTest extends StatefulWidget {
-  const DebugTextureTest({Key? key}) : super(key: key);
+  const DebugTextureTest({super.key});
 
   @override
   State<DebugTextureTest> createState() => _DebugTextureTestState();
@@ -20,41 +20,47 @@ class _DebugTextureTestState extends State<DebugTextureTest> {
   String _error = '';
   Timer? _animationTimer;
   int _animationFrame = 0;
-  
+
   @override
   void initState() {
     super.initState();
     _initializeTexture();
   }
-  
+
   Future<void> _initializeTexture() async {
     try {
       logInfo('DebugTextureTest', 'Starting texture initialization...');
-      
+
       // Step 1: Create texture using the fixed helper
       const width = 320;
       const height = 240;
-      
-      final textureId = await FixedTextureHelper.createTexture(_renderer, width, height);
-      
+
+      final textureId = await FixedTextureHelper.createTexture(
+        _renderer,
+        width,
+        height,
+      );
+
       if (textureId == -1) {
         setState(() {
           _error = 'Failed to create texture';
         });
         return;
       }
-      
+
       // Step 2: Success! The texture is already initialized with a gradient
       setState(() {
         _textureId = textureId;
         _initialized = true;
       });
-      
-      logInfo('DebugTextureTest', 'Texture initialized successfully with ID: $textureId');
-      
+
+      logInfo(
+        'DebugTextureTest',
+        'Texture initialized successfully with ID: $textureId',
+      );
+
       // Step 3: Start color animation
       _startAnimation(width, height);
-      
     } catch (e) {
       logError('DebugTextureTest', 'Error initializing texture: $e');
       setState(() {
@@ -63,10 +69,14 @@ class _DebugTextureTestState extends State<DebugTextureTest> {
     }
   }
 
-  Future<void> _updateTextureWithPattern(int width, int height, Color color) async {
+  Future<void> _updateTextureWithPattern(
+    int width,
+    int height,
+    Color color,
+  ) async {
     const bytesPerPixel = 4; // RGBA
     final bytes = Uint8List(width * height * bytesPerPixel);
-    
+
     // Create different patterns based on the color
     if (color == Colors.red) {
       // Solid red
@@ -125,25 +135,44 @@ class _DebugTextureTestState extends State<DebugTextureTest> {
         }
       }
     }
-    
-    logInfo('DebugTextureTest', 'Updating texture with ${color.toString()} pattern');
-    final result = await FixedTextureHelper.updateTextureData(_textureId, bytes, width, height);
+
+    logInfo(
+      'DebugTextureTest',
+      'Updating texture with ${color.toString()} pattern',
+    );
+    final result = await FixedTextureHelper.updateTextureData(
+      _textureId,
+      bytes,
+      width,
+      height,
+    );
     if (!result) {
-      logError('DebugTextureTest', 'Failed to update texture with ${color.toString()}');
+      logError(
+        'DebugTextureTest',
+        'Failed to update texture with ${color.toString()}',
+      );
     }
   }
 
   void _startAnimation(int width, int height) {
-    _animationTimer = Timer.periodic(Duration(milliseconds: 1000), (timer) async {
+    _animationTimer = Timer.periodic(Duration(milliseconds: 1000), (
+      timer,
+    ) async {
       if (!mounted) {
         timer.cancel();
         return;
       }
-      
+
       // Cycle through colors and patterns
-      final colors = [Colors.red, Colors.green, Colors.blue, Colors.yellow, Colors.purple];
+      final colors = [
+        Colors.red,
+        Colors.green,
+        Colors.blue,
+        Colors.yellow,
+        Colors.purple,
+      ];
       final color = colors[_animationFrame % colors.length];
-      
+
       await _updateTextureWithPattern(width, height, color);
       _animationFrame++;
     });
@@ -171,20 +200,21 @@ class _DebugTextureTestState extends State<DebugTextureTest> {
               onPressed: () {
                 showDialog(
                   context: context,
-                  builder: (context) => AlertDialog(
-                    title: Text('Texture Info'),
-                    content: Text(
-                      'Texture ID: $_textureId\n'
-                      'Animation Frame: $_animationFrame\n'
-                      'Active Textures: ${FixedTextureHelper.getActiveTextureIds()}'
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: Text('OK'),
+                  builder:
+                      (context) => AlertDialog(
+                        title: Text('Texture Info'),
+                        content: Text(
+                          'Texture ID: $_textureId\n'
+                          'Animation Frame: $_animationFrame\n'
+                          'Active Textures: ${FixedTextureHelper.getActiveTextureIds()}',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: Text('OK'),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
                 );
               },
             ),
@@ -249,45 +279,68 @@ class _DebugTextureTestState extends State<DebugTextureTest> {
               SizedBox(height: 16),
               Text('Initializing texture...'),
             ],
-            
+
             SizedBox(height: 32),
-            
+
             // Manual test buttons
             if (_initialized) ...[
               Wrap(
                 spacing: 8,
                 children: [
                   ElevatedButton(
-                    onPressed: () => _updateTextureWithPattern(320, 240, Colors.red),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                    onPressed:
+                        () => _updateTextureWithPattern(320, 240, Colors.red),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                    ),
                     child: Text('Red', style: TextStyle(color: Colors.white)),
                   ),
                   ElevatedButton(
-                    onPressed: () => _updateTextureWithPattern(320, 240, Colors.green),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                    onPressed:
+                        () => _updateTextureWithPattern(320, 240, Colors.green),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                    ),
                     child: Text('Green', style: TextStyle(color: Colors.white)),
                   ),
                   ElevatedButton(
-                    onPressed: () => _updateTextureWithPattern(320, 240, Colors.blue),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+                    onPressed:
+                        () => _updateTextureWithPattern(320, 240, Colors.blue),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                    ),
                     child: Text('Blue', style: TextStyle(color: Colors.white)),
                   ),
                   ElevatedButton(
-                    onPressed: () => _updateTextureWithPattern(320, 240, Colors.yellow),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.yellow),
-                    child: Text('Yellow', style: TextStyle(color: Colors.black)),
+                    onPressed:
+                        () =>
+                            _updateTextureWithPattern(320, 240, Colors.yellow),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.yellow,
+                    ),
+                    child: Text(
+                      'Yellow',
+                      style: TextStyle(color: Colors.black),
+                    ),
                   ),
                   ElevatedButton(
-                    onPressed: () => _updateTextureWithPattern(320, 240, Colors.purple),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.purple),
-                    child: Text('Purple', style: TextStyle(color: Colors.white)),
+                    onPressed:
+                        () =>
+                            _updateTextureWithPattern(320, 240, Colors.purple),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.purple,
+                    ),
+                    child: Text(
+                      'Purple',
+                      style: TextStyle(color: Colors.white),
+                    ),
                   ),
                 ],
               ),
             ],
-            
+
             SizedBox(height: 20),
-            
+
             // Status info
             Card(
               margin: EdgeInsets.all(16),
@@ -298,7 +351,10 @@ class _DebugTextureTestState extends State<DebugTextureTest> {
                   children: [
                     Text(
                       'Status:',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
                     ),
                     SizedBox(height: 8),
                     Row(
@@ -309,9 +365,9 @@ class _DebugTextureTestState extends State<DebugTextureTest> {
                         ),
                         SizedBox(width: 8),
                         Text(
-                          _initialized 
-                            ? 'Texture system working correctly!'
-                            : _error.isNotEmpty 
+                          _initialized
+                              ? 'Texture system working correctly!'
+                              : _error.isNotEmpty
                               ? 'Texture system failed'
                               : 'Initializing...',
                           style: TextStyle(
@@ -325,7 +381,7 @@ class _DebugTextureTestState extends State<DebugTextureTest> {
                       SizedBox(height: 8),
                       Text('• Texture ID: $_textureId'),
                       Text('• Animation Frame: $_animationFrame'),
-                      Text('• Pattern updates: ${_animationFrame} times'),
+                      Text('• Pattern updates: $_animationFrame times'),
                     ],
                   ],
                 ),

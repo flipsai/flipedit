@@ -1,11 +1,11 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flipedit/services/canvas_dimensions_service.dart';
-import 'package:flipedit/utils/constants.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
 import 'package:watch_it/watch_it.dart';
 
-class ProjectSettingsPanel extends StatefulWidget with WatchItStatefulWidgetMixin {
-  const ProjectSettingsPanel({Key? key}) : super(key: key);
+class ProjectSettingsPanel extends StatefulWidget
+    with WatchItStatefulWidgetMixin {
+  const ProjectSettingsPanel({super.key});
 
   @override
   _ProjectSettingsPanelState createState() => _ProjectSettingsPanelState();
@@ -13,14 +13,14 @@ class ProjectSettingsPanel extends StatefulWidget with WatchItStatefulWidgetMixi
 
 class _ProjectSettingsPanelState extends State<ProjectSettingsPanel> {
   final String _logTag = 'ProjectSettingsPanel';
-  
+
   late TextEditingController _widthController;
   late TextEditingController _heightController;
-  
+
   @override
   void initState() {
     super.initState();
-    
+
     final canvasDimensionsService = di<CanvasDimensionsService>();
     _widthController = TextEditingController(
       text: canvasDimensionsService.canvasWidth.toInt().toString(),
@@ -29,7 +29,7 @@ class _ProjectSettingsPanelState extends State<ProjectSettingsPanel> {
       text: canvasDimensionsService.canvasHeight.toInt().toString(),
     );
   }
-  
+
   @override
   void dispose() {
     _widthController.dispose();
@@ -41,11 +41,11 @@ class _ProjectSettingsPanelState extends State<ProjectSettingsPanel> {
   Widget build(BuildContext context) {
     final canvasDimensionsService = di<CanvasDimensionsService>();
     final theme = FluentTheme.of(context);
-    
+
     // Get the current dimensions
     final canvasWidth = canvasDimensionsService.canvasWidth;
     final canvasHeight = canvasDimensionsService.canvasHeight;
-    
+
     // Update controllers if they don't match current values
     if (_widthController.text != canvasWidth.toInt().toString()) {
       _widthController.text = canvasWidth.toInt().toString();
@@ -53,7 +53,7 @@ class _ProjectSettingsPanelState extends State<ProjectSettingsPanel> {
     if (_heightController.text != canvasHeight.toInt().toString()) {
       _heightController.text = canvasHeight.toInt().toString();
     }
-    
+
     return ScaffoldPage(
       header: PageHeader(
         title: const Text('Project Settings'),
@@ -66,8 +66,10 @@ class _ProjectSettingsPanelState extends State<ProjectSettingsPanel> {
               onPressed: () {
                 canvasDimensionsService.resetToDefaults();
                 setState(() {
-                  _widthController.text = canvasDimensionsService.canvasWidth.toInt().toString();
-                  _heightController.text = canvasDimensionsService.canvasHeight.toInt().toString();
+                  _widthController.text =
+                      canvasDimensionsService.canvasWidth.toInt().toString();
+                  _heightController.text =
+                      canvasDimensionsService.canvasHeight.toInt().toString();
                 });
                 logger.logInfo('Reset dimensions to default values', _logTag);
               },
@@ -81,17 +83,14 @@ class _ProjectSettingsPanelState extends State<ProjectSettingsPanel> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Project dimensions section
-            Text(
-              'Project Canvas Dimensions',
-              style: theme.typography.subtitle,
-            ),
+            Text('Project Canvas Dimensions', style: theme.typography.subtitle),
             const SizedBox(height: 8),
             Text(
               'Set the dimensions for your project canvas. This affects preview rendering and effects processing.',
               style: theme.typography.body,
             ),
             const SizedBox(height: 16),
-            
+
             // Current dimensions display
             Container(
               padding: const EdgeInsets.all(12),
@@ -105,11 +104,7 @@ class _ProjectSettingsPanelState extends State<ProjectSettingsPanel> {
               ),
               child: Row(
                 children: [
-                  Icon(
-                    FluentIcons.video,
-                    color: theme.accentColor,
-                    size: 20,
-                  ),
+                  Icon(FluentIcons.video, color: theme.accentColor, size: 20),
                   const SizedBox(width: 12),
                   Expanded(
                     child: RichText(
@@ -119,7 +114,8 @@ class _ProjectSettingsPanelState extends State<ProjectSettingsPanel> {
                         children: [
                           const TextSpan(text: 'Current dimensions: '),
                           TextSpan(
-                            text: '${canvasWidth.toInt()} × ${canvasHeight.toInt()} px',
+                            text:
+                                '${canvasWidth.toInt()} × ${canvasHeight.toInt()} px',
                             style: theme.typography.bodyStrong,
                           ),
                         ],
@@ -130,7 +126,7 @@ class _ProjectSettingsPanelState extends State<ProjectSettingsPanel> {
               ),
             ),
             const SizedBox(height: 24),
-            
+
             // Dimensions input
             Row(
               children: [
@@ -144,9 +140,13 @@ class _ProjectSettingsPanelState extends State<ProjectSettingsPanel> {
                       max: 7680, // 8K
                       onChanged: (value) {
                         if (value != null && value > 0) {
-                          canvasDimensionsService.canvasWidth = value.toDouble();
+                          canvasDimensionsService.canvasWidth =
+                              value.toDouble();
                           _widthController.text = value.toString();
-                          logger.logInfo('Canvas width updated to $value px', _logTag);
+                          logger.logInfo(
+                            'Canvas width updated to $value px',
+                            _logTag,
+                          );
                           setState(() {});
                         }
                       },
@@ -164,9 +164,13 @@ class _ProjectSettingsPanelState extends State<ProjectSettingsPanel> {
                       max: 4320, // 8K
                       onChanged: (value) {
                         if (value != null && value > 0) {
-                          canvasDimensionsService.canvasHeight = value.toDouble();
+                          canvasDimensionsService.canvasHeight =
+                              value.toDouble();
                           _heightController.text = value.toString();
-                          logger.logInfo('Canvas height updated to $value px', _logTag);
+                          logger.logInfo(
+                            'Canvas height updated to $value px',
+                            _logTag,
+                          );
                           setState(() {});
                         }
                       },
@@ -176,7 +180,7 @@ class _ProjectSettingsPanelState extends State<ProjectSettingsPanel> {
               ],
             ),
             const SizedBox(height: 24),
-            
+
             // Preset buttons
             InfoLabel(
               label: 'Common Presets',
@@ -231,10 +235,13 @@ class _ProjectSettingsPanelState extends State<ProjectSettingsPanel> {
       ),
     );
   }
-  
+
   void _updateDimensions(int width, int height) {
     final canvasDimensionsService = di<CanvasDimensionsService>();
-    canvasDimensionsService.updateCanvasDimensions(width.toDouble(), height.toDouble());
+    canvasDimensionsService.updateCanvasDimensions(
+      width.toDouble(),
+      height.toDouble(),
+    );
     setState(() {
       _widthController.text = width.toString();
       _heightController.text = height.toString();
@@ -265,11 +272,8 @@ class _PresetButton extends StatelessWidget {
           const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         ),
       ),
-      child: Text(
-        label,
-        style: const TextStyle(fontSize: 12),
-      ),
+      child: Text(label, style: const TextStyle(fontSize: 12)),
       onPressed: () => onPressed(width, height),
     );
   }
-} 
+}

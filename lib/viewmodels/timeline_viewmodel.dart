@@ -8,7 +8,7 @@ import 'package:flipedit/utils/logger.dart' as logger;
 import 'package:flipedit/persistence/database/project_database.dart' show Track;
 import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart';
 
-import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart'; 
+import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
 import 'package:watch_it/watch_it.dart';
 import 'commands/timeline_command.dart';
 import 'commands/add_clip_command.dart';
@@ -20,10 +20,10 @@ import 'package:flipedit/services/undo_redo_service.dart';
 import 'commands/roll_edit_command.dart';
 import 'package:flipedit/services/timeline_logic_service.dart';
 import 'commands/update_clip_transform_command.dart';
-import 'package:flipedit/services/commands/undoable_command.dart'; 
-import 'commands/move_clip_command.dart'; 
-import 'commands/resize_clip_command.dart'; 
-import '../services/canvas_dimensions_service.dart'; 
+import 'package:flipedit/services/commands/undoable_command.dart';
+import 'commands/move_clip_command.dart';
+import 'commands/resize_clip_command.dart';
+import '../services/canvas_dimensions_service.dart';
 
 class TimelineViewModel extends ChangeNotifier {
   final String _logTag = 'TimelineViewModel';
@@ -40,7 +40,8 @@ class TimelineViewModel extends ChangeNotifier {
       di<TimelineStateViewModel>(); // Inject State VM
   final TimelineNavigationViewModel _navigationViewModel =
       di<TimelineNavigationViewModel>(); // Inject Navigation VM
-  final CanvasDimensionsService _canvasDimensionsService = di<CanvasDimensionsService>();
+  final CanvasDimensionsService _canvasDimensionsService =
+      di<CanvasDimensionsService>();
 
   // --- State Notifiers (Managed by this ViewModel - Interaction State Only) ---
 
@@ -126,7 +127,8 @@ class TimelineViewModel extends ChangeNotifier {
       // This needs a more robust way to get entityId.
       // For MoveClipCommand, we know it has a `clipId` property.
       String entityId;
-      if (cmd is MoveClipCommand) { // Specific check for MoveClipCommand
+      if (cmd is MoveClipCommand) {
+        // Specific check for MoveClipCommand
         entityId = cmd.clipId.toString();
       } else if (cmd is AddClipCommand) {
         // AddClipCommand might not have an ID until after execution.
@@ -145,7 +147,10 @@ class TimelineViewModel extends ChangeNotifier {
       } else if (cmd is ReorderTracksCommand) {
         // ReorderTracks might affect multiple entities or a "project" entity.
         // For now, let's use a generic ID or the first track ID involved.
-        entityId = cmd.originalTracks.isNotEmpty ? cmd.originalTracks.first.id.toString() : "reorder_tracks";
+        entityId =
+            cmd.originalTracks.isNotEmpty
+                ? cmd.originalTracks.first.id.toString()
+                : "reorder_tracks";
       } else if (cmd is AddTrackCommand) {
         entityId = "unknown_track_after_execute"; // Similar to AddClip
       } else if (cmd is RollEditCommand) {
@@ -158,7 +163,10 @@ class TimelineViewModel extends ChangeNotifier {
       // Add more 'else if' for other UndoableCommand types
       else {
         // Fallback or throw error if entityId cannot be determined
-        logger.logWarning('Cannot determine entityId for UndoableCommand of type ${cmd.runtimeType}', _logTag);
+        logger.logWarning(
+          'Cannot determine entityId for UndoableCommand of type ${cmd.runtimeType}',
+          _logTag,
+        );
         // Execute directly if entityId is critical and unknown, or throw
         await cmd.execute();
         return;
@@ -253,7 +261,7 @@ class TimelineViewModel extends ChangeNotifier {
       // Get canvas dimensions for the clip preview
       final canvasWidth = _canvasDimensionsService.canvasWidth;
       final canvasHeight = _canvasDimensionsService.canvasHeight;
-      
+
       final clipData = ClipModel(
         databaseId: null,
         trackId: trackId,
@@ -460,7 +468,10 @@ class TimelineViewModel extends ChangeNotifier {
       final clip = _stateViewModel.clips.firstWhere(
         (c) => c.databaseId == clipId,
         orElse: () {
-          logger.logError('Clip $clipId not found for transform update.', _logTag);
+          logger.logError(
+            'Clip $clipId not found for transform update.',
+            _logTag,
+          );
           throw StateError('Clip $clipId not found');
         },
       );
