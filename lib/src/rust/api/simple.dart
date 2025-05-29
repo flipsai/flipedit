@@ -5,10 +5,67 @@
 
 import '../common/types.dart';
 import '../frb_generated.dart';
+import '../video/timeline_composer.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 String greet({required String name}) =>
     RustLib.instance.api.crateApiSimpleGreet(name: name);
+
+PlatformInt64 timelineComposerCreate() =>
+    RustLib.instance.api.crateApiSimpleTimelineComposerCreate();
+
+void timelineComposerSetTexturePtr({
+  required PlatformInt64 handle,
+  required PlatformInt64 ptr,
+}) => RustLib.instance.api.crateApiSimpleTimelineComposerSetTexturePtr(
+  handle: handle,
+  ptr: ptr,
+);
+
+Future<void> timelineComposerUpdateTimeline({
+  required PlatformInt64 handle,
+  required List<TimelineClipData> clips,
+}) => RustLib.instance.api.crateApiSimpleTimelineComposerUpdateTimeline(
+  handle: handle,
+  clips: clips,
+);
+
+Future<void> timelineComposerPlay({required PlatformInt64 handle}) =>
+    RustLib.instance.api.crateApiSimpleTimelineComposerPlay(handle: handle);
+
+Future<void> timelineComposerPause({required PlatformInt64 handle}) =>
+    RustLib.instance.api.crateApiSimpleTimelineComposerPause(handle: handle);
+
+Future<void> timelineComposerSeek({
+  required PlatformInt64 handle,
+  required PlatformInt64 positionMs,
+}) => RustLib.instance.api.crateApiSimpleTimelineComposerSeek(
+  handle: handle,
+  positionMs: positionMs,
+);
+
+PlatformInt64 timelineComposerGetPosition({required PlatformInt64 handle}) =>
+    RustLib.instance.api.crateApiSimpleTimelineComposerGetPosition(
+      handle: handle,
+    );
+
+PlatformInt64 timelineComposerGetDuration({required PlatformInt64 handle}) =>
+    RustLib.instance.api.crateApiSimpleTimelineComposerGetDuration(
+      handle: handle,
+    );
+
+bool timelineComposerIsPlaying({required PlatformInt64 handle}) => RustLib
+    .instance
+    .api
+    .crateApiSimpleTimelineComposerIsPlaying(handle: handle);
+
+FrameData? timelineComposerGetLatestFrame({required PlatformInt64 handle}) =>
+    RustLib.instance.api.crateApiSimpleTimelineComposerGetLatestFrame(
+      handle: handle,
+    );
+
+Future<void> timelineComposerDispose({required PlatformInt64 handle}) =>
+    RustLib.instance.api.crateApiSimpleTimelineComposerDispose(handle: handle);
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<VideoPlayer>>
 abstract class VideoPlayer implements RustOpaqueInterface {

@@ -13,6 +13,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated_web.dart';
+import 'video/timeline_composer.dart';
 
 abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RustLibApiImplPlatform({
@@ -75,10 +76,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
 
   @protected
+  List<TimelineClipData> dco_decode_list_timeline_clip_data(dynamic raw);
+
+  @protected
   FrameData? dco_decode_opt_box_autoadd_frame_data(dynamic raw);
 
   @protected
   (int, int) dco_decode_record_i_32_i_32(dynamic raw);
+
+  @protected
+  TimelineClipData dco_decode_timeline_clip_data(dynamic raw);
 
   @protected
   int dco_decode_u_32(dynamic raw);
@@ -144,12 +151,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
 
   @protected
+  List<TimelineClipData> sse_decode_list_timeline_clip_data(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   FrameData? sse_decode_opt_box_autoadd_frame_data(
     SseDeserializer deserializer,
   );
 
   @protected
   (int, int) sse_decode_record_i_32_i_32(SseDeserializer deserializer);
+
+  @protected
+  TimelineClipData sse_decode_timeline_clip_data(SseDeserializer deserializer);
 
   @protected
   int sse_decode_u_32(SseDeserializer deserializer);
@@ -225,6 +240,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_timeline_clip_data(
+    List<TimelineClipData> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_frame_data(
     FrameData? self,
     SseSerializer serializer,
@@ -232,6 +253,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_record_i_32_i_32((int, int) self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_timeline_clip_data(
+    TimelineClipData self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_u_32(int self, SseSerializer serializer);

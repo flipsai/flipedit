@@ -17,6 +17,7 @@ import 'package:flipedit/viewmodels/project_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
+import 'package:flipedit/viewmodels/cached_timeline_viewmodel.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flipedit/services/undo_redo_service.dart';
 import 'package:flipedit/viewmodels/preview_viewmodel.dart';
@@ -105,6 +106,12 @@ Future<void> setupServiceLocator() async {
       // Pass the clipsNotifier from the TimelineStateViewModel instance
       clipsNotifier: di<TimelineStateViewModel>().clipsNotifier,
     ),
+    dispose: (vm) => vm.dispose(),
+  );
+
+  // Register CachedTimelineViewModel for optimized video playback
+  di.registerLazySingleton<CachedTimelineViewModel>(
+    () => CachedTimelineViewModel(),
     dispose: (vm) => vm.dispose(),
   );
 

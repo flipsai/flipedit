@@ -12,6 +12,7 @@ import 'frb_generated.dart';
 import 'frb_generated.io.dart'
     if (dart.library.js_interop) 'frb_generated.web.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
+import 'video/timeline_composer.dart';
 
 /// Main entrypoint of the Rust API
 class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
@@ -66,7 +67,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.7.0';
 
   @override
-  int get rustContentHash => 405036256;
+  int get rustContentHash => 1760860875;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -161,6 +162,49 @@ abstract class RustLibApi extends BaseApi {
   String crateApiSimpleGreet({required String name});
 
   Future<void> crateApiBridgeInitApp();
+
+  PlatformInt64 crateApiSimpleTimelineComposerCreate();
+
+  Future<void> crateApiSimpleTimelineComposerDispose({
+    required PlatformInt64 handle,
+  });
+
+  PlatformInt64 crateApiSimpleTimelineComposerGetDuration({
+    required PlatformInt64 handle,
+  });
+
+  FrameData? crateApiSimpleTimelineComposerGetLatestFrame({
+    required PlatformInt64 handle,
+  });
+
+  PlatformInt64 crateApiSimpleTimelineComposerGetPosition({
+    required PlatformInt64 handle,
+  });
+
+  bool crateApiSimpleTimelineComposerIsPlaying({required PlatformInt64 handle});
+
+  Future<void> crateApiSimpleTimelineComposerPause({
+    required PlatformInt64 handle,
+  });
+
+  Future<void> crateApiSimpleTimelineComposerPlay({
+    required PlatformInt64 handle,
+  });
+
+  Future<void> crateApiSimpleTimelineComposerSeek({
+    required PlatformInt64 handle,
+    required PlatformInt64 positionMs,
+  });
+
+  void crateApiSimpleTimelineComposerSetTexturePtr({
+    required PlatformInt64 handle,
+    required PlatformInt64 ptr,
+  });
+
+  Future<void> crateApiSimpleTimelineComposerUpdateTimeline({
+    required PlatformInt64 handle,
+    required List<TimelineClipData> clips,
+  });
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_VideoPlayer;
@@ -1017,6 +1061,339 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiBridgeInitAppConstMeta =>
       const TaskConstMeta(debugName: "init_app", argNames: []);
 
+  @override
+  PlatformInt64 crateApiSimpleTimelineComposerCreate() {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 28)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_i_64,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSimpleTimelineComposerCreateConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleTimelineComposerCreateConstMeta =>
+      const TaskConstMeta(debugName: "timeline_composer_create", argNames: []);
+
+  @override
+  Future<void> crateApiSimpleTimelineComposerDispose({
+    required PlatformInt64 handle,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_i_64(handle, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 29,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSimpleTimelineComposerDisposeConstMeta,
+        argValues: [handle],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleTimelineComposerDisposeConstMeta =>
+      const TaskConstMeta(
+        debugName: "timeline_composer_dispose",
+        argNames: ["handle"],
+      );
+
+  @override
+  PlatformInt64 crateApiSimpleTimelineComposerGetDuration({
+    required PlatformInt64 handle,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_i_64(handle, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 30)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_i_64,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSimpleTimelineComposerGetDurationConstMeta,
+        argValues: [handle],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleTimelineComposerGetDurationConstMeta =>
+      const TaskConstMeta(
+        debugName: "timeline_composer_get_duration",
+        argNames: ["handle"],
+      );
+
+  @override
+  FrameData? crateApiSimpleTimelineComposerGetLatestFrame({
+    required PlatformInt64 handle,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_i_64(handle, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 31)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_box_autoadd_frame_data,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSimpleTimelineComposerGetLatestFrameConstMeta,
+        argValues: [handle],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleTimelineComposerGetLatestFrameConstMeta =>
+      const TaskConstMeta(
+        debugName: "timeline_composer_get_latest_frame",
+        argNames: ["handle"],
+      );
+
+  @override
+  PlatformInt64 crateApiSimpleTimelineComposerGetPosition({
+    required PlatformInt64 handle,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_i_64(handle, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 32)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_i_64,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSimpleTimelineComposerGetPositionConstMeta,
+        argValues: [handle],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleTimelineComposerGetPositionConstMeta =>
+      const TaskConstMeta(
+        debugName: "timeline_composer_get_position",
+        argNames: ["handle"],
+      );
+
+  @override
+  bool crateApiSimpleTimelineComposerIsPlaying({
+    required PlatformInt64 handle,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_i_64(handle, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 33)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_bool,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSimpleTimelineComposerIsPlayingConstMeta,
+        argValues: [handle],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleTimelineComposerIsPlayingConstMeta =>
+      const TaskConstMeta(
+        debugName: "timeline_composer_is_playing",
+        argNames: ["handle"],
+      );
+
+  @override
+  Future<void> crateApiSimpleTimelineComposerPause({
+    required PlatformInt64 handle,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_i_64(handle, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 34,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSimpleTimelineComposerPauseConstMeta,
+        argValues: [handle],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleTimelineComposerPauseConstMeta =>
+      const TaskConstMeta(
+        debugName: "timeline_composer_pause",
+        argNames: ["handle"],
+      );
+
+  @override
+  Future<void> crateApiSimpleTimelineComposerPlay({
+    required PlatformInt64 handle,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_i_64(handle, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 35,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSimpleTimelineComposerPlayConstMeta,
+        argValues: [handle],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleTimelineComposerPlayConstMeta =>
+      const TaskConstMeta(
+        debugName: "timeline_composer_play",
+        argNames: ["handle"],
+      );
+
+  @override
+  Future<void> crateApiSimpleTimelineComposerSeek({
+    required PlatformInt64 handle,
+    required PlatformInt64 positionMs,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_i_64(handle, serializer);
+          sse_encode_i_64(positionMs, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 36,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSimpleTimelineComposerSeekConstMeta,
+        argValues: [handle, positionMs],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleTimelineComposerSeekConstMeta =>
+      const TaskConstMeta(
+        debugName: "timeline_composer_seek",
+        argNames: ["handle", "positionMs"],
+      );
+
+  @override
+  void crateApiSimpleTimelineComposerSetTexturePtr({
+    required PlatformInt64 handle,
+    required PlatformInt64 ptr,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_i_64(handle, serializer);
+          sse_encode_i_64(ptr, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 37)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSimpleTimelineComposerSetTexturePtrConstMeta,
+        argValues: [handle, ptr],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleTimelineComposerSetTexturePtrConstMeta =>
+      const TaskConstMeta(
+        debugName: "timeline_composer_set_texture_ptr",
+        argNames: ["handle", "ptr"],
+      );
+
+  @override
+  Future<void> crateApiSimpleTimelineComposerUpdateTimeline({
+    required PlatformInt64 handle,
+    required List<TimelineClipData> clips,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_i_64(handle, serializer);
+          sse_encode_list_timeline_clip_data(clips, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 38,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSimpleTimelineComposerUpdateTimelineConstMeta,
+        argValues: [handle, clips],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleTimelineComposerUpdateTimelineConstMeta =>
+      const TaskConstMeta(
+        debugName: "timeline_composer_update_timeline",
+        argNames: ["handle", "clips"],
+      );
+
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_VideoPlayer =>
       wire.rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVideoPlayer;
@@ -1117,6 +1494,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<TimelineClipData> dco_decode_list_timeline_clip_data(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_timeline_clip_data).toList();
+  }
+
+  @protected
   FrameData? dco_decode_opt_box_autoadd_frame_data(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_frame_data(raw);
@@ -1130,6 +1513,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       throw Exception('Expected 2 elements, got ${arr.length}');
     }
     return (dco_decode_i_32(arr[0]), dco_decode_i_32(arr[1]));
+  }
+
+  @protected
+  TimelineClipData dco_decode_timeline_clip_data(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 8)
+      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    return TimelineClipData(
+      id: dco_decode_i_32(arr[0]),
+      trackId: dco_decode_i_32(arr[1]),
+      sourcePath: dco_decode_String(arr[2]),
+      startTimeOnTrackMs: dco_decode_i_64(arr[3]),
+      endTimeOnTrackMs: dco_decode_i_64(arr[4]),
+      startTimeInSourceMs: dco_decode_i_64(arr[5]),
+      endTimeInSourceMs: dco_decode_i_64(arr[6]),
+      sourceDurationMs: dco_decode_i_64(arr[7]),
+    );
   }
 
   @protected
@@ -1264,6 +1665,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<TimelineClipData> sse_decode_list_timeline_clip_data(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <TimelineClipData>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_timeline_clip_data(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   FrameData? sse_decode_opt_box_autoadd_frame_data(
     SseDeserializer deserializer,
   ) {
@@ -1282,6 +1697,29 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_field0 = sse_decode_i_32(deserializer);
     var var_field1 = sse_decode_i_32(deserializer);
     return (var_field0, var_field1);
+  }
+
+  @protected
+  TimelineClipData sse_decode_timeline_clip_data(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_i_32(deserializer);
+    var var_trackId = sse_decode_i_32(deserializer);
+    var var_sourcePath = sse_decode_String(deserializer);
+    var var_startTimeOnTrackMs = sse_decode_i_64(deserializer);
+    var var_endTimeOnTrackMs = sse_decode_i_64(deserializer);
+    var var_startTimeInSourceMs = sse_decode_i_64(deserializer);
+    var var_endTimeInSourceMs = sse_decode_i_64(deserializer);
+    var var_sourceDurationMs = sse_decode_i_64(deserializer);
+    return TimelineClipData(
+      id: var_id,
+      trackId: var_trackId,
+      sourcePath: var_sourcePath,
+      startTimeOnTrackMs: var_startTimeOnTrackMs,
+      endTimeOnTrackMs: var_endTimeOnTrackMs,
+      startTimeInSourceMs: var_startTimeInSourceMs,
+      endTimeInSourceMs: var_endTimeInSourceMs,
+      sourceDurationMs: var_sourceDurationMs,
+    );
   }
 
   @protected
@@ -1423,6 +1861,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_timeline_clip_data(
+    List<TimelineClipData> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_timeline_clip_data(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_frame_data(
     FrameData? self,
     SseSerializer serializer,
@@ -1440,6 +1890,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.$1, serializer);
     sse_encode_i_32(self.$2, serializer);
+  }
+
+  @protected
+  void sse_encode_timeline_clip_data(
+    TimelineClipData self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.id, serializer);
+    sse_encode_i_32(self.trackId, serializer);
+    sse_encode_String(self.sourcePath, serializer);
+    sse_encode_i_64(self.startTimeOnTrackMs, serializer);
+    sse_encode_i_64(self.endTimeOnTrackMs, serializer);
+    sse_encode_i_64(self.startTimeInSourceMs, serializer);
+    sse_encode_i_64(self.endTimeInSourceMs, serializer);
+    sse_encode_i_64(self.sourceDurationMs, serializer);
   }
 
   @protected

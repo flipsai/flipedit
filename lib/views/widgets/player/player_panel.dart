@@ -1,11 +1,11 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/material.dart' show ScaffoldMessenger, SnackBar;
 import 'package:watch_it/watch_it.dart';
-import 'dart:io';
 
 import 'package:flipedit/utils/logger.dart';
-import 'package:flipedit/widgets/video_player_widget.dart';
+import 'package:flipedit/views/widgets/player/cached_timeline_video_player_widget.dart';
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
-import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
+import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
 
 class PlayerPanel extends StatefulWidget {
@@ -17,23 +17,20 @@ class PlayerPanel extends StatefulWidget {
 
 class _PlayerPanelState extends State<PlayerPanel> {
   late final TimelineNavigationViewModel _timelineNavViewModel;
-  late final TimelineViewModel _timelineViewModel;
-  
-  // Fixed video path - using equipe.mp4
-  static const String _fixedVideoPath = '/Users/remymenard/Downloads/equipe.mp4';
+  late final TimelineStateViewModel _timelineStateViewModel;
 
   @override
   void initState() {
     super.initState();
     
-    logDebug("Initializing PlayerPanel with fixed video: $_fixedVideoPath", 'PlayerPanel');
+    logDebug("Initializing PlayerPanel with timeline composer", 'PlayerPanel');
 
     _timelineNavViewModel = di<TimelineNavigationViewModel>();
-    _timelineViewModel = di<TimelineViewModel>();
+    _timelineStateViewModel = di<TimelineStateViewModel>();
 
-    // Keep listeners for the play/pause controls but don't use them for video selection
     _timelineNavViewModel.isPlayingNotifier.addListener(_rebuild);
     _timelineNavViewModel.currentFrameNotifier.addListener(_rebuild);
+    _timelineStateViewModel.clipsNotifier.addListener(_rebuild);
   }
 
   void _rebuild() {
@@ -44,28 +41,33 @@ class _PlayerPanelState extends State<PlayerPanel> {
 
   @override
   void dispose() {
-    // Remove listeners
     _timelineNavViewModel.isPlayingNotifier.removeListener(_rebuild);
     _timelineNavViewModel.currentFrameNotifier.removeListener(_rebuild);
+    _timelineStateViewModel.clipsNotifier.removeListener(_rebuild);
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    logDebug("Rebuilding PlayerPanel with fixed video...", 'PlayerPanel');
+    logDebug("Rebuilding PlayerPanel with timeline composer...", 'PlayerPanel');
 
     final isPlaying = _timelineNavViewModel.isPlayingNotifier.value;
     final currentFrame = _timelineNavViewModel.currentFrameNotifier.value;
+    final clips = _timelineStateViewModel.clipsNotifier.value;
+    final hasVideoClips = clips.any((clip) => clip.type == ClipType.video);
 
     return Container(
       color: Colors.black,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Video display area - always shows the fixed video
+          // Video display area - shows timeline composition
           Expanded(
-            child: File(_fixedVideoPath).existsSync()
-                ? VideoPlayerWidget(videoPath: _fixedVideoPath)
+            child: hasVideoClips
+                ? CachedTimelineVideoPlayerWidget(
+                    clips: clips,
+                    timelineNavViewModel: _timelineNavViewModel,
+                  )
                 : Container(
                     color: Colors.black,
                     child: Center(
@@ -79,7 +81,7 @@ class _PlayerPanelState extends State<PlayerPanel> {
                           ),
                           const SizedBox(height: 16),
                           const Text(
-                            'equipe.mp4 not found',
+                            'No video clips in timeline',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 18,
@@ -87,7 +89,7 @@ class _PlayerPanelState extends State<PlayerPanel> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'Place equipe.mp4 at:\n$_fixedVideoPath',
+                            'Add video clips to the timeline to see playback',
                             style: TextStyle(
                               color: Colors.white.withOpacity(0.54),
                               fontSize: 12,
@@ -109,7 +111,7 @@ class _PlayerPanelState extends State<PlayerPanel> {
               children: [
                 // Play/Pause button
                 Button(
-                  onPressed: () async {
+                  onPressed: hasVideoClips ? () async {
                     try {
                       if (isPlaying) {
                         _timelineNavViewModel.stopPlayback();
@@ -118,8 +120,17 @@ class _PlayerPanelState extends State<PlayerPanel> {
                       }
                     } catch (e) {
                       logError('PlayerPanel', 'Error toggling playback: $e');
+                      // Show error to user if needed
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Playback error: ${e.toString()}'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
                     }
-                  },
+                  } : null,
                   child: Icon(
                     isPlaying ? FluentIcons.pause : FluentIcons.play,
                     size: 16,
@@ -133,30 +144,32 @@ class _PlayerPanelState extends State<PlayerPanel> {
 
                 const Spacer(),
 
-                // Mode label - updated to indicate fixed video mode
+                // Mode label
                 Text(
-                  'Fixed Video Player (equipe.mp4)',
+                  hasVideoClips 
+                      ? 'Cached Player (${clips.length} clips)'
+                      : 'Cached Player (Empty)',
                   style: FluentTheme.of(context).typography.caption,
                 ),
 
                 const SizedBox(width: 8),
 
-                // Status indicator - shows different colors based on video availability
+                // Status indicator
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 8,
                     vertical: 2,
                   ),
                   decoration: BoxDecoration(
-                    color: File(_fixedVideoPath).existsSync() 
-                        ? Colors.blue // Blue for fixed video mode with valid file
-                        : Colors.orange, // Orange for missing video file
+                    color: hasVideoClips 
+                        ? Colors.green // Green for active timeline with video clips
+                        : Colors.orange, // Orange for empty timeline
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
-                    File(_fixedVideoPath).existsSync() 
-                        ? 'equipe.mp4' 
-                        : 'Missing',
+                    hasVideoClips 
+                        ? 'Active' 
+                        : 'Empty',
                     style: FluentTheme.of(context).typography.caption?.copyWith(
                       color: Colors.white,
                     ),
