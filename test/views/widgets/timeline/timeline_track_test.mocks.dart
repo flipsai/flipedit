@@ -3,18 +3,19 @@
 // Do not manually edit this file.
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
-import 'dart:async' as _i9;
-import 'dart:ui' as _i12;
+import 'dart:async' as _i10;
+import 'dart:ui' as _i13;
 
-import 'package:flipedit/models/clip.dart' as _i7;
-import 'package:flipedit/models/enums/clip_type.dart' as _i11;
-import 'package:flipedit/models/enums/edit_mode.dart' as _i6;
-import 'package:flipedit/persistence/database/project_database.dart' as _i8;
+import 'package:flipedit/models/clip.dart' as _i8;
+import 'package:flipedit/models/enums/clip_type.dart' as _i12;
+import 'package:flipedit/models/enums/edit_mode.dart' as _i7;
+import 'package:flipedit/persistence/database/project_database.dart' as _i9;
+import 'package:flipedit/services/optimized_playback_service.dart' as _i5;
 import 'package:flipedit/services/project_database_service.dart' as _i3;
 import 'package:flipedit/services/timeline_navigation_service.dart' as _i4;
-import 'package:flipedit/viewmodels/commands/timeline_command.dart' as _i10;
-import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart' as _i13;
-import 'package:flipedit/viewmodels/timeline_viewmodel.dart' as _i5;
+import 'package:flipedit/viewmodels/commands/timeline_command.dart' as _i11;
+import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart' as _i14;
+import 'package:flipedit/viewmodels/timeline_viewmodel.dart' as _i6;
 import 'package:flutter/foundation.dart' as _i2;
 import 'package:mockito/mockito.dart' as _i1;
 
@@ -50,10 +51,16 @@ class _FakeTimelineNavigationService_2 extends _i1.SmartFake
     : super(parent, parentInvocation);
 }
 
+class _FakeOptimizedPlaybackService_3 extends _i1.SmartFake
+    implements _i5.OptimizedPlaybackService {
+  _FakeOptimizedPlaybackService_3(Object parent, Invocation parentInvocation)
+    : super(parent, parentInvocation);
+}
+
 /// A class which mocks [TimelineViewModel].
 ///
 /// See the documentation for Mockito's code generation for more information.
-class MockTimelineViewModel extends _i1.Mock implements _i5.TimelineViewModel {
+class MockTimelineViewModel extends _i1.Mock implements _i6.TimelineViewModel {
   MockTimelineViewModel() {
     _i1.throwOnMissingStub(this);
   }
@@ -70,37 +77,15 @@ class MockTimelineViewModel extends _i1.Mock implements _i5.TimelineViewModel {
           as _i2.ValueNotifier<double>);
 
   @override
-  _i2.ValueNotifier<int> get currentFrameNotifier =>
-      (super.noSuchMethod(
-            Invocation.getter(#currentFrameNotifier),
-            returnValue: _FakeValueNotifier_0<int>(
-              this,
-              Invocation.getter(#currentFrameNotifier),
-            ),
-          )
-          as _i2.ValueNotifier<int>);
-
-  @override
-  _i2.ValueNotifier<int> get totalFramesNotifier =>
-      (super.noSuchMethod(
-            Invocation.getter(#totalFramesNotifier),
-            returnValue: _FakeValueNotifier_0<int>(
-              this,
-              Invocation.getter(#totalFramesNotifier),
-            ),
-          )
-          as _i2.ValueNotifier<int>);
-
-  @override
-  _i2.ValueNotifier<_i6.EditMode> get currentEditMode =>
+  _i2.ValueNotifier<_i7.EditMode> get currentEditMode =>
       (super.noSuchMethod(
             Invocation.getter(#currentEditMode),
-            returnValue: _FakeValueNotifier_0<_i6.EditMode>(
+            returnValue: _FakeValueNotifier_0<_i7.EditMode>(
               this,
               Invocation.getter(#currentEditMode),
             ),
           )
-          as _i2.ValueNotifier<_i6.EditMode>);
+          as _i2.ValueNotifier<_i7.EditMode>);
 
   @override
   bool get isPlayheadDragging =>
@@ -116,9 +101,31 @@ class MockTimelineViewModel extends _i1.Mock implements _i5.TimelineViewModel {
           as double);
 
   @override
+  _i2.ValueNotifier<int> get currentFrameNotifier =>
+      (super.noSuchMethod(
+            Invocation.getter(#currentFrameNotifier),
+            returnValue: _FakeValueNotifier_0<int>(
+              this,
+              Invocation.getter(#currentFrameNotifier),
+            ),
+          )
+          as _i2.ValueNotifier<int>);
+
+  @override
   int get currentFrame =>
       (super.noSuchMethod(Invocation.getter(#currentFrame), returnValue: 0)
           as int);
+
+  @override
+  _i2.ValueNotifier<int> get totalFramesNotifier =>
+      (super.noSuchMethod(
+            Invocation.getter(#totalFramesNotifier),
+            returnValue: _FakeValueNotifier_0<int>(
+              this,
+              Invocation.getter(#totalFramesNotifier),
+            ),
+          )
+          as _i2.ValueNotifier<int>);
 
   @override
   int get totalFrames =>
@@ -126,34 +133,34 @@ class MockTimelineViewModel extends _i1.Mock implements _i5.TimelineViewModel {
           as int);
 
   @override
-  _i2.ValueNotifier<List<_i7.ClipModel>> get clipsNotifier =>
+  _i2.ValueNotifier<List<_i8.ClipModel>> get clipsNotifier =>
       (super.noSuchMethod(
             Invocation.getter(#clipsNotifier),
-            returnValue: _FakeValueNotifier_0<List<_i7.ClipModel>>(
+            returnValue: _FakeValueNotifier_0<List<_i8.ClipModel>>(
               this,
               Invocation.getter(#clipsNotifier),
             ),
           )
-          as _i2.ValueNotifier<List<_i7.ClipModel>>);
+          as _i2.ValueNotifier<List<_i8.ClipModel>>);
 
   @override
-  List<_i7.ClipModel> get clips =>
+  List<_i8.ClipModel> get clips =>
       (super.noSuchMethod(
             Invocation.getter(#clips),
-            returnValue: <_i7.ClipModel>[],
+            returnValue: <_i8.ClipModel>[],
           )
-          as List<_i7.ClipModel>);
+          as List<_i8.ClipModel>);
 
   @override
-  _i2.ValueNotifier<List<_i8.Track>> get tracksNotifierForView =>
+  _i2.ValueNotifier<List<_i9.Track>> get tracksNotifierForView =>
       (super.noSuchMethod(
             Invocation.getter(#tracksNotifierForView),
-            returnValue: _FakeValueNotifier_0<List<_i8.Track>>(
+            returnValue: _FakeValueNotifier_0<List<_i9.Track>>(
               this,
               Invocation.getter(#tracksNotifierForView),
             ),
           )
-          as _i2.ValueNotifier<List<_i8.Track>>);
+          as _i2.ValueNotifier<List<_i9.Track>>);
 
   @override
   List<int> get currentTrackIds =>
@@ -259,61 +266,61 @@ class MockTimelineViewModel extends _i1.Mock implements _i5.TimelineViewModel {
           as bool);
 
   @override
-  void setEditMode(_i6.EditMode? mode) => super.noSuchMethod(
+  void setEditMode(_i7.EditMode? mode) => super.noSuchMethod(
     Invocation.method(#setEditMode, [mode]),
     returnValueForMissingStub: null,
   );
 
   @override
-  _i9.Future<void> runCommand(_i10.TimelineCommand? cmd) =>
+  _i10.Future<void> runCommand(_i11.TimelineCommand? cmd) =>
       (super.noSuchMethod(
             Invocation.method(#runCommand, [cmd]),
-            returnValue: _i9.Future<void>.value(),
-            returnValueForMissingStub: _i9.Future<void>.value(),
+            returnValue: _i10.Future<void>.value(),
+            returnValueForMissingStub: _i10.Future<void>.value(),
           )
-          as _i9.Future<void>);
+          as _i10.Future<void>);
 
   @override
-  _i9.Future<void> undo() =>
+  _i10.Future<void> undo() =>
       (super.noSuchMethod(
             Invocation.method(#undo, []),
-            returnValue: _i9.Future<void>.value(),
-            returnValueForMissingStub: _i9.Future<void>.value(),
+            returnValue: _i10.Future<void>.value(),
+            returnValueForMissingStub: _i10.Future<void>.value(),
           )
-          as _i9.Future<void>);
+          as _i10.Future<void>);
 
   @override
-  _i9.Future<void> redo() =>
+  _i10.Future<void> redo() =>
       (super.noSuchMethod(
             Invocation.method(#redo, []),
-            returnValue: _i9.Future<void>.value(),
-            returnValueForMissingStub: _i9.Future<void>.value(),
+            returnValue: _i10.Future<void>.value(),
+            returnValueForMissingStub: _i10.Future<void>.value(),
           )
-          as _i9.Future<void>);
+          as _i10.Future<void>);
 
   @override
-  _i9.Future<void> deleteTrack(int? trackId) =>
+  _i10.Future<void> deleteTrack(int? trackId) =>
       (super.noSuchMethod(
             Invocation.method(#deleteTrack, [trackId]),
-            returnValue: _i9.Future<void>.value(),
-            returnValueForMissingStub: _i9.Future<void>.value(),
+            returnValue: _i10.Future<void>.value(),
+            returnValueForMissingStub: _i10.Future<void>.value(),
           )
-          as _i9.Future<void>);
+          as _i10.Future<void>);
 
   @override
-  _i9.Future<void> reorderTracks(int? oldIndex, int? newIndex) =>
+  _i10.Future<void> reorderTracks(int? oldIndex, int? newIndex) =>
       (super.noSuchMethod(
             Invocation.method(#reorderTracks, [oldIndex, newIndex]),
-            returnValue: _i9.Future<void>.value(),
-            returnValueForMissingStub: _i9.Future<void>.value(),
+            returnValue: _i10.Future<void>.value(),
+            returnValueForMissingStub: _i10.Future<void>.value(),
           )
-          as _i9.Future<void>);
+          as _i10.Future<void>);
 
   @override
-  _i9.Future<bool> placeClipOnTrack({
+  _i10.Future<bool> placeClipOnTrack({
     int? clipId,
     required int? trackId,
-    required _i11.ClipType? type,
+    required _i12.ClipType? type,
     required String? sourcePath,
     required int? sourceDurationMs,
     required int? startTimeOnTrackMs,
@@ -333,13 +340,13 @@ class MockTimelineViewModel extends _i1.Mock implements _i5.TimelineViewModel {
               #startTimeInSourceMs: startTimeInSourceMs,
               #endTimeInSourceMs: endTimeInSourceMs,
             }),
-            returnValue: _i9.Future<bool>.value(false),
+            returnValue: _i10.Future<bool>.value(false),
           )
-          as _i9.Future<bool>);
+          as _i10.Future<bool>);
 
   @override
-  _i9.Future<bool> handleClipDropToEmptyTimeline({
-    required _i7.ClipModel? clip,
+  _i10.Future<bool> handleClipDropToEmptyTimeline({
+    required _i8.ClipModel? clip,
     required int? startTimeOnTrackMs,
   }) =>
       (super.noSuchMethod(
@@ -347,22 +354,22 @@ class MockTimelineViewModel extends _i1.Mock implements _i5.TimelineViewModel {
               #clip: clip,
               #startTimeOnTrackMs: startTimeOnTrackMs,
             }),
-            returnValue: _i9.Future<bool>.value(false),
+            returnValue: _i10.Future<bool>.value(false),
           )
-          as _i9.Future<bool>);
+          as _i10.Future<bool>);
 
   @override
-  _i9.Future<void> updateTrackName(int? trackId, String? newName) =>
+  _i10.Future<void> updateTrackName(int? trackId, String? newName) =>
       (super.noSuchMethod(
             Invocation.method(#updateTrackName, [trackId, newName]),
-            returnValue: _i9.Future<void>.value(),
-            returnValueForMissingStub: _i9.Future<void>.value(),
+            returnValue: _i10.Future<void>.value(),
+            returnValueForMissingStub: _i10.Future<void>.value(),
           )
-          as _i9.Future<void>);
+          as _i10.Future<void>);
 
   @override
-  _i9.Future<bool> handleClipDrop({
-    required _i7.ClipModel? clip,
+  _i10.Future<bool> handleClipDrop({
+    required _i8.ClipModel? clip,
     required int? trackId,
     required int? startTimeOnTrackMs,
   }) =>
@@ -372,12 +379,12 @@ class MockTimelineViewModel extends _i1.Mock implements _i5.TimelineViewModel {
               #trackId: trackId,
               #startTimeOnTrackMs: startTimeOnTrackMs,
             }),
-            returnValue: _i9.Future<bool>.value(false),
+            returnValue: _i10.Future<bool>.value(false),
           )
-          as _i9.Future<bool>);
+          as _i10.Future<bool>);
 
   @override
-  _i9.Future<void> performRollEdit({
+  _i10.Future<void> performRollEdit({
     required int? leftClipId,
     required int? rightClipId,
     required int? newBoundaryFrame,
@@ -388,10 +395,10 @@ class MockTimelineViewModel extends _i1.Mock implements _i5.TimelineViewModel {
               #rightClipId: rightClipId,
               #newBoundaryFrame: newBoundaryFrame,
             }),
-            returnValue: _i9.Future<void>.value(),
-            returnValueForMissingStub: _i9.Future<void>.value(),
+            returnValue: _i10.Future<void>.value(),
+            returnValueForMissingStub: _i10.Future<void>.value(),
           )
-          as _i9.Future<void>);
+          as _i10.Future<void>);
 
   @override
   int calculateFramePositionForOffset(
@@ -426,7 +433,7 @@ class MockTimelineViewModel extends _i1.Mock implements _i5.TimelineViewModel {
           as double);
 
   @override
-  List<_i7.ClipModel> getDragPreviewClips({
+  List<_i8.ClipModel> getDragPreviewClips({
     required int? draggedClipId,
     required int? targetTrackId,
     required int? targetStartTimeOnTrackMs,
@@ -437,12 +444,12 @@ class MockTimelineViewModel extends _i1.Mock implements _i5.TimelineViewModel {
               #targetTrackId: targetTrackId,
               #targetStartTimeOnTrackMs: targetStartTimeOnTrackMs,
             }),
-            returnValue: <_i7.ClipModel>[],
+            returnValue: <_i8.ClipModel>[],
           )
-          as List<_i7.ClipModel>);
+          as List<_i8.ClipModel>);
 
   @override
-  _i9.Future<void> updateClipPreviewTransform(
+  _i10.Future<void> updateClipPreviewTransform(
     int? clipId,
     double? newPositionX,
     double? newPositionY,
@@ -457,10 +464,10 @@ class MockTimelineViewModel extends _i1.Mock implements _i5.TimelineViewModel {
               newWidth,
               newHeight,
             ]),
-            returnValue: _i9.Future<void>.value(),
-            returnValueForMissingStub: _i9.Future<void>.value(),
+            returnValue: _i10.Future<void>.value(),
+            returnValueForMissingStub: _i10.Future<void>.value(),
           )
-          as _i9.Future<void>);
+          as _i10.Future<void>);
 
   @override
   void dispose() => super.noSuchMethod(
@@ -469,13 +476,13 @@ class MockTimelineViewModel extends _i1.Mock implements _i5.TimelineViewModel {
   );
 
   @override
-  void addListener(_i12.VoidCallback? listener) => super.noSuchMethod(
+  void addListener(_i13.VoidCallback? listener) => super.noSuchMethod(
     Invocation.method(#addListener, [listener]),
     returnValueForMissingStub: null,
   );
 
   @override
-  void removeListener(_i12.VoidCallback? listener) => super.noSuchMethod(
+  void removeListener(_i13.VoidCallback? listener) => super.noSuchMethod(
     Invocation.method(#removeListener, [listener]),
     returnValueForMissingStub: null,
   );
@@ -491,7 +498,7 @@ class MockTimelineViewModel extends _i1.Mock implements _i5.TimelineViewModel {
 ///
 /// See the documentation for Mockito's code generation for more information.
 class MockTimelineNavigationViewModel extends _i1.Mock
-    implements _i13.TimelineNavigationViewModel {
+    implements _i14.TimelineNavigationViewModel {
   MockTimelineNavigationViewModel() {
     _i1.throwOnMissingStub(this);
   }
@@ -607,6 +614,17 @@ class MockTimelineNavigationViewModel extends _i1.Mock
           as _i4.TimelineNavigationService);
 
   @override
+  _i5.OptimizedPlaybackService get playbackService =>
+      (super.noSuchMethod(
+            Invocation.getter(#playbackService),
+            returnValue: _FakeOptimizedPlaybackService_3(
+              this,
+              Invocation.getter(#playbackService),
+            ),
+          )
+          as _i5.OptimizedPlaybackService);
+
+  @override
   set zoom(double? value) => super.noSuchMethod(
     Invocation.setter(#zoom, value),
     returnValueForMissingStub: null,
@@ -624,13 +642,13 @@ class MockTimelineNavigationViewModel extends _i1.Mock
           as bool);
 
   @override
-  _i9.Future<void> startPlayback() =>
+  _i10.Future<void> startPlayback() =>
       (super.noSuchMethod(
             Invocation.method(#startPlayback, []),
-            returnValue: _i9.Future<void>.value(),
-            returnValueForMissingStub: _i9.Future<void>.value(),
+            returnValue: _i10.Future<void>.value(),
+            returnValueForMissingStub: _i10.Future<void>.value(),
           )
-          as _i9.Future<void>);
+          as _i10.Future<void>);
 
   @override
   void stopPlayback() => super.noSuchMethod(
@@ -663,13 +681,13 @@ class MockTimelineNavigationViewModel extends _i1.Mock
   );
 
   @override
-  void addListener(_i12.VoidCallback? listener) => super.noSuchMethod(
+  void addListener(_i13.VoidCallback? listener) => super.noSuchMethod(
     Invocation.method(#addListener, [listener]),
     returnValueForMissingStub: null,
   );
 
   @override
-  void removeListener(_i12.VoidCallback? listener) => super.noSuchMethod(
+  void removeListener(_i13.VoidCallback? listener) => super.noSuchMethod(
     Invocation.method(#removeListener, [listener]),
     returnValueForMissingStub: null,
   );

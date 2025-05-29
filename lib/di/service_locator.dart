@@ -11,6 +11,7 @@ import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/services/project_metadata_service.dart';
 import 'package:flipedit/services/media_duration_service.dart';
 import 'package:flipedit/services/uv_manager.dart';
+import 'package:flipedit/services/video_player_service.dart';
 import 'package:flipedit/viewmodels/app_viewmodel.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
@@ -120,6 +121,12 @@ Future<void> setupServiceLocator() async {
   // Register video texture service
   di.registerLazySingleton<VideoTextureService>(
     () => VideoTextureService(),
+    dispose: (service) => service.dispose(),
+  );
+
+  // Register video player service
+  di.registerLazySingleton<VideoPlayerService>(
+    () => VideoPlayerService(),
     dispose: (service) => service.dispose(),
   );
 

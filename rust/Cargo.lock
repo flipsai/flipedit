@@ -1462,6 +1462,7 @@ dependencies = [
  "log",
  "pulse",
  "rubato",
+ "serde",
  "tokio",
  "windows 0.52.0",
 ]

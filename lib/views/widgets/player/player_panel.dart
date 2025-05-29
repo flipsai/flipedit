@@ -4,9 +4,9 @@ import 'dart:io';
 
 import 'package:flipedit/utils/logger.dart';
 import 'package:flipedit/widgets/video_player_widget.dart';
+import 'package:flipedit/services/video_player_service.dart';
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
-import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
-import 'package:flipedit/models/enums/clip_type.dart';
+import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart';
 
 class PlayerPanel extends StatefulWidget {
   const PlayerPanel({super.key});
@@ -17,27 +17,38 @@ class PlayerPanel extends StatefulWidget {
 
 class _PlayerPanelState extends State<PlayerPanel> {
   late final TimelineNavigationViewModel _timelineNavViewModel;
-  late final TimelineViewModel _timelineViewModel;
-  
-  // Fixed video path - using equipe.mp4
-  static const String _fixedVideoPath = '/Users/remymenard/Downloads/equipe.mp4';
+  late final TimelineStateViewModel _timelineStateViewModel;
+  late final VideoPlayerService _videoPlayerService;
+  String? _cachedVideoPath; // Cache the video path to prevent unnecessary recreation
 
   @override
   void initState() {
     super.initState();
     
-    logDebug("Initializing PlayerPanel with fixed video: $_fixedVideoPath", 'PlayerPanel');
+    logDebug("Initializing PlayerPanel", 'PlayerPanel');
 
     _timelineNavViewModel = di<TimelineNavigationViewModel>();
-    _timelineViewModel = di<TimelineViewModel>();
+    _timelineStateViewModel = di<TimelineStateViewModel>();
+    _videoPlayerService = di<VideoPlayerService>();
 
-    // Keep listeners for the play/pause controls but don't use them for video selection
+    // Listen for changes to rebuild UI
     _timelineNavViewModel.isPlayingNotifier.addListener(_rebuild);
     _timelineNavViewModel.currentFrameNotifier.addListener(_rebuild);
+    _timelineStateViewModel.clipsNotifier.addListener(_rebuild);
+    _videoPlayerService.isPlayingNotifier.addListener(_rebuild);
+    
+    // Initialize cached video path
+    _cachedVideoPath = _getFirstVideoPath();
   }
 
   void _rebuild() {
     if (mounted) {
+      // Only update cached video path when clips change
+      final newVideoPath = _getFirstVideoPath();
+      if (newVideoPath != _cachedVideoPath) {
+        logDebug("Video path changed from $_cachedVideoPath to $newVideoPath", 'PlayerPanel');
+        _cachedVideoPath = newVideoPath;
+      }
       setState(() {});
     }
   }
@@ -47,25 +58,51 @@ class _PlayerPanelState extends State<PlayerPanel> {
     // Remove listeners
     _timelineNavViewModel.isPlayingNotifier.removeListener(_rebuild);
     _timelineNavViewModel.currentFrameNotifier.removeListener(_rebuild);
+    _timelineStateViewModel.clipsNotifier.removeListener(_rebuild);
+    _videoPlayerService.isPlayingNotifier.removeListener(_rebuild);
     super.dispose();
+  }
+
+  String? _getFirstVideoPath() {
+    final clips = _timelineStateViewModel.clips;
+    if (clips.isEmpty) {
+      return null;
+    }
+    
+    // Find first video clip
+    for (final clip in clips) {
+      if (clip.sourcePath.isNotEmpty && File(clip.sourcePath).existsSync()) {
+        logDebug("Using first video: ${clip.sourcePath}", 'PlayerPanel');
+        return clip.sourcePath;
+      }
+    }
+    
+    logDebug("No valid video files found in clips", 'PlayerPanel');
+    return null;
   }
 
   @override
   Widget build(BuildContext context) {
-    logDebug("Rebuilding PlayerPanel with fixed video...", 'PlayerPanel');
-
-    final isPlaying = _timelineNavViewModel.isPlayingNotifier.value;
+    final isTimelinePlaying = _timelineNavViewModel.isPlayingNotifier.value;
+    final isVideoPlaying = _videoPlayerService.isPlayingNotifier.value;
     final currentFrame = _timelineNavViewModel.currentFrameNotifier.value;
+    final clips = _timelineStateViewModel.clips;
+    final firstVideoPath = _cachedVideoPath;
+
+    logDebug("Rebuilding PlayerPanel - ${clips.length} clips, first video: $firstVideoPath, timeline playing: $isTimelinePlaying, video playing: $isVideoPlaying", 'PlayerPanel');
 
     return Container(
       color: Colors.black,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Video display area - always shows the fixed video
+          // Video display area
           Expanded(
-            child: File(_fixedVideoPath).existsSync()
-                ? VideoPlayerWidget(videoPath: _fixedVideoPath)
+            child: firstVideoPath != null
+                ? VideoPlayerWidget(
+                    key: ValueKey(firstVideoPath), // Prevent recreation during resizes
+                    videoPath: firstVideoPath,
+                  )
                 : Container(
                     color: Colors.black,
                     child: Center(
@@ -78,16 +115,18 @@ class _PlayerPanelState extends State<PlayerPanel> {
                             color: Colors.white.withOpacity(0.54),
                           ),
                           const SizedBox(height: 16),
-                          const Text(
-                            'equipe.mp4 not found',
-                            style: TextStyle(
+                          Text(
+                            clips.isEmpty ? 'No clips found' : 'No valid video files',
+                            style: const TextStyle(
                               color: Colors.white,
                               fontSize: 18,
                             ),
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'Place equipe.mp4 at:\n$_fixedVideoPath',
+                            clips.isEmpty 
+                                ? 'Add some video clips to the timeline'
+                                : 'Check that video files exist:\n${clips.map((c) => c.sourcePath).join('\n')}',
                             style: TextStyle(
                               color: Colors.white.withOpacity(0.54),
                               fontSize: 12,
@@ -107,56 +146,71 @@ class _PlayerPanelState extends State<PlayerPanel> {
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Row(
               children: [
-                // Play/Pause button
-                Button(
-                  onPressed: () async {
-                    try {
-                      if (isPlaying) {
-                        _timelineNavViewModel.stopPlayback();
-                      } else {
-                        await _timelineNavViewModel.startPlayback();
-                      }
-                    } catch (e) {
-                      logError('PlayerPanel', 'Error toggling playback: $e');
-                    }
-                  },
-                  child: Icon(
-                    isPlaying ? FluentIcons.pause : FluentIcons.play,
-                    size: 16,
+                // Frame info
+                Flexible(
+                  child: Text(
+                    'Frame: $currentFrame',
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
 
                 const SizedBox(width: 8),
 
-                // Frame info
-                Text('Frame: $currentFrame'),
-
-                const Spacer(),
-
-                // Mode label - updated to indicate fixed video mode
-                Text(
-                  'Fixed Video Player (equipe.mp4)',
-                  style: FluentTheme.of(context).typography.caption,
+                // Playback status info
+                Flexible(
+                  child: Text(
+                    'Timeline: ${isTimelinePlaying ? "Playing" : "Stopped"}',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                
+                const SizedBox(width: 8),
+                
+                Flexible(
+                  child: Text(
+                    'Video: ${isVideoPlaying ? "Playing" : "Stopped"}',
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
 
                 const SizedBox(width: 8),
 
-                // Status indicator - shows different colors based on video availability
+                // Clips info
+                Flexible(
+                  child: Text(
+                    'Clips: ${clips.length}',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+
+                const Spacer(),
+
+                // Current video info
+                if (firstVideoPath != null)
+                  Flexible(
+                    child: Text(
+                      'Playing: ${firstVideoPath.split('/').last}',
+                      style: FluentTheme.of(context).typography.caption,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+
+                const SizedBox(width: 8),
+
+                // Status indicator
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 8,
                     vertical: 2,
                   ),
                   decoration: BoxDecoration(
-                    color: File(_fixedVideoPath).existsSync() 
-                        ? Colors.blue // Blue for fixed video mode with valid file
-                        : Colors.orange, // Orange for missing video file
+                    color: firstVideoPath != null ? Colors.green : 
+                           clips.isNotEmpty ? Colors.orange : Colors.red,
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
-                    File(_fixedVideoPath).existsSync() 
-                        ? 'equipe.mp4' 
-                        : 'Missing',
+                    firstVideoPath != null ? 'Video Ready' : 
+                    clips.isNotEmpty ? 'No Valid Videos' : 'No Clips',
                     style: FluentTheme.of(context).typography.caption?.copyWith(
                       color: Colors.white,
                     ),

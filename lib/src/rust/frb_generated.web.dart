@@ -23,12 +23,28 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   });
 
   CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_TimelinePlayerPtr =>
+      wire.rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayer;
+
+  CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_VideoPlayerPtr =>
       wire.rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVideoPlayer;
 
   @protected
+  TimelinePlayer
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayer(
+    dynamic raw,
+  );
+
+  @protected
   VideoPlayer
   dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVideoPlayer(
+    dynamic raw,
+  );
+
+  @protected
+  TimelinePlayer
+  dco_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayer(
     dynamic raw,
   );
 
@@ -39,8 +55,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  TimelinePlayer
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayer(
+    dynamic raw,
+  );
+
+  @protected
   VideoPlayer
   dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVideoPlayer(
+    dynamic raw,
+  );
+
+  @protected
+  TimelinePlayer
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayer(
     dynamic raw,
   );
 
@@ -60,6 +88,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   FrameData dco_decode_box_autoadd_frame_data(dynamic raw);
 
   @protected
+  int dco_decode_box_autoadd_i_32(dynamic raw);
+
+  @protected
+  TimelineData dco_decode_box_autoadd_timeline_data(dynamic raw);
+
+  @protected
   double dco_decode_f_64(dynamic raw);
 
   @protected
@@ -75,10 +109,31 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
 
   @protected
+  List<TimelineClip> dco_decode_list_timeline_clip(dynamic raw);
+
+  @protected
+  List<TimelineTrack> dco_decode_list_timeline_track(dynamic raw);
+
+  @protected
   FrameData? dco_decode_opt_box_autoadd_frame_data(dynamic raw);
 
   @protected
+  int? dco_decode_opt_box_autoadd_i_32(dynamic raw);
+
+  @protected
+  (double, BigInt) dco_decode_record_f_64_u_64(dynamic raw);
+
+  @protected
   (int, int) dco_decode_record_i_32_i_32(dynamic raw);
+
+  @protected
+  TimelineClip dco_decode_timeline_clip(dynamic raw);
+
+  @protected
+  TimelineData dco_decode_timeline_data(dynamic raw);
+
+  @protected
+  TimelineTrack dco_decode_timeline_track(dynamic raw);
 
   @protected
   int dco_decode_u_32(dynamic raw);
@@ -96,8 +151,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BigInt dco_decode_usize(dynamic raw);
 
   @protected
+  TimelinePlayer
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayer(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   VideoPlayer
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVideoPlayer(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  TimelinePlayer
+  sse_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayer(
     SseDeserializer deserializer,
   );
 
@@ -108,8 +175,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  TimelinePlayer
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayer(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   VideoPlayer
   sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVideoPlayer(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  TimelinePlayer
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayer(
     SseDeserializer deserializer,
   );
 
@@ -129,6 +208,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   FrameData sse_decode_box_autoadd_frame_data(SseDeserializer deserializer);
 
   @protected
+  int sse_decode_box_autoadd_i_32(SseDeserializer deserializer);
+
+  @protected
+  TimelineData sse_decode_box_autoadd_timeline_data(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   double sse_decode_f_64(SseDeserializer deserializer);
 
   @protected
@@ -144,12 +231,37 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
 
   @protected
+  List<TimelineClip> sse_decode_list_timeline_clip(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<TimelineTrack> sse_decode_list_timeline_track(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   FrameData? sse_decode_opt_box_autoadd_frame_data(
     SseDeserializer deserializer,
   );
 
   @protected
+  int? sse_decode_opt_box_autoadd_i_32(SseDeserializer deserializer);
+
+  @protected
+  (double, BigInt) sse_decode_record_f_64_u_64(SseDeserializer deserializer);
+
+  @protected
   (int, int) sse_decode_record_i_32_i_32(SseDeserializer deserializer);
+
+  @protected
+  TimelineClip sse_decode_timeline_clip(SseDeserializer deserializer);
+
+  @protected
+  TimelineData sse_decode_timeline_data(SseDeserializer deserializer);
+
+  @protected
+  TimelineTrack sse_decode_timeline_track(SseDeserializer deserializer);
 
   @protected
   int sse_decode_u_32(SseDeserializer deserializer);
@@ -168,8 +280,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayer(
+    TimelinePlayer self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVideoPlayer(
     VideoPlayer self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
+  sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayer(
+    TimelinePlayer self,
     SseSerializer serializer,
   );
 
@@ -182,8 +308,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayer(
+    TimelinePlayer self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
   sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVideoPlayer(
     VideoPlayer self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayer(
+    TimelinePlayer self,
     SseSerializer serializer,
   );
 
@@ -207,6 +347,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_i_32(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_timeline_data(
+    TimelineData self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_f_64(double self, SseSerializer serializer);
 
   @protected
@@ -225,13 +374,43 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_timeline_clip(
+    List<TimelineClip> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_timeline_track(
+    List<TimelineTrack> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_frame_data(
     FrameData? self,
     SseSerializer serializer,
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_i_32(int? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_record_f_64_u_64(
+    (double, BigInt) self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_record_i_32_i_32((int, int) self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_timeline_clip(TimelineClip self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_timeline_data(TimelineData self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_timeline_track(TimelineTrack self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_32(int self, SseSerializer serializer);
@@ -253,6 +432,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
 class RustLibWire implements BaseWire {
   RustLibWire.fromExternalLibrary(ExternalLibrary lib);
+
+  void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayer(
+    int ptr,
+  ) => wasmModule
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayer(
+        ptr,
+      );
+
+  void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayer(
+    int ptr,
+  ) => wasmModule
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayer(
+        ptr,
+      );
 
   void
   rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVideoPlayer(
@@ -277,6 +472,16 @@ external RustLibWasmModule get wasmModule;
 @JS()
 @anonymous
 extension type RustLibWasmModule._(JSObject _) implements JSObject {
+  external void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayer(
+    int ptr,
+  );
+
+  external void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayer(
+    int ptr,
+  );
+
   external void
   rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVideoPlayer(
     int ptr,

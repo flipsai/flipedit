@@ -2,17 +2,17 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart'; // Keep for now (actions)
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart'; // Import State VM
+import 'package:flipedit/services/video_player_service.dart'; // Add VideoPlayerService import
 import 'package:flipedit/views/widgets/timeline/components/time_ruler.dart';
 import 'package:flipedit/views/widgets/timeline/components/timeline_controls.dart';
+import 'package:flipedit/views/widgets/timeline/components/lightweight_playhead_overlay.dart';
 import 'package:flipedit/views/widgets/timeline/timeline_track.dart';
-import 'package:flipedit/views/widgets/timeline/mixins/timeline_playhead_logic_mixin.dart';
 import 'package:flipedit/views/widgets/timeline/mixins/timeline_scroll_logic_mixin.dart';
 import 'package:flipedit/views/widgets/timeline/mixins/timeline_interaction_logic_mixin.dart';
 import 'package:watch_it/watch_it.dart';
 import 'dart:math' as math;
 import 'package:flipedit/utils/logger.dart';
 import 'package:flipedit/models/clip.dart';
-import 'package:flipedit/views/widgets/timeline/components/timeline_playhead.dart';
 
 /// Main timeline widget that shows clips and tracks
 class Timeline extends StatefulWidget with WatchItStatefulWidgetMixin {
@@ -26,7 +26,6 @@ class _TimelineState extends State<Timeline>
     with
         TickerProviderStateMixin,
         TimelineScrollLogicMixin,
-        TimelinePlayheadLogicMixin,
         TimelineInteractionLogicMixin {
   @override
   double viewportWidth = 0;
@@ -50,18 +49,8 @@ class _TimelineState extends State<Timeline>
   // Store the listener function to remove it in dispose
   VoidCallback? _scrollRequestListener;
 
-  // Add a listener for ensuring playhead follows video position
-  VoidCallback? _currentFrameListener;
-
   @override
   double trackLabelWidth = 120.0;
-
-  // Animation controllers are still managed here as they require TickerProvider
-  @override
-  late AnimationController playheadPhysicsController;
-
-  @override
-  late AnimationController scrubSnapController;
 
   @override
   Function(double) get setTrackLabelWidth => (newWidth) {
@@ -80,19 +69,6 @@ class _TimelineState extends State<Timeline>
     _timelineStateViewModel =
         di<TimelineStateViewModel>(); // Initialize State VM instance
 
-    // Setup physics controllers (needed by TimelinePlayheadLogicMixin)
-    playheadPhysicsController = AnimationController(
-      vsync: this, // Provided by TickerProviderStateMixin
-      duration: const Duration(milliseconds: 800),
-    );
-    scrubSnapController = AnimationController(
-      vsync: this, // Provided by TickerProviderStateMixin
-      duration: const Duration(milliseconds: 150),
-    );
-
-    // Initialize logic from the playhead mixin
-    initializePlayheadLogic(ensurePlayheadVisible: ensurePlayheadVisible);
-
     // Define the listener callback function using the navigation view model
     _scrollRequestListener = () {
       final frame =
@@ -107,19 +83,6 @@ class _TimelineState extends State<Timeline>
 
     timelineNavigationViewModel.navigationService.scrollToFrameRequestNotifier
         .addListener(_scrollRequestListener!);
-
-    // Add listener to keep the visualFramePositionNotifier in sync with currentFrameNotifier
-    _currentFrameListener = () {
-      final currentFrame =
-          timelineNavigationViewModel.currentFrameNotifier.value;
-      // Update the visual frame position if it's different
-      if (visualFramePositionNotifier.value != currentFrame.toDouble()) {
-        visualFramePositionNotifier.value = currentFrame.toDouble();
-      }
-    };
-    timelineNavigationViewModel.currentFrameNotifier.addListener(
-      _currentFrameListener!,
-    );
   }
 
   @override
@@ -129,18 +92,6 @@ class _TimelineState extends State<Timeline>
           .removeListener(_scrollRequestListener!);
     }
 
-    if (_currentFrameListener != null) {
-      timelineNavigationViewModel.currentFrameNotifier.removeListener(
-        _currentFrameListener!,
-      );
-    }
-
-    disposePlayheadLogic();
-
-    // Dispose animation controllers (managed here)
-    playheadPhysicsController.dispose();
-    scrubSnapController.dispose();
-
     // Dispose scroll controller (managed here)
     scrollController.dispose();
 
@@ -149,22 +100,75 @@ class _TimelineState extends State<Timeline>
 
   @override
   Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Update viewportWidth when constraints change
+        viewportWidth = constraints.maxWidth;
+        
+        return _TimelineContent(
+          timelineStateViewModel: _timelineStateViewModel,
+          timelineNavigationViewModel: timelineNavigationViewModel,
+          timelineViewModel: timelineViewModel,
+          viewportWidth: viewportWidth,
+          trackLabelWidth: trackLabelWidth,
+          scrollController: scrollController,
+          onTrackLabelResize: handleTrackLabelResize,
+          onTimelineAreaWillAccept: handleTimelineAreaWillAccept,
+          onTimelineAreaAccept: handleTimelineAreaAccept,
+          onTrackReorder: handleTrackReorder,
+        );
+      },
+    );
+  }
+}
+
+class _TimelineContent extends StatelessWidget with WatchItMixin {
+  final TimelineStateViewModel timelineStateViewModel;
+  final TimelineNavigationViewModel timelineNavigationViewModel;
+  final TimelineViewModel timelineViewModel;
+  final double viewportWidth;
+  final double trackLabelWidth;
+  final ScrollController scrollController;
+  final void Function(DragUpdateDetails) onTrackLabelResize;
+  final bool Function(ClipModel, List<dynamic>) onTimelineAreaWillAccept;
+  final Future<void> Function(ClipModel, DragTargetDetails<ClipModel>, BuildContext) onTimelineAreaAccept;
+  final void Function(int, int, int) onTrackReorder;
+
+  const _TimelineContent({
+    required this.timelineStateViewModel,
+    required this.timelineNavigationViewModel,
+    required this.timelineViewModel,
+    required this.viewportWidth,
+    required this.trackLabelWidth,
+    required this.scrollController,
+    required this.onTrackLabelResize,
+    required this.onTimelineAreaWillAccept,
+    required this.onTimelineAreaAccept,
+    required this.onTrackReorder,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
 
     // Watch properties from ViewModels
     final clips = watchValue(
       (TimelineStateViewModel vm) => vm.clipsNotifier,
-    ); // Watch State VM
+    );
     final tracks = watchValue(
-      (TimelineStateViewModel vm) => vm.tracksNotifierForView, // Watch State VM
+      (TimelineStateViewModel vm) => vm.tracksNotifierForView,
     );
 
     final zoom = watchValue(
       (TimelineNavigationViewModel vm) => vm.zoomNotifier,
     );
-    // Use timelineEnd for scrollable width, not just totalFrames (based on clips)
     final timelineEnd = watchValue(
       (TimelineNavigationViewModel vm) => vm.timelineEndNotifier,
+    );
+
+    // Watch VideoPlayerService to determine if a video is loaded
+    final hasActiveVideo = watchValue(
+      (VideoPlayerService service) => service.hasActiveVideoNotifier,
     );
 
     // Debug logging
@@ -188,15 +192,12 @@ class _TimelineState extends State<Timeline>
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                // Use instance variable viewportWidth
-                viewportWidth = constraints.maxWidth;
-                // Calculate contentWidth based on timelineEnd to allow scrolling beyond clips
-                final double contentWidth =
-                    timelineEnd * zoom * framePixelWidth;
+                final double contentWidth = timelineEnd * zoom * framePixelWidth;
                 final double totalScrollableWidth = math.max(
                   viewportWidth,
                   contentWidth + trackLabelWidth,
                 );
+                final double availableHeight = constraints.maxHeight;
 
                 return ClipRect(
                   child: Stack(
@@ -212,256 +213,206 @@ class _TimelineState extends State<Timeline>
                           ),
                         ),
 
-                      // Horizontally Scrollable Container
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        controller: scrollController,
-                        physics:
-                            _timelineStateViewModel
-                                    .hasContent // Use State VM instance
-                                ? const ClampingScrollPhysics()
-                                : const NeverScrollableScrollPhysics(),
-                        child: SizedBox(
-                          width: totalScrollableWidth,
-                          // Temporarily replace AnimatedBuilder with Builder to test initial drag update
-                          child: Builder(
-                            builder: (context) {
-                              final currentScrollOffset =
-                                  scrollController.hasClients
-                                      ? scrollController.offset
-                                      : 0.0;
-                              return Stack(
-                                clipBehavior: Clip.none,
-                                children: [
-                                  // Column containing TimeRuler and Tracks List
-                                  Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      // TimeRuler
-                                      if (tracks.isNotEmpty)
-                                        Padding(
-                                          padding: EdgeInsets.only(
-                                            left: trackLabelWidth,
-                                          ),
-                                          child: SizedBox(
-                                            height: timeRulerHeight,
-                                            // Width should be the scrollable content width
-                                            width:
-                                                totalScrollableWidth -
-                                                trackLabelWidth,
-                                            child: TimeRuler(
-                                              zoom: zoom,
-                                              availableWidth:
+                      // Horizontally Scrollable Container (Isolated from playhead updates)
+                      RepaintBoundary(
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          controller: scrollController,
+                          physics: timelineStateViewModel.hasContent
+                              ? const ClampingScrollPhysics()
+                              : const NeverScrollableScrollPhysics(),
+                          child: SizedBox(
+                            width: totalScrollableWidth,
+                            child: Builder(
+                              builder: (context) {
+                                final currentScrollOffset =
+                                    scrollController.hasClients
+                                        ? scrollController.offset
+                                        : 0.0;
+                                return Stack(
+                                  clipBehavior: Clip.none,
+                                  children: [
+                                    // Column containing TimeRuler and Tracks List
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        // TimeRuler
+                                        if (tracks.isNotEmpty)
+                                          Padding(
+                                            padding: EdgeInsets.only(
+                                              left: trackLabelWidth,
+                                            ),
+                                            child: SizedBox(
+                                              height: timeRulerHeight,
+                                              width:
                                                   totalScrollableWidth -
                                                   trackLabelWidth,
-                                            ),
-                                          ),
-                                        ),
-
-                                      // Track List Area with DragTarget for empty timeline
-                                      Expanded(
-                                        child: DragTarget<ClipModel>(
-                                          // Use method from TimelineInteractionLogicMixin
-                                          onWillAcceptWithDetails:
-                                              (details) =>
-                                                  handleTimelineAreaWillAccept(
-                                                    details.data,
-                                                    tracks,
-                                                  ),
-                                          // Use method from TimelineInteractionLogicMixin
-                                          onAcceptWithDetails:
-                                              (details) async =>
-                                                  handleTimelineAreaAccept(
-                                                    details.data,
-                                                    details,
-                                                    context,
-                                                  ),
-                                          builder: (
-                                            context,
-                                            candidateData,
-                                            rejectedData,
-                                          ) {
-                                            // Empty state message
-                                            if (tracks.isEmpty &&
-                                                candidateData.isEmpty) {
-                                              return Center(
-                                                child: Column(
-                                                  mainAxisAlignment:
-                                                      MainAxisAlignment.center,
-                                                  children: [
-                                                    const Icon(
-                                                      FluentIcons.error,
-                                                      size: 24,
-                                                    ),
-                                                    const SizedBox(height: 8),
-                                                    Text(
-                                                      'No tracks in project',
-                                                      style:
-                                                          theme
-                                                              .typography
-                                                              .bodyLarge,
-                                                    ),
-                                                    const SizedBox(height: 4),
-                                                    Text(
-                                                      'Drag media here to create a track',
-                                                      style: theme
-                                                          .typography
-                                                          .body
-                                                          ?.copyWith(
-                                                            color:
-                                                                theme
-                                                                    .resources
-                                                                    .textFillColorSecondary,
-                                                          ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              );
-                                            }
-
-                                            // Tracks list
-                                            return ReorderableListView.builder(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    vertical: trackItemSpacing,
-                                                  ),
-                                              // Use method from TimelineInteractionLogicMixin
-                                              onReorder:
-                                                  (oldIndex, newIndex) =>
-                                                      handleTrackReorder(
-                                                        oldIndex,
-                                                        newIndex,
-                                                        tracks.length,
-                                                      ),
-                                              buildDefaultDragHandles: false,
-                                              itemCount: tracks.length,
-                                              itemBuilder: (context, index) {
-                                                final track = tracks[index];
-                                                return Padding(
-                                                  key: ValueKey(
-                                                    'track_${track.id}',
-                                                  ),
-                                                  padding:
-                                                      const EdgeInsets.only(
-                                                        bottom:
-                                                            trackItemSpacing,
-                                                      ),
-                                                  child: TimelineTrack(
-                                                    key: ValueKey(
-                                                      'timeline_track_${track.id}',
-                                                    ),
-                                                    track: track,
-                                                    onDelete:
-                                                        () => timelineViewModel
-                                                            .deleteTrack(
-                                                              track.id,
-                                                            ),
-                                                    trackLabelWidth:
-                                                        trackLabelWidth,
-                                                    scrollOffset:
-                                                        currentScrollOffset,
-                                                  ),
-                                                );
-                                              },
-                                            );
-                                          },
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  if (tracks.isNotEmpty)
-                                    ValueListenableBuilder<double>(
-                                      valueListenable:
-                                          visualFramePositionNotifier,
-                                      builder: (context, visualFrame, _) {
-                                        final double playheadPositionPx =
-                                            visualFrame *
-                                            zoom *
-                                            framePixelWidth;
-                                        const double hitAreaWidth = 20.0;
-                                        final double finalLeft =
-                                            (trackLabelWidth +
-                                                playheadPositionPx) -
-                                            (hitAreaWidth / 2);
-
-                                        return Positioned(
-                                          top: 0,
-                                          bottom: 0,
-                                          left: finalLeft,
-                                          child: MouseRegion(
-                                            cursor:
-                                                SystemMouseCursors.allScroll,
-                                            child: GestureDetector(
-                                              behavior:
-                                                  HitTestBehavior.translucent,
-                                              onHorizontalDragStart:
-                                                  handlePlayheadDragStart,
-                                              onHorizontalDragUpdate:
-                                                  handlePlayheadDragUpdate,
-                                              onHorizontalDragEnd:
-                                                  handlePlayheadDragEnd,
-                                              onHorizontalDragCancel:
-                                                  handlePlayheadDragCancel,
-                                              child: SizedBox(
-                                                width: hitAreaWidth,
-                                                height: double.infinity,
-                                                child: Stack(
-                                                  clipBehavior: Clip.none,
-                                                  children: [
-                                                    Positioned(
-                                                      left:
-                                                          (hitAreaWidth - 10) /
-                                                          2,
-                                                      top: 0,
-                                                      bottom: 0,
-                                                      child:
-                                                          const TimelinePlayhead(),
-                                                    ),
-                                                  ],
-                                                ),
+                                              child: TimeRuler(
+                                                zoom: zoom,
+                                                availableWidth:
+                                                    totalScrollableWidth -
+                                                    trackLabelWidth,
                                               ),
                                             ),
                                           ),
-                                        );
-                                      },
+
+                                        // Track List Area with DragTarget for empty timeline
+                                        Expanded(
+                                          child: DragTarget<ClipModel>(
+                                            onWillAcceptWithDetails:
+                                                (details) =>
+                                                    onTimelineAreaWillAccept(
+                                                      details.data,
+                                                      tracks,
+                                                    ),
+                                            onAcceptWithDetails:
+                                                (details) async =>
+                                                    onTimelineAreaAccept(
+                                                      details.data,
+                                                      details,
+                                                      context,
+                                                    ),
+                                            builder: (
+                                              context,
+                                              candidateData,
+                                              rejectedData,
+                                            ) {
+                                              // Empty state message
+                                              if (tracks.isEmpty &&
+                                                  candidateData.isEmpty) {
+                                                return Center(
+                                                  child: Column(
+                                                    mainAxisAlignment:
+                                                        MainAxisAlignment.center,
+                                                    children: [
+                                                      const Icon(
+                                                        FluentIcons.error,
+                                                        size: 24,
+                                                      ),
+                                                      const SizedBox(height: 8),
+                                                      Text(
+                                                        'No tracks in project',
+                                                        style:
+                                                            theme
+                                                                .typography
+                                                                .bodyLarge,
+                                                      ),
+                                                      const SizedBox(height: 4),
+                                                      Text(
+                                                        'Drag media here to create a track',
+                                                        style: theme
+                                                            .typography
+                                                            .body
+                                                            ?.copyWith(
+                                                              color:
+                                                                  theme
+                                                                      .resources
+                                                                      .textFillColorSecondary,
+                                                            ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                );
+                                              }
+
+                                              // Tracks list
+                                              return ReorderableListView.builder(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      vertical: trackItemSpacing,
+                                                    ),
+                                                onReorder:
+                                                    (oldIndex, newIndex) =>
+                                                        onTrackReorder(
+                                                          oldIndex,
+                                                          newIndex,
+                                                          tracks.length,
+                                                        ),
+                                                buildDefaultDragHandles: false,
+                                                itemCount: tracks.length,
+                                                itemBuilder: (context, index) {
+                                                  final track = tracks[index];
+                                                  return Padding(
+                                                    key: ValueKey(
+                                                      'track_${track.id}',
+                                                    ),
+                                                    padding:
+                                                        const EdgeInsets.only(
+                                                          bottom:
+                                                              trackItemSpacing,
+                                                        ),
+                                                    child: TimelineTrack(
+                                                      key: ValueKey(
+                                                        'timeline_track_${track.id}',
+                                                      ),
+                                                      track: track,
+                                                      onDelete:
+                                                          () => timelineViewModel
+                                                              .deleteTrack(
+                                                                track.id,
+                                                              ),
+                                                      trackLabelWidth:
+                                                          trackLabelWidth,
+                                                      scrollOffset:
+                                                          currentScrollOffset,
+                                                    ),
+                                                  );
+                                                },
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  if (tracks.isNotEmpty)
-                                    Positioned(
-                                      top: 0,
-                                      bottom: 0,
-                                      left: trackLabelWidth - 3,
-                                      width: 6,
-                                      child: GestureDetector(
-                                        onHorizontalDragUpdate:
-                                            handleTrackLabelResize,
-                                        child: MouseRegion(
-                                          cursor:
-                                              SystemMouseCursors
-                                                  .resizeLeftRight,
-                                          child: Container(
-                                            color:
-                                                theme
-                                                    .resources
-                                                    .subtleFillColorTransparent,
-                                            alignment: Alignment.center,
+
+                                    // Track Label Resize Handle
+                                    if (tracks.isNotEmpty)
+                                      Positioned(
+                                        top: 0,
+                                        bottom: 0,
+                                        left: trackLabelWidth - 3,
+                                        width: 6,
+                                        child: GestureDetector(
+                                          onHorizontalDragUpdate: onTrackLabelResize,
+                                          child: MouseRegion(
+                                            cursor:
+                                                SystemMouseCursors
+                                                    .resizeLeftRight,
                                             child: Container(
-                                              width: 1.5,
                                               color:
                                                   theme
                                                       .resources
-                                                      .controlStrokeColorDefault,
+                                                      .subtleFillColorTransparent,
+                                              alignment: Alignment.center,
+                                              child: Container(
+                                                width: 1.5,
+                                                color:
+                                                    theme
+                                                        .resources
+                                                        .controlStrokeColorDefault,
+                                              ),
                                             ),
                                           ),
                                         ),
                                       ),
-                                    ),
-                                ],
-                              );
-                            },
+                                  ],
+                                );
+                              },
+                            ),
                           ),
                         ),
                       ),
+
+                      // Lightweight Playhead Overlay (Separate Rendering Layer)
+                      if (hasActiveVideo)
+                        LightweightPlayheadOverlay(
+                          key: const ValueKey('timeline_playhead'),
+                          zoom: zoom,
+                          trackLabelWidth: trackLabelWidth,
+                          timelineHeight: availableHeight,
+                          scrollController: scrollController,
+                        ),
                     ],
                   ),
                 );

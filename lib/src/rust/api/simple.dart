@@ -7,8 +7,40 @@ import '../common/types.dart';
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
+// These functions are ignored because they are not marked as `pub`: `start_position_reporting`, `stop_position_reporting`
+
 String greet({required String name}) =>
     RustLib.instance.api.crateApiSimpleGreet(name: name);
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<TimelinePlayer>>
+abstract class TimelinePlayer implements RustOpaqueInterface {
+  @override
+  Future<void> dispose();
+
+  FrameData? getLatestFrame();
+
+  int getPositionMs();
+
+  bool isPlaying();
+
+  Future<void> loadTimeline({required TimelineData timelineData});
+
+  factory TimelinePlayer() =>
+      RustLib.instance.api.crateApiSimpleTimelinePlayerNew();
+
+  Future<void> pause();
+
+  Future<void> play();
+
+  Future<void> setPositionMs({required int positionMs});
+
+  void setTexturePtr({required PlatformInt64 ptr});
+
+  Future<void> stop();
+
+  /// Test method to verify timeline logic - set position and check if frame should be shown
+  bool testTimelineLogic({required int positionMs});
+}
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<VideoPlayer>>
 abstract class VideoPlayer implements RustOpaqueInterface {
@@ -18,7 +50,8 @@ abstract class VideoPlayer implements RustOpaqueInterface {
   /// Extract frame at specific position for preview without seeking main pipeline
   Future<void> extractFrameAtPosition({required double seconds});
 
-  BigInt getCurrentFrameNumber();
+  /// Get current position and frame - Flutter can call this periodically
+  (double, BigInt) getCurrentPositionAndFrame();
 
   double getDurationSeconds();
 

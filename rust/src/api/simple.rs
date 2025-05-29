@@ -1,8 +1,15 @@
 use flutter_rust_bridge::frb;
 pub use crate::api::bridge::*;
 use crate::video::player::VideoPlayer as InternalVideoPlayer;
-pub use crate::common::types::FrameData;
+use crate::video::timeline_player::TimelinePlayer as InternalTimelinePlayer;
+pub use crate::common::types::{FrameData, TimelineData, TimelineClip, TimelineTrack};
 use crate::utils::testing;
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::Duration;
+
+// Position update callback type
+pub type PositionUpdateCallback = Box<dyn Fn(f64, u64) + Send + Sync>;
 
 #[frb(sync)]
 pub fn greet(name: String) -> String {
@@ -11,6 +18,8 @@ pub fn greet(name: String) -> String {
 
 pub struct VideoPlayer {
     inner: InternalVideoPlayer,
+    position_callback: Arc<Mutex<Option<PositionUpdateCallback>>>,
+    position_thread_running: Arc<Mutex<bool>>,
 }
 
 impl VideoPlayer {
@@ -18,6 +27,8 @@ impl VideoPlayer {
     pub fn new() -> Self {
         Self {
             inner: InternalVideoPlayer::new(),
+            position_callback: Arc::new(Mutex::new(None)),
+            position_thread_running: Arc::new(Mutex::new(false)),
         }
     }
 
@@ -36,15 +47,53 @@ impl VideoPlayer {
     }
 
     pub fn play(&mut self) -> Result<(), String> {
-        self.inner.play()
+        let result = self.inner.play();
+        if result.is_ok() {
+            self.start_position_reporting();
+        }
+        result
     }
 
     pub fn pause(&mut self) -> Result<(), String> {
-        self.inner.pause()
+        let result = self.inner.pause();
+        self.stop_position_reporting();
+        result
     }
 
     pub fn stop(&mut self) -> Result<(), String> {
-        self.inner.stop()
+        let result = self.inner.stop();
+        self.stop_position_reporting();
+        result
+    }
+
+    /// Start position reporting thread
+    fn start_position_reporting(&mut self) {
+        // Only start if not already running
+        if *self.position_thread_running.lock().unwrap() {
+            return;
+        }
+
+        *self.position_thread_running.lock().unwrap() = true;
+        
+        let callback_arc = Arc::clone(&self.position_callback);
+        let thread_running_arc = Arc::clone(&self.position_thread_running);
+        
+        // We need a way to get position from the inner player in the thread
+        // For now, let's use a simpler approach and just expose this as a method
+        // that Flutter can call periodically
+    }
+
+    /// Stop position reporting thread
+    fn stop_position_reporting(&mut self) {
+        *self.position_thread_running.lock().unwrap() = false;
+    }
+
+    /// Get current position and frame - Flutter can call this periodically
+    #[frb(sync)]
+    pub fn get_current_position_and_frame(&self) -> (f64, u64) {
+        let position_seconds = self.inner.get_position_seconds();
+        let frame_number = self.inner.get_current_frame_number();
+        (position_seconds, frame_number)
     }
 
     #[frb(sync)]
@@ -68,6 +117,7 @@ impl VideoPlayer {
     }
 
     pub fn dispose(&mut self) -> Result<(), String> {
+        self.stop_position_reporting();
         self.inner.dispose()
     }
 
@@ -89,11 +139,6 @@ impl VideoPlayer {
     #[frb(sync)]
     pub fn get_frame_rate(&self) -> f64 {
         self.inner.get_frame_rate()
-    }
-
-    #[frb(sync)]
-    pub fn get_current_frame_number(&self) -> u64 {
-        self.inner.get_current_frame_number()
     }
 
     #[frb(sync)]
@@ -126,5 +171,69 @@ impl VideoPlayer {
 
     pub fn test_pipeline(&self, file_path: String) -> Result<(), String> {
         testing::test_pipeline(file_path)
+    }
+}
+
+pub struct TimelinePlayer {
+    inner: InternalTimelinePlayer,
+}
+
+impl TimelinePlayer {
+    #[frb(sync)]
+    pub fn new() -> Self {
+        Self {
+            inner: InternalTimelinePlayer::new(),
+        }
+    }
+
+    #[frb(sync)]
+    pub fn set_texture_ptr(&mut self, ptr: i64) {
+        self.inner.set_texture_ptr(ptr);
+    }
+
+    pub fn load_timeline(&mut self, timeline_data: TimelineData) -> Result<(), String> {
+        self.inner.load_timeline(timeline_data)
+    }
+
+    pub fn set_position_ms(&mut self, position_ms: i32) {
+        self.inner.set_position_ms(position_ms);
+    }
+
+    #[frb(sync)]
+    pub fn get_position_ms(&self) -> i32 {
+        self.inner.get_position_ms()
+    }
+
+    pub fn play(&mut self) -> Result<(), String> {
+        self.inner.play()
+    }
+
+    pub fn pause(&mut self) -> Result<(), String> {
+        self.inner.pause()
+    }
+
+    pub fn stop(&mut self) -> Result<(), String> {
+        self.inner.stop()
+    }
+
+    #[frb(sync)]
+    pub fn get_latest_frame(&self) -> Option<FrameData> {
+        self.inner.frame_handler.get_latest_frame()
+    }
+
+    #[frb(sync)]
+    pub fn is_playing(&self) -> bool {
+        self.inner.is_playing()
+    }
+
+    pub fn dispose(&mut self) -> Result<(), String> {
+        self.inner.dispose()
+    }
+
+    /// Test method to verify timeline logic - set position and check if frame should be shown
+    #[frb(sync)]
+    pub fn test_timeline_logic(&mut self, position_ms: i32) -> bool {
+        self.inner.set_position_ms(position_ms);
+        self.inner.frame_handler.should_show_frame()
     }
 } 

@@ -10,9 +10,20 @@ pub fn setup_logger() {
 
         #[cfg(not(target_os = "android"))]
         {
-            let _ = env_logger::Builder::from_default_env()
+            // Configure env_logger with better formatting and force initialization
+            let env = env_logger::Env::default()
+                .filter_or("RUST_LOG", "debug")
+                .write_style_or("RUST_LOG_STYLE", "always");
+                
+            match env_logger::Builder::from_env(env)
                 .filter_level(LevelFilter::Debug)
-                .try_init();
+                .format_timestamp_millis()
+                .format_module_path(false)
+                .try_init() 
+            {
+                Ok(_) => println!("Rust logger initialized successfully"),
+                Err(e) => println!("Failed to initialize Rust logger: {}", e),
+            }
         }
     });
 } 

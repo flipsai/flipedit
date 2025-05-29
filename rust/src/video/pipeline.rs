@@ -56,8 +56,14 @@ impl PipelineManager {
             .map_err(|e| format!("Failed to create videoconvert: {}", e))?;
 
         let videoscale = gst::ElementFactory::make("videoscale")
+            .property("add-borders", true)
             .build()
             .map_err(|e| format!("Failed to create videoscale: {}", e))?;
+
+        // Add caps filter to limit resolution to prevent crashes
+        let video_capsfilter = gst::ElementFactory::make("capsfilter")
+            .build()
+            .map_err(|e| format!("Failed to create video capsfilter: {}", e))?;
 
         let video_appsink = gst::ElementFactory::make("appsink")
             .property("emit-signals", true)
@@ -88,6 +94,14 @@ impl PipelineManager {
 
         debug!("All GStreamer elements created successfully");
 
+        // Configure video caps filter to limit maximum resolution (prevents crashes with huge videos)
+        video_capsfilter.set_property("caps", &gst::Caps::builder("video/x-raw")
+            .field("format", "BGRA")
+            .field("width", gst::IntRange::new(1, 1920))
+            .field("height", gst::IntRange::new(1, 1080))
+            .field("pixel-aspect-ratio", gst::Fraction::new(1, 1))
+            .build());
+
         // Configure video appsink to output BGRA format
         let video_appsink = video_appsink.dynamic_cast::<gst_app::AppSink>().unwrap();
         video_appsink.set_caps(Some(
@@ -115,6 +129,7 @@ impl PipelineManager {
             &decodebin, 
             &videoconvert, 
             &videoscale, 
+            &video_capsfilter,
             video_appsink.upcast_ref(),
             &audioconvert,
             &audioresample,
@@ -129,8 +144,10 @@ impl PipelineManager {
 
         videoconvert.link(&videoscale)
             .map_err(|e| format!("Failed to link videoconvert to videoscale: {}", e))?;
-        videoscale.link(&video_appsink)
-            .map_err(|e| format!("Failed to link videoscale to video appsink: {}", e))?;
+        videoscale.link(&video_capsfilter)
+            .map_err(|e| format!("Failed to link videoscale to video capsfilter: {}", e))?;
+        video_capsfilter.link(&video_appsink)
+            .map_err(|e| format!("Failed to link video capsfilter to video appsink: {}", e))?;
 
         audioconvert.link(&audioresample)
             .map_err(|e| format!("Failed to link audioconvert to audioresample: {}", e))?;

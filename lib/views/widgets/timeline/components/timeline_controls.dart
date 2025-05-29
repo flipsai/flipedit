@@ -1,13 +1,13 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
-import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart'; // Added import
-import 'package:video_player/video_player.dart';
+import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/models/enums/edit_mode.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:flipedit/utils/logger.dart';
 
 /// Controls widget for the timeline including playback controls and zoom
-import 'package:flipedit/viewmodels/editor_viewmodel.dart'; // Import EditorViewModel
+import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 
 /// Controls widget for the timeline including playback controls and zoom
 class TimelineControls extends StatelessWidget with WatchItMixin {
@@ -26,7 +26,7 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
 
     // Watch navigation/playback values from TimelineNavigationViewModel
     final isPlaying = watchValue(
-      (TimelineNavigationViewModel vm) => vm.isPlayingNotifier,
+      (TimelineNavigationViewModel vm) => vm.isPlayingNotifier, // Back to timeline navigation
     );
     final totalFrames = watchValue(
       (TimelineNavigationViewModel vm) => vm.totalFramesNotifier,
@@ -38,7 +38,7 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
       (TimelineNavigationViewModel vm) => vm.isPlayheadLockedNotifier,
     );
 
-    // Watch snapping and aspect ratio lock states from EditorViewModel (remains the same)
+    // Watch snapping and aspect ratio lock states from EditorViewModel
     final snappingEnabled = watchValue(
       (EditorViewModel vm) => vm.snappingEnabledNotifier,
     );
@@ -140,12 +140,15 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
               icon: Icon(
                 isPlaying
                     ? HugeIcons.strokeRoundedPause
-                    : HugeIcons.strokeRoundedPlay, // Use watched isPlaying
+                    : HugeIcons.strokeRoundedPlay,
                 size: 16,
                 color: controlsContentColor,
               ),
-              // Use navigation VM for togglePlayPause
-              onPressed: timelineNavigationViewModel.togglePlayPause,
+              // Just control timeline navigation - video player will sync
+              onPressed: () async {
+                logDebug("Play button pressed - isPlaying: $isPlaying", 'TimelineControls');
+                timelineNavigationViewModel.togglePlayPause();
+              },
             ),
           ),
           Tooltip(
@@ -269,58 +272,5 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
         ],
       ),
     );
-  }
-}
-
-// New widget for timecode display using watch_it
-class _TimecodeDisplay extends StatelessWidget with WatchItMixin {
-  final VideoPlayerController controller;
-
-  const _TimecodeDisplay({required this.controller});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = FluentTheme.of(context);
-    final controlsContentColor = theme.resources.textFillColorPrimary;
-
-    // Watch the controller - this widget rebuilds when controller notifies changes
-    watch(controller);
-
-    // Access value directly after watching
-    final value = controller.value;
-
-    if (!value.isInitialized) {
-      return Text(
-        '--:--.-- / --:--.--',
-        style: theme.typography.caption?.copyWith(
-          color: controlsContentColor,
-          fontFamily: 'monospace',
-        ),
-      );
-    }
-
-    final position = value.position;
-    final duration = value.duration;
-    final positionString = _formatDuration(position);
-    final durationString = _formatDuration(duration);
-
-    return Text(
-      '$positionString / $durationString',
-      style: theme.typography.caption?.copyWith(
-        color: controlsContentColor,
-        fontFamily: 'monospace',
-      ),
-    );
-  }
-
-  String _formatDuration(Duration d) {
-    String twoDigits(int n) => n.toString().padLeft(2, "0");
-    String twoDigitMinutes = twoDigits(d.inMinutes.remainder(60));
-    String twoDigitSeconds = twoDigits(d.inSeconds.remainder(60));
-    // Ensure milliseconds are padded to 3 digits for consistency
-    String threeDigitMilliseconds = (d.inMilliseconds.remainder(
-      1000,
-    )).toString().padLeft(3, "0");
-    return '$twoDigitMinutes:$twoDigitSeconds.$threeDigitMilliseconds';
   }
 }
