@@ -3,8 +3,68 @@
 
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
+import '../common/types.dart';
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 String greet({required String name}) =>
     RustLib.instance.api.crateApiSimpleGreet(name: name);
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<VideoPlayer>>
+abstract class VideoPlayer implements RustOpaqueInterface {
+  @override
+  Future<void> dispose();
+
+  /// Extract frame at specific position for preview without seeking main pipeline
+  Future<void> extractFrameAtPosition({required double seconds});
+
+  BigInt getCurrentFrameNumber();
+
+  double getDurationSeconds();
+
+  double getFrameRate();
+
+  FrameData? getLatestFrame();
+
+  double getPositionSeconds();
+
+  BigInt getTotalFrames();
+
+  (int, int) getVideoDimensions();
+
+  bool hasAudio();
+
+  bool isPlaying();
+
+  bool isSeekable();
+
+  Future<void> loadVideo({required String filePath});
+
+  factory VideoPlayer() => RustLib.instance.api.crateApiSimpleVideoPlayerNew();
+
+  static VideoPlayer newPlayer() =>
+      RustLib.instance.api.crateApiSimpleVideoPlayerNewPlayer();
+
+  Future<void> pause();
+
+  Future<void> play();
+
+  /// Seek to final position with pause/resume control - used when releasing slider
+  Future<double> seekAndPauseControl({
+    required double seconds,
+    required bool wasPlayingBefore,
+  });
+
+  Future<void> seekToFrame({required BigInt frameNumber});
+
+  void setTexturePtr({required PlatformInt64 ptr});
+
+  Future<void> stop();
+
+  /// Force synchronization between pipeline state and internal state
+  Future<bool> syncPlayingState();
+
+  Future<void> testAudio();
+
+  Future<void> testPipeline({required String filePath});
+}

@@ -1,10 +1,11 @@
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flutter/material.dart' as material;
 import 'package:watch_it/watch_it.dart';
 
 import 'package:flipedit/utils/logger.dart';
-import 'package:flipedit/viewmodels/player/opencv_python_player_viewmodel.dart';
+import 'package:flipedit/widgets/video_player_widget.dart';
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
+import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
+import 'package:flipedit/models/enums/clip_type.dart';
 
 class PlayerPanel extends StatefulWidget {
   const PlayerPanel({super.key});
@@ -14,24 +15,25 @@ class PlayerPanel extends StatefulWidget {
 }
 
 class _PlayerPanelState extends State<PlayerPanel> {
-  late final OpenCvPythonPlayerViewModel _playerViewModel;
   late final TimelineNavigationViewModel _timelineNavViewModel;
+  late final TimelineViewModel _timelineViewModel;
+  String? _currentVideoPath;
 
   @override
   void initState() {
     super.initState();
     logDebug("Initializing PlayerPanel...", 'PlayerPanel');
 
-    _playerViewModel = OpenCvPythonPlayerViewModel();
     _timelineNavViewModel = di<TimelineNavigationViewModel>();
+    _timelineViewModel = di<TimelineViewModel>();
 
-    // Add listeners to rebuild on state changes
-    _playerViewModel.textureIdNotifier.addListener(_rebuild);
-    _playerViewModel.isReadyNotifier.addListener(_rebuild);
-    _playerViewModel.statusNotifier.addListener(_rebuild);
-    _playerViewModel.fpsNotifier.addListener(_rebuild);
+    // Add listener to rebuild on state changes
     _timelineNavViewModel.isPlayingNotifier.addListener(_rebuild);
-    _timelineNavViewModel.currentFrameNotifier.addListener(_rebuild);
+    _timelineNavViewModel.currentFrameNotifier.addListener(_onFrameChanged);
+    _timelineViewModel.clipsNotifier.addListener(_updateCurrentVideo);
+    
+    // Initial video update
+    _updateCurrentVideo();
   }
 
   void _rebuild() {
@@ -39,19 +41,46 @@ class _PlayerPanelState extends State<PlayerPanel> {
       setState(() {});
     }
   }
+  
+  void _onFrameChanged() {
+    _updateCurrentVideo();
+    _rebuild();
+  }
+  
+  void _updateCurrentVideo() {
+    // Get the clip at the current frame position
+    final currentFrame = _timelineNavViewModel.currentFrameNotifier.value;
+    final clips = _timelineViewModel.clipsNotifier.value;
+    
+    // Find the clip that contains the current frame
+    for (final clip in clips) {
+      if (clip.type == ClipType.video && 
+          clip.startFrame <= currentFrame && 
+          currentFrame < clip.startFrame + clip.durationFrames) {
+        // Found the current clip
+        if (_currentVideoPath != clip.sourcePath) {
+          setState(() {
+            _currentVideoPath = clip.sourcePath;
+          });
+        }
+        return;
+      }
+    }
+    
+    // No video clip at current position
+    if (_currentVideoPath != null) {
+      setState(() {
+        _currentVideoPath = null;
+      });
+    }
+  }
 
   @override
   void dispose() {
     // Remove listeners
-    _playerViewModel.textureIdNotifier.removeListener(_rebuild);
-    _playerViewModel.isReadyNotifier.removeListener(_rebuild);
-    _playerViewModel.statusNotifier.removeListener(_rebuild);
-    _playerViewModel.fpsNotifier.removeListener(_rebuild);
     _timelineNavViewModel.isPlayingNotifier.removeListener(_rebuild);
-    _timelineNavViewModel.currentFrameNotifier.removeListener(_rebuild);
-
-    // Dispose view model
-    _playerViewModel.dispose();
+    _timelineNavViewModel.currentFrameNotifier.removeListener(_onFrameChanged);
+    _timelineViewModel.clipsNotifier.removeListener(_updateCurrentVideo);
     super.dispose();
   }
 
@@ -59,11 +88,6 @@ class _PlayerPanelState extends State<PlayerPanel> {
   Widget build(BuildContext context) {
     logDebug("Rebuilding PlayerPanel...", 'PlayerPanel');
 
-    // Get current values from notifiers
-    final textureId = _playerViewModel.textureIdNotifier.value;
-    final isReady = _playerViewModel.isReadyNotifier.value;
-    final status = _playerViewModel.statusNotifier.value;
-    final fps = _playerViewModel.fpsNotifier.value;
     final isPlaying = _timelineNavViewModel.isPlayingNotifier.value;
     final currentFrame = _timelineNavViewModel.currentFrameNotifier.value;
 
@@ -74,69 +98,14 @@ class _PlayerPanelState extends State<PlayerPanel> {
         children: [
           // Video display area
           Expanded(
-            child: Center(
-              child:
-                  textureId != -1
-                      ? Container(
-                        color: Colors.blue.withOpacity(
-                          0.2,
-                        ), // Add a slight blue tint to see container boundaries
-                        width: double.infinity,
-                        height: double.infinity,
-                        child: Stack(
-                          children: [
-                            // Texture widget with explicit size
-                            Positioned.fill(
-                              child: material.Texture(
-                                textureId: textureId,
-                                filterQuality: material.FilterQuality.high,
-                              ),
-                            ),
-
-                            // Debug overlay to show texture ID
-                            Positioned(
-                              top: 8,
-                              right: 8,
-                              child: Container(
-                                padding: const EdgeInsets.all(4),
-                                color: Colors.black.withOpacity(0.5),
-                                child: Text(
-                                  'Texture ID: $textureId',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                  ),
-                                ),
-                              ),
-                            ),
-
-                            // If Python connection is in progress or failed, show an overlay
-                            if (!isReady)
-                              Positioned.fill(
-                                child: Container(
-                                  color: Colors.black.withOpacity(0.7),
-                                  child: Center(
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const ProgressRing(),
-                                        const SizedBox(height: 16),
-                                        Text(
-                                          status,
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      )
-                      : const Center(child: ProgressRing()),
-            ),
+            child: _currentVideoPath != null
+                ? VideoPlayerWidget(videoPath: _currentVideoPath!)
+                : const Center(
+                    child: Text(
+                      'No video loaded',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
           ),
 
           // Player controls and info bar
@@ -148,11 +117,15 @@ class _PlayerPanelState extends State<PlayerPanel> {
               children: [
                 // Play/Pause button
                 Button(
-                  onPressed: () {
-                    if (isPlaying) {
-                      _timelineNavViewModel.stopPlayback();
-                    } else {
-                      _timelineNavViewModel.startPlayback();
+                  onPressed: () async {
+                    try {
+                      if (isPlaying) {
+                        _timelineNavViewModel.stopPlayback();
+                      } else {
+                        await _timelineNavViewModel.startPlayback();
+                      }
+                    } catch (e) {
+                      logError('PlayerPanel', 'Error toggling playback: $e');
                     }
                   },
                   child: Icon(
@@ -170,14 +143,9 @@ class _PlayerPanelState extends State<PlayerPanel> {
 
                 // Mode label
                 Text(
-                  'Python OpenCV Renderer',
+                  'GStreamer Video Player',
                   style: FluentTheme.of(context).typography.caption,
                 ),
-
-                const SizedBox(width: 8),
-
-                // FPS counter
-                Text('$fps FPS'),
 
                 const SizedBox(width: 8),
 
@@ -188,11 +156,11 @@ class _PlayerPanelState extends State<PlayerPanel> {
                     vertical: 2,
                   ),
                   decoration: BoxDecoration(
-                    color: isReady ? Colors.green : Colors.yellow,
+                    color: _currentVideoPath != null ? Colors.green : Colors.yellow,
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
-                    isReady ? 'Ready' : status,
+                    _currentVideoPath != null ? 'Ready' : 'No Video',
                     style: FluentTheme.of(context).typography.caption,
                   ),
                 ),
@@ -202,21 +170,5 @@ class _PlayerPanelState extends State<PlayerPanel> {
         ],
       ),
     );
-  }
-}
-
-// Simple ChangeNotifierProvider for the native player viewmodel
-class ChangeNotifierProvider<T extends ChangeNotifier>
-    extends InheritedNotifier<T> {
-  const ChangeNotifierProvider({
-    super.key,
-    required T notifier,
-    required super.child,
-  }) : super(notifier: notifier);
-
-  static T of<T extends ChangeNotifier>(BuildContext context) {
-    final provider =
-        context.dependOnInheritedWidgetOfExactType<ChangeNotifierProvider<T>>();
-    return provider!.notifier!;
   }
 }

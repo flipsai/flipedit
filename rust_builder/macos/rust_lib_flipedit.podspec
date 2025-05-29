@@ -39,6 +39,12 @@ A new Flutter FFI plugin project.
     'DEFINES_MODULE' => 'YES',
     # Flutter.framework does not contain a i386 slice.
     'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386',
-    'OTHER_LDFLAGS' => '-force_load ${BUILT_PRODUCTS_DIR}/librust_lib_flipedit.a',
+    # Ensure we only build for supported architectures
+    'ONLY_ACTIVE_ARCH' => 'NO',
+    'OTHER_LDFLAGS' => '-force_load ${BUILT_PRODUCTS_DIR}/librust_lib_flipedit.a -F/Library/Frameworks -framework GStreamer -framework CoreAudio -framework AudioToolbox -framework AudioUnit -L/Library/Frameworks/GStreamer.framework/Versions/1.0/lib -lges-1.0 -lglib-2.0 -lgobject-2.0 -lgio-2.0 -lgthread-2.0 -lgmodule-2.0',
+    'HEADER_SEARCH_PATHS' => '"/Library/Frameworks/GStreamer.framework/Headers"',
+    'LD_RUNPATH_SEARCH_PATHS' => ['"/Library/Frameworks"','"/Library/Frameworks/GStreamer.framework/Versions/1.0/lib"'],
+    'FRAMEWORK_SEARCH_PATHS' => '/Library/Frameworks',
+    'LIBRARY_SEARCH_PATHS' => '/Library/Frameworks/GStreamer.framework/Versions/1.0/lib',
   }
 end
