@@ -28,30 +28,6 @@
 		33CC10F32044A3C60003C045 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 33CC10F22044A3C60003C045 /* Assets.xcassets */; };
 		33CC10F62044A3C60003C045 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = 33CC10F42044A3C60003C045 /* MainMenu.xib */; };
 		33CC11132044BFA00003C045 /* MainFlutterWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33CC11122044BFA00003C045 /* MainFlutterWindow.swift */; };
-		5704C3C32DD4EDC3007CF5AB /* libdartcv.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 5704C3C22DD4EDC3007CF5AB /* libdartcv.dylib */; };
-		5704C3C42DD4EDCD007CF5AB /* libdartcv.dylib in Bundle Framework */ = {isa = PBXBuildFile; fileRef = 5704C3C22DD4EDC3007CF5AB /* libdartcv.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		5704C3C52DD4EDDE007CF5AB /* libdartcv.dylib in CopyFiles */ = {isa = PBXBuildFile; fileRef = 5704C3C22DD4EDC3007CF5AB /* libdartcv.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		5704C3CD2DD4EFA1007CF5AB /* libavformat.61.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 5704C3C92DD4EFA1007CF5AB /* libavformat.61.dylib */; };
-		5704C3CE2DD4EFA1007CF5AB /* libavfilter.10.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 5704C3C82DD4EFA1007CF5AB /* libavfilter.10.dylib */; };
-		5704C3CF2DD4EFA1007CF5AB /* libswresample.5.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 5704C3CB2DD4EFA1007CF5AB /* libswresample.5.dylib */; };
-		5704C3D02DD4EFA1007CF5AB /* libswscale.8.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 5704C3CC2DD4EFA1007CF5AB /* libswscale.8.dylib */; };
-		5704C3D12DD4EFA1007CF5AB /* libavcodec.61.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 5704C3C62DD4EFA1007CF5AB /* libavcodec.61.dylib */; };
-		5704C3D22DD4EFA1007CF5AB /* libavdevice.61.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 5704C3C72DD4EFA1007CF5AB /* libavdevice.61.dylib */; };
-		5704C3D32DD4EFA1007CF5AB /* libavutil.59.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 5704C3CA2DD4EFA1007CF5AB /* libavutil.59.dylib */; };
-		5704C3D42DD4EFAB007CF5AB /* libavcodec.61.dylib in Bundle Framework */ = {isa = PBXBuildFile; fileRef = 5704C3C62DD4EFA1007CF5AB /* libavcodec.61.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		5704C3D52DD4EFAC007CF5AB /* libavdevice.61.dylib in Bundle Framework */ = {isa = PBXBuildFile; fileRef = 5704C3C72DD4EFA1007CF5AB /* libavdevice.61.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		5704C3D62DD4EFAE007CF5AB /* libavfilter.10.dylib in Bundle Framework */ = {isa = PBXBuildFile; fileRef = 5704C3C82DD4EFA1007CF5AB /* libavfilter.10.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		5704C3D72DD4EFAF007CF5AB /* libavformat.61.dylib in Bundle Framework */ = {isa = PBXBuildFile; fileRef = 5704C3C92DD4EFA1007CF5AB /* libavformat.61.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		5704C3D82DD4EFB0007CF5AB /* libavutil.59.dylib in Bundle Framework */ = {isa = PBXBuildFile; fileRef = 5704C3CA2DD4EFA1007CF5AB /* libavutil.59.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		5704C3D92DD4EFB2007CF5AB /* libswresample.5.dylib in Bundle Framework */ = {isa = PBXBuildFile; fileRef = 5704C3CB2DD4EFA1007CF5AB /* libswresample.5.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		5704C3DA2DD4EFB4007CF5AB /* libswscale.8.dylib in Bundle Framework */ = {isa = PBXBuildFile; fileRef = 5704C3CC2DD4EFA1007CF5AB /* libswscale.8.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		5704C3DB2DD4EFC5007CF5AB /* libavcodec.61.dylib in CopyFiles */ = {isa = PBXBuildFile; fileRef = 5704C3C62DD4EFA1007CF5AB /* libavcodec.61.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		5704C3DC2DD4EFC5007CF5AB /* libavdevice.61.dylib in CopyFiles */ = {isa = PBXBuildFile; fileRef = 5704C3C72DD4EFA1007CF5AB /* libavdevice.61.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		5704C3DD2DD4EFC5007CF5AB /* libavfilter.10.dylib in CopyFiles */ = {isa = PBXBuildFile; fileRef = 5704C3C82DD4EFA1007CF5AB /* libavfilter.10.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		5704C3DE2DD4EFC5007CF5AB /* libavformat.61.dylib in CopyFiles */ = {isa = PBXBuildFile; fileRef = 5704C3C92DD4EFA1007CF5AB /* libavformat.61.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		5704C3DF2DD4EFC5007CF5AB /* libavutil.59.dylib in CopyFiles */ = {isa = PBXBuildFile; fileRef = 5704C3CA2DD4EFA1007CF5AB /* libavutil.59.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		5704C3E02DD4EFC5007CF5AB /* libswresample.5.dylib in CopyFiles */ = {isa = PBXBuildFile; fileRef = 5704C3CB2DD4EFA1007CF5AB /* libswresample.5.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		5704C3E12DD4EFC5007CF5AB /* libswscale.8.dylib in CopyFiles */ = {isa = PBXBuildFile; fileRef = 5704C3CC2DD4EFA1007CF5AB /* libswscale.8.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		9947AEB8B1CB8D7F3A7172B3 /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FBB9D7AB9A61904CAFD94D7B /* Pods_RunnerTests.framework */; };
 /* End PBXBuildFile section */
 
@@ -79,14 +55,6 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
-				5704C3D52DD4EFAC007CF5AB /* libavdevice.61.dylib in Bundle Framework */,
-				5704C3D72DD4EFAF007CF5AB /* libavformat.61.dylib in Bundle Framework */,
-				5704C3D62DD4EFAE007CF5AB /* libavfilter.10.dylib in Bundle Framework */,
-				5704C3DA2DD4EFB4007CF5AB /* libswscale.8.dylib in Bundle Framework */,
-				5704C3D42DD4EFAB007CF5AB /* libavcodec.61.dylib in Bundle Framework */,
-				5704C3D82DD4EFB0007CF5AB /* libavutil.59.dylib in Bundle Framework */,
-				5704C3C42DD4EDCD007CF5AB /* libdartcv.dylib in Bundle Framework */,
-				5704C3D92DD4EFB2007CF5AB /* libswresample.5.dylib in Bundle Framework */,
 			);
 			name = "Bundle Framework";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -97,14 +65,6 @@
 			dstPath = "";
 			dstSubfolderSpec = 6;
 			files = (
-				5704C3DB2DD4EFC5007CF5AB /* libavcodec.61.dylib in CopyFiles */,
-				5704C3DC2DD4EFC5007CF5AB /* libavdevice.61.dylib in CopyFiles */,
-				5704C3DD2DD4EFC5007CF5AB /* libavfilter.10.dylib in CopyFiles */,
-				5704C3DE2DD4EFC5007CF5AB /* libavformat.61.dylib in CopyFiles */,
-				5704C3DF2DD4EFC5007CF5AB /* libavutil.59.dylib in CopyFiles */,
-				5704C3E02DD4EFC5007CF5AB /* libswresample.5.dylib in CopyFiles */,
-				5704C3E12DD4EFC5007CF5AB /* libswscale.8.dylib in CopyFiles */,
-				5704C3C52DD4EDDE007CF5AB /* libdartcv.dylib in CopyFiles */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -128,14 +88,6 @@
 		33E51913231747F40026EE4D /* DebugProfile.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DebugProfile.entitlements; sourceTree = "<group>"; };
 		33E51914231749380026EE4D /* Release.entitlements */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.entitlements; path = Release.entitlements; sourceTree = "<group>"; };
 		33E5194F232828860026EE4D /* AppInfo.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = AppInfo.xcconfig; sourceTree = "<group>"; };
-		5704C3C22DD4EDC3007CF5AB /* libdartcv.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = libdartcv.dylib; sourceTree = "<group>"; };
-		5704C3C62DD4EFA1007CF5AB /* libavcodec.61.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = libavcodec.61.dylib; sourceTree = "<group>"; };
-		5704C3C72DD4EFA1007CF5AB /* libavdevice.61.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = libavdevice.61.dylib; sourceTree = "<group>"; };
-		5704C3C82DD4EFA1007CF5AB /* libavfilter.10.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = libavfilter.10.dylib; sourceTree = "<group>"; };
-		5704C3C92DD4EFA1007CF5AB /* libavformat.61.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = libavformat.61.dylib; sourceTree = "<group>"; };
-		5704C3CA2DD4EFA1007CF5AB /* libavutil.59.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = libavutil.59.dylib; sourceTree = "<group>"; };
-		5704C3CB2DD4EFA1007CF5AB /* libswresample.5.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = libswresample.5.dylib; sourceTree = "<group>"; };
-		5704C3CC2DD4EFA1007CF5AB /* libswscale.8.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = libswscale.8.dylib; sourceTree = "<group>"; };
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
 		9734314D73C9FB8E08AA91F2 /* Pods-Runner.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.release.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"; sourceTree = "<group>"; };
 		9740EEB21CF90195004384FC /* Debug.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
@@ -160,15 +112,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				5704C3C32DD4EDC3007CF5AB /* libdartcv.dylib in Frameworks */,
 				2D61E4464F8B01BE99A30B2A /* Pods_Runner.framework in Frameworks */,
-				5704C3CD2DD4EFA1007CF5AB /* libavformat.61.dylib in Frameworks */,
-				5704C3CE2DD4EFA1007CF5AB /* libavfilter.10.dylib in Frameworks */,
-				5704C3CF2DD4EFA1007CF5AB /* libswresample.5.dylib in Frameworks */,
-				5704C3D02DD4EFA1007CF5AB /* libswscale.8.dylib in Frameworks */,
-				5704C3D12DD4EFA1007CF5AB /* libavcodec.61.dylib in Frameworks */,
-				5704C3D22DD4EFA1007CF5AB /* libavdevice.61.dylib in Frameworks */,
-				5704C3D32DD4EFA1007CF5AB /* libavutil.59.dylib in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -253,14 +197,6 @@
 		D73912EC22F37F3D000D13A0 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				5704C3C62DD4EFA1007CF5AB /* libavcodec.61.dylib */,
-				5704C3C72DD4EFA1007CF5AB /* libavdevice.61.dylib */,
-				5704C3C82DD4EFA1007CF5AB /* libavfilter.10.dylib */,
-				5704C3C92DD4EFA1007CF5AB /* libavformat.61.dylib */,
-				5704C3CA2DD4EFA1007CF5AB /* libavutil.59.dylib */,
-				5704C3CB2DD4EFA1007CF5AB /* libswresample.5.dylib */,
-				5704C3CC2DD4EFA1007CF5AB /* libswscale.8.dylib */,
-				5704C3C22DD4EDC3007CF5AB /* libdartcv.dylib */,
 				AD6C1D7A66CFC30B63B23220 /* Pods_Runner.framework */,
 				FBB9D7AB9A61904CAFD94D7B /* Pods_RunnerTests.framework */,
 			);
