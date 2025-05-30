@@ -68,11 +68,11 @@ class EditorLayoutViewModel with LayoutParserMixin, AreaBuilderMixin {
       logDebug(_logTag, "LayoutManager: Layout set to null, listener removed.");
     }
 
-    if (layoutNotifier.value != null) {
-      isTimelineVisibleNotifier.value = isTimelineVisible;
-      isInspectorVisibleNotifier.value = isInspectorVisible;
-      isPreviewVisibleNotifier.value = isPreviewVisible;
-    }
+    // if (layoutNotifier.value != null) {
+    //   isTimelineVisibleNotifier.value = isTimelineVisible;
+    //   isInspectorVisibleNotifier.value = isInspectorVisible;
+    //   isPreviewVisibleNotifier.value = isPreviewVisible;
+    // }
   }
 
   EditorLayoutViewModel() {
@@ -85,10 +85,10 @@ class EditorLayoutViewModel with LayoutParserMixin, AreaBuilderMixin {
       _saveLayout();
     }
 
-    layoutNotifier.dispose();
-    isTimelineVisibleNotifier.dispose();
-    isInspectorVisibleNotifier.dispose();
-    isPreviewVisibleNotifier.dispose();
+    // layoutNotifier.dispose();
+    // isTimelineVisibleNotifier.dispose();
+    // isInspectorVisibleNotifier.dispose();
+    // isPreviewVisibleNotifier.dispose();
 
     if (layoutNotifier.value != null && _layoutListener != null) {
       layoutNotifier.value!.removeListener(_layoutListener!);
@@ -110,54 +110,54 @@ class EditorLayoutViewModel with LayoutParserMixin, AreaBuilderMixin {
       bool inspectorFound = currentLayout.findDockingItem('inspector') != null;
       bool previewFound = currentLayout.findDockingItem('preview') != null;
 
-      if (isTimelineVisibleNotifier.value != timelineFound) {
-        isTimelineVisibleNotifier.value = timelineFound;
-        logDebug(
-          _logTag,
-          "LayoutManager: Timeline visibility flag updated to $timelineFound",
-        );
-      }
+      // if (isTimelineVisibleNotifier.value != timelineFound) {
+      //   isTimelineVisibleNotifier.value = timelineFound;
+      //   logDebug(
+      //     _logTag,
+      //     "LayoutManager: Timeline visibility flag updated to $timelineFound",
+      //   );
+      // }
 
-      if (isInspectorVisibleNotifier.value != inspectorFound) {
-        isInspectorVisibleNotifier.value = inspectorFound;
-        logDebug(
-          _logTag,
-          "LayoutManager: Inspector visibility flag updated to $inspectorFound",
-        );
-      }
+      // if (isInspectorVisibleNotifier.value != inspectorFound) {
+      //   isInspectorVisibleNotifier.value = inspectorFound;
+      //   logDebug(
+      //     _logTag,
+      //     "LayoutManager: Inspector visibility flag updated to $inspectorFound",
+      //   );
+      // }
 
-      if (isPreviewVisibleNotifier.value != previewFound) {
-        isPreviewVisibleNotifier.value = previewFound;
-        logDebug(
-          _logTag,
-          "LayoutManager: Preview visibility flag updated to $previewFound",
-        );
-      }
+      // if (isPreviewVisibleNotifier.value != previewFound) {
+      //   isPreviewVisibleNotifier.value = previewFound;
+      //   logDebug(
+      //     _logTag,
+      //     "LayoutManager: Preview visibility flag updated to $previewFound",
+      //   );
+      // }
     }
   }
 
   // Save the entire layout state including tab positions
   Future<void> _saveLayout() async {
-    if (layoutNotifier.value == null) return;
+    // if (layoutNotifier.value == null) return;
 
-    try {
-      // Save the complete layout structure
-      _lastLayoutString = layoutNotifier.value!.stringify(parser: this);
-      logDebug(_logTag, "LayoutManager: Saved complete layout state");
+    // try {
+    //   // Save the complete layout structure
+    //   _lastLayoutString = layoutNotifier.value!.stringify(parser: this);
+    //   logDebug(_logTag, "LayoutManager: Saved complete layout state");
 
-      // Store the layout string to persistent storage
-      await _areaDimensionsService.saveLayoutString(_lastLayoutString);
+    //   // Store the layout string to persistent storage
+    //   await _areaDimensionsService.saveLayoutString(_lastLayoutString);
 
-      // Also save dimensions for backward compatibility
-      final dimensions = _areaDimensionsService.collectAreaDimensions(
-        layoutNotifier.value!,
-      );
-      if (dimensions.isNotEmpty) {
-        await _areaDimensionsService.saveAreaDimensions(dimensions);
-      }
-    } catch (e) {
-      logError(_logTag, "LayoutManager: Error saving layout: $e");
-    }
+    //   // Also save dimensions for backward compatibility
+    //   final dimensions = _areaDimensionsService.collectAreaDimensions(
+    //     layoutNotifier.value!,
+    //   );
+    //   if (dimensions.isNotEmpty) {
+    //     await _areaDimensionsService.saveAreaDimensions(dimensions);
+    //   }
+    // } catch (e) {
+    //   logError(_logTag, "LayoutManager: Error saving layout: $e");
+    // }
   }
 
   // Load the entire layout state
@@ -188,7 +188,6 @@ class EditorLayoutViewModel with LayoutParserMixin, AreaBuilderMixin {
           _applyLoadedSizesToLayout(layoutNotifier.value!);
         }
 
-        layoutNotifier.value?.notifyListeners(); // Force a rebuild
         return;
       }
 
@@ -290,7 +289,6 @@ class EditorLayoutViewModel with LayoutParserMixin, AreaBuilderMixin {
         );
         _applyLoadedSizesToLayout(currentLayout);
 
-        currentLayout.notifyListeners(); // Force a rebuild/relayout
       } else {
         logDebug(
           _logTag,
@@ -545,9 +543,9 @@ class EditorLayoutViewModel with LayoutParserMixin, AreaBuilderMixin {
     final timelineItem = _buildTimelineItem(); // No weight initially
     final inspectorItem = _buildInspectorItem(); // No weight initially
 
-    isTimelineVisibleNotifier.value = true;
-    isInspectorVisibleNotifier.value = true;
-    isPreviewVisibleNotifier.value = true;
+    // isTimelineVisibleNotifier.value = true;
+    // isInspectorVisibleNotifier.value = true;
+    // isPreviewVisibleNotifier.value = true;
 
     // The MultiSplitView will distribute available space. Weights can be used for initial proportion.
     // If we want saved pixel dimensions to truly work, they must be applied *after* this initial layout,
@@ -685,51 +683,51 @@ class EditorLayoutViewModel with LayoutParserMixin, AreaBuilderMixin {
   }
 
   void toggleTimeline() {
-    _togglePanel(
-      panelId: 'timeline',
-      isCurrentlyVisible: isTimelineVisible,
-      visibilityNotifier: isTimelineVisibleNotifier,
-      itemBuilder:
-          ({double? weight, bool maximized = false, double? size}) =>
-              _buildTimelineItem(
-                weight: weight,
-                maximized: maximized,
-                size: size,
-              ),
-      defaultPositionHandler: _addTimelineDefaultPosition,
-    );
+    // _togglePanel(
+    //   panelId: 'timeline',
+    //   isCurrentlyVisible: isTimelineVisible,
+    //   visibilityNotifier: isTimelineVisibleNotifier,
+    //   itemBuilder:
+    //       ({double? weight, bool maximized = false, double? size}) =>
+    //           _buildTimelineItem(
+    //             weight: weight,
+    //             maximized: maximized,
+    //             size: size,
+    //           ),
+    //   defaultPositionHandler: _addTimelineDefaultPosition,
+    // );
   }
 
   void toggleInspector() {
-    _togglePanel(
-      panelId: 'inspector',
-      isCurrentlyVisible: isInspectorVisible,
-      visibilityNotifier: isInspectorVisibleNotifier,
-      itemBuilder:
-          ({double? weight, bool maximized = false, double? size}) =>
-              _buildInspectorItem(
-                weight: weight,
-                maximized: maximized,
-                size: size,
-              ),
-      defaultPositionHandler: _addInspectorDefaultPosition,
-    );
+    // _togglePanel(
+    //   panelId: 'inspector',
+    //   isCurrentlyVisible: isInspectorVisible,
+    //   visibilityNotifier: isInspectorVisibleNotifier,
+    //   itemBuilder:
+    //       ({double? weight, bool maximized = false, double? size}) =>
+    //           _buildInspectorItem(
+    //             weight: weight,
+    //             maximized: maximized,
+    //             size: size,
+    //           ),
+    //   defaultPositionHandler: _addInspectorDefaultPosition,
+    // );
   }
 
   void togglePreview() {
-    _togglePanel(
-      panelId: 'preview',
-      isCurrentlyVisible: isPreviewVisible,
-      visibilityNotifier: isPreviewVisibleNotifier,
-      itemBuilder:
-          ({double? weight, bool maximized = false, double? size}) =>
-              _buildPreviewItem(
-                weight: weight,
-                maximized: maximized,
-                size: size,
-              ),
-      defaultPositionHandler: _addPreviewDefaultPosition,
-    );
+    // _togglePanel(
+    //   panelId: 'preview',
+    //   isCurrentlyVisible: isPreviewVisible,
+    //   visibilityNotifier: isPreviewVisibleNotifier,
+    //   itemBuilder:
+    //       ({double? weight, bool maximized = false, double? size}) =>
+    //           _buildPreviewItem(
+    //             weight: weight,
+    //             maximized: maximized,
+    //             size: size,
+    //           ),
+    //   defaultPositionHandler: _addPreviewDefaultPosition,
+    // );
   }
 
   void _addTimelineDefaultPosition(DockingLayout layout) {
@@ -798,17 +796,17 @@ class EditorLayoutViewModel with LayoutParserMixin, AreaBuilderMixin {
   }
 
   void markInspectorClosed() {
-    _storePanelPositions();
-    isInspectorVisibleNotifier.value = false;
+    // _storePanelPositions();
+    // isInspectorVisibleNotifier.value = false;
   }
 
   void markTimelineClosed() {
-    _storePanelPositions();
-    isTimelineVisibleNotifier.value = false;
+    // _storePanelPositions();
+    // isTimelineVisibleNotifier.value = false;
   }
 
   void markPreviewClosed() {
-    _storePanelPositions();
-    isPreviewVisibleNotifier.value = false;
+    // _storePanelPositions();
+    // isPreviewVisibleNotifier.value = false;
   }
 }

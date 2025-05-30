@@ -126,7 +126,6 @@ class EditorScreen extends StatelessWidget with WatchItMixin {
     return KeyEventResult.ignored;
   }
 }
-
 class _ConditionalExtensionPanel extends StatefulWidget {
   const _ConditionalExtensionPanel();
 
@@ -189,3 +188,4 @@ class _ExtensionPanelInternal extends StatelessWidget with WatchItMixin {
     }
   }
 }
+

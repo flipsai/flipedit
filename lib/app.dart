@@ -1,4 +1,5 @@
 import 'dart:io' show Platform;
+import 'package:flipedit/views/demo_tab_system_view.dart';
 import 'package:fluent_ui/fluent_ui.dart' as fluent;
 import 'package:flutter/widgets.dart';
 import 'package:flipedit/utils/global_context.dart';
@@ -54,7 +55,7 @@ class FlipEditApp extends fluent.StatelessWidget with WatchItMixin {
         editorVm: editorVm,
         projectVm: projectVm,
         timelineVm: timelineVm,
-        child: const EditorScreen(),
+        child: const DemoTabSystemView(),
       );
     } else {
       homeWidget = fluent.NavigationView(
@@ -66,7 +67,7 @@ class FlipEditApp extends fluent.StatelessWidget with WatchItMixin {
             timelineVm: timelineVm,
           ),
         ),
-        content: const EditorScreen(),
+        content: const DemoTabSystemView(),
       );
     }
 

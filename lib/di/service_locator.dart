@@ -15,6 +15,7 @@ import 'package:flipedit/services/video_player_service.dart';
 import 'package:flipedit/viewmodels/app_viewmodel.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
+import 'package:flipedit/viewmodels/tab_system_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
@@ -160,5 +161,10 @@ Future<void> setupServiceLocator() async {
       getTotalFrames: () => 0,
       getDefaultEmptyDurationFrames: () => 0,
     ),
+  );
+
+  di.registerLazySingleton<TabSystemViewModel>(
+    () => TabSystemViewModel(),
+    dispose: (vm) => vm.dispose(),
   );
 }

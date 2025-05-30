@@ -125,7 +125,6 @@ class TimelineStateViewModel extends ChangeNotifier {
         'Clips list set by command. Content changed: $contentChanged, Instance changed: $instanceChanged. (${newClipsList.length} clips). Notifiers triggered. (Preview server sync removed)',
         _logTag,
       );
-      notifyListeners(); // TimelineStateViewModel (ChangeNotifier) notifies its listeners
     } else {
       // Content and instance are identical. No state change.
       logger.logDebug(
