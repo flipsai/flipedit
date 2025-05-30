@@ -667,19 +667,6 @@ impl VideoPlayer {
         self.frame_handler.get_total_frames(duration_seconds)
     }
 
-    pub fn test_audio(&mut self) -> Result<(), String> {
-        if let Some(ref audio_sender) = self.audio_sender {
-            if let Err(e) = audio_sender.send(MediaData::TestAudio) {
-                return Err(format!("Failed to send test audio command: {}", e));
-            }
-            
-            info!("Audio test initiated - you should hear a 440Hz tone for 1 second");
-            Ok(())
-        } else {
-            Err("Audio system not initialized".to_string())
-        }
-    }
-
     /// Synchronize and return the actual playing state
     /// This checks both internal state and pipeline state and resolves discrepancies
     pub fn sync_playing_state(&mut self) -> bool {

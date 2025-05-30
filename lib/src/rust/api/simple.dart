@@ -97,7 +97,5 @@ abstract class VideoPlayer implements RustOpaqueInterface {
   /// Force synchronization between pipeline state and internal state
   Future<bool> syncPlayingState();
 
-  Future<void> testAudio();
-
   Future<void> testPipeline({required String filePath});
 }

@@ -28,8 +28,7 @@ pub enum MediaData {
     AudioFormat(AudioFormat),
     Stop,
     Pause,
-    Resume,
-    TestAudio,
+    Resume
 }
 
 pub type MediaSender = mpsc::Sender<MediaData>;
@@ -398,43 +397,6 @@ impl AudioHandler {
         self.is_playing.store(true, Ordering::Relaxed);
         info!("Audio playback resumed");
     }
-
-    pub fn test_audio_output(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        info!("Testing audio output with sine wave...");
-        
-        if self.stream.is_none() {
-            self.init_audio_output()?;
-        }
-        
-        self.is_playing.store(true, Ordering::Relaxed);
-        
-        // Generate a 1-second 440Hz sine wave for testing
-        let sample_rate = self.target_sample_rate as f32;
-        let frequency = 440.0; // A4 note
-        let duration = 1.0; // 1 second
-        let num_samples = (sample_rate * duration) as usize;
-        
-        let mut test_samples = Vec::with_capacity(num_samples * self.target_channels as usize);
-        
-        for i in 0..num_samples {
-            let t = i as f32 / sample_rate;
-            let sample = (2.0 * std::f32::consts::PI * frequency * t).sin() * 0.2; // 20% volume
-            
-            // Add for each channel (stereo)
-            for _ in 0..self.target_channels {
-                test_samples.push(sample);
-            }
-        }
-        
-        // Add test samples to buffer
-        if let Ok(mut buffer) = self.audio_buffer.lock() {
-            buffer.extend_from_slice(&test_samples);
-            info!("Added {} test samples to audio buffer", test_samples.len());
-        }
-        
-        info!("Test tone should play for 1 second...");
-        Ok(())
-    }
 }
 
 impl Drop for AudioHandler {
@@ -475,11 +437,6 @@ pub fn start_audio_thread() -> MediaSender {
                         }
                         MediaData::Resume => {
                             audio_handler.resume_playback();
-                        }
-                        MediaData::TestAudio => {
-                            if let Err(e) = audio_handler.test_audio_output() {
-                                error!("Failed to test audio output: {}", e);
-                            }
                         }
                     }
                 }

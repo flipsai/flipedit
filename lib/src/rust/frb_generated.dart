@@ -66,7 +66,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.7.0';
 
   @override
-  int get rustContentHash => 486833154;
+  int get rustContentHash => 829194552;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -190,8 +190,6 @@ abstract class RustLibApi extends BaseApi {
   Future<bool> crateApiSimpleVideoPlayerSyncPlayingState({
     required VideoPlayer that,
   });
-
-  Future<void> crateApiSimpleVideoPlayerTestAudio({required VideoPlayer that});
 
   Future<void> crateApiSimpleVideoPlayerTestPipeline({
     required VideoPlayer that,
@@ -1320,40 +1318,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> crateApiSimpleVideoPlayerTestAudio({required VideoPlayer that}) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVideoPlayer(
-            that,
-            serializer,
-          );
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 35,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_String,
-        ),
-        constMeta: kCrateApiSimpleVideoPlayerTestAudioConstMeta,
-        argValues: [that],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiSimpleVideoPlayerTestAudioConstMeta =>
-      const TaskConstMeta(
-        debugName: "VideoPlayer_test_audio",
-        argNames: ["that"],
-      );
-
-  @override
   Future<void> crateApiSimpleVideoPlayerTestPipeline({
     required VideoPlayer that,
     required String filePath,
@@ -1370,7 +1334,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 36,
+            funcId: 35,
             port: port_,
           );
         },
@@ -1398,7 +1362,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(name, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 37)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 36)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -1421,7 +1385,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(name, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 38)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 37)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -1446,7 +1410,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 39,
+            funcId: 38,
             port: port_,
           );
         },
@@ -2482,9 +2446,6 @@ class VideoPlayerImpl extends RustOpaque implements VideoPlayer {
   /// Force synchronization between pipeline state and internal state
   Future<bool> syncPlayingState() => RustLib.instance.api
       .crateApiSimpleVideoPlayerSyncPlayingState(that: this);
-
-  Future<void> testAudio() =>
-      RustLib.instance.api.crateApiSimpleVideoPlayerTestAudio(that: this);
 
   Future<void> testPipeline({required String filePath}) => RustLib.instance.api
       .crateApiSimpleVideoPlayerTestPipeline(that: this, filePath: filePath);

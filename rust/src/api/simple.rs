@@ -165,10 +165,6 @@ impl VideoPlayer {
         self.inner.seek_to_frame(frame_number).map(|_| ())
     }
 
-    pub fn test_audio(&mut self) -> Result<(), String> {
-        self.inner.test_audio()
-    }
-
     pub fn test_pipeline(&self, file_path: String) -> Result<(), String> {
         testing::test_pipeline(file_path)
     }
