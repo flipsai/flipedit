@@ -1,5 +1,6 @@
 import 'dart:io' show Platform;
 import 'package:flipedit/views/demo_tab_system_view.dart';
+import 'package:flipedit/views/screens/editor_screen.dart';
 import 'package:fluent_ui/fluent_ui.dart' as fluent;
 import 'package:flutter/widgets.dart';
 import 'package:flipedit/utils/global_context.dart';
@@ -7,7 +8,6 @@ import 'package:flipedit/utils/logger.dart' as logger;
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
-import 'package:flipedit/views/screens/editor_screen.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/views/widgets/app_menu_bar.dart';
 import 'package:window_manager/window_manager.dart';
@@ -55,7 +55,7 @@ class FlipEditApp extends fluent.StatelessWidget with WatchItMixin {
         editorVm: editorVm,
         projectVm: projectVm,
         timelineVm: timelineVm,
-        child: const DemoTabSystemView(),
+        child: const EditorScreen(),
       );
     } else {
       homeWidget = fluent.NavigationView(
@@ -67,7 +67,7 @@ class FlipEditApp extends fluent.StatelessWidget with WatchItMixin {
             timelineVm: timelineVm,
           ),
         ),
-        content: const DemoTabSystemView(),
+        content: const EditorScreen(),
       );
     }
 

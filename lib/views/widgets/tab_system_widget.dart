@@ -312,15 +312,54 @@ class _TabSystemWidgetState extends State<TabSystemWidget> {
   }
 
   void _handleAddTab(TabSystemViewModel tabSystem, String groupId) {
-    // Create a new document tab
-    final String id = 'document_${DateTime.now().millisecondsSinceEpoch}';
-    final String title = 'New Document';
-
-    final tab = TabContentFactory.createDocumentTab(
-      id: id,
-      title: title,
-      isModified: false,
-    );
+    // Determine what type of tab to create based on the group and existing tabs
+    final group = tabSystem.tabGroups.firstWhere((g) => g.id == groupId);
+    final existingTabIds = group.tabs.map((t) => t.id).toSet();
+    
+    TabItem tab;
+    
+    // Check if this is the terminal group (for timeline tabs)
+    if (groupId == 'terminal_group') {
+      // Create timeline-related tabs for terminal group
+      if (!existingTabIds.contains('timeline')) {
+        tab = TabContentFactory.createAudioTab(
+          id: 'timeline',
+          title: 'Timeline',
+          isModified: false,
+        );
+      } else {
+        // Create additional terminal tab
+        final String id = 'terminal_${DateTime.now().millisecondsSinceEpoch}';
+        tab = TabContentFactory.createTerminalTab(
+          id: id,
+          title: 'Terminal ${DateTime.now().millisecond}',
+          isModified: false,
+        );
+      }
+    } else {
+      // For main groups, prioritize creating missing editor panels
+      if (!existingTabIds.contains('preview')) {
+        tab = TabContentFactory.createVideoTab(
+          id: 'preview',
+          title: 'Preview',
+          isModified: false,
+        );
+      } else if (!existingTabIds.contains('inspector')) {
+        tab = TabContentFactory.createDocumentTab(
+          id: 'inspector',
+          title: 'Inspector',
+          isModified: false,
+        );
+      } else {
+        // Create additional editor-related tabs
+        final String id = 'document_${DateTime.now().millisecondsSinceEpoch}';
+        tab = TabContentFactory.createDocumentTab(
+          id: id,
+          title: 'Document ${DateTime.now().millisecond}',
+          isModified: false,
+        );
+      }
+    }
 
     tabSystem.addTab(tab, targetGroupId: groupId);
   }

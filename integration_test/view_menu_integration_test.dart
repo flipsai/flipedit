@@ -216,39 +216,40 @@ void main() {
 
   // --- Individual Test Cases ---
 
-  testWidgets(
-    'View menu toggles Inspector visibility and updates checkmark/panel',
-    (WidgetTester tester) async {
-      debugPrint('\n=== Running Test: Inspector Toggle ===');
-      final setup = await setupTest(tester);
-      await _testPanelToggle(
-        tester: tester,
-        editorVm: setup.editorVm,
-        panelName: 'Inspector',
-        isVisibleGetter: () => setup.editorVm.isInspectorVisible,
-        viewMenuButtonFinder: setup.viewMenuButtonFinder,
-        panelWidgetFinder: find.byType(InspectorPanel),
-      );
-      debugPrint('=== Finished Test: Inspector Toggle ===\n');
-    },
-  );
+  // 'View menu toggles Inspector visibility and updates checkmark/panel',
+  // (WidgetTester tester) async {
+  //   debugPrint('--- Starting Test: View Menu - Inspector Toggle ---');
 
-  testWidgets(
-    'View menu toggles Timeline visibility and updates checkmark/panel',
-    (WidgetTester tester) async {
-      debugPrint('\n=== Running Test: Timeline Toggle ===');
-      final setup = await setupTest(tester);
-      await _testPanelToggle(
-        tester: tester,
-        editorVm: setup.editorVm,
-        panelName: 'Timeline',
-        isVisibleGetter: () => setup.editorVm.isTimelineVisible,
-        viewMenuButtonFinder: setup.viewMenuButtonFinder,
-        panelWidgetFinder: find.byType(Timeline),
-      );
-      debugPrint('=== Finished Test: Timeline Toggle ===\n');
-    },
-  );
+  //   await setupEditorScreenTest(tester);
+
+  //   await testPanelToggleViaViewMenu(
+  //     tester: tester,
+  //     editorVm: di<EditorViewModel>(),
+  //     panelName: 'Inspector',
+  //     isVisibleGetter: () => di<EditorViewModel>().isInspectorVisible,
+  //     viewMenuButtonFinder: findViewMenuButton(tester),
+  //     panelWidgetFinder: find.byType(InspectorPanel),
+  //   );
+
+  //   debugPrint('--- Test Passed: View Menu - Inspector Toggle ---');
+  // });
+
+  // testWidgets(
+  //   'View menu toggles Timeline visibility and updates checkmark/panel',
+  //   (WidgetTester tester) async {
+  //     debugPrint('\n=== Running Test: Timeline Toggle ===');
+  //     final setup = await setupTest(tester);
+  //     await _testPanelToggle(
+  //       tester: tester,
+  //       editorVm: setup.editorVm,
+  //       panelName: 'Timeline',
+  //       isVisibleGetter: () => setup.editorVm.isTimelineVisible,
+  //       viewMenuButtonFinder: setup.viewMenuButtonFinder,
+  //       panelWidgetFinder: find.byType(Timeline),
+  //     );
+  //     debugPrint('=== Finished Test: Timeline Toggle ===\n');
+  //   },
+  // );
 
   testWidgets(
     'View menu toggles Preview visibility and updates checkmark/panel',

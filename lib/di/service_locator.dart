@@ -6,12 +6,13 @@ import 'package:flipedit/services/clip_update_service.dart';
 import 'package:flipedit/services/optimized_playback_service.dart';
 import 'package:flipedit/services/timeline_logic_service.dart';
 import 'package:flipedit/services/layout_service.dart';
-import 'package:flipedit/services/area_dimensions_service.dart';
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/services/project_metadata_service.dart';
 import 'package:flipedit/services/media_duration_service.dart';
 import 'package:flipedit/services/uv_manager.dart';
 import 'package:flipedit/services/video_player_service.dart';
+import 'package:flipedit/services/tab_system_persistence_service.dart';
+import 'package:flipedit/services/tab_content_factory.dart';
 import 'package:flipedit/viewmodels/app_viewmodel.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
@@ -52,9 +53,6 @@ Future<void> setupServiceLocator() async {
     () => ProjectDatabaseService(),
   );
   di.registerLazySingleton<LayoutService>(() => LayoutService());
-  di.registerLazySingleton<AreaDimensionsService>(
-    () => AreaDimensionsService(),
-  );
 
   // Register canvas dimensions service
   di.registerLazySingleton<CanvasDimensionsService>(
@@ -163,8 +161,21 @@ Future<void> setupServiceLocator() async {
     ),
   );
 
-  di.registerLazySingleton<TabSystemViewModel>(
-    () => TabSystemViewModel(),
+  // Register tab system services
+  di.registerLazySingleton<TabSystemPersistenceService>(
+    () => TabSystemPersistenceService.instance,
+  );
+
+  di.registerLazySingleton<TabContentFactory>(
+    () => TabContentFactory(),
+  );
+
+  di.registerLazySingletonAsync<TabSystemViewModel>(
+    () async {
+      final viewModel = TabSystemViewModel();
+      await viewModel.initialize();
+      return viewModel;
+    },
     dispose: (vm) => vm.dispose(),
   );
 }

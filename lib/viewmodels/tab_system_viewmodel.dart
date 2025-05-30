@@ -245,15 +245,27 @@ class TabSystemViewModel extends ChangeNotifier {
 
     switch (dropZonePosition) {
       case 'left':
-        layoutOrientation = TabSystemLayout.horizontal;
+        // Only change to horizontal if we need to and don't already support it
+        if (layoutOrientation == TabSystemLayout.vertical && tabGroups.length == 1) {
+          // If we only have one group in vertical layout, we need horizontal to split left/right
+          layoutOrientation = TabSystemLayout.horizontal;
+        }
         _createGroupAtPosition(tab, sourceGroupId, 0);
         break;
       case 'right':
-        layoutOrientation = TabSystemLayout.horizontal;
+        // Only change to horizontal if we need to and don't already support it
+        if (layoutOrientation == TabSystemLayout.vertical && tabGroups.length == 1) {
+          // If we only have one group in vertical layout, we need horizontal to split left/right
+          layoutOrientation = TabSystemLayout.horizontal;
+        }
         _createGroupAtPosition(tab, sourceGroupId, tabGroups.length);
         break;
       case 'bottom':
-        layoutOrientation = TabSystemLayout.vertical;
+        // Only change to vertical if we need to and don't already support it
+        if (layoutOrientation == TabSystemLayout.horizontal && tabGroups.length == 1) {
+          // If we only have one group in horizontal layout, we need vertical to split top/bottom
+          layoutOrientation = TabSystemLayout.vertical;
+        }
         _createGroupAtPosition(tab, sourceGroupId, tabGroups.length);
         break;
       case 'center':

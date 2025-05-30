@@ -1,5 +1,8 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import '../models/tab_item.dart';
+import '../views/widgets/player/player_panel.dart';
+import '../views/widgets/timeline/timeline.dart';
+import '../views/widgets/inspector/inspector_panel.dart';
 
 enum TabContentType {
   document,
@@ -16,11 +19,20 @@ class TabContentFactory {
     bool isModified = false,
     Map<String, dynamic>? metadata,
   }) {
+    Widget content;
+    
+    // Use actual InspectorPanel for the inspector tab
+    if (id == 'inspector') {
+      content = const InspectorPanel();
+    } else {
+      content = _buildDocumentContent(title);
+    }
+    
     return TabItem(
       id: id,
       title: title,
       icon: const Icon(FluentIcons.document, size: 16),
-      content: _buildDocumentContent(title),
+      content: content,
       isModified: isModified,
       metadata: {
         'type': TabContentType.document.name,
@@ -35,11 +47,20 @@ class TabContentFactory {
     bool isModified = false,
     Map<String, dynamic>? metadata,
   }) {
+    Widget content;
+    
+    // Use actual PlayerPanel for the preview tab
+    if (id == 'preview') {
+      content = const PlayerPanel();
+    } else {
+      content = _buildVideoContent(title);
+    }
+    
     return TabItem(
       id: id,
       title: title,
       icon: const Icon(FluentIcons.video, size: 16),
-      content: _buildVideoContent(title),
+      content: content,
       isModified: isModified,
       metadata: {
         'type': TabContentType.video.name,
@@ -54,11 +75,20 @@ class TabContentFactory {
     bool isModified = false,
     Map<String, dynamic>? metadata,
   }) {
+    Widget content;
+    
+    // Use actual Timeline widget for the timeline tab
+    if (id == 'timeline') {
+      content = const Timeline();
+    } else {
+      content = _buildAudioContent(title);
+    }
+    
     return TabItem(
       id: id,
       title: title,
       icon: const Icon(FluentIcons.music_note, size: 16),
-      content: _buildAudioContent(title),
+      content: content,
       isModified: isModified,
       metadata: {
         'type': TabContentType.audio.name,

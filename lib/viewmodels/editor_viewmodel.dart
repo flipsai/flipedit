@@ -1,16 +1,11 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
-import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart'; // Added import
-import 'package:flipedit/viewmodels/editor/editor_layout_viewmodel.dart';
+import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
 import 'package:flipedit/utils/logger.dart';
-import 'package:docking/docking.dart';
 import 'package:watch_it/watch_it.dart';
 
-typedef DockingAreaParser = dynamic Function(DockingArea area);
-typedef DockingAreaBuilder = DockingArea? Function(dynamic data);
-
 /// Acts as a coordinator for editor-related view models and state.
-/// Delegates layout management to [EditorLayoutManager] and preview control to [EditorPreviewController].
+/// Manages global editor state like selected clips and extensions.
 class EditorViewModel {
   String get _logTag => runtimeType.toString();
 
@@ -18,23 +13,13 @@ class EditorViewModel {
   final TimelineNavigationViewModel _timelineNavigationViewModel =
       di<TimelineNavigationViewModel>();
 
-  final EditorLayoutViewModel layoutManager = EditorLayoutViewModel();
-
   final ValueNotifier<String> selectedExtensionNotifier = ValueNotifier<String>(
     'media',
   );
   final ValueNotifier<String?> selectedClipIdNotifier = ValueNotifier<String?>(
     null,
   );
-  final ValueNotifier<bool> isTimelineVisibleNotifier = ValueNotifier<bool>(
-    true,
-  );
-  final ValueNotifier<bool> isInspectorVisibleNotifier = ValueNotifier<bool>(
-    true,
-  );
-  final ValueNotifier<bool> isPreviewVisibleNotifier = ValueNotifier<bool>(
-    true,
-  );
+  
   // Notifier for the video URL currently under the playhead
   final ValueNotifier<String?> currentPreviewVideoUrlNotifier =
       ValueNotifier<String?>(null);
@@ -44,21 +29,13 @@ class EditorViewModel {
     true,
   );
 
-  VoidCallback? _layoutListener;
-
   VoidCallback? _timelineFrameListener;
   VoidCallback? _timelineClipsListener;
-  VoidCallback? _timelinePlayStateListener; // Listener for play state
+  VoidCallback? _timelinePlayStateListener;
 
   // --- Getters ---
   String get selectedExtension => selectedExtensionNotifier.value;
   String? get selectedClipId => selectedClipIdNotifier.value;
-  DockingLayout? get layout => layoutManager.layout;
-  ValueNotifier<DockingLayout?> get layoutNotifier =>
-      layoutManager.layoutNotifier;
-  bool get isTimelineVisible => layoutManager.isTimelineVisible;
-  bool get isInspectorVisible => layoutManager.isInspectorVisible;
-  bool get isPreviewVisible => layoutManager.isPreviewVisible;
 
   // --- Setters ---
   set selectedExtension(String value) {
@@ -74,7 +51,7 @@ class EditorViewModel {
   EditorViewModel() {
     logInfo(
       _logTag,
-      "EditorViewModel initialized. Layout and Preview controllers created.",
+      "EditorViewModel initialized.",
     );
 
     selectedClipIdNotifier.addListener(_syncTimelineClipSelection);
@@ -122,12 +99,9 @@ class EditorViewModel {
     // Dispose local notifiers
     selectedExtensionNotifier.dispose();
     selectedClipIdNotifier.dispose();
-    isTimelineVisibleNotifier.dispose();
-    isInspectorVisibleNotifier.dispose();
-    isPreviewVisibleNotifier.dispose();
-    currentPreviewVideoUrlNotifier.dispose(); // Dispose new notifier
-    snappingEnabledNotifier.dispose(); // Dispose snapping notifier
-    aspectRatioLockedNotifier.dispose(); // Dispose aspect ratio notifier
+    currentPreviewVideoUrlNotifier.dispose();
+    snappingEnabledNotifier.dispose();
+    aspectRatioLockedNotifier.dispose();
 
     // Remove clip selection sync listeners
     selectedClipIdNotifier.removeListener(_syncTimelineClipSelection);
@@ -138,26 +112,19 @@ class EditorViewModel {
     if (_timelineFrameListener != null) {
       _timelineNavigationViewModel.currentFrameNotifier.removeListener(
         _timelineFrameListener!,
-      ); // Use navigation VM
+      );
     }
     if (_timelineClipsListener != null) {
       _timelineViewModel.clipsNotifier.removeListener(
         _timelineClipsListener!,
-      ); // Clips are still on TimelineViewModel
+      );
     }
     if (_timelinePlayStateListener != null) {
       _timelineNavigationViewModel.isPlayingNotifier.removeListener(
         _timelinePlayStateListener!,
-      ); // Use navigation VM
+      );
     }
 
-    // Remove layout listener
-    if (layoutManager.layoutNotifier.value != null && _layoutListener != null) {
-      layoutManager.layoutNotifier.value!.removeListener(_layoutListener!);
-    }
-
-    // Dispose child controllers/managers
-    layoutManager.dispose();
     logInfo(_logTag, "EditorViewModel disposed.");
   }
 
@@ -177,19 +144,4 @@ class EditorViewModel {
       "Aspect Ratio Lock Toggled: ${aspectRatioLockedNotifier.value}",
     );
   }
-
-  // Toggle timeline visibility using generic method
-  void toggleTimeline() => layoutManager.toggleTimeline();
-
-  // Toggle inspector visibility using generic method
-  void toggleInspector() => layoutManager.toggleInspector();
-
-  void togglePreview() => layoutManager.togglePreview();
-
-  // These are called by Docking widget when the close button on an item is clicked
-  void markInspectorClosed() => layoutManager.markInspectorClosed();
-
-  void markTimelineClosed() => layoutManager.markTimelineClosed();
-
-  void markPreviewClosed() => layoutManager.markPreviewClosed();
 }

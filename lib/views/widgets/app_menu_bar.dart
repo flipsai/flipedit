@@ -2,6 +2,10 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
+import 'package:flipedit/viewmodels/tab_system_viewmodel.dart';
+import 'package:flipedit/services/tab_content_factory.dart';
+import 'package:flipedit/models/tab_item.dart';
+import 'package:watch_it/watch_it.dart';
 
 // --- Widget for macOS / Windows ---
 class PlatformAppMenuBar extends StatefulWidget {
@@ -49,6 +53,46 @@ class _PlatformAppMenuBarState extends State<PlatformAppMenuBar> {
 
   void _handleAddAudioTrack() {
     widget.projectVm.addTrackCommand(type: 'audio');
+  }
+
+  void _handleNewTab() {
+    // Create a new tab in the tab system
+    final tabSystem = GetIt.I<TabSystemViewModel>();
+    
+    // Check what essential tabs are missing across all groups
+    final allTabs = tabSystem.getAllTabs();
+    final existingTabIds = allTabs.map((t) => t.id).toSet();
+    
+    TabItem newTab;
+    
+    if (!existingTabIds.contains('preview')) {
+      newTab = TabContentFactory.createVideoTab(
+        id: 'preview',
+        title: 'Preview',
+        isModified: false,
+      );
+    } else if (!existingTabIds.contains('inspector')) {
+      newTab = TabContentFactory.createDocumentTab(
+        id: 'inspector',
+        title: 'Inspector',
+        isModified: false,
+      );
+    } else if (!existingTabIds.contains('timeline')) {
+      newTab = TabContentFactory.createAudioTab(
+        id: 'timeline',
+        title: 'Timeline',
+        isModified: false,
+      );
+    } else {
+      // Create additional document tab if all essential tabs exist
+      newTab = TabContentFactory.createDocumentTab(
+        id: 'document_${DateTime.now().millisecondsSinceEpoch}',
+        title: 'Document ${DateTime.now().millisecond}',
+        isModified: false,
+      );
+    }
+    
+    tabSystem.addTab(newTab);
   }
 
   @override
@@ -110,16 +154,8 @@ class _PlatformAppMenuBarState extends State<PlatformAppMenuBar> {
               label: 'View',
               menus: [
                 PlatformMenuItem(
-                  label: 'Inspector',
-                  onSelected: () => widget.editorVm.toggleInspector(),
-                ),
-                PlatformMenuItem(
-                  label: 'Timeline',
-                  onSelected: () => widget.editorVm.toggleTimeline(),
-                ),
-                PlatformMenuItem(
-                  label: 'Preview',
-                  onSelected: () => widget.editorVm.togglePreview(),
+                  label: 'New Tab',
+                  onSelected: () => _handleNewTab(),
                 ),
               ],
             ),
@@ -175,6 +211,46 @@ class _FluentAppMenuBarState extends State<FluentAppMenuBar> {
 
   void _handleAddAudioTrack() {
     widget.projectVm.addTrackCommand(type: 'audio');
+  }
+
+  void _handleNewTab() {
+    // Create a new tab in the tab system
+    final tabSystem = di<TabSystemViewModel>();
+    
+    // Check what essential tabs are missing across all groups
+    final allTabs = tabSystem.getAllTabs();
+    final existingTabIds = allTabs.map((t) => t.id).toSet();
+    
+    TabItem newTab;
+    
+    if (!existingTabIds.contains('preview')) {
+      newTab = TabContentFactory.createVideoTab(
+        id: 'preview',
+        title: 'Preview',
+        isModified: false,
+      );
+    } else if (!existingTabIds.contains('inspector')) {
+      newTab = TabContentFactory.createDocumentTab(
+        id: 'inspector',
+        title: 'Inspector',
+        isModified: false,
+      );
+    } else if (!existingTabIds.contains('timeline')) {
+      newTab = TabContentFactory.createAudioTab(
+        id: 'timeline',
+        title: 'Timeline',
+        isModified: false,
+      );
+    } else {
+      // Create additional document tab if all essential tabs exist
+      newTab = TabContentFactory.createDocumentTab(
+        id: 'document_${DateTime.now().millisecondsSinceEpoch}',
+        title: 'Document ${DateTime.now().millisecond}',
+        isModified: false,
+      );
+    }
+    
+    tabSystem.addTab(newTab);
   }
 
   @override
@@ -245,49 +321,14 @@ class _FluentAppMenuBarState extends State<FluentAppMenuBar> {
             },
           ),
           const SizedBox(width: 8),
-          ValueListenableBuilder<bool>(
-            valueListenable: widget.editorVm.isInspectorVisibleNotifier,
-            builder: (context, isInspectorVisible, _) {
-              return ValueListenableBuilder<bool>(
-                valueListenable: widget.editorVm.isTimelineVisibleNotifier,
-                builder: (context, isTimelineVisible, _) {
-                  return ValueListenableBuilder<bool>(
-                    valueListenable: widget.editorVm.isPreviewVisibleNotifier,
-                    builder: (context, isPreviewVisible, _) {
-                      return DropDownButton(
-                        title: const Text('View'),
-                        items: [
-                          MenuFlyoutItem(
-                            leading:
-                                isInspectorVisible
-                                    ? const Icon(FluentIcons.check_mark)
-                                    : null,
-                            text: const Text('Inspector'),
-                            onPressed: () => widget.editorVm.toggleInspector(),
-                          ),
-                          MenuFlyoutItem(
-                            leading:
-                                isTimelineVisible
-                                    ? const Icon(FluentIcons.check_mark)
-                                    : null,
-                            text: const Text('Timeline'),
-                            onPressed: () => widget.editorVm.toggleTimeline(),
-                          ),
-                          MenuFlyoutItem(
-                            leading:
-                                isPreviewVisible
-                                    ? const Icon(FluentIcons.check_mark)
-                                    : null,
-                            text: const Text('Preview'),
-                            onPressed: () => widget.editorVm.togglePreview(),
-                          ),
-                        ],
-                      );
-                    },
-                  );
-                },
-              );
-            },
+          DropDownButton(
+            title: const Text('View'),
+            items: [
+              MenuFlyoutItem(
+                text: const Text('New Tab'),
+                onPressed: () => _handleNewTab(),
+              ),
+            ],
           ),
         ],
       ),

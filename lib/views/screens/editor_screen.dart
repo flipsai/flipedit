@@ -2,22 +2,21 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/views/widgets/extensions/extension_panel_container.dart';
 import 'package:flipedit/views/widgets/extensions/extension_sidebar.dart';
-import 'package:docking/docking.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/views/widgets/common/resizable_divider.dart';
 import 'package:flutter/services.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/utils/logger.dart';
 import 'package:flipedit/viewmodels/commands/remove_clip_command.dart';
-import 'package:flipedit/views/widgets/docking/resizable_docking.dart';
+import 'package:flipedit/views/widgets/tab_system_widget.dart';
+import 'package:flipedit/viewmodels/tab_system_viewmodel.dart';
+import 'package:flipedit/services/tab_content_factory.dart';
 
 class EditorScreen extends StatelessWidget with WatchItMixin {
   const EditorScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final layout = watchValue((EditorViewModel vm) => vm.layoutNotifier);
-
     return ScaffoldPage(
       padding: EdgeInsets.zero,
       content: Row(
@@ -27,32 +26,10 @@ class EditorScreen extends StatelessWidget with WatchItMixin {
           const _ConditionalExtensionPanel(),
 
           Expanded(
-            child: MultiSplitViewTheme(
-              data: MultiSplitViewThemeData(
-                dividerThickness: 8.0,
-                dividerPainter: DividerPainters.background(
-                  color:
-                      FluentTheme.of(context).resources.subtleFillColorTertiary,
-                  highlightedColor:
-                      FluentTheme.of(
-                        context,
-                      ).resources.subtleFillColorSecondary,
-                ),
-              ),
-              child: TabbedViewTheme(
-                data: TabbedViewThemeData.dark(),
-                child: Focus(
-                  autofocus: true,
-                  onKeyEvent: _handleKeyEvent,
-                  child:
-                      layout != null
-                          ? ResizableDocking(
-                            layout: layout,
-                            onItemClose: _handlePanelClosed,
-                          )
-                          : const Center(child: ProgressRing()),
-                ),
-              ),
+            child: Focus(
+              autofocus: true,
+              onKeyEvent: _handleKeyEvent,
+              child: _buildEditorContent(context),
             ),
           ),
         ],
@@ -60,11 +37,88 @@ class EditorScreen extends StatelessWidget with WatchItMixin {
     );
   }
 
-  void _handlePanelClosed(DockingItem item) {
-    if (item.id == 'inspector') {
-      di<EditorViewModel>().markInspectorClosed();
-    } else if (item.id == 'timeline') {
-      di<EditorViewModel>().markTimelineClosed();
+  Widget _buildEditorContent(BuildContext context) {
+    return FutureBuilder<TabSystemViewModel>(
+      future: di.getAsync<TabSystemViewModel>(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: ProgressRing(),
+          );
+        }
+        
+        if (snapshot.hasError) {
+          return Center(
+            child: Text('Error loading tab system: ${snapshot.error}'),
+          );
+        }
+        
+        final tabSystem = snapshot.data!;
+        
+        return ListenableBuilder(
+          listenable: tabSystem.tabGroupsNotifier,
+          builder: (context, child) {
+            // Initialize default tabs if empty
+            if (tabSystem.tabGroups.isEmpty || tabSystem.getAllTabs().isEmpty) {
+              _createDefaultTabs();
+            }
+            
+            return TabSystemWidget(
+              onTabSelected: (tabId) {
+                logInfo('Tab selected: $tabId', 'EditorScreen');
+              },
+              onTabClosed: (tabId) {
+                logInfo('Tab closed: $tabId', 'EditorScreen');
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _createDefaultTabs() {
+    final tabSystem = di<TabSystemViewModel>();
+    
+    // Check if already initialized with tabs
+    if (tabSystem.tabGroups.isNotEmpty && tabSystem.getAllTabs().isNotEmpty) {
+      return;
+    }
+    
+    // Create main editor tabs
+    final previewTab = TabContentFactory.createVideoTab(
+      id: 'preview',
+      title: 'Preview',
+      isModified: false,
+    );
+    
+    final inspectorTab = TabContentFactory.createDocumentTab(
+      id: 'inspector',
+      title: 'Inspector', 
+      isModified: false,
+    );
+
+    // Add initial tabs to create the first group
+    tabSystem.addTab(previewTab);
+    tabSystem.addTab(inspectorTab);
+
+    // Create vertical layout with timeline at bottom
+    tabSystem.createTerminalGroup();
+    
+    // Create timeline tab for the terminal group
+    final timelineTab = TabContentFactory.createAudioTab(
+      id: 'timeline', 
+      title: 'Timeline',
+      isModified: false,
+    );
+
+    // Add timeline to the terminal group if we have at least 2 groups
+    if (tabSystem.tabGroups.length >= 2) {
+      final terminalGroupId = tabSystem.tabGroups.last.id;
+      tabSystem.addTab(timelineTab, targetGroupId: terminalGroupId);
+    } else {
+      // Fallback: just add to the main group if terminal group creation failed
+      tabSystem.addTab(timelineTab);
     }
   }
 
@@ -126,6 +180,7 @@ class EditorScreen extends StatelessWidget with WatchItMixin {
     return KeyEventResult.ignored;
   }
 }
+
 class _ConditionalExtensionPanel extends StatefulWidget {
   const _ConditionalExtensionPanel();
 
