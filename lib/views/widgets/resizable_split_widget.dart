@@ -19,6 +19,7 @@ class ResizableSplitWidget extends StatefulWidget {
   final Axis axis;
   final double dividerWidth;
   final Color? dividerColor;
+  final Function(List<double> weights)? onWeightsChanged;
 
   const ResizableSplitWidget({
     Key? key,
@@ -26,6 +27,7 @@ class ResizableSplitWidget extends StatefulWidget {
     this.axis = Axis.horizontal,
     this.dividerWidth = 4.0,
     this.dividerColor,
+    this.onWeightsChanged,
   }) : super(key: key);
 
   @override
@@ -81,6 +83,9 @@ class _ResizableSplitWidgetState extends State<ResizableSplitWidget> {
       _weights[leftIndex] = newLeftWeight;
       _weights[rightIndex] = newRightWeight;
     });
+    
+    // Notify about weight changes
+    widget.onWeightsChanged?.call(List.from(_weights));
   }
 
   @override

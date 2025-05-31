@@ -188,7 +188,7 @@ class _DemoTabSystemViewState extends State<DemoTabSystemView> {
   Widget _buildTabInfo(BuildContext context, TabSystemViewModel tabSystem) {
     return ListenableBuilder(
       listenable: Listenable.merge([
-        tabSystem.tabGroupsNotifier,
+        tabSystem.tabLinesNotifier,
         tabSystem.activeGroupIdNotifier,
         tabSystem.layoutOrientationNotifier,
       ]),

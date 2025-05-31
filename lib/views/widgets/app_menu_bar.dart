@@ -95,6 +95,75 @@ class _PlatformAppMenuBarState extends State<PlatformAppMenuBar> {
     tabSystem.addTab(newTab);
   }
 
+  void _handleOpenPreview() {
+    final tabSystem = GetIt.I<TabSystemViewModel>();
+    
+    // Check if preview tab already exists
+    final existingTab = tabSystem.getTab('preview');
+    if (existingTab != null) {
+      // If it exists, just activate it
+      tabSystem.setActiveTab('preview');
+      return;
+    }
+    
+    // Create new preview tab
+    final previewTab = TabContentFactory.createVideoTab(
+      id: 'preview',
+      title: 'Preview',
+      isModified: false,
+    );
+    
+    tabSystem.addTab(previewTab);
+  }
+
+  void _handleOpenInspector() {
+    final tabSystem = GetIt.I<TabSystemViewModel>();
+    
+    // Check if inspector tab already exists
+    final existingTab = tabSystem.getTab('inspector');
+    if (existingTab != null) {
+      // If it exists, just activate it
+      tabSystem.setActiveTab('inspector');
+      return;
+    }
+    
+    // Create new inspector tab
+    final inspectorTab = TabContentFactory.createDocumentTab(
+      id: 'inspector',
+      title: 'Inspector',
+      isModified: false,
+    );
+    
+    tabSystem.addTab(inspectorTab);
+  }
+
+  void _handleOpenTimeline() {
+    final tabSystem = GetIt.I<TabSystemViewModel>();
+    
+    // Check if timeline tab already exists
+    final existingTab = tabSystem.getTab('timeline');
+    if (existingTab != null) {
+      // If it exists, just activate it
+      tabSystem.setActiveTab('timeline');
+      return;
+    }
+    
+    // Create new timeline tab
+    final timelineTab = TabContentFactory.createAudioTab(
+      id: 'timeline',
+      title: 'Timeline',
+      isModified: false,
+    );
+    
+    // Try to add to terminal group if it exists, otherwise active group
+    final terminalGroup = tabSystem.tabGroups.where((group) => group.id == 'terminal_group').firstOrNull;
+    if (terminalGroup != null) {
+      tabSystem.addTab(timelineTab, targetGroupId: terminalGroup.id);
+    } else {
+      tabSystem.addTab(timelineTab);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<bool>(
@@ -157,6 +226,18 @@ class _PlatformAppMenuBarState extends State<PlatformAppMenuBar> {
                   label: 'New Tab',
                   onSelected: () => _handleNewTab(),
                 ),
+                PlatformMenuItem(
+                  label: 'Open Preview',
+                  onSelected: () => _handleOpenPreview(),
+                ),
+                PlatformMenuItem(
+                  label: 'Open Inspector',
+                  onSelected: () => _handleOpenInspector(),
+                ),
+                PlatformMenuItem(
+                  label: 'Open Timeline',
+                  onSelected: () => _handleOpenTimeline(),
+                ),
               ],
             ),
           ],
@@ -215,7 +296,7 @@ class _FluentAppMenuBarState extends State<FluentAppMenuBar> {
 
   void _handleNewTab() {
     // Create a new tab in the tab system
-    final tabSystem = di<TabSystemViewModel>();
+    final tabSystem = GetIt.I<TabSystemViewModel>();
     
     // Check what essential tabs are missing across all groups
     final allTabs = tabSystem.getAllTabs();
@@ -251,6 +332,75 @@ class _FluentAppMenuBarState extends State<FluentAppMenuBar> {
     }
     
     tabSystem.addTab(newTab);
+  }
+
+  void _handleOpenPreview() {
+    final tabSystem = GetIt.I<TabSystemViewModel>();
+    
+    // Check if preview tab already exists
+    final existingTab = tabSystem.getTab('preview');
+    if (existingTab != null) {
+      // If it exists, just activate it
+      tabSystem.setActiveTab('preview');
+      return;
+    }
+    
+    // Create new preview tab
+    final previewTab = TabContentFactory.createVideoTab(
+      id: 'preview',
+      title: 'Preview',
+      isModified: false,
+    );
+    
+    tabSystem.addTab(previewTab);
+  }
+
+  void _handleOpenInspector() {
+    final tabSystem = GetIt.I<TabSystemViewModel>();
+    
+    // Check if inspector tab already exists
+    final existingTab = tabSystem.getTab('inspector');
+    if (existingTab != null) {
+      // If it exists, just activate it
+      tabSystem.setActiveTab('inspector');
+      return;
+    }
+    
+    // Create new inspector tab
+    final inspectorTab = TabContentFactory.createDocumentTab(
+      id: 'inspector',
+      title: 'Inspector',
+      isModified: false,
+    );
+    
+    tabSystem.addTab(inspectorTab);
+  }
+
+  void _handleOpenTimeline() {
+    final tabSystem = GetIt.I<TabSystemViewModel>();
+    
+    // Check if timeline tab already exists
+    final existingTab = tabSystem.getTab('timeline');
+    if (existingTab != null) {
+      // If it exists, just activate it
+      tabSystem.setActiveTab('timeline');
+      return;
+    }
+    
+    // Create new timeline tab
+    final timelineTab = TabContentFactory.createAudioTab(
+      id: 'timeline',
+      title: 'Timeline',
+      isModified: false,
+    );
+    
+    // Try to add to terminal group if it exists, otherwise active group
+    final terminalGroup = tabSystem.tabGroups.where((group) => group.id == 'terminal_group').firstOrNull;
+    if (terminalGroup != null) {
+      tabSystem.addTab(timelineTab, targetGroupId: terminalGroup.id);
+    } else {
+      tabSystem.addTab(timelineTab);
+    }
   }
 
   @override
@@ -327,6 +477,18 @@ class _FluentAppMenuBarState extends State<FluentAppMenuBar> {
               MenuFlyoutItem(
                 text: const Text('New Tab'),
                 onPressed: () => _handleNewTab(),
+              ),
+              MenuFlyoutItem(
+                text: const Text('Open Preview'),
+                onPressed: () => _handleOpenPreview(),
+              ),
+              MenuFlyoutItem(
+                text: const Text('Open Inspector'),
+                onPressed: () => _handleOpenInspector(),
+              ),
+              MenuFlyoutItem(
+                text: const Text('Open Timeline'),
+                onPressed: () => _handleOpenTimeline(),
               ),
             ],
           ),

@@ -56,7 +56,7 @@ class EditorScreen extends StatelessWidget with WatchItMixin {
         final tabSystem = snapshot.data!;
         
         return ListenableBuilder(
-          listenable: tabSystem.tabGroupsNotifier,
+          listenable: tabSystem.tabLinesNotifier,
           builder: (context, child) {
             // Initialize default tabs if empty
             if (tabSystem.tabGroups.isEmpty || tabSystem.getAllTabs().isEmpty) {

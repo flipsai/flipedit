@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:watch_it/watch_it.dart';
 
 import '../models/tab_item.dart';
 import '../models/tab_group.dart';
+import '../models/tab_line.dart';
 import '../services/tab_system_persistence_service.dart';
 import '../utils/logger.dart' as logger;
 
@@ -13,9 +13,19 @@ class TabSystemViewModel extends ChangeNotifier {
   final String _logTag = 'TabSystemViewModel';
   final TabSystemPersistenceService _persistenceService = TabSystemPersistenceService.instance;
 
-  final ValueNotifier<List<TabGroup>> tabGroupsNotifier = 
-      ValueNotifier<List<TabGroup>>([]);
-  List<TabGroup> get tabGroups => List.unmodifiable(tabGroupsNotifier.value);
+  final ValueNotifier<List<TabLine>> tabLinesNotifier = 
+      ValueNotifier<List<TabLine>>([]);
+  List<TabLine> get tabLines => List.unmodifiable(tabLinesNotifier.value);
+
+  final ValueNotifier<String?> activeLineIdNotifier = ValueNotifier<String?>(null);
+  String? get activeLineId => activeLineIdNotifier.value;
+  set activeLineId(String? value) {
+    if (activeLineIdNotifier.value != value) {
+      logger.logInfo('Active tab line changed: ${activeLineIdNotifier.value} -> $value', _logTag);
+      activeLineIdNotifier.value = value;
+      _saveState();
+    }
+  }
 
   final ValueNotifier<String?> activeGroupIdNotifier = ValueNotifier<String?>(null);
   String? get activeGroupId => activeGroupIdNotifier.value;
@@ -42,6 +52,10 @@ class TabSystemViewModel extends ChangeNotifier {
       ValueNotifier<Map<String, double>>({});
   Map<String, double> get panelSizes => Map.unmodifiable(panelSizesNotifier.value);
 
+  final ValueNotifier<Map<String, double>> lineSizesNotifier = 
+      ValueNotifier<Map<String, double>>({});
+  Map<String, double> get lineSizes => Map.unmodifiable(lineSizesNotifier.value);
+
   final ValueNotifier<bool> isDraggingTabNotifier = ValueNotifier<bool>(false);
   bool get isDraggingTab => isDraggingTabNotifier.value;
   set isDraggingTab(bool value) {
@@ -51,13 +65,46 @@ class TabSystemViewModel extends ChangeNotifier {
     }
   }
 
-  TabGroup? get activeGroup {
-    if (activeGroupId == null) return null;
+  // Legacy compatibility methods
+  ValueNotifier<List<TabGroup>> get tabGroupsNotifier {
+    // Create a synthetic notifier that updates when tabLines change
+    final groupsNotifier = ValueNotifier<List<TabGroup>>(tabGroups);
+    
+    // Listen to tabLines changes and update the groups notifier
+    tabLinesNotifier.addListener(() {
+      groupsNotifier.value = tabGroups;
+    });
+    
+    return groupsNotifier;
+  }
+
+  List<TabGroup> get tabGroups {
+    final List<TabGroup> allGroups = [];
+    for (final line in tabLines) {
+      allGroups.addAll(line.tabColumns);
+    }
+    return allGroups;
+  }
+
+  TabLine? get activeLine {
+    if (activeLineId == null) return null;
     try {
-      return tabGroups.firstWhere((group) => group.id == activeGroupId);
+      return tabLines.firstWhere((line) => line.id == activeLineId);
     } catch (e) {
       return null;
     }
+  }
+
+  TabGroup? get activeGroup {
+    if (activeGroupId == null) return null;
+    for (final line in tabLines) {
+      try {
+        return line.tabColumns.firstWhere((group) => group.id == activeGroupId);
+      } catch (e) {
+        continue;
+      }
+    }
+    return null;
   }
 
   TabItem? get activeTab => activeGroup?.activeTab;
@@ -85,53 +132,80 @@ class TabSystemViewModel extends ChangeNotifier {
         final state = await _persistenceService.loadTabSystemState();
         
         if (state.tabGroups.isNotEmpty) {
-          tabGroupsNotifier.value = state.tabGroups;
-          activeGroupId = state.activeGroupId;
-          panelSizesNotifier.value = state.panelSizes;
-          layoutOrientation = state.layoutOrientation;
+          // Convert legacy TabGroup list to TabLine structure
+          _convertLegacyStateToTabLines(state);
           
           logger.logInfo('Restored ${state.tabGroups.length} tab groups from persistence', _logTag);
         } else {
-          _createDefaultGroup();
+          _createDefaultTabLine();
         }
       } else {
-        _createDefaultGroup();
+        _createDefaultTabLine();
       }
     } catch (e) {
       logger.logError('Failed to load persisted state, creating default: $e', _logTag);
-      _createDefaultGroup();
+      _createDefaultTabLine();
     }
     
     _isInitialized = true;
   }
 
-  void _createDefaultGroup() {
+  void _convertLegacyStateToTabLines(TabSystemState state) {
+    if (state.tabLines.isNotEmpty) {
+      // Use the new TabLine format
+      tabLinesNotifier.value = state.tabLines;
+      activeLineId = state.activeLineId;
+    } else if (state.tabGroups.isNotEmpty) {
+      // Convert legacy TabGroup list to TabLine structure
+      final defaultLine = TabLine(
+        id: 'default_line',
+        tabColumns: state.tabGroups,
+      );
+      
+      tabLinesNotifier.value = [defaultLine];
+      activeLineId = defaultLine.id;
+    }
+    
+    activeGroupId = state.activeGroupId;
+    panelSizesNotifier.value = state.panelSizes;
+    lineSizesNotifier.value = state.lineSizes;
+    layoutOrientation = state.layoutOrientation;
+  }
+
+  void _createDefaultTabLine() {
     final defaultGroup = TabGroup(
       id: 'default',
       tabs: [],
     );
-    tabGroupsNotifier.value = [defaultGroup];
+    final defaultLine = TabLine(
+      id: 'default_line',
+      tabColumns: [defaultGroup],
+    );
+    
+    tabLinesNotifier.value = [defaultLine];
+    activeLineId = defaultLine.id;
     activeGroupId = defaultGroup.id;
   }
 
   void _setupAutoSave() {
-    // Listen to tab groups changes
-    tabGroupsNotifier.addListener(_saveState);
+    tabLinesNotifier.addListener(_saveState);
     panelSizesNotifier.addListener(_saveState);
+    lineSizesNotifier.addListener(_saveState);
     layoutOrientationNotifier.addListener(_saveState);
   }
 
   void _saveState() {
     if (!_isInitialized) return;
     
-    // Debounce saves to avoid too frequent writes
     _saveDebouncer?.cancel();
     _saveDebouncer = Timer(const Duration(milliseconds: 500), () async {
       try {
         await _persistenceService.saveTabSystemState(
-          tabGroups: tabGroups,
+          tabLines: tabLines, // Save the new hierarchical structure
+          activeLineId: activeLineId,
           activeGroupId: activeGroupId,
           panelSizes: panelSizes.isNotEmpty ? panelSizes : null,
+          lineSizes: lineSizes.isNotEmpty ? lineSizes : null,
           layoutOrientation: layoutOrientation,
         );
       } catch (e) {
@@ -148,10 +222,60 @@ class TabSystemViewModel extends ChangeNotifier {
     panelSizesNotifier.value = updatedSizes;
   }
 
+  void updateLineSize(String lineId, double size) {
+    final updatedSizes = Map<String, double>.from(lineSizes);
+    updatedSizes[lineId] = size;
+    lineSizesNotifier.value = updatedSizes;
+  }
+
+  void updateLineSizes(List<String> lineIds, List<double> weights) {
+    final updatedSizes = Map<String, double>.from(lineSizes);
+    for (int i = 0; i < lineIds.length && i < weights.length; i++) {
+      updatedSizes[lineIds[i]] = weights[i];
+    }
+    lineSizesNotifier.value = updatedSizes;
+  }
+
+  void updateColumnSizes(String lineId, List<String> columnIds, List<double> weights) {
+    final updatedSizes = Map<String, double>.from(panelSizes);
+    for (int i = 0; i < columnIds.length && i < weights.length; i++) {
+      updatedSizes[columnIds[i]] = weights[i];
+    }
+    panelSizesNotifier.value = updatedSizes;
+  }
+
+  void createTabLine({String? lineId, double? flexSize}) {
+    final String id = lineId ?? 'line_${DateTime.now().millisecondsSinceEpoch}';
+    
+    if (tabLines.any((line) => line.id == id)) {
+      logger.logWarning('Tab line with id $id already exists', _logTag);
+      return;
+    }
+
+    final defaultGroup = TabGroup(
+      id: '${id}_group_0',
+      tabs: [],
+    );
+
+    final newLine = TabLine(
+      id: id,
+      tabColumns: [defaultGroup],
+      flexSize: flexSize,
+    );
+
+    final updatedLines = List<TabLine>.from(tabLines);
+    updatedLines.add(newLine);
+    tabLinesNotifier.value = updatedLines;
+    
+    logger.logInfo('Created new tab line: $id', _logTag);
+  }
+
   void createTabGroup({
     String? groupId,
     TabGroupOrientation orientation = TabGroupOrientation.horizontal,
     double? flexSize,
+    String? targetLineId,
+    int? atColumnIndex,
   }) {
     final String id = groupId ?? 'group_${DateTime.now().millisecondsSinceEpoch}';
     
@@ -167,65 +291,114 @@ class TabSystemViewModel extends ChangeNotifier {
       flexSize: flexSize,
     );
 
-    final updatedGroups = List<TabGroup>.from(tabGroups);
-    updatedGroups.add(newGroup);
-    tabGroupsNotifier.value = updatedGroups;
+    // Find target line or use active line
+    TabLine? targetLine;
+    if (targetLineId != null) {
+      try {
+        targetLine = tabLines.firstWhere((line) => line.id == targetLineId);
+      } catch (e) {
+        targetLine = activeLine;
+      }
+    } else {
+      targetLine = activeLine;
+    }
     
-    logger.logInfo('Created new tab group: $id', _logTag);
+    if (targetLine == null) {
+      logger.logWarning('No active line available to add tab group', _logTag);
+      return;
+    }
+
+    final updatedLine = targetLine.addColumn(newGroup, atIndex: atColumnIndex);
+    updateTabLine(targetLine.id, updatedLine);
+    
+    logger.logInfo('Created new tab group: $id in line: ${targetLine.id}', _logTag);
   }
 
   void createTerminalGroup() {
     final terminalGroupId = 'terminal_group';
     
-    // Don't create if already exists
     if (tabGroups.any((group) => group.id == terminalGroupId)) {
       logger.logInfo('Terminal group already exists', _logTag);
       return;
     }
 
-    // Switch to vertical layout for terminal
-    layoutOrientation = TabSystemLayout.vertical;
+    // Create a new tab line for terminal
+    createTabLine(lineId: 'terminal_line', flexSize: 0.3);
     
-    // Create terminal group with smaller flex size
-    createTabGroup(
-      groupId: terminalGroupId,
-      flexSize: 0.3, // 30% of vertical space
+    // Get the terminal line and add the terminal group
+    final terminalLine = tabLines.firstWhere((line) => line.id == 'terminal_line');
+    final terminalGroup = TabGroup(
+      id: terminalGroupId,
+      tabs: [],
     );
+    
+    final updatedLine = terminalLine.updateColumn(terminalLine.tabColumns.first.id, terminalGroup);
+    updateTabLine(terminalLine.id, updatedLine);
 
-    logger.logInfo('Created terminal group and switched to vertical layout', _logTag);
+    logger.logInfo('Created terminal group in new line', _logTag);
   }
 
   void removeTabGroup(String groupId) {
-    if (tabGroups.length <= 1) {
-      logger.logWarning('Cannot remove the last tab group', _logTag);
-      return;
+    TabLine? targetLine;
+    
+    // Find the line containing this group
+    for (final line in tabLines) {
+      if (line.tabColumns.any((group) => group.id == groupId)) {
+        targetLine = line;
+        break;
+      }
     }
-
-    final groupIndex = tabGroups.indexWhere((group) => group.id == groupId);
-    if (groupIndex == -1) {
+    
+    if (targetLine == null) {
       logger.logWarning('Tab group $groupId not found', _logTag);
       return;
     }
 
-    final updatedGroups = List<TabGroup>.from(tabGroups);
-    updatedGroups.removeAt(groupIndex);
-    tabGroupsNotifier.value = updatedGroups;
+    final updatedLine = targetLine.removeColumn(groupId);
+    
+    // If line becomes empty, remove the line
+    if (updatedLine.isEmpty) {
+      _removeTabLine(targetLine.id);
+    } else {
+      updateTabLine(targetLine.id, updatedLine);
+    }
 
-    // Remove panel size for this group
     final updatedSizes = Map<String, double>.from(panelSizes);
     updatedSizes.remove(groupId);
     panelSizesNotifier.value = updatedSizes;
 
     if (activeGroupId == groupId) {
-      activeGroupId = updatedGroups.isNotEmpty ? updatedGroups.first.id : null;
-    }
-
-    // If only one group left, switch back to horizontal layout
-    if (updatedGroups.length == 1) {
-      layoutOrientation = TabSystemLayout.horizontal;
+      activeGroupId = tabGroups.isNotEmpty ? tabGroups.first.id : null;
     }
 
     logger.logInfo('Removed tab group: $groupId', _logTag);
+  }
+
+  void updateTabLine(String lineId, TabLine updatedLine) {
+    final lineIndex = tabLines.indexWhere((line) => line.id == lineId);
+    if (lineIndex == -1) return;
+
+    final updatedLines = List<TabLine>.from(tabLines);
+    updatedLines[lineIndex] = updatedLine;
+    tabLinesNotifier.value = updatedLines;
+  }
+
+  void _removeTabLine(String lineId) {
+    if (tabLines.length <= 1) {
+      // If this is the last line, clear it and create a new default line
+      logger.logInfo('Removing last tab line, creating new default line', _logTag);
+      _createDefaultTabLine();
+      return;
+    }
+
+    final updatedLines = tabLines.where((line) => line.id != lineId).toList();
+    tabLinesNotifier.value = updatedLines;
+
+    if (activeLineId == lineId) {
+      activeLineId = updatedLines.isNotEmpty ? updatedLines.first.id : null;
+    }
+    
+    logger.logInfo('Removed tab line: $lineId', _logTag);
   }
 
   void toggleLayoutOrientation() {
@@ -234,6 +407,172 @@ class TabSystemViewModel extends ChangeNotifier {
         : TabSystemLayout.horizontal;
     
     logger.logInfo('Toggled layout orientation to: $layoutOrientation', _logTag);
+  }
+
+  // Legacy compatibility methods
+  void addTab(TabItem tab, {String? targetGroupId, String? targetLineId, int? atIndex}) {
+    String groupId = targetGroupId ?? activeGroupId ?? '';
+    
+    if (groupId.isEmpty) {
+      _createDefaultTabLine();
+      groupId = activeGroupId!;
+    }
+
+    TabGroup? targetGroup = activeGroup;
+    TabLine? targetLine;
+    
+    if (targetGroupId != null) {
+      for (final line in tabLines) {
+        for (final group in line.tabColumns) {
+          if (group.id == targetGroupId) {
+            targetGroup = group;
+            targetLine = line;
+        break;
+          }
+        }
+        if (targetGroup != null) break;
+    }
+    } else {
+      targetLine = activeLine;
+      targetGroup = activeGroup;
+    }
+
+    if (targetGroup == null || targetLine == null) {
+      logger.logWarning('Cannot add tab: no valid target group', _logTag);
+      return;
+    }
+
+    final updatedGroup = targetGroup.addTab(tab, atIndex: atIndex);
+    final updatedLine = targetLine.updateColumn(targetGroup.id, updatedGroup);
+    updateTabLine(targetLine.id, updatedLine);
+
+    activeGroupId = targetGroup.id;
+    activeLineId = targetLine.id;
+
+    logger.logInfo('Added tab ${tab.id} to group ${targetGroup.id}', _logTag);
+  }
+
+  void removeTab(String tabId, {String? fromGroupId}) {
+    TabGroup? sourceGroup;
+    TabLine? sourceLine;
+    
+    // Find the group containing this tab
+    for (final line in tabLines) {
+      for (final group in line.tabColumns) {
+        if (group.tabs.any((tab) => tab.id == tabId)) {
+          sourceGroup = group;
+          sourceLine = line;
+          break;
+        }
+      }
+      if (sourceGroup != null) break;
+    }
+
+    if (sourceGroup == null || sourceLine == null) {
+      logger.logWarning('Tab $tabId not found', _logTag);
+      return;
+    }
+
+    final updatedGroup = sourceGroup.removeTab(tabId);
+    
+    // Check if the group is now empty
+    if (updatedGroup.isEmpty) {
+      // Remove the empty group instead of updating it
+      final updatedLine = sourceLine.removeColumn(sourceGroup.id);
+      
+      // Check if the line is now empty
+      if (updatedLine.isEmpty) {
+        // Remove the empty line
+        _removeTabLine(sourceLine.id);
+      } else {
+        // Update the line without the empty group
+        updateTabLine(sourceLine.id, updatedLine);
+      }
+      
+      // Update active states if needed
+      if (activeGroupId == sourceGroup.id) {
+        // Set active group to the first available group
+        activeGroupId = tabGroups.isNotEmpty ? tabGroups.first.id : null;
+        
+        // Set active line to the line containing the new active group
+        if (activeGroupId != null) {
+          for (final line in tabLines) {
+            if (line.tabColumns.any((group) => group.id == activeGroupId)) {
+              activeLineId = line.id;
+              break;
+            }
+          }
+        } else {
+          activeLineId = null;
+        }
+      }
+      
+      logger.logInfo('Removed tab $tabId and empty group ${sourceGroup.id}', _logTag);
+    } else {
+      // Update the group with the removed tab
+      final updatedLine = sourceLine.updateColumn(sourceGroup.id, updatedGroup);
+      updateTabLine(sourceLine.id, updatedLine);
+
+      logger.logInfo('Removed tab $tabId from group ${sourceGroup.id}', _logTag);
+    }
+  }
+
+  void setActiveTab(String tabId, {String? inGroupId}) {
+    TabGroup? targetGroup;
+    TabLine? targetLine;
+    
+    for (final line in tabLines) {
+      for (final group in line.tabColumns) {
+        if (group.tabs.any((tab) => tab.id == tabId)) {
+          targetGroup = group;
+          targetLine = line;
+          break;
+        }
+      }
+      if (targetGroup != null) break;
+    }
+
+    if (targetGroup == null || targetLine == null) {
+      logger.logWarning('Tab $tabId not found', _logTag);
+      return;
+    }
+
+    final updatedGroup = targetGroup.setActiveTab(tabId);
+    final updatedLine = targetLine.updateColumn(targetGroup.id, updatedGroup);
+    updateTabLine(targetLine.id, updatedLine);
+    
+    activeGroupId = targetGroup.id;
+    activeLineId = targetLine.id;
+  }
+
+  List<TabItem> getAllTabs() {
+    final List<TabItem> allTabs = [];
+    for (final line in tabLines) {
+      for (final group in line.tabColumns) {
+        allTabs.addAll(group.tabs);
+      }
+    }
+    return allTabs;
+  }
+
+  TabItem? getTab(String tabId) {
+    for (final line in tabLines) {
+      for (final group in line.tabColumns) {
+        for (final tab in group.tabs) {
+          if (tab.id == tabId) {
+            return tab;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  void closeAllTabs() {
+    tabLinesNotifier.value = [];
+    activeLineId = null;
+    activeGroupId = null;
+    _createDefaultTabLine();
   }
 
   void handleDropZoneAction(String tabId, String sourceGroupId, String dropZonePosition) {
@@ -245,283 +584,128 @@ class TabSystemViewModel extends ChangeNotifier {
 
     switch (dropZonePosition) {
       case 'left':
-        // Only change to horizontal if we need to and don't already support it
-        if (layoutOrientation == TabSystemLayout.vertical && tabGroups.length == 1) {
-          // If we only have one group in vertical layout, we need horizontal to split left/right
-          layoutOrientation = TabSystemLayout.horizontal;
-        }
-        _createGroupAtPosition(tab, sourceGroupId, 0);
+        _createGroupAtPosition(tab, sourceGroupId, 'left');
         break;
       case 'right':
-        // Only change to horizontal if we need to and don't already support it
-        if (layoutOrientation == TabSystemLayout.vertical && tabGroups.length == 1) {
-          // If we only have one group in vertical layout, we need horizontal to split left/right
-          layoutOrientation = TabSystemLayout.horizontal;
-        }
-        _createGroupAtPosition(tab, sourceGroupId, tabGroups.length);
+        _createGroupAtPosition(tab, sourceGroupId, 'right');
         break;
       case 'bottom':
-        // Only change to vertical if we need to and don't already support it
-        if (layoutOrientation == TabSystemLayout.horizontal && tabGroups.length == 1) {
-          // If we only have one group in horizontal layout, we need vertical to split top/bottom
-          layoutOrientation = TabSystemLayout.vertical;
-        }
-        _createGroupAtPosition(tab, sourceGroupId, tabGroups.length);
+        _createLineAtPosition(tab, sourceGroupId, 'bottom');
         break;
       case 'center':
-        // Add to existing active group - this is handled by existing logic
         break;
     }
   }
 
-  void _createGroupAtPosition(TabItem tab, String sourceGroupId, int position) {
-    // Remove tab from source group
-    removeTab(tab.id, fromGroupId: sourceGroupId);
+  void _createGroupAtPosition(TabItem tab, String sourceGroupId, String position) {
+    // Find source group and line
+    TabGroup? sourceGroup;
+    TabLine? sourceLine;
     
-    // Create new group
+    for (final line in tabLines) {
+      for (final group in line.tabColumns) {
+        if (group.id == sourceGroupId) {
+          sourceGroup = group;
+          sourceLine = line;
+          break;
+        }
+      }
+      if (sourceGroup != null) break;
+    }
+    
+    if (sourceGroup == null || sourceLine == null) return;
+
+    // Remove tab from source
+    final updatedSourceGroup = sourceGroup.removeTab(tab.id);
+    
+    // Create new group with the tab
     final newGroupId = 'group_${DateTime.now().millisecondsSinceEpoch}';
     final newGroup = TabGroup(
       id: newGroupId,
       tabs: [tab],
-      activeIndex: 0,
-      flexSize: 1.0,
     );
 
-    // Insert group at specified position
-    final updatedGroups = List<TabGroup>.from(tabGroups);
-    if (position >= updatedGroups.length) {
-      updatedGroups.add(newGroup);
-    } else {
-      updatedGroups.insert(position, newGroup);
-    }
+    // Add new group to the line
+    final sourceIndex = sourceLine.tabColumns.indexWhere((g) => g.id == sourceGroupId);
+    final insertIndex = position == 'left' ? sourceIndex : sourceIndex + 1;
     
-    tabGroupsNotifier.value = updatedGroups;
+    var updatedLine = sourceLine.updateColumn(sourceGroupId, updatedSourceGroup);
+    updatedLine = updatedLine.addColumn(newGroup, atIndex: insertIndex);
+    
+    updateTabLine(sourceLine.id, updatedLine);
     activeGroupId = newGroupId;
-
-    logger.logInfo('Created new group $newGroupId at position $position with tab ${tab.id}', _logTag);
   }
 
-  void addTab(TabItem tab, {String? targetGroupId, int? atIndex}) {
-    final String groupId = targetGroupId ?? activeGroupId ?? tabGroups.first.id;
-    final groupIndex = tabGroups.indexWhere((group) => group.id == groupId);
+  void _createLineAtPosition(TabItem tab, String sourceGroupId, String position) {
+    // Find source group and line
+    TabGroup? sourceGroup;
+    TabLine? sourceLine;
     
-    if (groupIndex == -1) {
-      logger.logWarning('Target group $groupId not found for adding tab', _logTag);
-      return;
-    }
-
-    final updatedGroups = List<TabGroup>.from(tabGroups);
-    final targetGroup = updatedGroups[groupIndex];
-    final updatedGroup = targetGroup.addTab(tab, atIndex: atIndex);
-    updatedGroups[groupIndex] = updatedGroup;
-    
-    tabGroupsNotifier.value = updatedGroups;
-    activeGroupId = groupId;
-
-    logger.logInfo('Added tab ${tab.id} to group $groupId at index ${atIndex ?? targetGroup.tabs.length}', _logTag);
-  }
-
-  void removeTab(String tabId, {String? fromGroupId}) {
-    TabGroup? targetGroup;
-    int groupIndex = -1;
-
-    if (fromGroupId != null) {
-      groupIndex = tabGroups.indexWhere((group) => group.id == fromGroupId);
-      if (groupIndex != -1) {
-        targetGroup = tabGroups[groupIndex];
-      }
-    } else {
-      for (int i = 0; i < tabGroups.length; i++) {
-        final group = tabGroups[i];
-        if (group.tabs.any((tab) => tab.id == tabId)) {
-          targetGroup = group;
-          groupIndex = i;
+    for (final line in tabLines) {
+      for (final group in line.tabColumns) {
+        if (group.id == sourceGroupId) {
+          sourceGroup = group;
+          sourceLine = line;
           break;
-        }
       }
-    }
-
-    if (targetGroup == null || groupIndex == -1) {
-      logger.logWarning('Tab $tabId not found in any group', _logTag);
-      return;
-    }
-
-    final updatedGroups = List<TabGroup>.from(tabGroups);
-    final updatedGroup = targetGroup.removeTab(tabId);
-    updatedGroups[groupIndex] = updatedGroup;
-    
-    tabGroupsNotifier.value = updatedGroups;
-
-    logger.logInfo('Removed tab $tabId from group ${targetGroup.id}', _logTag);
-  }
-
-  void moveTab(String tabId, String fromGroupId, String toGroupId, {int? toIndex}) {
-    if (fromGroupId == toGroupId) {
-      _moveTabWithinGroup(tabId, fromGroupId, toIndex);
-      return;
-    }
-
-    final fromGroupIndex = tabGroups.indexWhere((group) => group.id == fromGroupId);
-    final toGroupIndex = tabGroups.indexWhere((group) => group.id == toGroupId);
-
-    if (fromGroupIndex == -1 || toGroupIndex == -1) {
-      logger.logWarning('Source or target group not found for moving tab $tabId', _logTag);
-      return;
-    }
-
-    final fromGroup = tabGroups[fromGroupIndex];
-    final tabIndex = fromGroup.tabs.indexWhere((tab) => tab.id == tabId);
-    
-    if (tabIndex == -1) {
-      logger.logWarning('Tab $tabId not found in source group $fromGroupId', _logTag);
-      return;
-    }
-
-    final tab = fromGroup.tabs[tabIndex];
-    final updatedGroups = List<TabGroup>.from(tabGroups);
-
-    updatedGroups[fromGroupIndex] = fromGroup.removeTab(tabId);
-    updatedGroups[toGroupIndex] = updatedGroups[toGroupIndex].addTab(tab, atIndex: toIndex);
-
-    tabGroupsNotifier.value = updatedGroups;
-    activeGroupId = toGroupId;
-
-    logger.logInfo('Moved tab $tabId from $fromGroupId to $toGroupId', _logTag);
-  }
-
-  void _moveTabWithinGroup(String tabId, String groupId, int? toIndex) {
-    final groupIndex = tabGroups.indexWhere((group) => group.id == groupId);
-    if (groupIndex == -1) return;
-
-    final group = tabGroups[groupIndex];
-    final fromIndex = group.tabs.indexWhere((tab) => tab.id == tabId);
-    
-    if (fromIndex == -1 || toIndex == null || fromIndex == toIndex) return;
-
-    final updatedGroups = List<TabGroup>.from(tabGroups);
-    updatedGroups[groupIndex] = group.moveTab(fromIndex, toIndex);
-    tabGroupsNotifier.value = updatedGroups;
-
-    logger.logInfo('Moved tab $tabId within group $groupId from $fromIndex to $toIndex', _logTag);
-  }
-
-  void setActiveTab(String tabId, {String? inGroupId}) {
-    String? targetGroupId = inGroupId;
-    
-    if (targetGroupId == null) {
-      for (final group in tabGroups) {
-        if (group.tabs.any((tab) => tab.id == tabId)) {
-          targetGroupId = group.id;
-          break;
-        }
       }
+      if (sourceGroup != null) break;
     }
-
-    if (targetGroupId == null) {
-      logger.logWarning('Tab $tabId not found in any group', _logTag);
-      return;
-    }
-
-    final groupIndex = tabGroups.indexWhere((group) => group.id == targetGroupId);
-    if (groupIndex == -1) return;
-
-    final updatedGroups = List<TabGroup>.from(tabGroups);
-    updatedGroups[groupIndex] = updatedGroups[groupIndex].setActiveTab(tabId);
-    tabGroupsNotifier.value = updatedGroups;
-    activeGroupId = targetGroupId;
-
-    logger.logInfo('Set active tab to $tabId in group $targetGroupId', _logTag);
-  }
-
-  void setActiveTabIndex(int index, {String? inGroupId}) {
-    final String groupId = inGroupId ?? activeGroupId ?? tabGroups.first.id;
-    final groupIndex = tabGroups.indexWhere((group) => group.id == groupId);
     
-    if (groupIndex == -1) return;
+    if (sourceGroup == null || sourceLine == null) return;
 
-    final updatedGroups = List<TabGroup>.from(tabGroups);
-    updatedGroups[groupIndex] = updatedGroups[groupIndex].setActiveIndex(index);
-    tabGroupsNotifier.value = updatedGroups;
-    activeGroupId = groupId;
+    // Now we know both are non-null, so we can use them safely
+    final nonNullSourceGroup = sourceGroup;
+    final nonNullSourceLine = sourceLine;
 
-    logger.logInfo('Set active tab index to $index in group $groupId', _logTag);
-  }
+    // Remove tab from source
+    final updatedSourceGroup = nonNullSourceGroup.removeTab(tab.id);
+    final updatedSourceLine = nonNullSourceLine.updateColumn(sourceGroupId, updatedSourceGroup);
+    
+    // Create new line with new group containing the tab
+    final newLineId = 'line_${DateTime.now().millisecondsSinceEpoch}';
+    final newGroupId = 'group_${DateTime.now().millisecondsSinceEpoch}';
+    final newGroup = TabGroup(
+      id: newGroupId,
+      tabs: [tab],
+    );
+    final newLine = TabLine(
+      id: newLineId,
+      tabColumns: [newGroup],
+    );
 
-  void updateTab(String tabId, TabItem updatedTab) {
-    for (int groupIndex = 0; groupIndex < tabGroups.length; groupIndex++) {
-      final group = tabGroups[groupIndex];
-      final tabIndex = group.tabs.indexWhere((tab) => tab.id == tabId);
-      
-      if (tabIndex != -1) {
-        final updatedGroups = List<TabGroup>.from(tabGroups);
-        final updatedTabs = List<TabItem>.from(group.tabs);
-        updatedTabs[tabIndex] = updatedTab;
-        updatedGroups[groupIndex] = group.copyWith(tabs: updatedTabs);
-        tabGroupsNotifier.value = updatedGroups;
-        
-        logger.logInfo('Updated tab $tabId', _logTag);
-        return;
-      }
-    }
-
-    logger.logWarning('Tab $tabId not found for update', _logTag);
-  }
-
-  TabItem? getTab(String tabId) {
-    for (final group in tabGroups) {
-      try {
-        return group.tabs.firstWhere((tab) => tab.id == tabId);
-      } catch (e) {
-        continue;
-      }
-    }
-    return null;
-  }
-
-  List<TabItem> getAllTabs() {
-    final List<TabItem> allTabs = [];
-    for (final group in tabGroups) {
-      allTabs.addAll(group.tabs);
-    }
-    return allTabs;
-  }
-
-  void closeAllTabs({String? inGroupId}) {
-    if (inGroupId != null) {
-      final groupIndex = tabGroups.indexWhere((group) => group.id == inGroupId);
-      if (groupIndex != -1) {
-        final updatedGroups = List<TabGroup>.from(tabGroups);
-        updatedGroups[groupIndex] = updatedGroups[groupIndex].copyWith(tabs: [], activeIndex: -1);
-        tabGroupsNotifier.value = updatedGroups;
-        logger.logInfo('Closed all tabs in group $inGroupId', _logTag);
-      }
-    } else {
-      final updatedGroups = tabGroups.map((group) => 
-        group.copyWith(tabs: [], activeIndex: -1)
-      ).toList();
-      tabGroupsNotifier.value = updatedGroups;
-      logger.logInfo('Closed all tabs in all groups', _logTag);
-    }
+    // Add new line
+    final sourceLineIndex = tabLines.indexWhere((l) => l.id == nonNullSourceLine.id);
+    if (sourceLineIndex == -1) return; // Line not found
+    final insertIndex = position == 'bottom' ? sourceLineIndex + 1 : sourceLineIndex;
+    
+    final updatedLines = List<TabLine>.from(tabLines);
+    updatedLines[sourceLineIndex] = updatedSourceLine;
+    updatedLines.insert(insertIndex, newLine);
+    
+    tabLinesNotifier.value = updatedLines;
+    activeLineId = newLineId;
+    activeGroupId = newGroupId;
   }
 
   Future<void> clearPersistedState() async {
+    try {
     await _persistenceService.clearTabSystemState();
     logger.logInfo('Cleared persisted tab system state', _logTag);
+    } catch (e) {
+      logger.logError('Failed to clear persisted state: $e', _logTag);
+    }
   }
 
   @override
   void dispose() {
-    logger.logInfo('Disposing TabSystemViewModel', _logTag);
     _saveDebouncer?.cancel();
-    
-    tabGroupsNotifier.removeListener(_saveState);
-    panelSizesNotifier.removeListener(_saveState);
-    layoutOrientationNotifier.removeListener(_saveState);
-    
-    tabGroupsNotifier.dispose();
+    tabLinesNotifier.dispose();
+    activeLineIdNotifier.dispose();
     activeGroupIdNotifier.dispose();
-    panelSizesNotifier.dispose();
     layoutOrientationNotifier.dispose();
+    panelSizesNotifier.dispose();
+    lineSizesNotifier.dispose();
     isDraggingTabNotifier.dispose();
     super.dispose();
   }
