@@ -31,18 +31,56 @@ class _LightweightPlayheadOverlayState extends State<LightweightPlayheadOverlay>
   Timer? _resumeUpdatesTimer;
   int _lastRenderedFrame = -1;
   bool _ignorePositionUpdates = false;
+  
+  // Add scroll listener for position updates
+  VoidCallback? _scrollListener;
+  
+  // Cache expensive calculations during drag
+  RenderBox? _cachedRenderBox;
+  double _cachedScrollOffset = 0.0;
+  double _cachedPxPerFrame = 0.0;
 
   @override
   void initState() {
     super.initState();
     _videoPlayerService = di<VideoPlayerService>();
+    
+    // Listen to scroll changes to update playhead position
+    _scrollListener = () {
+      if (mounted && !_isDragging) {
+        setState(() {
+          // Force rebuild when scroll position changes
+        });
+      }
+    };
+    
+    widget.scrollController.addListener(_scrollListener!);
   }
 
   @override
   void dispose() {
     _updateThrottleTimer?.cancel();
     _resumeUpdatesTimer?.cancel();
+    
+    // Remove scroll listener
+    if (_scrollListener != null) {
+      widget.scrollController.removeListener(_scrollListener!);
+    }
+    
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(LightweightPlayheadOverlay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    
+    // Handle scroll controller changes
+    if (oldWidget.scrollController != widget.scrollController) {
+      if (_scrollListener != null) {
+        oldWidget.scrollController.removeListener(_scrollListener!);
+        widget.scrollController.addListener(_scrollListener!);
+      }
+    }
   }
 
   void _handleDragStart(DragStartDetails details) {
@@ -52,23 +90,24 @@ class _LightweightPlayheadOverlayState extends State<LightweightPlayheadOverlay>
       _videoPlayerService.activeVideoPlayer?.pause();
     }
     
+    // Cache expensive calculations for drag performance
+    _cachedRenderBox = context.findRenderObject() as RenderBox?;
+    _cachedScrollOffset = widget.scrollController.hasClients ? widget.scrollController.offset : 0.0;
+    const double framePixelWidth = 5.0;
+    _cachedPxPerFrame = framePixelWidth * widget.zoom;
+    
     setState(() {
       _isDragging = true;
       _ignorePositionUpdates = true; // Ignore position updates during drag
-      _dragPosition = _calculateFrameFromPosition(details.globalPosition.dx);
+      _dragPosition = _calculateFrameFromPositionCached(details.globalPosition.dx);
     });
   }
 
   void _handleDragUpdate(DragUpdateDetails details) {
     if (_isDragging) {
-      // Throttle drag updates to reduce rebuilds
-      _updateThrottleTimer?.cancel();
-      _updateThrottleTimer = Timer(const Duration(milliseconds: 16), () {
-        if (mounted && _isDragging) {
-          setState(() {
-            _dragPosition = _calculateFrameFromPosition(details.globalPosition.dx);
-          });
-        }
+      // Direct update without throttling for smooth dragging
+      setState(() {
+        _dragPosition = _calculateFrameFromPositionCached(details.globalPosition.dx);
       });
     }
   }
@@ -86,6 +125,11 @@ class _LightweightPlayheadOverlayState extends State<LightweightPlayheadOverlay>
         // Keep ignoring position updates briefly to prevent snapback
         _ignorePositionUpdates = true;
       });
+      
+      // Clear cached values
+      _cachedRenderBox = null;
+      _cachedScrollOffset = 0.0;
+      _cachedPxPerFrame = 0.0;
       
       // Resume position updates after a short delay to allow Rust to update
       _resumeUpdatesTimer?.cancel();
@@ -105,17 +149,24 @@ class _LightweightPlayheadOverlayState extends State<LightweightPlayheadOverlay>
   }
 
   double _calculateFrameFromPosition(double globalX) {
-    // Get the render box to convert global to local coordinates
+    // Get our own render box to convert global to local coordinates
     final RenderBox? renderBox = context.findRenderObject() as RenderBox?;
     if (renderBox == null) return 0.0;
     
+    // Convert global coordinates to our local coordinates
     final localPosition = renderBox.globalToLocal(Offset(globalX, 0));
+    
     const double framePixelWidth = 5.0;
     final double pxPerFrame = framePixelWidth * widget.zoom;
     
     // Account for scroll offset and track label width
     final scrollOffset = widget.scrollController.hasClients ? widget.scrollController.offset : 0.0;
-    final adjustedPosition = (localPosition.dx + scrollOffset - widget.trackLabelWidth).clamp(0.0, double.infinity);
+    
+    // The local position is relative to our overlay widget
+    // We need to subtract trackLabelWidth to get position relative to timeline content
+    // Then add scrollOffset to account for the current scroll position
+    final timelineContentX = localPosition.dx - widget.trackLabelWidth + scrollOffset;
+    final adjustedPosition = timelineContentX.clamp(0.0, double.infinity);
     
     return adjustedPosition / pxPerFrame;
   }
@@ -124,9 +175,26 @@ class _LightweightPlayheadOverlayState extends State<LightweightPlayheadOverlay>
     const double framePixelWidth = 5.0;
     final double pxPerFrame = framePixelWidth * widget.zoom;
     
-    // Account for scroll offset
+    // Account for scroll offset since we're outside the scrollable area
     final scrollOffset = widget.scrollController.hasClients ? widget.scrollController.offset : 0.0;
     return widget.trackLabelWidth + (frame * pxPerFrame) - scrollOffset;
+  }
+
+  double _calculateFrameFromPositionCached(double globalX) {
+    // Get our own render box to convert global to local coordinates
+    final RenderBox? renderBox = _cachedRenderBox;
+    if (renderBox == null) return 0.0;
+    
+    // Convert global coordinates to our local coordinates
+    final localPosition = renderBox.globalToLocal(Offset(globalX, 0));
+    
+    // The local position is relative to our overlay widget
+    // We need to subtract trackLabelWidth to get position relative to timeline content
+    // Then add scrollOffset to account for the current scroll position
+    final timelineContentX = localPosition.dx - widget.trackLabelWidth + _cachedScrollOffset;
+    final adjustedPosition = timelineContentX.clamp(0.0, double.infinity);
+    
+    return adjustedPosition / _cachedPxPerFrame;
   }
 
   @override
@@ -202,9 +270,7 @@ class _PlayheadRenderer extends StatelessWidget with WatchItMixin {
     // Always render if we have a valid frame (remove optimization that might cause disappearing)
     onFrameRendered(currentFrame);
 
-    final playheadPosition = isDragging 
-        ? (trackLabelWidth + (dragPosition * 5.0 * zoom))
-        : calculatePositionFromFrame(currentFrame);
+    final playheadPosition = calculatePositionFromFrame(currentFrame);
 
     // Don't render if position is off-screen
     if (playheadPosition < trackLabelWidth || playheadPosition < 0) {

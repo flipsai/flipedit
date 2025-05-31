@@ -404,7 +404,7 @@ class _TimelineContent extends StatelessWidget with WatchItMixin {
                         ),
                       ),
 
-                      // Lightweight Playhead Overlay (Separate Rendering Layer)
+                      // Lightweight Playhead Overlay (Separate rendering layer for performance)
                       if (hasActiveVideo)
                         LightweightPlayheadOverlay(
                           key: const ValueKey('timeline_playhead'),

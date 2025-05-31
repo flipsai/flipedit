@@ -50,21 +50,21 @@ class VideoPlayerService extends ChangeNotifier {
 
   // Unregister the active video player
   void unregisterVideoPlayer() {
-    // _activeVideoPlayer = null;
-    // hasActiveVideoNotifier.value = false;
+    _activeVideoPlayer = null;
+    hasActiveVideoNotifier.value = false;
     
     // Stop position polling when player is unregistered
-    // _stopPositionPolling();
+    _stopPositionPolling();
     
     logDebug("Active video player unregistered", _logTag);
   }
 
   // Start polling Rust for position updates
   void _startPositionPolling() {
-    // _stopPositionPolling(); // Stop any existing timer
+    _stopPositionPolling(); // Stop any existing timer
     
     // Start with adaptive polling - faster when playing, slower when paused
-    // _scheduleNextPoll();
+    _scheduleNextPoll();
     
     logDebug("Started adaptive position polling from Rust", _logTag);
   }
