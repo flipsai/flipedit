@@ -307,13 +307,13 @@ class _TabLineWidgetState extends State<TabLineWidget> {
             tabSystem.activeGroupId = toGroupId;
           }
         } else {
-          tabSystem.updateTabLine(sourceLine!.id, updatedSourceLine);
+          tabSystem.updateTabLine(sourceLine.id, updatedSourceLine);
         }
       } else {
-        tabSystem.updateTabLine(sourceLine!.id, updatedSourceLine);
+        tabSystem.updateTabLine(sourceLine.id, updatedSourceLine);
       }
       
-      tabSystem.updateTabLine(targetLine!.id, updatedTargetLine);
+      tabSystem.updateTabLine(targetLine.id, updatedTargetLine);
     }
     
     // Set the moved tab as active

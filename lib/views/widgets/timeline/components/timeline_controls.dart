@@ -8,6 +8,7 @@ import 'package:flipedit/utils/logger.dart';
 
 /// Controls widget for the timeline including playback controls and zoom
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
+import 'package:flipedit/services/video_player_service.dart';
 
 /// Controls widget for the timeline including playback controls and zoom
 class TimelineControls extends StatelessWidget with WatchItMixin {
@@ -36,6 +37,11 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
     );
     final isPlayheadLocked = watchValue(
       (TimelineNavigationViewModel vm) => vm.isPlayheadLockedNotifier,
+    );
+
+    // Watch video player service state for better feedback
+    final hasActiveVideo = watchValue(
+      (VideoPlayerService service) => service.hasActiveVideoNotifier,
     );
 
     // Watch snapping and aspect ratio lock states from EditorViewModel
@@ -135,18 +141,22 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
             ),
           ),
           Tooltip(
-            message: isPlaying ? 'Pause' : 'Play', // Use watched isPlaying
+            message: !hasActiveVideo 
+              ? 'Loading video player...' 
+              : isPlaying ? 'Pause' : 'Play', // Use watched isPlaying
             child: IconButton(
               icon: Icon(
                 isPlaying
                     ? HugeIcons.strokeRoundedPause
                     : HugeIcons.strokeRoundedPlay,
                 size: 16,
-                color: controlsContentColor,
+                color: !hasActiveVideo 
+                  ? controlsContentColor.withOpacity(0.5)  // Dimmed when not ready
+                  : controlsContentColor,
               ),
               // Just control timeline navigation - video player will sync
               onPressed: () async {
-                logDebug("Play button pressed - isPlaying: $isPlaying", 'TimelineControls');
+                logInfo("Play button pressed - isPlaying: $isPlaying, hasActiveVideo: $hasActiveVideo", 'TimelineControls');
                 timelineNavigationViewModel.togglePlayPause();
               },
             ),

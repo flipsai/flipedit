@@ -36,6 +36,7 @@ class _PlayerPanelState extends State<PlayerPanel> {
     _timelineNavViewModel.currentFrameNotifier.addListener(_rebuild);
     _timelineStateViewModel.clipsNotifier.addListener(_rebuild);
     _videoPlayerService.isPlayingNotifier.addListener(_rebuild);
+    _videoPlayerService.addListener(_rebuild); // Listen to VideoPlayerService changes (including currentVideoPath)
     
     // Initialize cached video path
     _cachedVideoPath = _getFirstVideoPath();
@@ -60,6 +61,7 @@ class _PlayerPanelState extends State<PlayerPanel> {
     _timelineNavViewModel.currentFrameNotifier.removeListener(_rebuild);
     _timelineStateViewModel.clipsNotifier.removeListener(_rebuild);
     _videoPlayerService.isPlayingNotifier.removeListener(_rebuild);
+    _videoPlayerService.removeListener(_rebuild);
     super.dispose();
   }
 

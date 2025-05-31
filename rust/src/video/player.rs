@@ -70,8 +70,66 @@ impl VideoPlayer {
         
         self.pipeline_manager = Some(pipeline_manager);
         
-        info!("Pipeline created successfully, waiting for pad connection...");
+        info!("Pipeline created successfully, waiting for pipeline to be ready...");
+        
+        // Wait for pipeline to be ready for playback commands
+        self.wait_for_pipeline_ready()?;
+        
+        // Query duration and seekability after pipeline is ready
+        self.query_duration_and_seekability();
+        
+        // Extract and display the first frame so video content is visible immediately
+        info!("Extracting first frame for immediate display...");
+        if let Err(e) = self.extract_frame_at_position(0.0) {
+            warn!("Failed to extract first frame: {}", e);
+            // Continue anyway - video loading was successful even if first frame extraction failed
+        } else {
+            info!("First frame extracted successfully and ready for display");
+        }
+        
+        info!("Video loading completed - pipeline ready for playback commands");
         Ok(())
+    }
+
+    /// Wait for the pipeline to be ready for playback commands
+    /// This ensures isSeekable() returns true before load_video() completes
+    fn wait_for_pipeline_ready(&self) -> Result<(), String> {
+        if let Some(pipeline_manager) = &self.pipeline_manager {
+            if let Some(pipeline) = &pipeline_manager.pipeline {
+                info!("Waiting for pipeline to reach PAUSED state for readiness...");
+                
+                // Set pipeline to PAUSED state to make it ready for commands
+                if let Err(e) = pipeline.set_state(gst::State::Paused) {
+                    return Err(format!("Failed to set pipeline to PAUSED: {:?}", e));
+                }
+                
+                // Wait for PAUSED state with timeout
+                let timeout = Duration::from_secs(5); // 5 second timeout
+                let start_time = std::time::Instant::now();
+                
+                while start_time.elapsed() < timeout {
+                    let (_, current_state, pending_state) = pipeline.state(Some(gst::ClockTime::from_nseconds(100_000_000))); // 100ms query timeout
+                    
+                    if current_state == gst::State::Paused && pending_state == gst::State::VoidPending {
+                        info!("Pipeline successfully reached PAUSED state and is ready");
+                        return Ok(());
+                    }
+                    
+                    // If there's an error state, fail immediately
+                    if current_state == gst::State::Null {
+                        return Err("Pipeline entered NULL state during initialization".to_string());
+                    }
+                    
+                    // Small delay before next check
+                    std::thread::sleep(Duration::from_millis(50));
+                }
+                
+                return Err(format!("Timeout waiting for pipeline to be ready (current state: {:?})", 
+                          pipeline.state(Some(gst::ClockTime::from_nseconds(0))).1));
+            }
+        }
+        
+        Err("No pipeline available to wait for".to_string())
     }
 
     pub fn play(&mut self) -> Result<(), String> {
@@ -95,8 +153,8 @@ impl VideoPlayer {
                 }
             }
             
-            // Query duration and seekability once pipeline is playing
-            self.query_duration_and_seekability();
+            // Duration and seekability already queried during load_video()
+            // No need to query again here
             
             // Initialize audio system only if we're actually playing
             if self.is_playing() {

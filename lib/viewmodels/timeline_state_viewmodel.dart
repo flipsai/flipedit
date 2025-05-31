@@ -1,10 +1,13 @@
 import 'package:flutter/foundation.dart';
 import 'package:watch_it/watch_it.dart';
+import 'dart:io';
 
 import '../models/clip.dart';
+import '../models/enums/clip_type.dart';
 import '../persistence/database/project_database.dart' show Track;
 import '../services/project_database_service.dart';
 import '../services/canvas_dimensions_service.dart';
+import '../services/video_player_service.dart';
 import '../utils/logger.dart' as logger;
 
 class TimelineStateViewModel extends ChangeNotifier {
@@ -14,6 +17,7 @@ class TimelineStateViewModel extends ChangeNotifier {
       di<ProjectDatabaseService>();
   final CanvasDimensionsService _canvasDimensionsService =
       di<CanvasDimensionsService>();
+  final VideoPlayerService _videoPlayerService = di<VideoPlayerService>();
 
   final ValueNotifier<List<ClipModel>> clipsNotifier =
       ValueNotifier<List<ClipModel>>([]);
@@ -93,11 +97,43 @@ class TimelineStateViewModel extends ChangeNotifier {
         'Clips list updated in ViewModel (${allClips.length} clips). Notifier triggered. (Preview server sync removed)',
         _logTag,
       );
+      
+      // Initialize video player with first video if available
+      _initializeVideoPlayerForFirstVideo(allClips);
     } else {
       logger.logDebug(
         'Refreshed clips list is identical to current ViewModel state. No update needed.',
         _logTag,
       );
+    }
+  }
+
+  /// Initialize video player for the first video clip to ensure it's ready for playback
+  void _initializeVideoPlayerForFirstVideo(List<ClipModel> clips) {
+    if (clips.isEmpty) {
+      logger.logDebug('No clips available for video player initialization', _logTag);
+      return;
+    }
+    
+    // Find the first video clip
+    ClipModel? firstVideoClip;
+    for (final clip in clips) {
+      if (clip.type == ClipType.video && clip.sourcePath.isNotEmpty) {
+        // Verify the file exists
+        if (File(clip.sourcePath).existsSync()) {
+          firstVideoClip = clip;
+          break;
+        }
+      }
+    }
+    
+    if (firstVideoClip != null) {
+      logger.logInfo('Initializing video player early for: ${firstVideoClip.sourcePath}', _logTag);
+      // Trigger early video player initialization by setting the path
+      // This will cause PlayerPanel to create VideoPlayerWidget earlier
+      _videoPlayerService.setCurrentVideoPath(firstVideoClip.sourcePath);
+    } else {
+      logger.logDebug('No valid video files found for early video player initialization', _logTag);
     }
   }
 
@@ -125,6 +161,11 @@ class TimelineStateViewModel extends ChangeNotifier {
         'Clips list set by command. Content changed: $contentChanged, Instance changed: $instanceChanged. (${newClipsList.length} clips). Notifiers triggered. (Preview server sync removed)',
         _logTag,
       );
+      
+      // Initialize video player with first video if available (when content changed)
+      if (contentChanged) {
+        _initializeVideoPlayerForFirstVideo(newClipsList);
+      }
     } else {
       // Content and instance are identical. No state change.
       logger.logDebug(
