@@ -3,6 +3,7 @@ import 'package:watch_it/watch_it.dart';
 
 import '../../models/tab_line.dart';
 import '../../models/tab_group.dart';
+import '../../models/tab_item.dart';
 import '../../viewmodels/tab_system_viewmodel.dart';
 import 'tab_bar_widget.dart';
 import 'resizable_split_widget.dart';
@@ -75,7 +76,7 @@ class _TabLineWidgetState extends State<TabLineWidget> {
         return details.data.sourceGroupId != column.id;
       },
       onAcceptWithDetails: (details) {
-        _handleCreateNewColumn(tabSystem, details.data, 'center', column.id);
+        _handleTabMoveBetweenGroups(tabSystem, details.data.tabId, details.data.sourceGroupId, column.id, null);
       },
       builder: (context, candidateData, rejectedData) {
         final isHovering = candidateData.isNotEmpty;
@@ -221,64 +222,110 @@ class _TabLineWidgetState extends State<TabLineWidget> {
     String toGroupId,
     int? toIndex,
   ) {
-    final tab = tabSystem.getTab(tabId);
-    if (tab == null) return;
+    // Find the source group, line, and tab
+    TabGroup? sourceGroup;
+    TabLine? sourceLine;
+    TabItem? tab;
     
-    // Remove from source group (this will automatically clean up empty groups)
-    tabSystem.removeTab(tabId);
+    for (final line in tabSystem.tabLines) {
+      for (final group in line.tabColumns) {
+        if (group.id == fromGroupId) {
+          sourceGroup = group;
+          sourceLine = line;
+          // Find the tab in this group
+          for (final t in group.tabs) {
+            if (t.id == tabId) {
+              tab = t;
+              break;
+            }
+          }
+          break;
+        }
+      }
+      if (sourceGroup != null && tab != null) break;
+    }
     
-    // Add to target group
-    tabSystem.addTab(tab, targetGroupId: toGroupId, atIndex: toIndex);
+    if (sourceGroup == null || sourceLine == null || tab == null) {
+      return;
+    }
+    
+    // Find the target group and line
+    TabGroup? targetGroup;
+    TabLine? targetLine;
+    
+    for (final line in tabSystem.tabLines) {
+      for (final group in line.tabColumns) {
+        if (group.id == toGroupId) {
+          targetGroup = group;
+          targetLine = line;
+          break;
+        }
+      }
+      if (targetGroup != null) break;
+    }
+    
+    if (targetGroup == null || targetLine == null) {
+      return;
+    }
+    
+    // Perform the move operation atomically
+    final updatedSourceGroup = sourceGroup.removeTab(tabId);
+    final updatedTargetGroup = targetGroup.addTab(tab, atIndex: toIndex);
+    
+    // Update both lines with the changes
+    if (sourceLine.id == targetLine.id) {
+      // Same line - update both groups at once
+      var updatedLine = sourceLine.updateColumn(fromGroupId, updatedSourceGroup);
+      updatedLine = updatedLine.updateColumn(toGroupId, updatedTargetGroup);
+      
+      // Check if source group is now empty and should be removed
+      if (updatedSourceGroup.isEmpty) {
+        updatedLine = updatedLine.removeColumn(fromGroupId);
+      }
+      
+      tabSystem.updateTabLine(sourceLine.id, updatedLine);
+    } else {
+      // Different lines - update each line separately
+      var updatedSourceLine = sourceLine.updateColumn(fromGroupId, updatedSourceGroup);
+      var updatedTargetLine = targetLine.updateColumn(toGroupId, updatedTargetGroup);
+      
+      // Check if source group is now empty and should be removed
+      if (updatedSourceGroup.isEmpty) {
+        updatedSourceLine = updatedSourceLine.removeColumn(fromGroupId);
+        
+        // Check if source line is now empty and should be removed
+        if (updatedSourceLine.isEmpty) {
+          final updatedLines = List<TabLine>.from(tabSystem.tabLines);
+          updatedLines.removeWhere((line) => line.id == sourceLine!.id);
+          tabSystem.tabLinesNotifier.value = updatedLines;
+          
+          // Update active states if needed
+          if (tabSystem.activeLineId == sourceLine.id) {
+            tabSystem.activeLineId = targetLine!.id;
+          }
+          if (tabSystem.activeGroupId == fromGroupId) {
+            tabSystem.activeGroupId = toGroupId;
+          }
+        } else {
+          tabSystem.updateTabLine(sourceLine!.id, updatedSourceLine);
+        }
+      } else {
+        tabSystem.updateTabLine(sourceLine!.id, updatedSourceLine);
+      }
+      
+      tabSystem.updateTabLine(targetLine!.id, updatedTargetLine);
+    }
+    
+    // Set the moved tab as active
+    tabSystem.activeGroupId = toGroupId;
+    tabSystem.activeLineId = targetLine!.id;
+    tabSystem.setActiveTab(tabId);
   }
 
   void _handleAddTab(TabSystemViewModel tabSystem, String groupId) {
     // This would typically open a dialog or create a default tab
     // For now, we'll just activate the group
     tabSystem.activeGroupId = groupId;
-  }
-
-  void _handleCreateNewColumn(
-    TabSystemViewModel tabSystem,
-    TabDragData data,
-    String position,
-    String nearColumnId,
-  ) {
-    final tab = tabSystem.getTab(data.tabId);
-    if (tab == null) return;
-    
-    // Remove tab from source (this will automatically clean up empty groups)
-    tabSystem.removeTab(data.tabId);
-    
-    // Find the line containing the near column
-    TabLine? targetLine;
-    int columnIndex = -1;
-    
-    for (final line in tabSystem.tabLines) {
-      for (int i = 0; i < line.tabColumns.length; i++) {
-        if (line.tabColumns[i].id == nearColumnId) {
-          targetLine = line;
-          columnIndex = i;
-          break;
-        }
-      }
-      if (targetLine != null) break;
-    }
-    
-    if (targetLine == null || columnIndex == -1) return;
-    
-    // Create new group with the tab
-    final newGroupId = 'group_${DateTime.now().millisecondsSinceEpoch}';
-    final newGroup = TabGroup(
-      id: newGroupId,
-      tabs: [tab],
-    );
-    
-    // Insert the new column after the target column
-    final insertIndex = columnIndex + 1;
-    final updatedLine = targetLine.addColumn(newGroup, atIndex: insertIndex);
-    tabSystem.updateTabLine(targetLine.id, updatedLine);
-    
-    tabSystem.activeGroupId = newGroupId;
   }
 
   void _handleCreateNewLine(TabSystemViewModel tabSystem, TabDragData data) {
