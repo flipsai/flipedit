@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:watch_it/watch_it.dart';
 import 'dart:io';
 
@@ -89,17 +90,21 @@ class TimelineStateViewModel extends ChangeNotifier {
 
     if (!listEquals(clipsNotifier.value, allClips)) {
       clipsNotifier.value = allClips;
-      // Update canvas dimensions service about clip count
-      _canvasDimensionsService.updateHasClipsState(allClips.length);
+      
+      // Batch the secondary updates to prevent widget tree lock issues
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        // Update canvas dimensions service about clip count
+        _canvasDimensionsService.updateHasClipsState(allClips.length);
+        
+        // Initialize video player with first video if available
+        _initializeVideoPlayerForFirstVideo(allClips);
+      });
 
       // _previewSyncService.sendClipsToPreviewServer(); // Sync after update - REMOVED
       logger.logDebug(
         'Clips list updated in ViewModel (${allClips.length} clips). Notifier triggered. (Preview server sync removed)',
         _logTag,
       );
-      
-      // Initialize video player with first video if available
-      _initializeVideoPlayerForFirstVideo(allClips);
     } else {
       logger.logDebug(
         'Refreshed clips list is identical to current ViewModel state. No update needed.',
@@ -154,18 +159,21 @@ class TimelineStateViewModel extends ChangeNotifier {
     if (contentChanged || instanceChanged) {
       clipsNotifier.value =
           newClipsList; // ValueNotifier will notify if its criteria are met
-      _canvasDimensionsService.updateHasClipsState(newClipsList.length);
-      // _previewSyncService.sendClipsToPreviewServer(); // Sync with preview server - REMOVED
+      
+      // Batch the secondary updates to prevent widget tree lock issues
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _canvasDimensionsService.updateHasClipsState(newClipsList.length);
+        
+        // Initialize video player with first video if available (when content changed)
+        if (contentChanged) {
+          _initializeVideoPlayerForFirstVideo(newClipsList);
+        }
+      });
 
       logger.logDebug(
         'Clips list set by command. Content changed: $contentChanged, Instance changed: $instanceChanged. (${newClipsList.length} clips). Notifiers triggered. (Preview server sync removed)',
         _logTag,
       );
-      
-      // Initialize video player with first video if available (when content changed)
-      if (contentChanged) {
-        _initializeVideoPlayerForFirstVideo(newClipsList);
-      }
     } else {
       // Content and instance are identical. No state change.
       logger.logDebug(

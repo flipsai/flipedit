@@ -20,6 +20,7 @@ class _PlayerPanelState extends State<PlayerPanel> {
   late final TimelineStateViewModel _timelineStateViewModel;
   late final VideoPlayerService _videoPlayerService;
   String? _cachedVideoPath; // Cache the video path to prevent unnecessary recreation
+  final Map<String, bool> _fileExistsCache = {}; // Cache file existence checks
 
   @override
   void initState() {
@@ -31,9 +32,9 @@ class _PlayerPanelState extends State<PlayerPanel> {
     _timelineStateViewModel = di<TimelineStateViewModel>();
     _videoPlayerService = di<VideoPlayerService>();
 
-    // Listen for changes to rebuild UI
+    // Listen for changes to rebuild UI (exclude currentFrameNotifier to prevent 30-60 fps rebuilds)
     _timelineNavViewModel.isPlayingNotifier.addListener(_rebuild);
-    _timelineNavViewModel.currentFrameNotifier.addListener(_rebuild);
+    // NOTE: Removed currentFrameNotifier listener to prevent excessive rebuilds
     _timelineStateViewModel.clipsNotifier.addListener(_rebuild);
     _videoPlayerService.isPlayingNotifier.addListener(_rebuild);
     _videoPlayerService.addListener(_rebuild); // Listen to VideoPlayerService changes (including currentVideoPath)
@@ -47,8 +48,9 @@ class _PlayerPanelState extends State<PlayerPanel> {
       // Only update cached video path when clips change
       final newVideoPath = _getFirstVideoPath();
       if (newVideoPath != _cachedVideoPath) {
-        logDebug("Video path changed from $_cachedVideoPath to $newVideoPath", 'PlayerPanel');
         _cachedVideoPath = newVideoPath;
+        // Clear file cache when video path changes
+        _fileExistsCache.clear();
       }
       setState(() {});
     }
@@ -58,7 +60,7 @@ class _PlayerPanelState extends State<PlayerPanel> {
   void dispose() {
     // Remove listeners
     _timelineNavViewModel.isPlayingNotifier.removeListener(_rebuild);
-    _timelineNavViewModel.currentFrameNotifier.removeListener(_rebuild);
+    // NOTE: currentFrameNotifier listener was not added, so no need to remove
     _timelineStateViewModel.clipsNotifier.removeListener(_rebuild);
     _videoPlayerService.isPlayingNotifier.removeListener(_rebuild);
     _videoPlayerService.removeListener(_rebuild);
@@ -71,15 +73,21 @@ class _PlayerPanelState extends State<PlayerPanel> {
       return null;
     }
     
-    // Find first video clip
+    // Find first video clip with cached file existence check
     for (final clip in clips) {
-      if (clip.sourcePath.isNotEmpty && File(clip.sourcePath).existsSync()) {
-        logDebug("Using first video: ${clip.sourcePath}", 'PlayerPanel');
-        return clip.sourcePath;
+      if (clip.sourcePath.isNotEmpty) {
+        // Use cached file existence check to avoid blocking I/O
+        final exists = _fileExistsCache.putIfAbsent(
+          clip.sourcePath, 
+          () => File(clip.sourcePath).existsSync() // Still sync for now, but cached
+        );
+        
+        if (exists) {
+          return clip.sourcePath;
+        }
       }
     }
     
-    logDebug("No valid video files found in clips", 'PlayerPanel');
     return null;
   }
 
@@ -90,8 +98,6 @@ class _PlayerPanelState extends State<PlayerPanel> {
     final currentFrame = _timelineNavViewModel.currentFrameNotifier.value;
     final clips = _timelineStateViewModel.clips;
     final firstVideoPath = _cachedVideoPath;
-
-    logDebug("Rebuilding PlayerPanel - ${clips.length} clips, first video: $firstVideoPath, timeline playing: $isTimelinePlaying, video playing: $isVideoPlaying", 'PlayerPanel');
 
     return Container(
       color: Colors.black,

@@ -62,6 +62,9 @@ class _TimelineClipState extends State<TimelineClip> {
 
   // Controller for the context menu flyout
   final FlyoutController _contextMenuController = FlyoutController();
+  
+  // Flag to track if widget is being disposed
+  bool _isDisposed = false;
 
   // Define base colors for clip types
   static const Map<ClipType, Color> _clipTypeColors = {
@@ -90,6 +93,7 @@ class _TimelineClipState extends State<TimelineClip> {
 
   @override
   void dispose() {
+    _isDisposed = true;
     _contextMenuController.dispose();
     super.dispose();
   }
@@ -107,7 +111,7 @@ class _TimelineClipState extends State<TimelineClip> {
             widget.clip.trackId != oldWidget.clip.trackId)) {
       // Post-frame callback to avoid setState during build/layout
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
+        if (mounted && !_isDisposed) {
           setState(() {
             _isMoving = false;
             _isResizing = false;
@@ -157,7 +161,7 @@ class _TimelineClipState extends State<TimelineClip> {
     // If any state change occurred that requires a UI update, schedule a setState.
     if (needsUiUpdate) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
+        if (mounted && !_isDisposed) {
           setState(() {});
         }
       });

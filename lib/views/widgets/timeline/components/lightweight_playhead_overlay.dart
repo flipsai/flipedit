@@ -39,17 +39,26 @@ class _LightweightPlayheadOverlayState extends State<LightweightPlayheadOverlay>
   RenderBox? _cachedRenderBox;
   double _cachedScrollOffset = 0.0;
   double _cachedPxPerFrame = 0.0;
+  
+  // Throttle scroll updates
+  Timer? _scrollUpdateTimer;
+  static const Duration _scrollUpdateThrottle = Duration(milliseconds: 16); // ~60fps
 
   @override
   void initState() {
     super.initState();
     _videoPlayerService = di<VideoPlayerService>();
     
-    // Listen to scroll changes to update playhead position
+    // Listen to scroll changes to update playhead position (throttled)
     _scrollListener = () {
       if (mounted && !_isDragging) {
-        setState(() {
-          // Force rebuild when scroll position changes
+        _scrollUpdateTimer?.cancel();
+        _scrollUpdateTimer = Timer(_scrollUpdateThrottle, () {
+          if (mounted && !_isDragging) {
+            setState(() {
+              // Force rebuild when scroll position changes
+            });
+          }
         });
       }
     };
@@ -61,6 +70,7 @@ class _LightweightPlayheadOverlayState extends State<LightweightPlayheadOverlay>
   void dispose() {
     _updateThrottleTimer?.cancel();
     _resumeUpdatesTimer?.cancel();
+    _scrollUpdateTimer?.cancel();
     
     // Remove scroll listener
     if (_scrollListener != null) {
@@ -219,7 +229,7 @@ class _LightweightPlayheadOverlayState extends State<LightweightPlayheadOverlay>
   }
 }
 
-class _PlayheadRenderer extends StatelessWidget with WatchItMixin {
+class _PlayheadRenderer extends StatefulWidget {
   final VideoPlayerService videoPlayerService;
   final double zoom;
   final double trackLabelWidth;
@@ -251,29 +261,72 @@ class _PlayheadRenderer extends StatelessWidget with WatchItMixin {
   });
 
   @override
+  State<_PlayheadRenderer> createState() => _PlayheadRendererState();
+}
+
+class _PlayheadRendererState extends State<_PlayheadRenderer> {
+  Timer? _frameUpdateTimer;
+  int _lastWatchedFrame = -1;
+  static const Duration _frameUpdateThrottle = Duration(milliseconds: 33); // ~30fps
+  VoidCallback? _frameListener;
+
+  @override
+  void initState() {
+    super.initState();
+    _setupFrameListener();
+  }
+
+  void _setupFrameListener() {
+    _frameListener = () {
+      final frame = widget.videoPlayerService.currentFrameNotifier.value;
+      if (frame != _lastWatchedFrame && !widget.isDragging && !widget.ignorePositionUpdates) {
+        _frameUpdateTimer?.cancel();
+        _frameUpdateTimer = Timer(_frameUpdateThrottle, () {
+          if (mounted) {
+            setState(() {
+              _lastWatchedFrame = frame;
+            });
+          }
+        });
+      }
+    };
+    
+    widget.videoPlayerService.currentFrameNotifier.addListener(_frameListener!);
+  }
+
+  @override
+  void dispose() {
+    _frameUpdateTimer?.cancel();
+    if (_frameListener != null) {
+      widget.videoPlayerService.currentFrameNotifier.removeListener(_frameListener!);
+    }
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
     
     // Determine current frame based on state
     int currentFrame;
-    if (isDragging) {
+    if (widget.isDragging) {
       // Use drag position when dragging
-      currentFrame = dragPosition.round();
-    } else if (ignorePositionUpdates) {
+      currentFrame = widget.dragPosition.round();
+    } else if (widget.ignorePositionUpdates) {
       // Use last rendered frame when ignoring updates (prevents snapback)
-      currentFrame = lastRenderedFrame;
+      currentFrame = widget.lastRenderedFrame;
     } else {
-      // Use live position from Rust when not dragging and not ignoring
-      currentFrame = watchValue((VideoPlayerService service) => service.currentFrameNotifier);
+      // Use cached frame value (throttled updates)
+      currentFrame = _lastWatchedFrame >= 0 ? _lastWatchedFrame : widget.videoPlayerService.currentFrameNotifier.value;
     }
 
     // Always render if we have a valid frame (remove optimization that might cause disappearing)
-    onFrameRendered(currentFrame);
+    widget.onFrameRendered(currentFrame);
 
-    final playheadPosition = calculatePositionFromFrame(currentFrame);
+    final playheadPosition = widget.calculatePositionFromFrame(currentFrame);
 
     // Don't render if position is off-screen
-    if (playheadPosition < trackLabelWidth || playheadPosition < 0) {
+    if (playheadPosition < widget.trackLabelWidth || playheadPosition < 0) {
       return const SizedBox.shrink();
     }
 
@@ -283,18 +336,18 @@ class _PlayheadRenderer extends StatelessWidget with WatchItMixin {
           left: playheadPosition - 6, // Position for wider hit area
           top: 0,
           child: GestureDetector(
-            onPanStart: onDragStart,
-            onPanUpdate: onDragUpdate,
-            onPanEnd: onDragEnd,
+            onPanStart: widget.onDragStart,
+            onPanUpdate: widget.onDragUpdate,
+            onPanEnd: widget.onDragEnd,
             child: MouseRegion(
               cursor: SystemMouseCursors.resizeLeftRight,
               child: Container(
                 width: 12,
-                height: timelineHeight,
+                height: widget.timelineHeight,
                 alignment: Alignment.center,
                 child: Container(
                   width: 2,
-                  height: timelineHeight,
+                  height: widget.timelineHeight,
                   decoration: BoxDecoration(
                     color: theme.accentColor,
                     boxShadow: [

@@ -32,6 +32,10 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   bool _isPlaying = false; // Cache playing state to avoid blocking UI
   int _noFrameCount = 0; // Counter for no frame data logging
   
+  // Performance optimizations
+  bool _hasValidTexture = false; // Track if we have a valid texture to avoid unnecessary setState
+  int _lastSuccessfulFrameUpdate = 0; // Track frame updates
+  
   String get _logTag => 'VideoPlayerWidget';
   
   @override
@@ -47,6 +51,9 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   }
   
   void _onTimelinePlaybackStateChanged() {
+    // Early exit if widget is disposing or disposed
+    if (!mounted || _localVideoPlayer == null) return;
+    
     final timelineNavViewModel = di<TimelineNavigationViewModel>();
     final isTimelinePlaying = timelineNavViewModel.isPlayingNotifier.value;
     final isLocalVideoPlaying = _isPlaying;
@@ -54,7 +61,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
     logDebug("Timeline playback state changed - timeline: $isTimelinePlaying, local video: $isLocalVideoPlaying, initialized: $_isInitialized, textureId: $_textureId", _logTag);
     
     // Only sync if the video player widget is fully initialized and has a texture and is still mounted
-    if (!mounted || !_isInitialized || _textureId == null || _localVideoPlayer == null) {
+    if (!_isInitialized || _textureId == null) {
       logDebug("Video player not ready for playback - skipping sync", _logTag);
       return;
     }
@@ -69,7 +76,9 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
         logDebug("Local video playback started", _logTag);
         if (mounted) setState(() {});
       }).catchError((error) {
-        logError(_logTag, "Error starting local video playback: $error");
+        if (mounted) {
+          logError(_logTag, "Error starting local video playback: $error");
+        }
       });
     } else if (!isTimelinePlaying && isLocalVideoPlaying) {
       logDebug("Stopping local video playback to sync with timeline", _logTag);
@@ -80,7 +89,9 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
         logDebug("Local video playback paused", _logTag);
         if (mounted) setState(() {});
       }).catchError((error) {
-        logError(_logTag, "Error pausing local video playback: $error");
+        if (mounted) {
+          logError(_logTag, "Error pausing local video playback: $error");
+        }
       });
     } else {
       logDebug("No sync needed - both states already match", _logTag);
@@ -190,6 +201,14 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
         return;
       }
       
+      // BALANCED FIX: Reduce frame updates when paused but allow some for seek responsiveness
+      if (!_isPlaying) {
+        // When paused, only update every 10th frame to maintain seek responsiveness
+        if (_lastSuccessfulFrameUpdate % 10 != 0) {
+          return; // Skip most frame updates when paused
+        }
+      }
+      
       try {
         // Get the latest frame from the local video player
         final frameData = _localVideoPlayer!.getLatestFrame();
@@ -212,11 +231,19 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
           if (!success) {
             logWarning(_logTag, "Failed to update texture with frame data");
           } else {
-            logDebug("Successfully updated texture with frame data", _logTag);
+            _lastSuccessfulFrameUpdate++;
+            // Only log every 30 successful updates to reduce log spam
+            if (_lastSuccessfulFrameUpdate % 30 == 0) {
+              logDebug("Successfully updated texture with frame data (${_lastSuccessfulFrameUpdate} total)", _logTag);
+            }
           }
           
-          // Only call setState if we successfully updated the texture and widget is still mounted
-          if (mounted && success) {
+          // Only call setState if texture state actually changed to avoid unnecessary rebuilds
+          if (mounted && success && !_hasValidTexture) {
+            _hasValidTexture = true;
+            setState(() {});
+          } else if (mounted && !success && _hasValidTexture) {
+            _hasValidTexture = false;
             setState(() {});
           }
         } else {
@@ -269,6 +296,9 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
     try {
       logDebug("Starting cleanup...", _logTag);
       
+      // Mark as not initialized early to prevent any further operations
+      _isInitialized = false;
+      
       // Cancel timers first to prevent any further setState calls
       if (_frameTimer != null) {
         _frameTimer!.cancel();
@@ -282,10 +312,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
         logDebug("State sync timer cancelled", _logTag);
       }
       
-      // Unregister video player from service
-      _videoPlayerService.unregisterVideoPlayer();
-      
-      // Remove timeline listener
+      // Remove timeline listener before unregistering to prevent callbacks during disposal
       try {
         final timelineNavViewModel = di<TimelineNavigationViewModel>();
         timelineNavViewModel.isPlayingNotifier.removeListener(_onTimelinePlaybackStateChanged);
@@ -293,6 +320,9 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       } catch (e) {
         logError(_logTag, "Error removing timeline listener: $e");
       }
+      
+      // Unregister video player from service (now uses postFrameCallback internally)
+      _videoPlayerService.unregisterVideoPlayer();
       
       if (_isInitialized && _localVideoPlayer != null) {
         logDebug("Stopping local video player...", _logTag);

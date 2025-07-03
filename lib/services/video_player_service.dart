@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flipedit/utils/logger.dart';
 import 'package:flipedit/src/rust/api/simple.dart';
 import 'dart:async';
@@ -17,6 +17,10 @@ class VideoPlayerService extends ChangeNotifier {
   // Position tracking - Rust is the source of truth
   final ValueNotifier<double> positionSecondsNotifier = ValueNotifier<double>(0.0);
   final ValueNotifier<int> currentFrameNotifier = ValueNotifier<int>(0);
+  
+  // Batch update system to reduce widget rebuilds
+  Timer? _batchUpdateTimer;
+  bool _hasPendingUpdates = false;
   
   // Track when a video player is active for reactive UI updates
   final ValueNotifier<bool> hasActiveVideoNotifier = ValueNotifier<bool>(false);
@@ -50,11 +54,15 @@ class VideoPlayerService extends ChangeNotifier {
 
   // Unregister the active video player
   void unregisterVideoPlayer() {
-    _activeVideoPlayer = null;
-    hasActiveVideoNotifier.value = false;
-    
-    // Stop position polling when player is unregistered
+    // Stop position polling FIRST to prevent race conditions
     _stopPositionPolling();
+    
+    _activeVideoPlayer = null;
+    
+    // Defer ValueNotifier update to prevent widget tree lock during disposal
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      hasActiveVideoNotifier.value = false;
+    });
     
     logDebug("Active video player unregistered", _logTag);
   }
@@ -72,14 +80,17 @@ class VideoPlayerService extends ChangeNotifier {
   void _scheduleNextPoll() {
     if (_activeVideoPlayer == null) return;
     
-    // Adaptive polling rate based on playing state
+    // CRITICAL FIX: Check if actually playing to avoid unnecessary polling
     final isCurrentlyPlaying = _activeVideoPlayer!.isPlaying();
+    
+    // Adaptive polling based on playing state
     final pollInterval = isCurrentlyPlaying 
-        ? const Duration(milliseconds: 50)  // 20fps when playing
-        : const Duration(milliseconds: 100); // 10fps when paused
+        ? const Duration(milliseconds: 50)   // 20fps when playing for smooth video
+        : const Duration(milliseconds: 500); // 2fps when paused to save resources
     
     _positionPollingTimer = Timer(pollInterval, () {
-      if (_activeVideoPlayer == null) return;
+      // Double-check that player is still active and timer wasn't cancelled
+      if (_activeVideoPlayer == null || _positionPollingTimer == null) return;
       
       try {
         // Get position from Rust - this is the source of truth
@@ -90,26 +101,38 @@ class VideoPlayerService extends ChangeNotifier {
         // Only update if values actually changed (reduce unnecessary rebuilds)
         bool hasChanges = false;
         
-        if ((positionSecondsNotifier.value - positionSeconds).abs() > 0.01) {
-          positionSecondsNotifier.value = positionSeconds;
-          hasChanges = true;
+        // Additional check before updating ValueNotifiers to prevent disposal race conditions
+        if (_activeVideoPlayer != null) {
+          // PERFORMANCE FIX: Batch updates to reduce widget rebuilds
+          if ((positionSecondsNotifier.value - positionSeconds).abs() > 0.01) {
+            _scheduleBatchUpdate(() {
+              positionSecondsNotifier.value = positionSeconds;
+            });
+            hasChanges = true;
+          }
+          
+          final frameInt = frameNumber.toInt();
+          if (currentFrameNotifier.value != frameInt) {
+            _scheduleBatchUpdate(() {
+              currentFrameNotifier.value = frameInt;
+            });
+            hasChanges = true;
+          }
+          
+          // Update playing state from Rust as well
+          final rustIsPlaying = _activeVideoPlayer!.isPlaying();
+          if (isPlayingNotifier.value != rustIsPlaying) {
+            _scheduleBatchUpdate(() {
+              isPlayingNotifier.value = rustIsPlaying;
+            });
+            hasChanges = true;
+          }
         }
         
-        final frameInt = frameNumber.toInt();
-        if (currentFrameNotifier.value != frameInt) {
-          currentFrameNotifier.value = frameInt;
-          hasChanges = true;
+        // Schedule next poll only if player is still active
+        if (_activeVideoPlayer != null) {
+          _scheduleNextPoll();
         }
-        
-        // Update playing state from Rust as well
-        final rustIsPlaying = _activeVideoPlayer!.isPlaying();
-        if (isPlayingNotifier.value != rustIsPlaying) {
-          isPlayingNotifier.value = rustIsPlaying;
-          hasChanges = true;
-        }
-        
-        // Schedule next poll
-        _scheduleNextPoll();
         
       } catch (e) {
         logError(_logTag, "Error polling position from Rust: $e");
@@ -237,12 +260,33 @@ class VideoPlayerService extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Batch update system to reduce widget rebuild frequency
+  void _scheduleBatchUpdate(VoidCallback update) {
+    if (!_hasPendingUpdates) {
+      _hasPendingUpdates = true;
+      // Faster updates when playing for smooth video, slower when paused
+      final isCurrentlyPlaying = _activeVideoPlayer?.isPlaying() ?? false;
+      final delay = isCurrentlyPlaying 
+          ? const Duration(milliseconds: 8)  // ~120fps max when playing for smooth video
+          : const Duration(milliseconds: 32); // ~30fps when paused
+          
+      _batchUpdateTimer = Timer(delay, () {
+        if (_hasPendingUpdates) {
+          update();
+          _hasPendingUpdates = false;
+        }
+      });
+    }
+  }
+
   @override
   void dispose() {
     _stopPositionPolling();
+    _batchUpdateTimer?.cancel();
     isPlayingNotifier.dispose();
     positionSecondsNotifier.dispose();
     currentFrameNotifier.dispose();
+    hasActiveVideoNotifier.dispose();
     super.dispose();
   }
 } 
