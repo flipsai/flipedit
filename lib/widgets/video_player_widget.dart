@@ -8,6 +8,8 @@ import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
 import 'package:texture_rgba_renderer/texture_rgba_renderer.dart';
 import 'package:flipedit/utils/logger.dart';
 import 'package:watch_it/watch_it.dart';
+import 'package:flipedit/di/service_locator.dart';
+import 'package:flipedit/src/rust/common/types.dart';
 
 class VideoPlayerWidget extends StatefulWidget {
   final String videoPath;
@@ -20,8 +22,8 @@ class VideoPlayerWidget extends StatefulWidget {
 
 class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   late VideoPlayerService _videoPlayerService;
-  VideoPlayer? _localVideoPlayer; // Local video player instance for this widget
-  final _textureRenderer = TextureRgbaRenderer();
+  VideoPlayer? _localVideoPlayer;
+  StreamSubscription<FrameData>? _frameSubscription;
   int? _textureId;
   int _textureKey = -1;
   bool _isInitialized = false;
@@ -36,7 +38,9 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   bool _hasValidTexture = false; // Track if we have a valid texture to avoid unnecessary setState
   int _lastSuccessfulFrameUpdate = 0; // Track frame updates
   
-  String get _logTag => 'VideoPlayerWidget';
+  String get _logTag => runtimeType.toString();
+  
+  final TextureRgbaRenderer _textureRenderer = TextureRgbaRenderer();
   
   @override
   void initState() {
@@ -107,8 +111,14 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
         throw Exception("Video file not found: ${widget.videoPath}");
       }
       
-      // Create local video player instance
-      _localVideoPlayer = VideoPlayer();
+      // Initialize the local video player
+      _localVideoPlayer = di<VideoPlayer>();
+
+      // Set up the frame stream
+      _frameSubscription = _localVideoPlayer!.setupFrameStream().listen(_onFrameReceived);
+
+      // Register the video player with the service for global access
+      _videoPlayerService.registerVideoPlayer(_localVideoPlayer!);
       
       // Create texture
       _textureKey = DateTime.now().millisecondsSinceEpoch;
@@ -143,9 +153,6 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       // Update the service with the video path for coordination
       _videoPlayerService.setCurrentVideoPath(widget.videoPath);
       
-      // Register this video player instance for seeking
-      _videoPlayerService.registerVideoPlayer(_localVideoPlayer!);
-      
       logDebug("Local video player initialized successfully", _logTag);
       
       if (mounted) {
@@ -177,89 +184,53 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
         }
       });
       
-      // Start frame update timer
-      _startFrameUpdater();
-      
       // Start state synchronization timer
       _startStateSynchronization();
       
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = e.toString();
-        });
-      }
-      logError(_logTag, "Error initializing video player: $e");
+    } catch (e, stackTrace) {
+      logError(_logTag, "Error initializing video player: $e", stackTrace);
+      setState(() {
+        _errorMessage = e.toString();
+      });
     }
   }
   
-  void _startFrameUpdater() {
-    // Start a timer to periodically fetch frames from Rust and update the texture
-    _frameTimer = Timer.periodic(const Duration(milliseconds: 33), (timer) async {
-      if (!mounted || !_isInitialized || _localVideoPlayer == null) {
-        timer.cancel();
-        return;
-      }
-      
-      // BALANCED FIX: Reduce frame updates when paused but allow some for seek responsiveness
-      if (!_isPlaying) {
-        // When paused, only update every 10th frame to maintain seek responsiveness
-        if (_lastSuccessfulFrameUpdate % 10 != 0) {
-          return; // Skip most frame updates when paused
-        }
-      }
-      
-      try {
-        // Get the latest frame from the local video player
-        final frameData = _localVideoPlayer!.getLatestFrame();
-        
-        if (frameData != null) {
-          logDebug("Got frame data: ${frameData.width}x${frameData.height}, data length: ${frameData.data.length}", _logTag);
-          
-          // Convert the frame data to Uint8List
-          final uint8Data = Uint8List.fromList(frameData.data);
-          
-          // Update the texture using the onRgba API
-          final success = await _textureRenderer.onRgba(
-            _textureKey, 
-            uint8Data, 
-            frameData.height.toInt(), 
-            frameData.width.toInt(),
-            1 // stride_align - use 1 for no alignment
-          );
-          
-          if (!success) {
-            logWarning(_logTag, "Failed to update texture with frame data");
-          } else {
-            _lastSuccessfulFrameUpdate++;
-            // Only log every 30 successful updates to reduce log spam
-            if (_lastSuccessfulFrameUpdate % 30 == 0) {
-              logDebug("Successfully updated texture with frame data (${_lastSuccessfulFrameUpdate} total)", _logTag);
-            }
-          }
-          
-          // Only call setState if texture state actually changed to avoid unnecessary rebuilds
-          if (mounted && success && !_hasValidTexture) {
-            _hasValidTexture = true;
-            setState(() {});
-          } else if (mounted && !success && _hasValidTexture) {
-            _hasValidTexture = false;
-            setState(() {});
-          }
-        } else {
-          // Log when no frame data is available
-          _noFrameCount++;
-          if (_noFrameCount % 30 == 0) { // Log every 30 attempts (once per second)
-            logDebug("No frame data available (count: $_noFrameCount), local player initialized: $_isInitialized, playing: $_isPlaying", _logTag);
-          }
-        }
+  Future<void> _onFrameReceived(FrameData frameData) async {
+    if (!mounted) return;
 
-        // Audio is now handled directly by Rust - no need to check for audio data here
-        
-      } catch (e) {
-        logError(_logTag, "Error updating frame: $e");
+    try {
+      logDebug("Got frame data: ${frameData.width}x${frameData.height}, data length: ${frameData.data.length}", _logTag);
+      
+      // Update the texture using the onRgba API
+      final success = await _textureRenderer.onRgba(
+        _textureKey,
+        frameData.data,
+        frameData.height.toInt(),
+        frameData.width.toInt(),
+        1 // stride_align - use 1 for no alignment
+      );
+      
+      if (!success) {
+        logWarning(_logTag, "Failed to update texture with frame data");
+      } else {
+        _lastSuccessfulFrameUpdate++;
+        // Only log every 30 successful updates to reduce log spam
+        if (_lastSuccessfulFrameUpdate % 30 == 0) {
+          logDebug("Successfully updated texture with frame data (${_lastSuccessfulFrameUpdate} total)", _logTag);
+        }
       }
-    });
+      
+      // Only call setState if texture state actually changed to avoid unnecessary rebuilds
+      if (mounted && success && !_hasValidTexture) {
+        _hasValidTexture = true;
+        setState(() {});
+      } else if (mounted && !success && _hasValidTexture) {
+        _hasValidTexture = false;
+        setState(() {});
+      }
+    } catch (e) {
+      logError(_logTag, "Error updating frame: $e");
+    }
   }
   
   void _startStateSynchronization() {
@@ -299,18 +270,19 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       // Mark as not initialized early to prevent any further operations
       _isInitialized = false;
       
-      // Cancel timers first to prevent any further setState calls
-      if (_frameTimer != null) {
-        _frameTimer!.cancel();
-        _frameTimer = null;
-        logDebug("Frame timer cancelled", _logTag);
-      }
+      // Cancel stream subscription
+      await _frameSubscription?.cancel();
+      _frameSubscription = null;
+      logDebug("Frame stream cancelled", _logTag);
       
-      if (_stateSyncTimer != null) {
-        _stateSyncTimer!.cancel();
-        _stateSyncTimer = null;
-        logDebug("State sync timer cancelled", _logTag);
-      }
+      // Cancel timers first to prevent any further setState calls
+      _frameTimer?.cancel();
+      _frameTimer = null;
+      logDebug("Frame timer cancelled", _logTag);
+      
+      _stateSyncTimer?.cancel();
+      _stateSyncTimer = null;
+      logDebug("State sync timer cancelled", _logTag);
       
       // Remove timeline listener before unregistering to prevent callbacks during disposal
       try {

@@ -7,6 +7,8 @@ use crate::utils::testing;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
+use anyhow::Result;
+use crate::frb_generated::StreamSink;
 
 // Position update callback type
 pub type PositionUpdateCallback = Box<dyn Fn(f64, u64) + Send + Sync>;
@@ -66,17 +68,30 @@ impl VideoPlayer {
         result
     }
 
+    pub fn setup_frame_stream(&mut self, sink: StreamSink<FrameData>) -> Result<()> {
+        self.inner.set_frame_callback(Box::new(move |frame| {
+            if let Err(e) = sink.add(frame) {
+                // Log or handle the error appropriately
+                // For now, we'll just print it to stderr
+                eprintln!("Failed to send frame to sink: {:?}", e);
+            }
+            Ok(())
+        }))?;
+        Ok(())
+    }
+
     /// Start position reporting thread
-    fn start_position_reporting(&mut self) {
+    fn start_position_reporting(&self) {
+        let is_running = self.position_thread_running.clone();
         // Only start if not already running
-        if *self.position_thread_running.lock().unwrap() {
+        if *is_running.lock().unwrap() {
             return;
         }
 
-        *self.position_thread_running.lock().unwrap() = true;
+        *is_running.lock().unwrap() = true;
         
         let callback_arc = Arc::clone(&self.position_callback);
-        let thread_running_arc = Arc::clone(&self.position_thread_running);
+        let thread_running_arc = Arc::clone(&is_running);
         
         // We need a way to get position from the inner player in the thread
         // For now, let's use a simpler approach and just expose this as a method

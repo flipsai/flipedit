@@ -92,6 +92,8 @@ abstract class VideoPlayer implements RustOpaqueInterface {
 
   void setTexturePtr({required PlatformInt64 ptr});
 
+  Stream<FrameData> setupFrameStream();
+
   Future<void> stop();
 
   /// Force synchronization between pipeline state and internal state

@@ -1,6 +1,7 @@
 use crate::audio_handler::{MediaSender, MediaData, AudioFrame};
 use crate::video::frame_handler::FrameHandler;
 use crate::common::types::FrameData;
+use crate::video::player::FrameCallback;
 use gstreamer as gst;
 use gstreamer::prelude::*;
 use gstreamer_video as gst_video;
@@ -14,6 +15,7 @@ pub struct PipelineManager {
     pub frame_handler: FrameHandler,
     pub audio_sender: Option<MediaSender>,
     pub has_audio: Arc<Mutex<bool>>,
+    frame_callback: Arc<Mutex<Option<FrameCallback>>>,
 }
 
 impl PipelineManager {
@@ -21,12 +23,14 @@ impl PipelineManager {
         frame_handler: FrameHandler,
         audio_sender: Option<MediaSender>,
         has_audio: Arc<Mutex<bool>>,
+        frame_callback: Arc<Mutex<Option<FrameCallback>>>,
     ) -> Result<Self, String> {
         Ok(Self {
             pipeline: None,
             frame_handler,
             audio_sender,
             has_audio,
+            frame_callback,
         })
     }
 
@@ -221,6 +225,7 @@ impl PipelineManager {
 
     fn setup_video_appsink_callbacks(&self, video_appsink: &gst_app::AppSink) -> Result<(), String> {
         let frame_handler = self.frame_handler.clone();
+        let frame_callback = self.frame_callback.clone();
         
         video_appsink.set_callbacks(
             gst_app::AppSinkCallbacks::builder()
@@ -261,18 +266,22 @@ impl PipelineManager {
                                     let data = map.as_slice();
                                     debug!("Buffer mapped, size: {} bytes", data.len());
                                     
-                                    if frame_handler.texture_ptr.is_some() {
-                                        debug!("Frame available: {}x{}, {} bytes", width, height, data.len());
-                                        
-                                        let frame_data = FrameData {
-                                            data: data.to_vec(),
-                                            width,
-                                            height,
-                                        };
-                                        
-                                        frame_handler.store_frame(frame_data);
+                                    let frame_data = FrameData {
+                                        data: data.to_vec(),
+                                        width,
+                                        height,
+                                    };
+                                    
+                                    if let Ok(guard) = frame_callback.lock() {
+                                        if let Some(cb) = &*guard {
+                                            if let Err(e) = cb(frame_data) {
+                                                warn!("Frame callback failed: {}", e);
+                                            }
+                                        } else {
+                                            frame_handler.store_frame(frame_data);
+                                        }
                                     } else {
-                                        debug!("No texture pointer available");
+                                        frame_handler.store_frame(frame_data);
                                     }
                                 } else {
                                     debug!("Failed to map buffer");

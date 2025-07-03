@@ -1,4 +1,5 @@
 use crate::audio_handler::{MediaSender, MediaData, AudioFormat, start_audio_thread};
+use crate::common::types::FrameData;
 use crate::video::frame_handler::FrameHandler;
 use crate::video::pipeline::PipelineManager;
 use gstreamer as gst;
@@ -8,6 +9,9 @@ use gstreamer_app as gst_app;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use log::{info, warn, debug};
+use anyhow::Result;
+
+pub type FrameCallback = Box<dyn Fn(FrameData) -> Result<()> + Send + Sync>;
 
 pub struct VideoPlayer {
     pub pipeline_manager: Option<PipelineManager>,
@@ -23,6 +27,7 @@ pub struct VideoPlayer {
     pub file_path: Option<String>,
     // Frame extraction mutex to prevent concurrent operations
     pub frame_extraction_mutex: Arc<Mutex<()>>,
+    frame_callback: Arc<Mutex<Option<FrameCallback>>>,
 }
 
 impl VideoPlayer {
@@ -40,11 +45,18 @@ impl VideoPlayer {
             seekable: Arc::new(Mutex::new(false)),
             file_path: None,
             frame_extraction_mutex: Arc::new(Mutex::new(())),
+            frame_callback: Arc::new(Mutex::new(None)),
         }
     }
 
     pub fn set_texture_ptr(&mut self, ptr: i64) {
         self.frame_handler.set_texture_ptr(ptr);
+    }
+
+    pub fn set_frame_callback(&mut self, callback: FrameCallback) -> Result<()> {
+        let mut guard = self.frame_callback.lock().unwrap();
+        *guard = Some(callback);
+        Ok(())
     }
 
     pub fn load_video(&mut self, file_path: String) -> Result<(), String> {
@@ -63,6 +75,7 @@ impl VideoPlayer {
             self.frame_handler.clone(),
             self.audio_sender.clone(),
             self.has_audio.clone(),
+            self.frame_callback.clone(),
         )?;
 
         // Load the video through pipeline manager
