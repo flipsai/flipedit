@@ -4,9 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:irondash_engine_context/irondash_engine_context.dart';
 
 class VideoPlayerWidget extends StatefulWidget {
-  final String videoPath;
+  final String leftVideoPath;
+  final String rightVideoPath;
 
-  const VideoPlayerWidget({super.key, required this.videoPath});
+  const VideoPlayerWidget({
+    super.key,
+    required this.leftVideoPath,
+    required this.rightVideoPath,
+  });
 
   @override
   State<VideoPlayerWidget> createState() => _VideoPlayerWidgetState();
@@ -25,8 +30,9 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
 
   Future<void> _init() async {
     final handle = await EngineContext.instance.getEngineHandle();
-    final id = playBasicVideo(
-      filePath: '/home/remy/code/flipedit/assets/sample_video_1.mp4',
+    final id = playDualVideo(
+      filePathLeft: widget.leftVideoPath,
+      filePathRight: widget.rightVideoPath,
       engineHandle: handle,
     );
     setState(() => _textureId = id);

@@ -1,4 +1,5 @@
 use gstreamer::prelude::*;
+use gstreamer as gst;
 use gstreamer_app::AppSink;
 use anyhow::{Result, Error};
 use log::{info, debug, error};
@@ -53,6 +54,48 @@ impl VideoPipeline {
                 }
             }
         });
+
+        appsink.set_callbacks(
+            gstreamer_app::AppSinkCallbacks::builder()
+                .new_sample(move |sink| {
+                    match Self::on_new_sample(sink, &frame_handler) {
+                        Ok(_) => (),
+                        Err(e) => error!("Error processing new sample: {}", e),
+                    }
+                    Ok(gstreamer::FlowSuccess::Ok)
+                })
+                .build(),
+        );
+
+        Ok(Self { pipeline })
+    }
+
+    pub fn new_dual(file_path_left: &str, file_path_right: &str, frame_handler: Arc<Mutex<super::frame_handler::FrameHandler>>) -> Result<Self> {
+        info!("Creating dual video pipeline: left={}, right={}", file_path_left, file_path_right);
+        gstreamer::init()?;
+
+        let pipeline_desc = format!(
+            "compositor name=comp sink_0::xpos=0 sink_1::xpos=960 ! videoconvert ! appsink name=mysink \
+             filesrc location={} ! decodebin ! videoconvert ! videoscale ! video/x-raw,width=960,height=540 ! comp. \
+             filesrc location={} ! decodebin ! videoconvert ! videoscale ! video/x-raw,width=960,height=540 ! comp.",
+            file_path_left, file_path_right
+        );
+
+        let pipeline = gst::parse::launch(&pipeline_desc)?
+            .downcast::<gst::Pipeline>()
+            .map_err(|_| Error::msg("Failed to cast to Pipeline"))?;
+
+        let appsink = pipeline
+            .by_name("mysink")
+            .ok_or_else(|| Error::msg("Appsink not found"))?
+            .downcast::<AppSink>()
+            .map_err(|_| Error::msg("Failed to downcast appsink"))?;
+
+        appsink.set_caps(Some(
+            &gstreamer::Caps::builder("video/x-raw")
+                .field("format", "RGBA")
+                .build(),
+        ));
 
         appsink.set_callbacks(
             gstreamer_app::AppSinkCallbacks::builder()

@@ -66,7 +66,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.7.0';
 
   @override
-  int get rustContentHash => 496746833;
+  int get rustContentHash => 2140200572;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -232,6 +232,12 @@ abstract class RustLibApi extends BaseApi {
 
   PlatformInt64 crateApiSimplePlayBasicVideo({
     required String filePath,
+    required PlatformInt64 engineHandle,
+  });
+
+  PlatformInt64 crateApiSimplePlayDualVideo({
+    required String filePathLeft,
+    required String filePathRight,
     required PlatformInt64 engineHandle,
   });
 
@@ -1713,13 +1719,45 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  PlatformInt64 crateApiSimplePlayDualVideo({
+    required String filePathLeft,
+    required String filePathRight,
+    required PlatformInt64 engineHandle,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(filePathLeft, serializer);
+          sse_encode_String(filePathRight, serializer);
+          sse_encode_i_64(engineHandle, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 47)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_i_64,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSimplePlayDualVideoConstMeta,
+        argValues: [filePathLeft, filePathRight, engineHandle],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimplePlayDualVideoConstMeta =>
+      const TaskConstMeta(
+        debugName: "play_dual_video",
+        argNames: ["filePathLeft", "filePathRight", "engineHandle"],
+      );
+
+  @override
   void crateApiSimpleUpdateVideoFrame({required FrameData frameData}) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_box_autoadd_frame_data(frameData, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 47)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 48)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,

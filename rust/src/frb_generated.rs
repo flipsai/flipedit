@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.7.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 496746833;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 2140200572;
 
 // Section: executor
 
@@ -2173,6 +2173,42 @@ fn wire__crate__api__simple__play_basic_video_impl(
         },
     )
 }
+fn wire__crate__api__simple__play_dual_video_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "play_dual_video",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_file_path_left = <String>::sse_decode(&mut deserializer);
+            let api_file_path_right = <String>::sse_decode(&mut deserializer);
+            let api_engine_handle = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, String>((move || {
+                let output_ok = crate::api::simple::play_dual_video(
+                    api_file_path_left,
+                    api_file_path_right,
+                    api_engine_handle,
+                )?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
 fn wire__crate__api__simple__update_video_frame_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2689,7 +2725,8 @@ fn pde_ffi_dispatcher_sync_impl(
         43 => wire__crate__api__bridge__greet_impl(ptr, rust_vec_len, data_len),
         44 => wire__crate__api__simple__greet_impl(ptr, rust_vec_len, data_len),
         46 => wire__crate__api__simple__play_basic_video_impl(ptr, rust_vec_len, data_len),
-        47 => wire__crate__api__simple__update_video_frame_impl(ptr, rust_vec_len, data_len),
+        47 => wire__crate__api__simple__play_dual_video_impl(ptr, rust_vec_len, data_len),
+        48 => wire__crate__api__simple__update_video_frame_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }

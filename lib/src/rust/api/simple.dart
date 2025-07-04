@@ -7,7 +7,6 @@ import '../common/types.dart';
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `start_position_reporting`, `stop_position_reporting`
 // These types are ignored because they are not used by any `pub` functions: `ACTIVE_VIDEOS`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `deref`, `initialize`
 
@@ -39,6 +38,16 @@ PlatformInt64 playBasicVideo({
   required PlatformInt64 engineHandle,
 }) => RustLib.instance.api.crateApiSimplePlayBasicVideo(
   filePath: filePath,
+  engineHandle: engineHandle,
+);
+
+PlatformInt64 playDualVideo({
+  required String filePathLeft,
+  required String filePathRight,
+  required PlatformInt64 engineHandle,
+}) => RustLib.instance.api.crateApiSimplePlayDualVideo(
+  filePathLeft: filePathLeft,
+  filePathRight: filePathRight,
   engineHandle: engineHandle,
 );
 

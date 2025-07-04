@@ -109,7 +109,8 @@ class _PlayerPanelState extends State<PlayerPanel> {
             child: firstVideoPath != null
                 ? VideoPlayerWidget(
                     key: ValueKey(firstVideoPath), // Prevent recreation during resizes
-                    videoPath: firstVideoPath,
+                    leftVideoPath: firstVideoPath,
+                    rightVideoPath: firstVideoPath,
                   )
                 : Container(
                     color: Colors.black,

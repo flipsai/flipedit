@@ -25,13 +25,6 @@ pub fn greet(name: String) -> String {
     crate::api::bridge::greet(name)
 }
 
-#[frb(mirror(TimelineData, TimelineTrack, TimelineClip))]
-pub struct _TimelineData {
-    pub id: String,
-    pub name: String,
-    pub tracks: Vec<TimelineTrack>,
-}
-
 pub struct VideoPlayer {
     inner: InternalVideoPlayer,
 }
@@ -283,6 +276,21 @@ pub fn play_basic_video(file_path: String, engine_handle: i64) -> Result<i64, St
     // Build pipeline
     let handler = FrameHandler::new();
     let vp = VideoPipeline::new(&file_path, std::sync::Arc::new(std::sync::Mutex::new(handler)))
+        .map_err(|e| e.to_string())?;
+    vp.play().map_err(|e| e.to_string())?;
+
+    ACTIVE_VIDEOS.lock().unwrap().push(vp);
+
+    Ok(texture_id)
+} 
+
+#[frb(sync)]
+pub fn play_dual_video(file_path_left: String, file_path_right: String, engine_handle: i64) -> Result<i64, String> {
+    let texture_id = crate::video::irondash_texture::create_video_texture(1, 1, engine_handle)
+        .map_err(|e| e.to_string())?;
+
+    let handler = FrameHandler::new();
+    let vp = VideoPipeline::new_dual(&file_path_left, &file_path_right, Arc::new(Mutex::new(handler)))
         .map_err(|e| e.to_string())?;
     vp.play().map_err(|e| e.to_string())?;
 
