@@ -60,10 +60,6 @@ dependencies:
   collection: any
   equatable: ^2.0.7
   flutter_cache_manager: ^3.4.1
-  texture_rgba_renderer:
-    git:
-      url: https://github.com/rustdesk-org/flutter_texture_rgba_renderer
-      ref: 42797e0f03141dc2b585f76c64a13974508058b4
   ffi: ^2.1.4
   rust_lib_flipedit:
     path: rust_builder

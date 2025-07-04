@@ -306,7 +306,6 @@ class ComfyUIService {
 
       // Clone ComfyUI repository
       final cloneResult = await _uvManager.runPythonScript(
-        selectedPythonEnv,
         '-c',
         [
           'import os, subprocess; '
@@ -314,36 +313,34 @@ class ComfyUIService {
         ],
       );
 
-      if (cloneResult.exitCode != 0) {
-        status = 'Error cloning ComfyUI repository: ${cloneResult.stderr}';
+      if (cloneResult != null && await cloneResult.process.exitCode != 0) {
+        status = 'Error cloning ComfyUI repository';
         return false;
       }
 
       // Install dependencies
       final installResult = await _uvManager.installPackage(
-        'torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121',
-        selectedPythonEnv,
+        'torch torchvision torchaudio',
       );
 
-      if (installResult.exitCode != 0) {
-        status = 'Error installing PyTorch: ${installResult.stderr}';
+      if (!installResult) {
+        status = 'Error installing PyTorch';
         return false;
       }
 
       // Install ComfyUI requirements
       final requirementsPath = '$destinationPath/requirements.txt';
       final requirementsResult = await _uvManager.runPythonScript(
-        selectedPythonEnv,
         '-c',
         [
           'import subprocess; '
-              'subprocess.run(["$selectedPythonEnv", "-m", "pip", "install", "-r", "$requirementsPath"]);',
+              'subprocess.run(["python", "-m", "pip", "install", "-r", "$requirementsPath"]);',
         ],
+        workingDirectory: destinationPath,
       );
 
-      if (requirementsResult.exitCode != 0) {
-        status =
-            'Error installing ComfyUI requirements: ${requirementsResult.stderr}';
+      if (requirementsResult != null && await requirementsResult.process.exitCode != 0) {
+        status = 'Error installing ComfyUI requirements';
         return false;
       }
 
