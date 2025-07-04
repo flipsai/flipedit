@@ -12,6 +12,25 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 String greet({required String name}) =>
     RustLib.instance.api.crateApiSimpleGreet(name: name);
 
+/// Create a new video texture using irondash for zero-copy rendering
+PlatformInt64 createVideoTexture({
+  required int width,
+  required int height,
+  required PlatformInt64 engineHandle,
+}) => RustLib.instance.api.crateApiSimpleCreateVideoTexture(
+  width: width,
+  height: height,
+  engineHandle: engineHandle,
+);
+
+/// Update video frame data for all irondash textures
+void updateVideoFrame({required FrameData frameData}) =>
+    RustLib.instance.api.crateApiSimpleUpdateVideoFrame(frameData: frameData);
+
+/// Get the number of active irondash textures
+BigInt getTextureCount() =>
+    RustLib.instance.api.crateApiSimpleGetTextureCount();
+
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<TimelinePlayer>>
 abstract class TimelinePlayer implements RustOpaqueInterface {
   @override

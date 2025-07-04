@@ -66,7 +66,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.7.0';
 
   @override
-  int get rustContentHash => -431345112;
+  int get rustContentHash => 2056553347;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -216,11 +216,21 @@ abstract class RustLibApi extends BaseApi {
     required String filePath,
   });
 
+  PlatformInt64 crateApiSimpleCreateVideoTexture({
+    required int width,
+    required int height,
+    required PlatformInt64 engineHandle,
+  });
+
+  BigInt crateApiSimpleGetTextureCount();
+
   String crateApiBridgeGreet({required String name});
 
   String crateApiSimpleGreet({required String name});
 
   Future<void> crateApiBridgeInitApp();
+
+  void crateApiSimpleUpdateVideoFrame({required FrameData frameData});
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_TimelinePlayer;
@@ -1541,13 +1551,67 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  PlatformInt64 crateApiSimpleCreateVideoTexture({
+    required int width,
+    required int height,
+    required PlatformInt64 engineHandle,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_u_32(width, serializer);
+          sse_encode_u_32(height, serializer);
+          sse_encode_i_64(engineHandle, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 41)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_i_64,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSimpleCreateVideoTextureConstMeta,
+        argValues: [width, height, engineHandle],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleCreateVideoTextureConstMeta =>
+      const TaskConstMeta(
+        debugName: "create_video_texture",
+        argNames: ["width", "height", "engineHandle"],
+      );
+
+  @override
+  BigInt crateApiSimpleGetTextureCount() {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 42)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_usize,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSimpleGetTextureCountConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleGetTextureCountConstMeta =>
+      const TaskConstMeta(debugName: "get_texture_count", argNames: []);
+
+  @override
   String crateApiBridgeGreet({required String name}) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(name, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 41)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 43)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -1570,7 +1634,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(name, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 42)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 44)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -1595,7 +1659,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 43,
+            funcId: 45,
             port: port_,
           );
         },
@@ -1612,6 +1676,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiBridgeInitAppConstMeta =>
       const TaskConstMeta(debugName: "init_app", argNames: []);
+
+  @override
+  void crateApiSimpleUpdateVideoFrame({required FrameData frameData}) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_box_autoadd_frame_data(frameData, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 46)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSimpleUpdateVideoFrameConstMeta,
+        argValues: [frameData],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleUpdateVideoFrameConstMeta =>
+      const TaskConstMeta(
+        debugName: "update_video_frame",
+        argNames: ["frameData"],
+      );
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_TimelinePlayer =>

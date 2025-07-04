@@ -7,6 +7,7 @@ import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
 import 'package:flipedit/utils/logger.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/src/rust/common/types.dart';
+import 'package:irondash_engine_context/irondash_engine_context.dart';
 
 class VideoPlayerWidget extends StatefulWidget {
   final String videoPath;
@@ -22,6 +23,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   VideoPlayer? _localVideoPlayer;
   StreamSubscription<FrameData>? _frameSubscription;
   int? _textureId;
+  int? _irondashTextureId; // New irondash texture ID
   bool _isInitialized = false;
   String? _errorMessage;
   double _aspectRatio = 16 / 9; // Default aspect ratio
@@ -124,6 +126,17 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       }
       
       logDebug("Created GPU texture with ID: $_textureId", _logTag);
+      
+      // Create irondash texture for zero-copy rendering
+      try {
+        final engineHandle = await EngineContext.instance.getEngineHandle();
+        _irondashTextureId = await createVideoTexture(width: 1920, height: 1080, engineHandle: engineHandle);
+        logDebug("Created irondash texture with ID: $_irondashTextureId", _logTag);
+      } catch (e) {
+        logError(_logTag, "Failed to create irondash texture: $e");
+        // Fall back to regular texture if irondash fails
+        _irondashTextureId = null;
+      }
       
       if (mounted) {
         setState(() {});
@@ -455,9 +468,12 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       );
     }
     
-    if (!_isInitialized || _textureId == null) {
+    if (!_isInitialized || (_textureId == null && _irondashTextureId == null)) {
       return const Center(child: CircularProgressIndicator());
     }
+    
+    final textureIdToUse = _irondashTextureId ?? _textureId!;
+    final usingIrondash = _irondashTextureId != null;
     
     return Column(
       children: [
@@ -467,11 +483,21 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
             child: Center(
               child: AspectRatio(
                 aspectRatio: _aspectRatio,
-                child: Texture(textureId: _textureId!),
+                child: Texture(textureId: textureIdToUse),
               ),
             ),
           ),
         ),
+        // Debug info
+        if (usingIrondash)
+          Container(
+            padding: const EdgeInsets.all(4),
+            color: Colors.green.withOpacity(0.1),
+            child: Text(
+              'Using Irondash Texture ID: $textureIdToUse',
+              style: const TextStyle(fontSize: 10, color: Colors.green),
+            ),
+          ),
       ],
     );
   } 

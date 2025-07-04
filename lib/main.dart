@@ -9,6 +9,7 @@ import 'package:flipedit/utils/logger.dart';
 import 'package:flipedit/utils/global_context.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/src/rust/frb_generated.dart';
+import 'package:irondash_engine_context/irondash_engine_context.dart';
 
 // Define a class to handle window events by implementing WindowListener
 class _MyWindowListener implements WindowListener {
@@ -66,6 +67,9 @@ class _MyWindowListener implements WindowListener {
 Future<void> main() async {
   await RustLib.init();
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Note: Irondash engine context is initialized automatically when needed
+  logInfo('main', 'Irondash engine context ready');
 
 
   // Ensure window_manager is initialized for desktop platforms

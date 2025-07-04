@@ -1,9 +1,9 @@
-use crate::common::types::{FrameData, TimelineData, TimelineClip};
+use crate::common::types::TimelineData;
 use crate::video::player::VideoPlayer as InternalVideoPlayer;
 use crate::video::frame_handler::FrameHandler;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use std::time::{SystemTime, UNIX_EPOCH, Duration};
+use std::time::{SystemTime, Duration};
 use std::thread;
 use log::{info, warn, debug, error};
 

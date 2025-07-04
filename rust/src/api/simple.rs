@@ -2,11 +2,10 @@ use flutter_rust_bridge::frb;
 pub use crate::api::bridge::*;
 use crate::video::player::VideoPlayer as InternalVideoPlayer;
 use crate::video::timeline_player::TimelinePlayer as InternalTimelinePlayer;
+use crate::video::irondash_texture;
 pub use crate::common::types::{FrameData, TimelineData, TimelineClip, TimelineTrack, TextureFrame};
 use crate::utils::testing;
 use std::sync::{Arc, Mutex};
-use std::thread;
-use std::time::Duration;
 use anyhow::Result;
 use crate::frb_generated::StreamSink;
 
@@ -90,8 +89,8 @@ impl VideoPlayer {
 
         *is_running.lock().unwrap() = true;
         
-        let callback_arc = Arc::clone(&self.position_callback);
-        let thread_running_arc = Arc::clone(&is_running);
+        let _callback_arc = Arc::clone(&self.position_callback);
+        let _thread_running_arc = Arc::clone(&is_running);
         
         // We need a way to get position from the inner player in the thread
         // For now, let's use a simpler approach and just expose this as a method
@@ -271,4 +270,26 @@ impl TimelinePlayer {
         self.inner.set_position_ms(position_ms);
         self.inner.frame_handler.should_show_frame()
     }
+}
+
+// =================== IRONDASH TEXTURE API ===================
+
+/// Create a new video texture using irondash for zero-copy rendering
+#[frb(sync)]
+pub fn create_video_texture(width: u32, height: u32, engine_handle: i64) -> Result<i64, String> {
+    irondash_texture::create_video_texture(width, height, engine_handle)
+        .map_err(|e| format!("Failed to create video texture: {}", e))
+}
+
+/// Update video frame data for all irondash textures
+#[frb(sync)]
+pub fn update_video_frame(frame_data: FrameData) -> Result<(), String> {
+    irondash_texture::update_video_frame(frame_data)
+        .map_err(|e| format!("Failed to update video frame: {}", e))
+}
+
+/// Get the number of active irondash textures
+#[frb(sync)]
+pub fn get_texture_count() -> usize {
+    irondash_texture::get_texture_count()
 } 

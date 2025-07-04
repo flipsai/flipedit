@@ -2,14 +2,13 @@ use crate::audio_handler::{MediaSender, MediaData, AudioFrame};
 use crate::video::frame_handler::FrameHandler;
 use crate::common::types::FrameData;
 use crate::video::player::FrameCallback;
+use crate::video::irondash_texture;
 use gstreamer as gst;
 use gstreamer::prelude::*;
-use gstreamer_video as gst_video;
 use gstreamer_audio as gst_audio;
 use gstreamer_app as gst_app;
 use gstreamer_gl as gst_gl;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 use log::{info, warn, error, debug};
 
 pub struct PipelineManager {
@@ -233,7 +232,7 @@ impl PipelineManager {
 
     fn setup_glimagesink_callbacks(&self, glimagesink: &gst::Element) -> Result<(), String> {
         let frame_handler = self.frame_handler.clone();
-        let frame_callback = self.frame_callback.clone();
+        let _frame_callback = self.frame_callback.clone();
         
         // Use GStreamer's built-in buffer probing mechanism
         // This is the proper way to track when frames are processed
@@ -241,9 +240,27 @@ impl PipelineManager {
             let frame_handler_clone = frame_handler.clone();
             let texture_counter = Arc::new(std::sync::atomic::AtomicU64::new(1));
             
-            sink_pad.add_probe(gst::PadProbeType::BUFFER, move |_pad, _info| {
+            sink_pad.add_probe(gst::PadProbeType::BUFFER, move |_pad, info| {
                 let texture_id = texture_counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 frame_handler_clone.update_texture_id(texture_id);
+                
+                // Create frame data for irondash if buffer is available
+                if let Some(_buffer) = info.buffer() {
+                    let (width, height) = frame_handler_clone.get_video_dimensions();
+                    
+                    // Create frame data with empty data (since we're using GPU texture)
+                    let frame_data = FrameData {
+                        data: vec![], // Empty for GPU-based rendering
+                        width: width as u32,
+                        height: height as u32,
+                        texture_id: Some(texture_id),
+                    };
+                    
+                    // Update irondash textures with frame data
+                    if let Err(e) = irondash_texture::update_video_frame(frame_data) {
+                        debug!("Failed to update irondash texture: {}", e);
+                    }
+                }
                 
                 // Update every frame but only log occasionally
                 if texture_id % 60 == 0 {

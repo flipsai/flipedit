@@ -64,6 +64,9 @@ dependencies:
   rust_lib_flipedit:
     path: rust_builder
   flutter_rust_bridge: 2.7.0
+  # Provides Rust with access to the Flutter engine's graphics context.
+  irondash_engine_context:
+    path: irondash/engine_context/dart
 dev_dependencies:
   flutter_lints: ^5.0.0
   flutter_test:
@@ -76,6 +79,7 @@ dev_dependencies:
     sdk: flutter
   test: any
   devtools_mcp_extension: ^0.2.0
+
 
 dependency_overrides:
   archive: 3.6.1
