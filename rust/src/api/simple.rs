@@ -11,6 +11,7 @@ use lazy_static::lazy_static;
 use std::sync::Mutex as StdMutex;
 use crate::video::pipeline::VideoPipeline;
 use crate::video::frame_handler::FrameHandler;
+use log::{debug, info};
 
 lazy_static! {
     static ref ACTIVE_VIDEOS: StdMutex<Vec<VideoPipeline>> = StdMutex::new(Vec::new());
@@ -24,10 +25,15 @@ pub fn greet(name: String) -> String {
     crate::api::bridge::greet(name)
 }
 
+#[frb(mirror(TimelineData, TimelineTrack, TimelineClip))]
+pub struct _TimelineData {
+    pub id: String,
+    pub name: String,
+    pub tracks: Vec<TimelineTrack>,
+}
+
 pub struct VideoPlayer {
     inner: InternalVideoPlayer,
-    position_callback: Arc<Mutex<Option<PositionUpdateCallback>>>,
-    position_thread_running: Arc<Mutex<bool>>,
 }
 
 impl VideoPlayer {
@@ -35,8 +41,6 @@ impl VideoPlayer {
     pub fn new() -> Self {
         Self {
             inner: InternalVideoPlayer::new(),
-            position_callback: Arc::new(Mutex::new(None)),
-            position_thread_running: Arc::new(Mutex::new(false)),
         }
     }
 
@@ -55,23 +59,15 @@ impl VideoPlayer {
     }
 
     pub fn play(&mut self) -> Result<(), String> {
-        let result = self.inner.play();
-        if result.is_ok() {
-            self.start_position_reporting();
-        }
-        result
+        self.inner.play()
     }
 
     pub fn pause(&mut self) -> Result<(), String> {
-        let result = self.inner.pause();
-        self.stop_position_reporting();
-        result
+        self.inner.pause()
     }
 
     pub fn stop(&mut self) -> Result<(), String> {
-        let result = self.inner.stop();
-        self.stop_position_reporting();
-        result
+        self.inner.stop()
     }
 
     pub fn setup_frame_stream(&mut self, sink: StreamSink<FrameData>) -> Result<()> {
@@ -84,29 +80,6 @@ impl VideoPlayer {
             Ok(())
         }))?;
         Ok(())
-    }
-
-    /// Start position reporting thread
-    fn start_position_reporting(&self) {
-        let is_running = self.position_thread_running.clone();
-        // Only start if not already running
-        if *is_running.lock().unwrap() {
-            return;
-        }
-
-        *is_running.lock().unwrap() = true;
-        
-        let _callback_arc = Arc::clone(&self.position_callback);
-        let _thread_running_arc = Arc::clone(&is_running);
-        
-        // We need a way to get position from the inner player in the thread
-        // For now, let's use a simpler approach and just expose this as a method
-        // that Flutter can call periodically
-    }
-
-    /// Stop position reporting thread
-    fn stop_position_reporting(&mut self) {
-        *self.position_thread_running.lock().unwrap() = false;
     }
 
     /// Get current position and frame - Flutter can call this periodically
@@ -144,13 +117,7 @@ impl VideoPlayer {
         self.inner.get_texture_frame()
     }
 
-    #[frb(sync)]
-    pub fn has_audio(&self) -> bool {
-        self.inner.has_audio()
-    }
-
     pub fn dispose(&mut self) -> Result<(), String> {
-        self.stop_position_reporting();
         self.inner.dispose()
     }
 

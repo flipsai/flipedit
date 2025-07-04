@@ -189,18 +189,6 @@ impl TimelinePlayer {
         });
     }
 
-    fn frame_to_ms(frame: i32) -> i32 {
-        // Match Flutter's conversion: frames * (1000.0 / 30.0) with rounding
-        let ms_per_frame = 1000.0 / 30.0; // 33.33... ms per frame
-        (frame as f64 * ms_per_frame).round() as i32
-    }
-
-    fn ms_to_frame(ms: i32) -> i32 {
-        // Match Flutter's conversion: ms / (1000.0 / 30.0) with floor
-        let ms_per_frame = 1000.0 / 30.0; // 33.33... ms per frame
-        (ms as f64 / ms_per_frame).floor() as i32
-    }
-
     pub fn set_position_ms(&mut self, position_ms: i32) {
         *self.current_position_ms.lock().unwrap() = position_ms;
         self.frame_handler.update_current_time(position_ms);

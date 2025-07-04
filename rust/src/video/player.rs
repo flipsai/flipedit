@@ -6,7 +6,6 @@ use gstreamer as gst;
 use gstreamer::prelude::*;
 use gstreamer_video as gst_video;
 use gstreamer_app as gst_app;
-use gstreamer_gl as gst_gl;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use log::{info, warn, debug};
@@ -20,7 +19,6 @@ pub struct VideoPlayer {
     pub is_playing: Arc<Mutex<bool>>,
     // Audio-related fields
     pub audio_sender: Option<MediaSender>,
-    pub has_audio: Arc<Mutex<bool>>,
     // Seeking-related fields
     pub duration: Arc<Mutex<Option<u64>>>, // Duration in nanoseconds
     pub seekable: Arc<Mutex<bool>>,
@@ -29,40 +27,23 @@ pub struct VideoPlayer {
     // Frame extraction mutex to prevent concurrent operations
     pub frame_extraction_mutex: Arc<Mutex<()>>,
     frame_callback: Arc<Mutex<Option<FrameCallback>>>,
-    // OpenGL context for GPU texture sharing
-    pub gl_display: Option<gst_gl::GLDisplay>,
-    pub gl_context: Option<gst_gl::GLContext>,
 }
 
 impl VideoPlayer {
-    /// Initialize OpenGL context for texture sharing with Flutter
-    fn init_gl_context() -> (Option<gst_gl::GLDisplay>, Option<gst_gl::GLContext>) {
-        // For now, use automatic GL context discovery
-        // This allows GStreamer to handle GL context creation automatically
-        info!("Using automatic GL context discovery for texture sharing");
-        (None, None)
-    }
-
     pub fn new() -> Self {
         // Initialize audio system
         let audio_sender = start_audio_thread();
-        
-        // Initialize OpenGL context for texture sharing
-        let (gl_display, gl_context) = Self::init_gl_context();
         
         Self {
             pipeline_manager: None,
             frame_handler: FrameHandler::new(),
             is_playing: Arc::new(Mutex::new(false)),
             audio_sender: Some(audio_sender),
-            has_audio: Arc::new(Mutex::new(false)),
             duration: Arc::new(Mutex::new(None)),
             seekable: Arc::new(Mutex::new(false)),
             file_path: None,
             frame_extraction_mutex: Arc::new(Mutex::new(())),
             frame_callback: Arc::new(Mutex::new(None)),
-            gl_display,
-            gl_context,
         }
     }
 
@@ -90,10 +71,7 @@ impl VideoPlayer {
         // Create pipeline manager with shared GL context
         let mut pipeline_manager = PipelineManager::new(
             self.frame_handler.clone(),
-            self.audio_sender.clone(),
-            self.has_audio.clone(),
             self.frame_callback.clone(),
-            self.gl_context.clone(),
         )?;
 
         // Load the video through pipeline manager
@@ -285,10 +263,6 @@ impl VideoPlayer {
         self.frame_handler.get_texture_frame()
     }
 
-    pub fn has_audio(&self) -> bool {
-        *self.has_audio.lock().unwrap()
-    }
-
     pub fn dispose(&mut self) -> Result<(), String> {
         info!("Disposing VideoPlayer");
         
@@ -302,10 +276,6 @@ impl VideoPlayer {
         if let Some(pipeline_manager) = &mut self.pipeline_manager {
             pipeline_manager.dispose()?;
         }
-        
-        // Clean up OpenGL context
-        self.gl_context = None;
-        self.gl_display = None;
         
         self.pipeline_manager = None;
         *self.is_playing.lock().unwrap() = false;

@@ -245,10 +245,6 @@ impl FrameHandler {
             *height_guard = height;
         }
     }
-    
-    pub fn increment_texture_id(&self) -> u64 {
-        self.latest_texture_id.fetch_add(1, Ordering::Relaxed)
-    }
 }
 
 impl Default for FrameHandler {

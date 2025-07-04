@@ -133,10 +133,7 @@ impl PipelineManager {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         frame_handler: super::frame_handler::FrameHandler,
-        _audio_sender: Option<crate::audio_handler::MediaSender>,
-        _has_audio: Arc<Mutex<bool>>,
         _frame_callback: Arc<Mutex<Option<crate::video::player::FrameCallback>>>,
-        _gl_context: Option<gstreamer_gl::GLContext>,
     ) -> Result<Self, String> {
         Ok(Self {
             pipeline: None,
