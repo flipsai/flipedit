@@ -41,8 +41,8 @@ impl PipelineManager {
         // Create a new pipeline
         let pipeline = gst::Pipeline::new();
         
-        // Configure pipeline for low latency
-        pipeline.set_latency(gst::ClockTime::from_mseconds(50));
+        // Configure pipeline for very low latency
+        pipeline.set_latency(gst::ClockTime::from_mseconds(16)); // ~1 frame at 60fps
 
         // Create elements
         let source = gst::ElementFactory::make("filesrc")
@@ -74,7 +74,7 @@ impl PipelineManager {
             .property("sync", true)
             .property("max-buffers", 2u32)
             .property("drop", true)
-            .property("async", false)
+            .property("async", true)
             .build()
             .map_err(|e| format!("Failed to create video appsink: {}", e))?;
 
@@ -100,17 +100,17 @@ impl PipelineManager {
 
         // Configure video caps filter to limit maximum resolution (prevents crashes with huge videos)
         video_capsfilter.set_property("caps", &gst::Caps::builder("video/x-raw")
-            .field("format", "BGRA")
+            .field("format", "RGBA")
             .field("width", gst::IntRange::new(1, 1920))
             .field("height", gst::IntRange::new(1, 1080))
             .field("pixel-aspect-ratio", gst::Fraction::new(1, 1))
             .build());
 
-        // Configure video appsink to output BGRA format
+        // Configure video appsink to output RGBA format (better for Flutter)
         let video_appsink = video_appsink.dynamic_cast::<gst_app::AppSink>().unwrap();
         video_appsink.set_caps(Some(
             &gst::Caps::builder("video/x-raw")
-                .field("format", "BGRA")
+                .field("format", "RGBA")
                 .field("pixel-aspect-ratio", gst::Fraction::new(1, 1))
                 .build()
         ));
@@ -230,32 +230,32 @@ impl PipelineManager {
         video_appsink.set_callbacks(
             gst_app::AppSinkCallbacks::builder()
                 .new_sample(move |appsink| {
-                    debug!("New video sample callback triggered");
+                    // debug!("New video sample callback triggered"); // Disabled for performance
                     
                     let sample = match appsink.pull_sample() {
                         Ok(sample) => sample,
                         Err(_) => {
-                            debug!("Failed to pull video sample");
+                            warn!("Failed to pull video sample");
                             return Err(gst::FlowError::Eos);
                         }
                     };
                     
                     if let Some(buffer) = sample.buffer() {
-                        debug!("Got video buffer from sample");
+                        // debug!("Got video buffer from sample"); // Disabled for performance
                         
                         if let Some(caps) = sample.caps() {
                             if let Ok(video_info) = gst_video::VideoInfo::from_caps(&caps) {
                                 let width = video_info.width();
                                 let height = video_info.height();
                                 
-                                debug!("Video dimensions: {}x{}", width, height);
+                                // debug!("Video dimensions: {}x{}", width, height); // Disabled for performance
                                 frame_handler.update_dimensions(width, height);
                                 
                                 // Extract frame rate from caps
                                 if let Some(caps_struct) = caps.structure(0) {
                                     if let Ok(framerate) = caps_struct.get::<gst::Fraction>("framerate") {
                                         let fps = framerate.numer() as f64 / framerate.denom() as f64;
-                                        debug!("Detected frame rate: {} fps ({}/{})", fps, framerate.numer(), framerate.denom());
+                                        // debug!("Detected frame rate: {} fps ({}/{})", fps, framerate.numer(), framerate.denom()); // Disabled for performance
                                         frame_handler.update_frame_rate(fps);
                                     } else {
                                         debug!("No framerate field found in video caps");
@@ -264,10 +264,21 @@ impl PipelineManager {
                                 
                                 if let Ok(map) = buffer.map_readable() {
                                     let data = map.as_slice();
-                                    debug!("Buffer mapped, size: {} bytes", data.len());
+                                    // debug!("Buffer mapped, size: {} bytes", data.len()); // Disabled for performance
+                                    
+                                    // Get buffer from pool to avoid allocation
+                                    let mut frame_buffer = frame_handler.get_buffer_from_pool();
+                                    
+                                    // Resize buffer if needed
+                                    if frame_buffer.len() != data.len() {
+                                        frame_buffer.resize(data.len(), 0);
+                                    }
+                                    
+                                    // Copy data to pooled buffer
+                                    frame_buffer[..data.len()].copy_from_slice(data);
                                     
                                     let frame_data = FrameData {
-                                        data: data.to_vec(),
+                                        data: frame_buffer,
                                         width,
                                         height,
                                     };
@@ -296,7 +307,7 @@ impl PipelineManager {
                         debug!("No buffer in sample");
                     }
                     
-                    debug!("Video sample processing completed");
+                    // debug!("Video sample processing completed"); // Disabled for performance
                     Ok(gst::FlowSuccess::Ok)
                 })
                 .build()
@@ -313,18 +324,18 @@ impl PipelineManager {
         audio_appsink.set_callbacks(
             gst_app::AppSinkCallbacks::builder()
                 .new_sample(move |appsink| {
-                    debug!("New audio sample callback triggered");
+                    // debug!("New audio sample callback triggered"); // Disabled for performance
                     
                     let sample = match appsink.pull_sample() {
                         Ok(sample) => sample,
                         Err(_) => {
-                            debug!("Failed to pull audio sample");
+                            warn!("Failed to pull audio sample");
                             return Err(gst::FlowError::Eos);
                         }
                     };
                     
                     if let Some(buffer) = sample.buffer() {
-                        debug!("Got audio buffer from sample");
+                        // debug!("Got audio buffer from sample"); // Disabled for performance
                         
                         if let Some(caps) = sample.caps() {
                             if let Ok(audio_info) = gst_audio::AudioInfo::from_caps(&caps) {
@@ -332,8 +343,8 @@ impl PipelineManager {
                                 let channels = audio_info.channels();
                                 let bytes_per_sample = (audio_info.depth() / 8) as u32;
                                 
-                                debug!("Audio info: {}Hz, {} channels, {} bytes per sample", 
-                                    sample_rate, channels, bytes_per_sample);
+                                // debug!("Audio info: {}Hz, {} channels, {} bytes per sample", 
+                                //     sample_rate, channels, bytes_per_sample); // Disabled for performance
                                 
                                 if let Ok(mut has_audio_guard) = has_audio_arc.try_lock() {
                                     *has_audio_guard = true;
@@ -341,7 +352,7 @@ impl PipelineManager {
                                 
                                 if let Ok(map) = buffer.map_readable() {
                                     let data = map.as_slice();
-                                    debug!("Audio buffer mapped, size: {} bytes", data.len());
+                                    // debug!("Audio buffer mapped, size: {} bytes", data.len()); // Disabled for performance
                                     
                                     let timestamp = buffer.pts().map(|pts| pts.nseconds());
                                     
@@ -357,7 +368,7 @@ impl PipelineManager {
                                         if let Err(e) = audio_tx.send(MediaData::AudioFrame(Box::new(audio_frame))) {
                                             debug!("Failed to send audio frame: {}", e);
                                         } else {
-                                            debug!("Sent audio frame to audio system");
+                                            // debug!("Sent audio frame to audio system"); // Disabled for performance
                                         }
                                     }
                                 } else {
@@ -373,7 +384,7 @@ impl PipelineManager {
                         debug!("No audio buffer in sample");
                     }
                     
-                    debug!("Audio sample processing completed");
+                    // debug!("Audio sample processing completed"); // Disabled for performance
                     Ok(gst::FlowSuccess::Ok)
                 })
                 .build()

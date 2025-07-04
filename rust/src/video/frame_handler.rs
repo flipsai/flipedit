@@ -1,4 +1,4 @@
-use crate::common::types::{FrameData, TimelineData, TimelineClip};
+use crate::common::types::{FrameData, TimelineData, TimelineClip, FrameBufferPool};
 use std::sync::{Arc, Mutex};
 use log::debug;
 
@@ -11,6 +11,7 @@ pub struct FrameHandler {
     pub frame_rate: Arc<Mutex<f64>>,
     pub timeline_data: Arc<Mutex<Option<TimelineData>>>,
     pub current_time_ms: Arc<Mutex<i32>>,
+    pub buffer_pool: Arc<Mutex<FrameBufferPool>>,
 }
 
 impl FrameHandler {
@@ -23,6 +24,7 @@ impl FrameHandler {
             frame_rate: Arc::new(Mutex::new(25.0)),
             timeline_data: Arc::new(Mutex::new(None)),
             current_time_ms: Arc::new(Mutex::new(0)),
+            buffer_pool: Arc::new(Mutex::new(FrameBufferPool::default())),
         }
     }
 
@@ -100,8 +102,20 @@ impl FrameHandler {
             // Return empty/black frame when not within any clip
             let (width, height) = self.get_video_dimensions();
             if width > 0 && height > 0 {
-                let black_frame_size = (width * height * 4) as usize; // RGBA
-                let black_data = vec![0u8; black_frame_size];
+                let mut black_data = if let Ok(pool) = self.buffer_pool.lock() {
+                    pool.get_buffer()
+                } else {
+                    vec![0u8; (width * height * 4) as usize]
+                };
+                
+                let required_size = (width * height * 4) as usize;
+                if black_data.len() != required_size {
+                    black_data.resize(required_size, 0);
+                }
+                
+                // Fill with black pixels
+                black_data.fill(0);
+                
                 debug!("Returning black frame ({}x{}) - no active clip", width, height);
                 return Some(FrameData {
                     data: black_data,
@@ -121,25 +135,61 @@ impl FrameHandler {
 
     pub fn store_frame(&self, frame_data: FrameData) {
         if let Ok(mut latest_frame) = self.latest_frame.try_lock() {
-            *latest_frame = Some(frame_data);
+            // Return old frame buffer to pool if it exists
+            if let Some(old_frame) = latest_frame.replace(frame_data) {
+                self.return_buffer_to_pool(old_frame.data);
+            }
             debug!("Stored frame data for Dart retrieval");
         }
     }
+    
 
     pub fn update_dimensions(&self, width: u32, height: u32) {
+        let mut changed = false;
+        
         if let Ok(mut width_guard) = self.width.try_lock() {
-            *width_guard = width as i32;
+            if *width_guard != width as i32 {
+                *width_guard = width as i32;
+                changed = true;
+            }
         }
         if let Ok(mut height_guard) = self.height.try_lock() {
-            *height_guard = height as i32;
+            if *height_guard != height as i32 {
+                *height_guard = height as i32;
+                changed = true;
+            }
         }
-        debug!("Updated video dimensions: {}x{}", width, height);
+        
+        if changed {
+            // Update buffer pool for new dimensions
+            if let Ok(mut pool) = self.buffer_pool.lock() {
+                pool.resize_for_dimensions(width, height);
+            }
+            debug!("Updated video dimensions: {}x{}", width, height);
+        }
+    }
+
+    pub fn get_buffer_from_pool(&self) -> Vec<u8> {
+        if let Ok(pool) = self.buffer_pool.lock() {
+            pool.get_buffer()
+        } else {
+            // Fallback to default 1080p buffer
+            vec![0u8; 1920 * 1080 * 4]
+        }
+    }
+
+    pub fn return_buffer_to_pool(&self, buffer: Vec<u8>) {
+        if let Ok(pool) = self.buffer_pool.lock() {
+            pool.return_buffer(buffer);
+        }
     }
 
     pub fn update_frame_rate(&self, fps: f64) {
         if let Ok(mut frame_rate_guard) = self.frame_rate.try_lock() {
-            *frame_rate_guard = fps;
-            debug!("Updated frame rate: {} fps", fps);
+            if (*frame_rate_guard - fps).abs() > 0.01 {
+                *frame_rate_guard = fps;
+                debug!("Updated frame rate: {} fps", fps);
+            }
         }
     }
 

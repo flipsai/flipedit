@@ -132,6 +132,19 @@ Future<void> setupServiceLocator() async {
     dispose: (service) => service.dispose(),
   );
 
+  // Register OptimizedPlaybackService after VideoPlayerService for proper dependency
+  di.registerLazySingleton<OptimizedPlaybackService>(
+    () => OptimizedPlaybackService(
+      getCurrentFrame: () => di<VideoPlayerService>().currentFrame,
+      setCurrentFrame: (int frame) {
+        // Video player service handles frame setting
+      },
+      getTotalFrames: () => di<VideoPlayerService>().getTotalFrames(),
+      getDefaultEmptyDurationFrames: () => 1000, // Default to ~40 seconds at 25fps
+      getFrameRate: () => di<VideoPlayerService>().getFrameRate(),
+    ),
+  );
+
   // Register video processing services
   di.registerLazySingleton<VideoProcessingService>(
     () => VideoProcessingService(),
@@ -153,15 +166,6 @@ Future<void> setupServiceLocator() async {
     dispose: (manager) async {
       await manager.shutdownVideoStreamServer();
     },
-  );
-
-  di.registerLazySingleton<OptimizedPlaybackService>(
-    () => OptimizedPlaybackService(
-      getCurrentFrame: () => 0,
-      setCurrentFrame: (int frame) {},
-      getTotalFrames: () => 0,
-      getDefaultEmptyDurationFrames: () => 0,
-    ),
   );
 
   // Register tab system services

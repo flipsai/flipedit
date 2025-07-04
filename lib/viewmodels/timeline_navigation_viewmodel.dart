@@ -42,6 +42,7 @@ class TimelineNavigationViewModel extends ChangeNotifier {
       },
       getTotalFrames: () => _videoPlayerService.getTotalFrames(),
       getDefaultEmptyDurationFrames: _navigationService.getDefaultEmptyDurationFramesValue,
+      getFrameRate: () => _videoPlayerService.getFrameRate(),
     );
 
     // Set up listeners for video player service updates

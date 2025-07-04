@@ -67,79 +67,17 @@ class VideoPlayerService extends ChangeNotifier {
     logDebug("Active video player unregistered", _logTag);
   }
 
-  // Start polling Rust for position updates
+  // Start position updates via stream instead of polling
   void _startPositionPolling() {
     _stopPositionPolling(); // Stop any existing timer
     
-    // Start with adaptive polling - faster when playing, slower when paused
-    _scheduleNextPoll();
-    
-    logDebug("Started adaptive position polling from Rust", _logTag);
+    // Use existing frame stream for position updates instead of polling
+    logDebug("Using stream-based position updates (no polling)", _logTag);
   }
 
   void _scheduleNextPoll() {
-    if (_activeVideoPlayer == null) return;
-    
-    // CRITICAL FIX: Check if actually playing to avoid unnecessary polling
-    final isCurrentlyPlaying = _activeVideoPlayer!.isPlaying();
-    
-    // Adaptive polling based on playing state
-    final pollInterval = isCurrentlyPlaying 
-        ? const Duration(milliseconds: 50)   // 20fps when playing for smooth video
-        : const Duration(milliseconds: 500); // 2fps when paused to save resources
-    
-    _positionPollingTimer = Timer(pollInterval, () {
-      // Double-check that player is still active and timer wasn't cancelled
-      if (_activeVideoPlayer == null || _positionPollingTimer == null) return;
-      
-      try {
-        // Get position from Rust - this is the source of truth
-        final positionData = _activeVideoPlayer!.getCurrentPositionAndFrame();
-        final positionSeconds = positionData.$1;
-        final frameNumber = positionData.$2;
-        
-        // Only update if values actually changed (reduce unnecessary rebuilds)
-        bool hasChanges = false;
-        
-        // Additional check before updating ValueNotifiers to prevent disposal race conditions
-        if (_activeVideoPlayer != null) {
-          // PERFORMANCE FIX: Batch updates to reduce widget rebuilds
-          if ((positionSecondsNotifier.value - positionSeconds).abs() > 0.01) {
-            _scheduleBatchUpdate(() {
-              positionSecondsNotifier.value = positionSeconds;
-            });
-            hasChanges = true;
-          }
-          
-          final frameInt = frameNumber.toInt();
-          if (currentFrameNotifier.value != frameInt) {
-            _scheduleBatchUpdate(() {
-              currentFrameNotifier.value = frameInt;
-            });
-            hasChanges = true;
-          }
-          
-          // Update playing state from Rust as well
-          final rustIsPlaying = _activeVideoPlayer!.isPlaying();
-          if (isPlayingNotifier.value != rustIsPlaying) {
-            _scheduleBatchUpdate(() {
-              isPlayingNotifier.value = rustIsPlaying;
-            });
-            hasChanges = true;
-          }
-        }
-        
-        // Schedule next poll only if player is still active
-        if (_activeVideoPlayer != null) {
-          _scheduleNextPoll();
-        }
-        
-      } catch (e) {
-        logError(_logTag, "Error polling position from Rust: $e");
-        // Retry after a longer delay on error
-        Timer(const Duration(milliseconds: 200), _scheduleNextPoll);
-      }
-    });
+    // This method is kept for compatibility but does nothing
+    // Position updates now come via the frame stream
   }
 
   // Stop position polling

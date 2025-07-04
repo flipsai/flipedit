@@ -562,7 +562,7 @@ impl VideoPlayer {
         let appsink = appsink.dynamic_cast::<gst_app::AppSink>().unwrap();
         appsink.set_caps(Some(
             &gst::Caps::builder("video/x-raw")
-                .field("format", "BGRA")
+                .field("format", "RGBA")
                 .field("pixel-aspect-ratio", gst::Fraction::new(1, 1))
                 .build()
         ));
@@ -682,9 +682,21 @@ impl VideoPlayer {
                     if let Ok(map) = buffer.map_readable() {
                         let data = map.as_slice();
                         
+                        // Get buffer from pool instead of allocating new Vec
+                        let mut buffer = self.frame_handler.get_buffer_from_pool();
+                        let required_size = (width * height * 4) as usize;
+                        
+                        // Resize buffer if needed
+                        if buffer.len() != required_size {
+                            buffer.resize(required_size, 0);
+                        }
+                        
+                        // Copy data to reused buffer
+                        buffer[..data.len().min(required_size)].copy_from_slice(&data[..data.len().min(required_size)]);
+                        
                         // Create frame data and store it in the main frame handler
                         let frame_data = crate::common::types::FrameData {
-                            data: data.to_vec(),
+                            data: buffer,
                             width,
                             height,
                         };
@@ -834,7 +846,7 @@ impl VideoPlayer {
         let appsink = appsink.dynamic_cast::<gst_app::AppSink>().unwrap();
         appsink.set_caps(Some(
             &gst::Caps::builder("video/x-raw")
-                .field("format", "BGRA")
+                .field("format", "RGBA")
                 .field("pixel-aspect-ratio", gst::Fraction::new(1, 1))
                 .build()
         ));
@@ -954,9 +966,21 @@ impl VideoPlayer {
                     if let Ok(map) = buffer.map_readable() {
                         let data = map.as_slice();
                         
+                        // Get buffer from pool instead of allocating new Vec
+                        let mut buffer = self.frame_handler.get_buffer_from_pool();
+                        let required_size = (width * height * 4) as usize;
+                        
+                        // Resize buffer if needed
+                        if buffer.len() != required_size {
+                            buffer.resize(required_size, 0);
+                        }
+                        
+                        // Copy data to reused buffer
+                        buffer[..data.len().min(required_size)].copy_from_slice(&data[..data.len().min(required_size)]);
+                        
                         // Create frame data and store it in the main frame handler
                         let frame_data = crate::common::types::FrameData {
-                            data: data.to_vec(),
+                            data: buffer,
                             width,
                             height,
                         };

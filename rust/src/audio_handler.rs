@@ -44,6 +44,7 @@ pub struct AudioHandler {
     current_format: Option<AudioFormat>,
     target_sample_rate: u32,
     target_channels: u16,
+    devices_enumerated: bool, // Track if we've already enumerated devices
 }
 
 impl Default for AudioHandler {
@@ -62,6 +63,7 @@ impl Default for AudioHandler {
             current_format: None,
             target_sample_rate: 44100, // Standard sample rate
             target_channels: 2, // Stereo
+            devices_enumerated: false,
         }
     }
 }
@@ -77,9 +79,11 @@ impl AudioHandler {
         
         self.current_format = Some(format.clone());
         
-        // Initialize audio output if format changed
-        if let Err(e) = self.init_audio_output() {
-            error!("Failed to initialize audio output: {}", e);
+        // Initialize audio output only if not already initialized
+        if self.stream.is_none() {
+            if let Err(e) = self.init_audio_output() {
+                error!("Failed to initialize audio output: {}", e);
+            }
         }
         
         // Setup resampler if needed
@@ -89,21 +93,21 @@ impl AudioHandler {
     }
 
     pub fn handle_frame(&mut self, frame: AudioFrame) {
-        debug!("Received audio frame: {} bytes, {}Hz, {}ch, {} bytes/sample", 
-               frame.data.len(), frame.sample_rate, frame.channels, frame.bytes_per_sample);
+        // debug!("Received audio frame: {} bytes, {}Hz, {}ch, {} bytes/sample", 
+        //        frame.data.len(), frame.sample_rate, frame.channels, frame.bytes_per_sample); // Disabled for performance
         
         if !self.is_playing.load(Ordering::Relaxed) {
-            debug!("Audio not playing, ignoring frame");
+            // debug!("Audio not playing, ignoring frame"); // Disabled for performance
             return;
         }
 
         // Convert audio data to f32 samples
         let samples = self.convert_to_f32_samples(&frame);
-        debug!("Converted to {} f32 samples", samples.len());
+        // debug!("Converted to {} f32 samples", samples.len()); // Disabled for performance
         
         // Resample if necessary
         let final_samples = if self.resampler.is_some() {
-            debug!("Resampling audio data");
+            // debug!("Resampling audio data"); // Disabled for performance
             // Need to extract resampler to avoid borrow checker issues
             let mut temp_resampler = self.resampler.take().unwrap();
             let result = self.resample_audio(samples, &mut temp_resampler);
@@ -120,7 +124,7 @@ impl AudioHandler {
                 }
             }
         } else {
-            debug!("No resampling needed");
+            // debug!("No resampling needed"); // Disabled for performance
             samples
         };
 
@@ -137,8 +141,8 @@ impl AudioHandler {
             }
             
             buffer.extend_from_slice(&final_samples);
-            debug!("Added {} samples to audio buffer (total: {}, max: {})", 
-                   final_samples.len(), buffer.len(), max_buffer_size);
+            // debug!("Added {} samples to audio buffer (total: {}, max: {})", 
+            //        final_samples.len(), buffer.len(), max_buffer_size); // Disabled for performance
         } else {
             warn!("Failed to lock audio buffer for frame processing");
         }
@@ -151,22 +155,39 @@ impl AudioHandler {
         
         info!("Using audio device: {}", device.name().unwrap_or_else(|_| "Unknown".to_string()));
         
-        // Debug: List all available devices
-        if let Ok(devices) = self.host.output_devices() {
-            info!("Available output devices:");
-            for (i, device) in devices.enumerate() {
-                if let Ok(name) = device.name() {
-                    info!("  {}: {}", i, name);
+        // Only enumerate devices and configs once for performance
+        if !self.devices_enumerated {
+            // Enumerate devices only on first initialization to avoid performance issues
+            debug!("Enumerating audio devices (first time only)...");
+            if let Ok(devices) = self.host.output_devices() {
+                info!("Available output devices:");
+                for (i, device) in devices.enumerate() {
+                    if let Ok(name) = device.name() {
+                        info!("  {}: {}", i, name);
+                        if i >= 5 { break; } // Limit to first 5 devices to reduce spam
+                    }
                 }
             }
-        }
 
-        // Debug: List supported configs
-        info!("Supported audio configurations:");
-        let mut temp_configs = device.supported_output_configs()?;
-        for config in temp_configs.by_ref() {
-            info!("  Channels: {}, Sample rate: {:?}, Format: {:?}", 
-                  config.channels(), config.min_sample_rate(), config.sample_format());
+            // Limit config enumeration to reduce log spam
+            debug!("Supported audio configurations (summary):");
+            if let Ok(mut temp_configs) = device.supported_output_configs() {
+                let mut count = 0;
+                for config in temp_configs.by_ref() {
+                    if count < 3 { // Only show first 3 configs
+                        info!("  Channels: {}, Sample rate: {:?}, Format: {:?}", 
+                              config.channels(), config.min_sample_rate(), config.sample_format());
+                        count += 1;
+                    } else {
+                        break;
+                    }
+                }
+                if count >= 3 {
+                    info!("  ... (additional configs suppressed for performance)");
+                }
+            }
+            
+            self.devices_enumerated = true;
         }
         
         // Get a fresh iterator for finding the right config
@@ -390,7 +411,7 @@ impl AudioHandler {
                 // Add ~20ms of silence for initial timing buffer
                 let prebuffer_samples = (self.target_sample_rate as usize * self.target_channels as usize) / 50; // 20ms
                 buffer.resize(prebuffer_samples, 0.0);
-                debug!("Added {} prebuffer silence samples for timing", prebuffer_samples);
+                // debug!("Added {} prebuffer silence samples for timing", prebuffer_samples); // Disabled for performance
             }
         }
         

@@ -199,9 +199,11 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
     if (!mounted) return;
 
     try {
+      final startTime = DateTime.now().millisecondsSinceEpoch;
       logDebug("Got frame data: ${frameData.width}x${frameData.height}, data length: ${frameData.data.length}", _logTag);
       
       // Update the texture using the onRgba API
+      final textureStartTime = DateTime.now().millisecondsSinceEpoch;
       final success = await _textureRenderer.onRgba(
         _textureKey,
         frameData.data,
@@ -209,6 +211,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
         frameData.width.toInt(),
         1 // stride_align - use 1 for no alignment
       );
+      final textureEndTime = DateTime.now().millisecondsSinceEpoch;
       
       if (!success) {
         logWarning(_logTag, "Failed to update texture with frame data");
@@ -216,7 +219,15 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
         _lastSuccessfulFrameUpdate++;
         // Only log every 30 successful updates to reduce log spam
         if (_lastSuccessfulFrameUpdate % 30 == 0) {
-          logDebug("Successfully updated texture with frame data (${_lastSuccessfulFrameUpdate} total)", _logTag);
+          logDebug("Successfully updated texture with frame data (${_lastSuccessfulFrameUpdate} total), texture update took ${textureEndTime - textureStartTime}ms", _logTag);
+        }
+        
+        // Update position/frame data from stream instead of polling
+        final positionStartTime = DateTime.now().millisecondsSinceEpoch;
+        _updatePositionFromFrame();
+        final positionEndTime = DateTime.now().millisecondsSinceEpoch;
+        if (_lastSuccessfulFrameUpdate % 30 == 0) {
+          logDebug("Position update took ${positionEndTime - positionStartTime}ms", _logTag);
         }
       }
       
@@ -228,8 +239,42 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
         _hasValidTexture = false;
         setState(() {});
       }
+      
+      final endTime = DateTime.now().millisecondsSinceEpoch;
+      if (_lastSuccessfulFrameUpdate % 30 == 0) {
+        logDebug("Total frame processing time: ${endTime - startTime}ms", _logTag);
+      }
     } catch (e) {
       logError(_logTag, "Error updating frame: $e");
+    }
+  }
+  
+  void _updatePositionFromFrame() {
+    if (_localVideoPlayer == null) return;
+    
+    try {
+      // Get current position and frame from Rust
+      final positionData = _localVideoPlayer!.getCurrentPositionAndFrame();
+      final positionSeconds = positionData.$1;
+      final frameNumber = positionData.$2;
+      
+      // Update service notifiers if values changed
+      if ((_videoPlayerService.positionSecondsNotifier.value - positionSeconds).abs() > 0.01) {
+        _videoPlayerService.positionSecondsNotifier.value = positionSeconds;
+      }
+      
+      final frameInt = frameNumber.toInt();
+      if (_videoPlayerService.currentFrameNotifier.value != frameInt) {
+        _videoPlayerService.currentFrameNotifier.value = frameInt;
+      }
+      
+      // Update playing state
+      final rustIsPlaying = _localVideoPlayer!.isPlaying();
+      if (_videoPlayerService.isPlayingNotifier.value != rustIsPlaying) {
+        _videoPlayerService.isPlayingNotifier.value = rustIsPlaying;
+      }
+    } catch (e) {
+      logError(_logTag, "Error updating position from frame: $e");
     }
   }
   
