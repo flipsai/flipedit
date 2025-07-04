@@ -263,6 +263,10 @@ impl VideoPlayer {
         self.frame_handler.get_texture_frame()
     }
 
+    pub fn has_audio(&self) -> bool {
+        false
+    }
+
     pub fn dispose(&mut self) -> Result<(), String> {
         info!("Disposing VideoPlayer");
         

@@ -117,6 +117,11 @@ impl VideoPlayer {
         self.inner.get_texture_frame()
     }
 
+    #[frb(sync)]
+    pub fn has_audio(&self) -> bool {
+        self.inner.has_audio()
+    }
+
     pub fn dispose(&mut self) -> Result<(), String> {
         self.inner.dispose()
     }
