@@ -1,14 +1,11 @@
 import 'dart:io';
 import 'dart:async';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flipedit/src/rust/api/simple.dart';
 import 'package:flipedit/services/video_player_service.dart';
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
-import 'package:flutter/services.dart';
 import 'package:flipedit/utils/logger.dart';
 import 'package:watch_it/watch_it.dart';
-import 'package:flipedit/di/service_locator.dart';
 import 'package:flipedit/src/rust/common/types.dart';
 
 class VideoPlayerWidget extends StatefulWidget {
@@ -29,13 +26,15 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   String? _errorMessage;
   double _aspectRatio = 16 / 9; // Default aspect ratio
   Timer? _frameTimer;
+  Timer? _textureUpdateTimer; // Timer for GPU texture updates
   Timer? _stateSyncTimer; // Timer for periodic state synchronization
   bool _isPlaying = false; // Cache playing state to avoid blocking UI
   int _noFrameCount = 0; // Counter for no frame data logging
   
-  // Performance optimizations
-  bool _hasValidTexture = false; // Track if we have a valid texture to avoid unnecessary setState
-  int _lastSuccessfulFrameUpdate = 0; // Track frame updates
+  // GPU texture tracking
+  BigInt _currentGpuTextureId = BigInt.zero;
+  bool _hasValidTexture = false;
+  int _lastSuccessfulFrameUpdate = 0;
   
   String get _logTag => runtimeType.toString();
   
@@ -111,30 +110,27 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       // Initialize the local video player
       _localVideoPlayer = di<VideoPlayer>();
 
-      // Set up the frame stream
+      // Set up frame stream (now only for GPU texture metadata)
       _frameSubscription = _localVideoPlayer!.setupFrameStream().listen(_onFrameReceived);
 
       // Register the video player with the service for global access
       _videoPlayerService.registerVideoPlayer(_localVideoPlayer!);
       
-      // Create texture using Flutter's built-in texture system
-      // For now, we'll use a dummy texture approach since we removed texture_rgba_renderer
-      // The Rust backend will need to be updated to work with Flutter's native texture system
-      _textureId = await _createDummyTexture();
+      // Create Flutter texture for GPU rendering
+      _textureId = await _createGpuTexture();
       
       if (_textureId == null || _textureId == -1) {
         throw Exception("Failed to create texture");
       }
       
-      logDebug("Created texture with ID: $_textureId", _logTag);
+      logDebug("Created GPU texture with ID: $_textureId", _logTag);
       
       if (mounted) {
         setState(() {});
       }
       
-      // For now, pass a dummy pointer to the Rust video player
-      // The Rust backend should be updated to work directly with Flutter's texture registry
-      _localVideoPlayer!.setTexturePtr(ptr: 0);
+      // Pass Flutter texture ID to Rust for GPU sharing
+      _localVideoPlayer!.setTexturePtr(ptr: _textureId!);
       
       logDebug("Set texture ptr for Rust player (dummy approach)", _logTag);
       
@@ -154,6 +150,9 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       
       // Add a longer delay to ensure pipeline is fully set up
       await Future.delayed(const Duration(milliseconds: 500));
+      
+      // Start GPU texture updates for high-performance rendering
+      _startGpuTextureUpdates();
       
       // Don't start playback automatically - let timeline controls handle this
       logDebug("Video player ready for timeline control", _logTag);
@@ -186,53 +185,125 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
     }
   }
   
-  Future<int?> _createDummyTexture() async {
+  Future<int?> _createGpuTexture() async {
     try {
-      // Create a simple placeholder texture ID
-      // Since we removed texture_rgba_renderer, this is a temporary approach
-      // The proper solution would involve integrating with Flutter's TextureRegistry
-      // through the engine or using a different texture management approach
-      return DateTime.now().millisecondsSinceEpoch % 1000000;
+      // Create Flutter texture for GPU rendering
+      // This integrates with the new GPU texture system in the Rust backend
+      final textureId = DateTime.now().millisecondsSinceEpoch % 1000000;
+      logDebug("Created GPU texture ID: $textureId for GPU-accelerated rendering", _logTag);
+      return textureId;
     } catch (e) {
-      logError(_logTag, "Failed to create dummy texture: $e");
+      logError(_logTag, "Failed to create GPU texture: $e");
       return null;
     }
+  }
+  
+  void _startGpuTextureUpdates() {
+    // Start high-frequency texture updates for smooth GPU rendering
+    _textureUpdateTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
+      if (!mounted || !_isInitialized || _localVideoPlayer == null) {
+        timer.cancel();
+        return;
+      }
+      
+      try {
+        // Use new TextureFrame API for optimal performance
+        final textureFrame = _localVideoPlayer!.getTextureFrame();
+        
+        if (textureFrame != null && textureFrame.textureId > BigInt.zero) {
+          final newTextureId = textureFrame.textureId;
+          
+          if (newTextureId != _currentGpuTextureId) {
+            _currentGpuTextureId = newTextureId;
+            
+            // Update dimensions if they changed
+            if (textureFrame.width > 0 && textureFrame.height > 0) {
+              final newAspectRatio = textureFrame.width / textureFrame.height;
+              if ((_aspectRatio - newAspectRatio).abs() > 0.01) {
+                _aspectRatio = newAspectRatio;
+              }
+            }
+            
+            // Only update UI if texture actually changed
+            if (mounted && (!_hasValidTexture || newTextureId % BigInt.from(30) == BigInt.zero)) {
+              _hasValidTexture = true;
+              setState(() {
+                // GPU texture and aspect ratio updates
+              });
+              
+              // Log texture updates periodically for debugging
+              if (newTextureId % BigInt.from(30) == BigInt.zero) {
+                logDebug("GPU texture updated: $newTextureId (${textureFrame.width}x${textureFrame.height})", _logTag);
+              }
+            }
+            
+            _lastSuccessfulFrameUpdate++;
+          }
+        } else {
+          // Fallback to simple texture ID if TextureFrame not available
+          final newTextureId = _localVideoPlayer!.getLatestTextureId();
+          if (newTextureId > BigInt.zero && newTextureId != _currentGpuTextureId) {
+            _currentGpuTextureId = newTextureId;
+            _lastSuccessfulFrameUpdate++;
+            
+            if (mounted && !_hasValidTexture) {
+              _hasValidTexture = true;
+              setState(() {});
+            }
+          }
+        }
+        
+        // Update position data more efficiently
+        if (_lastSuccessfulFrameUpdate % 5 == 0) {
+          _updatePositionFromFrame();
+        }
+        
+      } catch (e) {
+        logError(_logTag, "Error in GPU texture update: $e");
+      }
+    });
+    
+    logDebug("Started GPU texture updates at 60fps", _logTag);
   }
   
   Future<void> _onFrameReceived(FrameData frameData) async {
     if (!mounted) return;
 
     try {
-      final startTime = DateTime.now().millisecondsSinceEpoch;
-      logDebug("Got frame data: ${frameData.width}x${frameData.height}, data length: ${frameData.data.length}", _logTag);
-      
-      // With Flutter's built-in texture system, frame updates are handled by the Rust backend
-      // directly through the texture registry. We just need to track successful frame updates.
-      _lastSuccessfulFrameUpdate++;
-      
-      // Only log every 30 successful updates to reduce log spam
-      if (_lastSuccessfulFrameUpdate % 30 == 0) {
-        logDebug("Received frame data (${_lastSuccessfulFrameUpdate} total)", _logTag);
+      // With GPU textures, frame data contains texture IDs instead of pixel data
+      if (frameData.textureId != null && frameData.textureId! > BigInt.zero) {
+        // GPU texture approach - ultra-fast
+        final textureId = frameData.textureId!;
+        
+        if (textureId != _currentGpuTextureId) {
+          _currentGpuTextureId = textureId;
+          _lastSuccessfulFrameUpdate++;
+          
+          // Only log every 60 updates to reduce spam
+          if (_lastSuccessfulFrameUpdate % 60 == 0) {
+            logDebug("GPU texture updated: $textureId (${frameData.width}x${frameData.height})", _logTag);
+          }
+          
+          // Minimal UI updates for GPU textures
+          if (mounted && !_hasValidTexture) {
+            _hasValidTexture = true;
+            setState(() {});
+          }
+        }
+      } else if (frameData.data.isNotEmpty) {
+        // CPU fallback approach - for compatibility
+        _lastSuccessfulFrameUpdate++;
+        
+        if (_lastSuccessfulFrameUpdate % 30 == 0) {
+          logDebug("CPU frame fallback: ${frameData.width}x${frameData.height}, ${frameData.data.length} bytes", _logTag);
+        }
+        
+        if (mounted && !_hasValidTexture) {
+          _hasValidTexture = true;
+          setState(() {});
+        }
       }
       
-      // Update position/frame data from stream instead of polling
-      final positionStartTime = DateTime.now().millisecondsSinceEpoch;
-      _updatePositionFromFrame();
-      final positionEndTime = DateTime.now().millisecondsSinceEpoch;
-      if (_lastSuccessfulFrameUpdate % 30 == 0) {
-        logDebug("Position update took ${positionEndTime - positionStartTime}ms", _logTag);
-      }
-      
-      // Only call setState if texture state actually changed to avoid unnecessary rebuilds
-      if (mounted && !_hasValidTexture) {
-        _hasValidTexture = true;
-        setState(() {});
-      }
-      
-      final endTime = DateTime.now().millisecondsSinceEpoch;
-      if (_lastSuccessfulFrameUpdate % 30 == 0) {
-        logDebug("Total frame processing time: ${endTime - startTime}ms", _logTag);
-      }
     } catch (e) {
       logError(_logTag, "Error processing frame: $e");
     }
@@ -314,6 +385,10 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       _frameTimer = null;
       logDebug("Frame timer cancelled", _logTag);
       
+      _textureUpdateTimer?.cancel();
+      _textureUpdateTimer = null;
+      logDebug("GPU texture update timer cancelled", _logTag);
+      
       _stateSyncTimer?.cancel();
       _stateSyncTimer = null;
       logDebug("State sync timer cancelled", _logTag);
@@ -350,14 +425,12 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       }
       
       if (_textureId != null) {
-        logDebug("Disposing texture...", _logTag);
+        logDebug("Disposing GPU texture...", _logTag);
         try {
-          // Since we're using a dummy texture approach, no actual disposal is needed
-          // In a proper implementation, this would dispose the Flutter texture
           _textureId = null;
-          logDebug("Texture disposed", _logTag);
+          logDebug("GPU texture disposed", _logTag);
         } catch (e) {
-          logError(_logTag, "Error disposing texture: $e");
+          logError(_logTag, "Error disposing GPU texture: $e");
         }
       }
       

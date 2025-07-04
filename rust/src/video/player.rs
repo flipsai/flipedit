@@ -6,6 +6,7 @@ use gstreamer as gst;
 use gstreamer::prelude::*;
 use gstreamer_video as gst_video;
 use gstreamer_app as gst_app;
+use gstreamer_gl as gst_gl;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use log::{info, warn, debug};
@@ -28,12 +29,26 @@ pub struct VideoPlayer {
     // Frame extraction mutex to prevent concurrent operations
     pub frame_extraction_mutex: Arc<Mutex<()>>,
     frame_callback: Arc<Mutex<Option<FrameCallback>>>,
+    // OpenGL context for GPU texture sharing
+    pub gl_display: Option<gst_gl::GLDisplay>,
+    pub gl_context: Option<gst_gl::GLContext>,
 }
 
 impl VideoPlayer {
+    /// Initialize OpenGL context for texture sharing with Flutter
+    fn init_gl_context() -> (Option<gst_gl::GLDisplay>, Option<gst_gl::GLContext>) {
+        // For now, use automatic GL context discovery
+        // This allows GStreamer to handle GL context creation automatically
+        info!("Using automatic GL context discovery for texture sharing");
+        (None, None)
+    }
+
     pub fn new() -> Self {
         // Initialize audio system
         let audio_sender = start_audio_thread();
+        
+        // Initialize OpenGL context for texture sharing
+        let (gl_display, gl_context) = Self::init_gl_context();
         
         Self {
             pipeline_manager: None,
@@ -46,6 +61,8 @@ impl VideoPlayer {
             file_path: None,
             frame_extraction_mutex: Arc::new(Mutex::new(())),
             frame_callback: Arc::new(Mutex::new(None)),
+            gl_display,
+            gl_context,
         }
     }
 
@@ -70,12 +87,13 @@ impl VideoPlayer {
         // Store the file path for frame extraction
         self.file_path = Some(file_path.clone());
 
-        // Create pipeline manager
+        // Create pipeline manager with shared GL context
         let mut pipeline_manager = PipelineManager::new(
             self.frame_handler.clone(),
             self.audio_sender.clone(),
             self.has_audio.clone(),
             self.frame_callback.clone(),
+            self.gl_context.clone(),
         )?;
 
         // Load the video through pipeline manager
@@ -256,6 +274,16 @@ impl VideoPlayer {
     pub fn get_latest_frame(&self) -> Option<crate::common::types::FrameData> {
         self.frame_handler.get_latest_frame()
     }
+    
+    /// Get the latest texture ID for GPU-based rendering
+    pub fn get_latest_texture_id(&self) -> u64 {
+        self.frame_handler.get_latest_texture_id()
+    }
+    
+    /// Get texture frame data for GPU-based rendering
+    pub fn get_texture_frame(&self) -> Option<crate::common::types::TextureFrame> {
+        self.frame_handler.get_texture_frame()
+    }
 
     pub fn has_audio(&self) -> bool {
         *self.has_audio.lock().unwrap()
@@ -274,6 +302,10 @@ impl VideoPlayer {
         if let Some(pipeline_manager) = &mut self.pipeline_manager {
             pipeline_manager.dispose()?;
         }
+        
+        // Clean up OpenGL context
+        self.gl_context = None;
+        self.gl_display = None;
         
         self.pipeline_manager = None;
         *self.is_playing.lock().unwrap() = false;
@@ -699,6 +731,7 @@ impl VideoPlayer {
                             data: buffer,
                             width,
                             height,
+                            texture_id: None,
                         };
                         
                         // Store the extracted frame in the main frame handler
@@ -983,6 +1016,7 @@ impl VideoPlayer {
                             data: buffer,
                             width,
                             height,
+                            texture_id: None,
                         };
                         
                         // Store the extracted frame in the main frame handler

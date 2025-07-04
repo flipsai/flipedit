@@ -7,7 +7,9 @@ use gstreamer::prelude::*;
 use gstreamer_video as gst_video;
 use gstreamer_audio as gst_audio;
 use gstreamer_app as gst_app;
+use gstreamer_gl as gst_gl;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use log::{info, warn, error, debug};
 
 pub struct PipelineManager {
@@ -16,6 +18,7 @@ pub struct PipelineManager {
     pub audio_sender: Option<MediaSender>,
     pub has_audio: Arc<Mutex<bool>>,
     frame_callback: Arc<Mutex<Option<FrameCallback>>>,
+    gl_context: Option<gst_gl::GLContext>,
 }
 
 impl PipelineManager {
@@ -24,6 +27,7 @@ impl PipelineManager {
         audio_sender: Option<MediaSender>,
         has_audio: Arc<Mutex<bool>>,
         frame_callback: Arc<Mutex<Option<FrameCallback>>>,
+        gl_context: Option<gst_gl::GLContext>,
     ) -> Result<Self, String> {
         Ok(Self {
             pipeline: None,
@@ -31,6 +35,7 @@ impl PipelineManager {
             audio_sender,
             has_audio,
             frame_callback,
+            gl_context,
         })
     }
 
@@ -54,10 +59,14 @@ impl PipelineManager {
             .build()
             .map_err(|e| format!("Failed to create decodebin: {}", e))?;
 
-        // Video elements
-        let videoconvert = gst::ElementFactory::make("videoconvert")
+        // GPU-aware video elements for direct texture rendering
+        let glupload = gst::ElementFactory::make("glupload")
             .build()
-            .map_err(|e| format!("Failed to create videoconvert: {}", e))?;
+            .map_err(|e| format!("Failed to create glupload: {}", e))?;
+
+        let glcolorconvert = gst::ElementFactory::make("glcolorconvert")
+            .build()
+            .map_err(|e| format!("Failed to create glcolorconvert: {}", e))?;
 
         let videoscale = gst::ElementFactory::make("videoscale")
             .property("add-borders", true)
@@ -69,14 +78,11 @@ impl PipelineManager {
             .build()
             .map_err(|e| format!("Failed to create video capsfilter: {}", e))?;
 
-        let video_appsink = gst::ElementFactory::make("appsink")
-            .property("emit-signals", true)
+        let glimagesink = gst::ElementFactory::make("glimagesink")
             .property("sync", true)
-            .property("max-buffers", 2u32)
-            .property("drop", true)
             .property("async", true)
             .build()
-            .map_err(|e| format!("Failed to create video appsink: {}", e))?;
+            .map_err(|e| format!("Failed to create glimagesink: {}", e))?;
 
         // Audio elements
         let audioconvert = gst::ElementFactory::make("audioconvert")
@@ -100,20 +106,19 @@ impl PipelineManager {
 
         // Configure video caps filter to limit maximum resolution (prevents crashes with huge videos)
         video_capsfilter.set_property("caps", &gst::Caps::builder("video/x-raw")
-            .field("format", "RGBA")
             .field("width", gst::IntRange::new(1, 1920))
             .field("height", gst::IntRange::new(1, 1080))
             .field("pixel-aspect-ratio", gst::Fraction::new(1, 1))
             .build());
 
-        // Configure video appsink to output RGBA format (better for Flutter)
-        let video_appsink = video_appsink.dynamic_cast::<gst_app::AppSink>().unwrap();
-        video_appsink.set_caps(Some(
-            &gst::Caps::builder("video/x-raw")
-                .field("format", "RGBA")
-                .field("pixel-aspect-ratio", gst::Fraction::new(1, 1))
-                .build()
-        ));
+        // Configure glimagesink for Flutter texture integration
+        glimagesink.set_property("force-aspect-ratio", true);
+        glimagesink.set_property("pixel-aspect-ratio", gst::Fraction::new(1, 1));
+        
+        // Enable client-draw signal for texture access
+        glimagesink.set_property("enable-last-sample", true);
+        
+        info!("GLImageSink configured for GPU texture rendering");
 
         // Configure audio appsink to output PCM format
         let audio_appsink = audio_appsink.dynamic_cast::<gst_app::AppSink>().unwrap();
@@ -131,10 +136,11 @@ impl PipelineManager {
         pipeline.add_many(&[
             &source, 
             &decodebin, 
-            &videoconvert, 
             &videoscale, 
             &video_capsfilter,
-            video_appsink.upcast_ref(),
+            &glupload,
+            &glcolorconvert,
+            &glimagesink,
             &audioconvert,
             &audioresample,
             audio_appsink.upcast_ref()
@@ -146,12 +152,14 @@ impl PipelineManager {
         source.link(&decodebin)
             .map_err(|e| format!("Failed to link source to decodebin: {}", e))?;
 
-        videoconvert.link(&videoscale)
-            .map_err(|e| format!("Failed to link videoconvert to videoscale: {}", e))?;
         videoscale.link(&video_capsfilter)
             .map_err(|e| format!("Failed to link videoscale to video capsfilter: {}", e))?;
-        video_capsfilter.link(&video_appsink)
-            .map_err(|e| format!("Failed to link video capsfilter to video appsink: {}", e))?;
+        video_capsfilter.link(&glupload)
+            .map_err(|e| format!("Failed to link video capsfilter to glupload: {}", e))?;
+        glupload.link(&glcolorconvert)
+            .map_err(|e| format!("Failed to link glupload to glcolorconvert: {}", e))?;
+        glcolorconvert.link(&glimagesink)
+            .map_err(|e| format!("Failed to link glcolorconvert to glimagesink: {}", e))?;
 
         audioconvert.link(&audioresample)
             .map_err(|e| format!("Failed to link audioconvert to audioresample: {}", e))?;
@@ -163,12 +171,12 @@ impl PipelineManager {
         // Set up bus message handling
         self.setup_bus_handlers(&pipeline)?;
 
-        // Set up appsink callbacks
-        self.setup_video_appsink_callbacks(&video_appsink)?;
+        // Set up glimagesink callbacks for texture ID updates
+        self.setup_glimagesink_callbacks(&glimagesink)?;
         self.setup_audio_appsink_callbacks(&audio_appsink)?;
 
         // Handle dynamic pads from decodebin
-        self.setup_dynamic_pad_handler(&decodebin, &videoconvert, &audioconvert, &pipeline)?;
+        self.setup_dynamic_pad_handler(&decodebin, &videoscale, &audioconvert, &pipeline)?;
 
         self.pipeline = Some(pipeline);
         Ok(())
@@ -223,97 +231,35 @@ impl PipelineManager {
         Ok(())
     }
 
-    fn setup_video_appsink_callbacks(&self, video_appsink: &gst_app::AppSink) -> Result<(), String> {
+    fn setup_glimagesink_callbacks(&self, glimagesink: &gst::Element) -> Result<(), String> {
         let frame_handler = self.frame_handler.clone();
         let frame_callback = self.frame_callback.clone();
         
-        video_appsink.set_callbacks(
-            gst_app::AppSinkCallbacks::builder()
-                .new_sample(move |appsink| {
-                    // debug!("New video sample callback triggered"); // Disabled for performance
-                    
-                    let sample = match appsink.pull_sample() {
-                        Ok(sample) => sample,
-                        Err(_) => {
-                            warn!("Failed to pull video sample");
-                            return Err(gst::FlowError::Eos);
-                        }
-                    };
-                    
-                    if let Some(buffer) = sample.buffer() {
-                        // debug!("Got video buffer from sample"); // Disabled for performance
-                        
-                        if let Some(caps) = sample.caps() {
-                            if let Ok(video_info) = gst_video::VideoInfo::from_caps(&caps) {
-                                let width = video_info.width();
-                                let height = video_info.height();
-                                
-                                // debug!("Video dimensions: {}x{}", width, height); // Disabled for performance
-                                frame_handler.update_dimensions(width, height);
-                                
-                                // Extract frame rate from caps
-                                if let Some(caps_struct) = caps.structure(0) {
-                                    if let Ok(framerate) = caps_struct.get::<gst::Fraction>("framerate") {
-                                        let fps = framerate.numer() as f64 / framerate.denom() as f64;
-                                        // debug!("Detected frame rate: {} fps ({}/{})", fps, framerate.numer(), framerate.denom()); // Disabled for performance
-                                        frame_handler.update_frame_rate(fps);
-                                    } else {
-                                        debug!("No framerate field found in video caps");
-                                    }
-                                }
-                                
-                                if let Ok(map) = buffer.map_readable() {
-                                    let data = map.as_slice();
-                                    // debug!("Buffer mapped, size: {} bytes", data.len()); // Disabled for performance
-                                    
-                                    // Get buffer from pool to avoid allocation
-                                    let mut frame_buffer = frame_handler.get_buffer_from_pool();
-                                    
-                                    // Resize buffer if needed
-                                    if frame_buffer.len() != data.len() {
-                                        frame_buffer.resize(data.len(), 0);
-                                    }
-                                    
-                                    // Copy data to pooled buffer
-                                    frame_buffer[..data.len()].copy_from_slice(data);
-                                    
-                                    let frame_data = FrameData {
-                                        data: frame_buffer,
-                                        width,
-                                        height,
-                                    };
-                                    
-                                    if let Ok(guard) = frame_callback.lock() {
-                                        if let Some(cb) = &*guard {
-                                            if let Err(e) = cb(frame_data) {
-                                                warn!("Frame callback failed: {}", e);
-                                            }
-                                        } else {
-                                            frame_handler.store_frame(frame_data);
-                                        }
-                                    } else {
-                                        frame_handler.store_frame(frame_data);
-                                    }
-                                } else {
-                                    debug!("Failed to map buffer");
-                                }
-                            } else {
-                                debug!("Failed to get video info from caps");
-                            }
-                        } else {
-                            debug!("No caps available");
-                        }
-                    } else {
-                        debug!("No buffer in sample");
-                    }
-                    
-                    // debug!("Video sample processing completed"); // Disabled for performance
-                    Ok(gst::FlowSuccess::Ok)
-                })
-                .build()
-        );
+        // Use GStreamer's built-in buffer probing mechanism
+        // This is the proper way to track when frames are processed
+        if let Some(sink_pad) = glimagesink.static_pad("sink") {
+            let frame_handler_clone = frame_handler.clone();
+            let texture_counter = Arc::new(std::sync::atomic::AtomicU64::new(1));
+            
+            sink_pad.add_probe(gst::PadProbeType::BUFFER, move |_pad, _info| {
+                let texture_id = texture_counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                frame_handler_clone.update_texture_id(texture_id);
+                
+                // Update every frame but only log occasionally
+                if texture_id % 60 == 0 {
+                    let (width, height) = frame_handler_clone.get_video_dimensions();
+                    debug!("GPU texture updated: {} ({}x{})", texture_id, width, height);
+                }
+                
+                gst::PadProbeReturn::Ok
+            });
+            
+            debug!("GLImageSink buffer probe configured for texture tracking");
+        } else {
+            warn!("Could not get sink pad from glimagesink for buffer probing");
+        }
 
-        debug!("Video appsink callbacks configured");
+        debug!("GLImageSink texture tracking configured using GStreamer buffer probes");
         Ok(())
     }
 
@@ -397,11 +343,11 @@ impl PipelineManager {
     fn setup_dynamic_pad_handler(
         &self,
         decodebin: &gst::Element,
-        videoconvert: &gst::Element,
+        videoscale: &gst::Element,
         audioconvert: &gst::Element,
         pipeline: &gst::Pipeline,
     ) -> Result<(), String> {
-        let videoconvert_weak = videoconvert.downgrade();
+        let videoscale_weak = videoscale.downgrade();
         let audioconvert_weak = audioconvert.downgrade();
         let pipeline_weak = pipeline.downgrade();
         
@@ -423,18 +369,18 @@ impl PipelineManager {
                 src_pad.name(), _dbin.name(), new_pad_caps);
 
             if new_pad_type.starts_with("video/") {
-                let videoconvert = match videoconvert_weak.upgrade() {
-                    Some(vc) => vc,
+                let videoscale = match videoscale_weak.upgrade() {
+                    Some(vs) => vs,
                     None => {
-                        error!("Failed to upgrade videoconvert weak reference");
+                        error!("Failed to upgrade videoscale weak reference");
                         return;
                     }
                 };
 
-                let sink_pad = match videoconvert.static_pad("sink") {
+                let sink_pad = match videoscale.static_pad("sink") {
                     Some(pad) => pad,
                     None => {
-                        error!("Failed to get sink pad from videoconvert");
+                        error!("Failed to get sink pad from videoscale");
                         return;
                     }
                 };

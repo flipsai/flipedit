@@ -97,7 +97,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int dco_decode_box_autoadd_i_32(dynamic raw);
 
   @protected
+  TextureFrame dco_decode_box_autoadd_texture_frame(dynamic raw);
+
+  @protected
   TimelineData dco_decode_box_autoadd_timeline_data(dynamic raw);
+
+  @protected
+  BigInt dco_decode_box_autoadd_u_64(dynamic raw);
 
   @protected
   double dco_decode_f_64(dynamic raw);
@@ -127,10 +133,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int? dco_decode_opt_box_autoadd_i_32(dynamic raw);
 
   @protected
+  TextureFrame? dco_decode_opt_box_autoadd_texture_frame(dynamic raw);
+
+  @protected
+  BigInt? dco_decode_opt_box_autoadd_u_64(dynamic raw);
+
+  @protected
   (double, BigInt) dco_decode_record_f_64_u_64(dynamic raw);
 
   @protected
   (int, int) dco_decode_record_i_32_i_32(dynamic raw);
+
+  @protected
+  TextureFrame dco_decode_texture_frame(dynamic raw);
 
   @protected
   TimelineClip dco_decode_timeline_clip(dynamic raw);
@@ -225,9 +240,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int sse_decode_box_autoadd_i_32(SseDeserializer deserializer);
 
   @protected
+  TextureFrame sse_decode_box_autoadd_texture_frame(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   TimelineData sse_decode_box_autoadd_timeline_data(
     SseDeserializer deserializer,
   );
+
+  @protected
+  BigInt sse_decode_box_autoadd_u_64(SseDeserializer deserializer);
 
   @protected
   double sse_decode_f_64(SseDeserializer deserializer);
@@ -263,10 +286,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int? sse_decode_opt_box_autoadd_i_32(SseDeserializer deserializer);
 
   @protected
+  TextureFrame? sse_decode_opt_box_autoadd_texture_frame(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  BigInt? sse_decode_opt_box_autoadd_u_64(SseDeserializer deserializer);
+
+  @protected
   (double, BigInt) sse_decode_record_f_64_u_64(SseDeserializer deserializer);
 
   @protected
   (int, int) sse_decode_record_i_32_i_32(SseDeserializer deserializer);
+
+  @protected
+  TextureFrame sse_decode_texture_frame(SseDeserializer deserializer);
 
   @protected
   TimelineClip sse_decode_timeline_clip(SseDeserializer deserializer);
@@ -376,10 +410,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_box_autoadd_i_32(int self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_texture_frame(
+    TextureFrame self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_timeline_data(
     TimelineData self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_box_autoadd_u_64(BigInt self, SseSerializer serializer);
 
   @protected
   void sse_encode_f_64(double self, SseSerializer serializer);
@@ -421,6 +464,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_opt_box_autoadd_i_32(int? self, SseSerializer serializer);
 
   @protected
+  void sse_encode_opt_box_autoadd_texture_frame(
+    TextureFrame? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_u_64(BigInt? self, SseSerializer serializer);
+
+  @protected
   void sse_encode_record_f_64_u_64(
     (double, BigInt) self,
     SseSerializer serializer,
@@ -428,6 +480,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_record_i_32_i_32((int, int) self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_texture_frame(TextureFrame self, SseSerializer serializer);
 
   @protected
   void sse_encode_timeline_clip(TimelineClip self, SseSerializer serializer);

@@ -19,7 +19,13 @@ abstract class TimelinePlayer implements RustOpaqueInterface {
 
   FrameData? getLatestFrame();
 
+  /// Get the latest texture ID for GPU-based rendering
+  BigInt getLatestTextureId();
+
   int getPositionMs();
+
+  /// Get texture frame data for GPU-based rendering
+  TextureFrame? getTextureFrame();
 
   bool isPlaying();
 
@@ -59,7 +65,13 @@ abstract class VideoPlayer implements RustOpaqueInterface {
 
   FrameData? getLatestFrame();
 
+  /// Get the latest texture ID for GPU-based rendering
+  BigInt getLatestTextureId();
+
   double getPositionSeconds();
+
+  /// Get texture frame data for GPU-based rendering
+  TextureFrame? getTextureFrame();
 
   BigInt getTotalFrames();
 

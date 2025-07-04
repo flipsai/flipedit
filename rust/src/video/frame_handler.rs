@@ -1,23 +1,25 @@
-use crate::common::types::{FrameData, TimelineData, TimelineClip, FrameBufferPool};
-use std::sync::{Arc, Mutex};
+use crate::common::types::{FrameData, TimelineData, TimelineClip, FrameBufferPool, TextureFrame};
+use std::sync::{Arc, Mutex, atomic::{AtomicU64, Ordering}};
 use log::debug;
 
 #[derive(Clone)]
 pub struct FrameHandler {
-    pub latest_frame: Arc<Mutex<Option<FrameData>>>,
-    pub texture_ptr: Option<i64>,
+    pub latest_frame: Arc<Mutex<Option<FrameData>>>, // Keep for backwards compatibility
+    pub latest_texture_id: Arc<AtomicU64>, // Current GPU texture ID
+    pub texture_ptr: Option<i64>, // Flutter texture pointer
     pub width: Arc<Mutex<i32>>,
     pub height: Arc<Mutex<i32>>,
     pub frame_rate: Arc<Mutex<f64>>,
     pub timeline_data: Arc<Mutex<Option<TimelineData>>>,
     pub current_time_ms: Arc<Mutex<i32>>,
-    pub buffer_pool: Arc<Mutex<FrameBufferPool>>,
+    pub buffer_pool: Arc<Mutex<FrameBufferPool>>, // Keep for CPU fallback
 }
 
 impl FrameHandler {
     pub fn new() -> Self {
         Self {
             latest_frame: Arc::new(Mutex::new(None)),
+            latest_texture_id: Arc::new(AtomicU64::new(0)),
             texture_ptr: None,
             width: Arc::new(Mutex::new(0)),
             height: Arc::new(Mutex::new(0)),
@@ -121,6 +123,7 @@ impl FrameHandler {
                     data: black_data,
                     width: width as u32,
                     height: height as u32,
+                    texture_id: None,
                 });
             }
             return None;
@@ -140,6 +143,33 @@ impl FrameHandler {
                 self.return_buffer_to_pool(old_frame.data);
             }
             debug!("Stored frame data for Dart retrieval");
+        }
+    }
+    
+    /// Update the current texture ID for GPU-based rendering
+    pub fn update_texture_id(&self, texture_id: u64) {
+        self.latest_texture_id.store(texture_id, Ordering::Relaxed);
+        debug!("Updated texture ID: {}", texture_id);
+    }
+    
+    /// Get the latest texture ID for GPU-based rendering
+    pub fn get_latest_texture_id(&self) -> u64 {
+        self.latest_texture_id.load(Ordering::Relaxed)
+    }
+    
+    /// Get texture frame data for GPU-based rendering
+    pub fn get_texture_frame(&self) -> Option<TextureFrame> {
+        let texture_id = self.get_latest_texture_id();
+        if texture_id > 0 {
+            let (width, height) = self.get_video_dimensions();
+            Some(TextureFrame {
+                texture_id,
+                width: width as u32,
+                height: height as u32,
+                timestamp: None,
+            })
+        } else {
+            None
         }
     }
     

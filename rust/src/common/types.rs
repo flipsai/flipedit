@@ -4,16 +4,26 @@ use std::collections::VecDeque;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FrameData {
-    pub data: Vec<u8>,
+    pub data: Vec<u8>, // Keep for backwards compatibility with CPU-based frames
     pub width: u32,
     pub height: u32,
+    pub texture_id: Option<u64>, // GPU texture ID for direct rendering
 }
 
-// Frame buffer pool for reusing allocations
+// Frame buffer pool for reusing allocations (still used for CPU fallback)
 pub struct FrameBufferPool {
     buffers: Arc<Mutex<VecDeque<Vec<u8>>>>,
     max_capacity: usize,
     buffer_size: usize,
+}
+
+// Texture ID data for GPU-centric rendering
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TextureFrame {
+    pub texture_id: u64,
+    pub width: u32,
+    pub height: u32,
+    pub timestamp: Option<u64>, // Optional timestamp in nanoseconds
 }
 
 impl FrameBufferPool {

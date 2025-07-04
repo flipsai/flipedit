@@ -2,7 +2,7 @@ use flutter_rust_bridge::frb;
 pub use crate::api::bridge::*;
 use crate::video::player::VideoPlayer as InternalVideoPlayer;
 use crate::video::timeline_player::TimelinePlayer as InternalTimelinePlayer;
-pub use crate::common::types::{FrameData, TimelineData, TimelineClip, TimelineTrack};
+pub use crate::common::types::{FrameData, TimelineData, TimelineClip, TimelineTrack, TextureFrame};
 use crate::utils::testing;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -125,6 +125,18 @@ impl VideoPlayer {
     pub fn get_latest_frame(&self) -> Option<FrameData> {
         self.inner.get_latest_frame()
     }
+    
+    /// Get the latest texture ID for GPU-based rendering
+    #[frb(sync)]
+    pub fn get_latest_texture_id(&self) -> u64 {
+        self.inner.get_latest_texture_id()
+    }
+    
+    /// Get texture frame data for GPU-based rendering
+    #[frb(sync)]
+    pub fn get_texture_frame(&self) -> Option<TextureFrame> {
+        self.inner.get_texture_frame()
+    }
 
     #[frb(sync)]
     pub fn has_audio(&self) -> bool {
@@ -230,6 +242,18 @@ impl TimelinePlayer {
     #[frb(sync)]
     pub fn get_latest_frame(&self) -> Option<FrameData> {
         self.inner.frame_handler.get_latest_frame()
+    }
+    
+    /// Get the latest texture ID for GPU-based rendering
+    #[frb(sync)]
+    pub fn get_latest_texture_id(&self) -> u64 {
+        self.inner.frame_handler.get_latest_texture_id()
+    }
+    
+    /// Get texture frame data for GPU-based rendering
+    #[frb(sync)]
+    pub fn get_texture_frame(&self) -> Option<TextureFrame> {
+        self.inner.frame_handler.get_texture_frame()
     }
 
     #[frb(sync)]
