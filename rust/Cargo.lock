@@ -1120,6 +1120,7 @@ dependencies = [
 [[package]]
 name = "irondash_engine_context"
 version = "0.6.0"
+source = "git+https://github.com/irondash/irondash.git?rev=65343873472d6796c0388362a8e04b6e9a499044#65343873472d6796c0388362a8e04b6e9a499044"
 dependencies = [
  "android_logger 0.11.3",
  "core-foundation",
@@ -1149,6 +1150,7 @@ dependencies = [
 [[package]]
 name = "irondash_texture"
 version = "0.5.0"
+source = "git+https://github.com/irondash/irondash.git?rev=65343873472d6796c0388362a8e04b6e9a499044#65343873472d6796c0388362a8e04b6e9a499044"
 dependencies = [
  "core-foundation",
  "cstr",

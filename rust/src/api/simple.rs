@@ -2,12 +2,19 @@ use flutter_rust_bridge::frb;
 pub use crate::api::bridge::*;
 use crate::video::player::VideoPlayer as InternalVideoPlayer;
 use crate::video::timeline_player::TimelinePlayer as InternalTimelinePlayer;
-use crate::video::irondash_texture;
 pub use crate::common::types::{FrameData, TimelineData, TimelineClip, TimelineTrack, TextureFrame};
 use crate::utils::testing;
 use std::sync::{Arc, Mutex};
 use anyhow::Result;
 use crate::frb_generated::StreamSink;
+use lazy_static::lazy_static;
+use std::sync::Mutex as StdMutex;
+use crate::video::pipeline::VideoPipeline;
+use crate::video::frame_handler::FrameHandler;
+
+lazy_static! {
+    static ref ACTIVE_VIDEOS: StdMutex<Vec<VideoPipeline>> = StdMutex::new(Vec::new());
+}
 
 // Position update callback type
 pub type PositionUpdateCallback = Box<dyn Fn(f64, u64) + Send + Sync>;
@@ -277,19 +284,37 @@ impl TimelinePlayer {
 /// Create a new video texture using irondash for zero-copy rendering
 #[frb(sync)]
 pub fn create_video_texture(width: u32, height: u32, engine_handle: i64) -> Result<i64, String> {
-    irondash_texture::create_video_texture(width, height, engine_handle)
-        .map_err(|e| format!("Failed to create video texture: {}", e))
+    crate::video::irondash_texture::create_video_texture(width, height, engine_handle)
+        .map_err(|e| e.to_string())
 }
 
 /// Update video frame data for all irondash textures
 #[frb(sync)]
 pub fn update_video_frame(frame_data: FrameData) -> Result<(), String> {
-    irondash_texture::update_video_frame(frame_data)
+    crate::video::irondash_texture::update_video_frame(frame_data)
         .map_err(|e| format!("Failed to update video frame: {}", e))
 }
 
 /// Get the number of active irondash textures
 #[frb(sync)]
 pub fn get_texture_count() -> usize {
-    irondash_texture::get_texture_count()
+    crate::video::irondash_texture::get_texture_count()
+} 
+
+/// Play a basic MP4 video and return irondash texture id
+#[frb(sync)]
+pub fn play_basic_video(file_path: String, engine_handle: i64) -> Result<i64, String> {
+    // Create texture placeholder (1x1)
+    let texture_id = crate::video::irondash_texture::create_video_texture(1, 1, engine_handle)
+        .map_err(|e| e.to_string())?;
+
+    // Build pipeline
+    let handler = FrameHandler::new();
+    let vp = VideoPipeline::new(&file_path, std::sync::Arc::new(std::sync::Mutex::new(handler)))
+        .map_err(|e| e.to_string())?;
+    vp.play().map_err(|e| e.to_string())?;
+
+    ACTIVE_VIDEOS.lock().unwrap().push(vp);
+
+    Ok(texture_id)
 } 

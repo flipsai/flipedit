@@ -236,6 +236,19 @@ impl FrameHandler {
         let frame_rate = self.get_frame_rate();
         (duration_seconds * frame_rate) as u64
     }
+    
+    pub fn set_video_dimensions(&self, width: i32, height: i32) {
+        if let Ok(mut width_guard) = self.width.try_lock() {
+            *width_guard = width;
+        }
+        if let Ok(mut height_guard) = self.height.try_lock() {
+            *height_guard = height;
+        }
+    }
+    
+    pub fn increment_texture_id(&self) -> u64 {
+        self.latest_texture_id.fetch_add(1, Ordering::Relaxed)
+    }
 }
 
 impl Default for FrameHandler {

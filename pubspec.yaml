@@ -66,7 +66,10 @@ dependencies:
   flutter_rust_bridge: 2.7.0
   # Provides Rust with access to the Flutter engine's graphics context.
   irondash_engine_context:
-    path: irondash/engine_context/dart
+    git:
+      url: https://github.com/irondash/irondash.git
+      path: engine_context/dart
+      ref: 65343873472d6796c0388362a8e04b6e9a499044
 dev_dependencies:
   flutter_lints: ^5.0.0
   flutter_test:

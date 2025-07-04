@@ -8,6 +8,8 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `start_position_reporting`, `stop_position_reporting`
+// These types are ignored because they are not used by any `pub` functions: `ACTIVE_VIDEOS`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `deref`, `initialize`
 
 String greet({required String name}) =>
     RustLib.instance.api.crateApiSimpleGreet(name: name);
@@ -30,6 +32,15 @@ void updateVideoFrame({required FrameData frameData}) =>
 /// Get the number of active irondash textures
 BigInt getTextureCount() =>
     RustLib.instance.api.crateApiSimpleGetTextureCount();
+
+/// Play a basic MP4 video and return irondash texture id
+PlatformInt64 playBasicVideo({
+  required String filePath,
+  required PlatformInt64 engineHandle,
+}) => RustLib.instance.api.crateApiSimplePlayBasicVideo(
+  filePath: filePath,
+  engineHandle: engineHandle,
+);
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<TimelinePlayer>>
 abstract class TimelinePlayer implements RustOpaqueInterface {
