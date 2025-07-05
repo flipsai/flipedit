@@ -5,7 +5,7 @@ use gstreamer; // Direct use instead of alias for is_initialized
 use gstreamer_editing_services; // Direct use instead of alias for is_initialized
 use gstreamer_pbutils; // For Discoverer
 use gstreamer as gst; // Keep alias for other uses like gst::ClockTime, gst::Element etc.
-use gstreamer_editing_services as ges; // Keep alias for other uses
+// use gstreamer_editing_services as ges; // ges alias removed as unused
 use log::{info, debug, warn};
 use std::path::Path;
 

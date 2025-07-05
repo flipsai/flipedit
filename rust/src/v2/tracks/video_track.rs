@@ -1,11 +1,11 @@
 //! Video track management
 
-use anyhow::{Result, Context};
+use anyhow::{Result}; // Context removed
 use gstreamer_editing_services as ges;
-use log::{info, debug};
+// log imports removed
+// crate::v2::clips::VideoClip removed
 
 use crate::v2::core::types::{TrackInfo, TrackType};
-use crate::v2::clips::VideoClip;
 
 pub struct VideoTrack {
     track_id: String,

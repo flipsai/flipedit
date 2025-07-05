@@ -24,14 +24,19 @@ impl TextureHandler {
     }
     
     /// Create a new texture with the specified dimensions
-    pub fn create_texture(&self, width: u32, height: u32) -> Result<TextureId> {
+    pub fn create_texture(&self, engine_handle: i64, width: u32, height: u32) -> Result<TextureId> { // Added engine_handle
         let initial_size = (width * height * 4) as usize; // Assuming RGBA
         let initial_pixels = vec![0u8; initial_size];
-        let initial_data = BoxedPixelData::from_vec(initial_pixels, width, height);
+        // Assuming BoxedPixelData::from_vec exists (e.g. via 'utils' feature of irondash-texture)
+        // If not, this needs RgbaInput or a custom PixelData impl.
+        let initial_data = BoxedPixelData::from_vec(initial_pixels, width, height)
+            .map_err(|e| anyhow::anyhow!("Failed to create BoxedPixelData: {:?}", e))?; // Assuming from_vec might return Result
+
         let provider = SimplePixelDataProvider::new(initial_data);
 
-        let texture = Texture::new_with_data_provider(Arc::new(provider))
-            .context("Failed to create texture with data provider")?;
+        // Use new_with_provider and pass the engine_handle
+        let texture = Texture::new_with_provider(engine_handle, Arc::new(provider))
+            .context("Failed to create texture with provider")?;
         
         let texture_id = texture.id();
         

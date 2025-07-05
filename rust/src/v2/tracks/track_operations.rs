@@ -11,13 +11,12 @@ use super::{VideoTrack, AudioTrack};
 /// Add a new video track to the timeline
 pub fn add_video_track(timeline: &ges::Timeline, name: &str) -> Result<VideoTrack> {
     // Create a new video track in the GES timeline
-    let ges_track = ges::VideoTrack::new()
-        .context("Failed to create GES video track")?;
+    let ges_track = ges::VideoTrack::new(); // Returns VideoTrack directly, panics on GObject creation failure
     
-    timeline.add_track(&ges_track)
-        .context("Failed to add video track to timeline")?;
+    timeline.add_track(&ges_track) // TimelineExt
+        .map_err(|e| anyhow::anyhow!("Failed to add video track to timeline: {}", e))?;
     
-    let track = VideoTrack::new(ges_track.upcast(), name)?;
+    let track = VideoTrack::new(ges_track.upcast(), name)?; // Cast needed if VideoTrack::new expects ges::Track
     info!("Added video track: {}", name);
     
     Ok(track)
@@ -26,13 +25,12 @@ pub fn add_video_track(timeline: &ges::Timeline, name: &str) -> Result<VideoTrac
 /// Add a new audio track to the timeline
 pub fn add_audio_track(timeline: &ges::Timeline, name: &str) -> Result<AudioTrack> {
     // Create a new audio track in the GES timeline
-    let ges_track = ges::AudioTrack::new()
-        .context("Failed to create GES audio track")?;
+    let ges_track = ges::AudioTrack::new(); // Returns AudioTrack directly
     
-    timeline.add_track(&ges_track)
-        .context("Failed to add audio track to timeline")?;
+    timeline.add_track(&ges_track) // TimelineExt
+        .map_err(|e| anyhow::anyhow!("Failed to add audio track to timeline: {}", e))?;
     
-    let track = AudioTrack::new(ges_track.upcast(), name)?;
+    let track = AudioTrack::new(ges_track.upcast(), name)?; // Cast needed if AudioTrack::new expects ges::Track
     info!("Added audio track: {}", name);
     
     Ok(track)

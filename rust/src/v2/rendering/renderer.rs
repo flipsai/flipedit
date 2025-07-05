@@ -108,14 +108,14 @@ impl Renderer {
         // Create a ghost pad for the render_sink_bin to accept input
         let sink_bin_sink_pad = videoconvert.static_pad("sink") // PadExt
             .ok_or_else(|| anyhow::anyhow!("Videoconvert should have a sink pad"))?;
-        let ghost_pad = gst::GhostPad::new_from_target(Some("sink"), &sink_bin_sink_pad) // Corrected constructor
-            .context("Failed to create ghost pad for render_sink_bin")?; // Anyhow context for Result
+        let ghost_pad = gst::GhostPad::new(Some("sink"), Some(&sink_bin_sink_pad)) // Use new(name, target_pad)
+            .expect("Failed to create ghost pad for render_sink_bin"); // expect on Option from new
         render_sink_bin.add_pad(&ghost_pad) // GstBinExt
             .context("Failed to add ghost pad to render_sink_bin")?;
 
         // Set this new bin as the video sink for the ges_pipeline (self.pipeline)
-        self.pipeline.set_property("video-sink", &render_sink_bin.upcast::<gst::Element>()) // ObjectExt, Cast
-            .context("Failed to set video-sink property on pipeline")?;
+        self.pipeline.set_property("video-sink", &render_sink_bin.upcast::<gst::Element>()); // ObjectExt, Cast. Returns (), panics on error.
+        // No .context() needed here.
         
         // TODO: Add audio sink configuration if audio is to be rendered.
         // Example: self.pipeline.set_property("audio-sink", &audio_render_bin)?;
@@ -137,7 +137,7 @@ impl Renderer {
         let bus_watch_guard = bus.add_watch(move |_, msg| {
             let pipeline = match pipeline_weak.upgrade() {
                 Some(p) => p,
-                None => return glib::Continue(false), // Pipeline is gone // Corrected to use glib::Continue
+                None => return glib::ControlFlow::Break(()), // Pipeline is gone
             };
 
             match msg.view() {
@@ -148,18 +148,18 @@ impl Renderer {
                         p_lock.position = p_lock.duration;
                         p_lock.percent = 100.0;
                     }
-                    return glib::Continue(false);
+                    return glib::ControlFlow::Break(());
                 },
                 gst::MessageView::Error(err) => {
                     error!("Rendering Error: {}, Debug: {:?}", err.error(), err.debug());
-                    return glib::Continue(false);
+                    return glib::ControlFlow::Break(());
                 },
                 gst::MessageView::StateChanged(state_changed) => {
                     if state_changed.src().map_or(false, |s| s == pipeline.upcast_ref::<gst::Element>()) { // Cast
                         debug!("Renderer pipeline state changed from {:?} to {:?} (pending {:?})",
                                state_changed.old(), state_changed.current(), state_changed.pending());
                     }
-                    return glib::Continue(true);
+                    return glib::ControlFlow::Continue;
                 },
                 gst::MessageView::Element(element_msg) => {
                     if let Some(s) = element_msg.structure() { // Check if structure exists
@@ -177,9 +177,9 @@ impl Renderer {
                              }
                         }
                     }
-                    return glib::Continue(true);
+                    return glib::ControlFlow::Continue;
                 }
-                _ => return glib::Continue(true),
+                _ => return glib::ControlFlow::Continue,
             }
         }).context("Failed to add bus watch for rendering")?;
         self.bus_watch_id = Some(bus_watch_guard);

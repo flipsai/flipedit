@@ -46,7 +46,8 @@ impl AudioClip {
 
     pub fn set_volume(&mut self, volume: f64) -> Result<()> {
         // Find the audio element in the clip
-        if let Some(element) = self.ges_clip.find_track_element(None, ges::TrackType::AUDIO) {
+        // The second argument to find_track_element should be a glib::Type.
+        if let Some(element) = self.ges_clip.find_track_element(None, Some(ges::TrackType::AUDIO.static_type())) {
             element.set_child_property("volume", &volume)
                 .context("Failed to set audio volume")?;
             debug!("Set audio clip {} volume to {}", self.clip_id, volume);

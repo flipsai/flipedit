@@ -11,13 +11,13 @@ use crate.v2::rendering::PreviewRenderer;
 // Assuming TextureHandler might still be used for other purposes or future explicit release.
 // use super::texture_handler::TextureHandler;
 use gstreamer as gst; // For ClockTime
-use ges::prelude::TimelineElementExt; // For set_name, name, etc. on ges::Clip
-use rand; // For split_ges_clip_at_position
+use gstreamer_editing_services::prelude::TimelineElementExt; // Corrected path
+use rand::Rng; // Changed for more specific import
 
 pub struct VideoEditorV2 {
     project: Project,
     renderer: Option<PreviewRenderer>,
-    preview_texture: Option<Arc<Texture>>, // To keep the texture alive with PreviewRenderer
+    preview_texture: Option<Arc<Texture<BoxedPixelData>>>, // Corrected generic
     // texture_handler: TextureHandler, // If integrating TextureHandler more directly
 }
 
@@ -45,14 +45,17 @@ pub fn add_video_file_v2(editor: &mut VideoEditorV2, file_path: String) -> Resul
 }
 
 #[frb(sync)]
-pub fn setup_preview_v2(editor: &mut VideoEditorV2, width: u32, height: u32) -> Result<i64> {
+pub fn setup_preview_v2(editor: &mut VideoEditorV2, engine_handle: i64, width: u32, height: u32) -> Result<i64> { // Added engine_handle
     // 1. Create the Texture object that Rust will update.
     let initial_size = (width * height * 4) as usize; // Assuming RGBA
     let initial_pixels = vec![0u8; initial_size];
-    let initial_data = BoxedPixelData::from_vec(initial_pixels, width, height);
+    // Assuming BoxedPixelData::from_vec exists and returns Result
+    let initial_data = BoxedPixelData::from_vec(initial_pixels, width, height)
+        .map_err(|e| anyhow::anyhow!("Failed to create BoxedPixelData for preview: {:?}", e))?;
     let provider = SimplePixelDataProvider::new(initial_data);
 
-    let new_preview_texture = Arc::new(Texture::new_with_data_provider(Arc::new(provider))
+    // Use new_with_provider and pass the engine_handle
+    let new_preview_texture = Arc::new(Texture::new_with_provider(engine_handle, Arc::new(provider))
         .context("Failed to create preview texture for setup_preview_v2")?);
     let texture_id = new_preview_texture.id();
 
@@ -193,7 +196,8 @@ pub fn split_ges_clip_at_position(editor: &mut VideoEditorV2, clip_id: String, p
 
     if let Some(new_element) = new_ges_element_opt {
         if let Ok(new_clip_obj) = new_element.downcast::<ges::Clip>() {
-            let new_clip_id_val = format!("clip_{}_{}", new_clip_obj.start().nseconds(), rand::random::<u32>());
+            let random_part: u32 = rand::thread_rng().gen();
+            let new_clip_id_val = format!("clip_{}_{}", new_clip_obj.start().nseconds(), random_part);
             new_clip_obj.set_name(Some(&new_clip_id_val));
 
             let original_clip_info = editor.project.clips.get(&clip_id).cloned();

@@ -28,9 +28,11 @@ impl PreviewRenderer {
         ges_pipeline.set_timeline(timeline.get_timeline())
             .context("Failed to set timeline on pipeline")?;
 
-        let appsink_caps = gst::Caps::new_simple("video/x-raw", &[("format", &"RGBA")]);
+        let appsink_caps = gst::Caps::builder("video/x-raw")
+            .field("format", "RGBA")
+            .build();
         let appsink = AppSink::builder().name("preview_appsink")
-            .emit_signals(true)
+            .emit_signals(true) // AppSinkBuilderExt for emit_signals
             .caps(&appsink_caps)
             .build();
 
@@ -115,15 +117,15 @@ impl PreviewRenderer {
             .context("Failed to link elements in preview sink_bin")?;
 
         let sink_pad = videoconvert.static_pad("sink").expect("Videoconvert should have a sink pad");
-        // Use new_from_target for GhostPad creation based on GStreamer docs
-        let ghost_pad = gst::GhostPad::new_from_target(Some("sink"), &sink_pad)
+        // Use new(name, target_pad) for GhostPad creation
+        let ghost_pad = gst::GhostPad::new(Some("sink"), Some(&sink_pad))
             .expect("Failed to create ghost pad for preview_sink_bin");
         sink_bin.add_pad(&ghost_pad) // GstBinExt for add_pad
             .context("Failed to add ghost pad to preview_sink_bin")?;
 
         // Set the custom bin as the video-sink for the ges_pipeline
-        ges_pipeline.set_property("video-sink", &sink_bin.upcast::<gst::Element>()) // ObjectExt for set_property
-            .context("Failed to set video-sink property on ges_pipeline with custom sink_bin")?;
+        ges_pipeline.set_property("video-sink", &sink_bin.upcast::<gst::Element>()); // ObjectExt for set_property. Returns (), panics on error.
+        // No .context() needed here. If property setting fails, it will panic.
 
         let gst_pipeline_final = ges_pipeline.upcast::<gst::Pipeline>(); // Cast
         info!("Created preview renderer with AppSink and videoconvert to RGBA");

@@ -5,10 +5,10 @@ use gstreamer_editing_services as ges;
 use gstreamer as gst;
 use gstreamer::prelude::Cast;
 use gstreamer_editing_services::prelude::*; // For TimelineExt, TimelineElementExt, LayerExt
-use rand;
-use log::{info}; // warn, error were unused
+use rand::Rng; // Changed for more specific import
+use log::{info};
 
-use super::types::{VideoInfo}; // TimelineState was unused
+use super::types::{VideoInfo};
 use crate::v2::utils;
 
 pub struct Timeline {
@@ -48,7 +48,8 @@ impl Timeline {
 
         // Generate a unique ID for the clip. Using a more robust UUID is recommended for production.
         // For now, using timestamp and a random number part.
-        let clip_id = format!("clip_{}_{}", clip.start().nseconds(), rand::random::<u32>());
+        let random_part: u32 = rand::thread_rng().gen();
+        let clip_id = format!("clip_{}_{}", clip.start().nseconds(), random_part);
 
         // Set the name of the ges::TimelineElement to this clip_id so we can find it later.
         // ges::Clip inherits from ges::TimelineElement.
