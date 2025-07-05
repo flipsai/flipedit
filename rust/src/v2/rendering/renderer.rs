@@ -108,10 +108,8 @@ impl Renderer {
         // Create a ghost pad for the render_sink_bin to accept input
         let sink_bin_sink_pad = videoconvert.static_pad("sink") // PadExt
             .ok_or_else(|| anyhow::anyhow!("Videoconvert should have a sink pad"))?;
-        let ghost_pad = gst::GhostPad::new_no_target(Some("sink"), gst::PadDirection::Sink)
-            .expect("Failed to create ghost_pad (no target)"); // new_no_target returns Option
-        ghost_pad.set_target(Some(&sink_bin_sink_pad)) // PadExt for set_target
-            .map_err(|_| anyhow::anyhow!("Failed to set ghost pad target for render_sink_bin"))?;
+        let ghost_pad = gst::GhostPad::with_target(Some(&sink_bin_sink_pad), Some("sink")) // Use with_target(target, name)
+            .map_err(|e| anyhow::anyhow!("Failed to create ghost pad for render_sink_bin: {}", e))?;
         render_sink_bin.add_pad(&ghost_pad) // GstBinExt
             .context("Failed to add ghost pad to render_sink_bin")?;
 
@@ -139,7 +137,7 @@ impl Renderer {
         let bus_watch_guard = bus.add_watch(move |_, msg| {
             let pipeline = match pipeline_weak.upgrade() {
                 Some(p) => p,
-                None => return glib::ControlFlow::Break(()), // Pipeline is gone
+                None => return glib::ControlFlow::Break(()),
             };
 
             match msg.view() {
@@ -157,14 +155,14 @@ impl Renderer {
                     return glib::ControlFlow::Break(());
                 },
                 gst::MessageView::StateChanged(state_changed) => {
-                    if state_changed.src().map_or(false, |s| s == pipeline.upcast_ref::<gst::Element>()) { // Cast
+                    if state_changed.src().map_or(false, |s| s == pipeline.upcast_ref::<gst::Element>()) {
                         debug!("Renderer pipeline state changed from {:?} to {:?} (pending {:?})",
                                state_changed.old(), state_changed.current(), state_changed.pending());
                     }
-                    return glib::ControlFlow::Continue;
+                    return glib::ControlFlow::Continue; // Correct usage: no () for unit variant
                 },
                 gst::MessageView::Element(element_msg) => {
-                    if let Some(s) = element_msg.structure() { // Check if structure exists
+                    if let Some(s) = element_msg.structure() {
                         if s.name() == "ges-progress" {
                              if let (Ok(percent), Ok(duration), Ok(position)) = (
                                  s.get::<f64>("percent"),
@@ -179,9 +177,9 @@ impl Renderer {
                              }
                         }
                     }
-                    return glib::ControlFlow::Continue;
+                    return glib::ControlFlow::Continue; // Correct usage: no () for unit variant
                 }
-                _ => return glib::ControlFlow::Continue,
+                _ => return glib::ControlFlow::Continue, // Correct usage: no () for unit variant
             }
         }).context("Failed to add bus watch for rendering")?;
         self.bus_watch_id = Some(bus_watch_guard);

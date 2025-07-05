@@ -117,10 +117,8 @@ impl PreviewRenderer {
             .context("Failed to link elements in preview sink_bin")?;
 
         let sink_pad = videoconvert.static_pad("sink").expect("Videoconvert should have a sink pad");
-        let ghost_pad = gst::GhostPad::new_no_target(Some("sink"), gst::PadDirection::Sink)
-            .expect("Failed to create ghost_pad (no target) for preview_sink_bin");
-        ghost_pad.set_target(Some(&sink_pad)) // PadExt for set_target
-            .map_err(|_| anyhow::anyhow!("Failed to set ghost pad target for preview_sink_bin"))?;
+        let ghost_pad = gst::GhostPad::with_target(Some(&sink_pad), Some("sink")) // Use with_target(target, name)
+            .map_err(|e| anyhow::anyhow!("Failed to create ghost pad for preview_sink_bin: {}", e))?;
         sink_bin.add_pad(&ghost_pad) // GstBinExt for add_pad
             .context("Failed to add ghost pad to preview_sink_bin")?;
 

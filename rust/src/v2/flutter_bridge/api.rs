@@ -7,7 +7,7 @@ use log::{info, error, warn}; // Added warn
 use std::sync::Arc;
 
 use crate::v2::core::{Project, VideoInfo, TimelineState};
-use crate::v2::rendering::PreviewRenderer; // Ensuring this path is correct
+use crate::v2::rendering::PreviewRenderer; // Corrected: No dot after crate
 // Assuming TextureHandler might still be used for other purposes or future explicit release.
 // use super::texture_handler::TextureHandler;
 use gstreamer as gst; // For ClockTime
