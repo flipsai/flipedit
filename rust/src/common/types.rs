@@ -135,6 +135,11 @@ pub struct TimelineClip {
     pub end_time_on_track_ms: i32,
     pub start_time_in_source_ms: i32,
     pub end_time_in_source_ms: i32,
+    // Preview transformation properties for GES composition
+    pub preview_position_x: f64,
+    pub preview_position_y: f64,
+    pub preview_width: f64,
+    pub preview_height: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

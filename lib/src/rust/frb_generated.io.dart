@@ -21,6 +21,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   });
 
   CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_GesTimelinePlayerPtr =>
+      wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayerPtr;
+
+  CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_TimelinePlayerPtr =>
       wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayerPtr;
 
@@ -32,6 +36,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   AnyhowException dco_decode_AnyhowException(dynamic raw);
 
   @protected
+  GesTimelinePlayer
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+    dynamic raw,
+  );
+
+  @protected
   TimelinePlayer
   dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayer(
     dynamic raw,
@@ -40,6 +50,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   VideoPlayer
   dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVideoPlayer(
+    dynamic raw,
+  );
+
+  @protected
+  GesTimelinePlayer
+  dco_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
     dynamic raw,
   );
 
@@ -56,6 +72,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  GesTimelinePlayer
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+    dynamic raw,
+  );
+
+  @protected
   TimelinePlayer
   dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayer(
     dynamic raw,
@@ -64,6 +86,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   VideoPlayer
   dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVideoPlayer(
+    dynamic raw,
+  );
+
+  @protected
+  GesTimelinePlayer
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
     dynamic raw,
   );
 
@@ -81,6 +109,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RustStreamSink<FrameData> dco_decode_StreamSink_frame_data_Sse(dynamic raw);
+
+  @protected
+  RustStreamSink<(double, BigInt)> dco_decode_StreamSink_record_f_64_u_64_Sse(
+    dynamic raw,
+  );
 
   @protected
   String dco_decode_String(dynamic raw);
@@ -137,6 +170,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BigInt? dco_decode_opt_box_autoadd_u_64(dynamic raw);
 
   @protected
+  (GesTimelinePlayer, PlatformInt64)
+  dco_decode_record_auto_owned_rust_opaque_flutter_rust_bridgefor_generated_rust_auto_opaque_inner_ges_timeline_player_i_64(
+    dynamic raw,
+  );
+
+  @protected
   (double, BigInt) dco_decode_record_f_64_u_64(dynamic raw);
 
   @protected
@@ -173,6 +212,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer);
 
   @protected
+  GesTimelinePlayer
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   TimelinePlayer
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayer(
     SseDeserializer deserializer,
@@ -181,6 +226,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   VideoPlayer
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVideoPlayer(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  GesTimelinePlayer
+  sse_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
     SseDeserializer deserializer,
   );
 
@@ -197,6 +248,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  GesTimelinePlayer
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   TimelinePlayer
   sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayer(
     SseDeserializer deserializer,
@@ -205,6 +262,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   VideoPlayer
   sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVideoPlayer(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  GesTimelinePlayer
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
     SseDeserializer deserializer,
   );
 
@@ -222,6 +285,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RustStreamSink<FrameData> sse_decode_StreamSink_frame_data_Sse(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  RustStreamSink<(double, BigInt)> sse_decode_StreamSink_record_f_64_u_64_Sse(
     SseDeserializer deserializer,
   );
 
@@ -292,6 +360,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BigInt? sse_decode_opt_box_autoadd_u_64(SseDeserializer deserializer);
 
   @protected
+  (GesTimelinePlayer, PlatformInt64)
+  sse_decode_record_auto_owned_rust_opaque_flutter_rust_bridgefor_generated_rust_auto_opaque_inner_ges_timeline_player_i_64(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   (double, BigInt) sse_decode_record_f_64_u_64(SseDeserializer deserializer);
 
   @protected
@@ -332,6 +406,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+    GesTimelinePlayer self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayer(
     TimelinePlayer self,
     SseSerializer serializer,
@@ -341,6 +422,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVideoPlayer(
     VideoPlayer self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
+  sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+    GesTimelinePlayer self,
     SseSerializer serializer,
   );
 
@@ -360,6 +448,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+    GesTimelinePlayer self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
   sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayer(
     TimelinePlayer self,
     SseSerializer serializer,
@@ -369,6 +464,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void
   sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVideoPlayer(
     VideoPlayer self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+    GesTimelinePlayer self,
     SseSerializer serializer,
   );
 
@@ -389,6 +491,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_StreamSink_frame_data_Sse(
     RustStreamSink<FrameData> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_StreamSink_record_f_64_u_64_Sse(
+    RustStreamSink<(double, BigInt)> self,
     SseSerializer serializer,
   );
 
@@ -471,6 +579,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_opt_box_autoadd_u_64(BigInt? self, SseSerializer serializer);
 
   @protected
+  void
+  sse_encode_record_auto_owned_rust_opaque_flutter_rust_bridgefor_generated_rust_auto_opaque_inner_ges_timeline_player_i_64(
+    (GesTimelinePlayer, PlatformInt64) self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_record_f_64_u_64(
     (double, BigInt) self,
     SseSerializer serializer,
@@ -520,6 +635,40 @@ class RustLibWire implements BaseWire {
   /// The symbols are looked up in [dynamicLibrary].
   RustLibWire(ffi.DynamicLibrary dynamicLibrary)
     : _lookup = dynamicLibrary.lookup;
+
+  void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+    ffi.Pointer<ffi.Void> ptr,
+  ) {
+    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+      ptr,
+    );
+  }
+
+  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayerPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
+        'frbgen_flipedit_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer',
+      );
+  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer =
+      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayerPtr
+          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+
+  void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+    ffi.Pointer<ffi.Void> ptr,
+  ) {
+    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+      ptr,
+    );
+  }
+
+  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayerPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
+        'frbgen_flipedit_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer',
+      );
+  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer =
+      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayerPtr
+          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
 
   void
   rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayer(

@@ -150,36 +150,9 @@ class _LightweightPlayheadOverlayState extends State<LightweightPlayheadOverlay>
           });
         }
       });
-      
-      // Resume playback if it was playing before
-      if (_wasPlayingBeforeDrag) {
-        _videoPlayerService.activeVideoPlayer?.play();
-      }
     }
   }
 
-  double _calculateFrameFromPosition(double globalX) {
-    // Get our own render box to convert global to local coordinates
-    final RenderBox? renderBox = context.findRenderObject() as RenderBox?;
-    if (renderBox == null) return 0.0;
-    
-    // Convert global coordinates to our local coordinates
-    final localPosition = renderBox.globalToLocal(Offset(globalX, 0));
-    
-    const double framePixelWidth = 5.0;
-    final double pxPerFrame = framePixelWidth * widget.zoom;
-    
-    // Account for scroll offset and track label width
-    final scrollOffset = widget.scrollController.hasClients ? widget.scrollController.offset : 0.0;
-    
-    // The local position is relative to our overlay widget
-    // We need to subtract trackLabelWidth to get position relative to timeline content
-    // Then add scrollOffset to account for the current scroll position
-    final timelineContentX = localPosition.dx - widget.trackLabelWidth + scrollOffset;
-    final adjustedPosition = timelineContentX.clamp(0.0, double.infinity);
-    
-    return adjustedPosition / pxPerFrame;
-  }
 
   double _calculatePositionFromFrame(int frame) {
     const double framePixelWidth = 5.0;

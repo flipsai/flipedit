@@ -51,6 +51,54 @@ PlatformInt64 playDualVideo({
   engineHandle: engineHandle,
 );
 
+/// Create and load a GES timeline player with timeline data
+Future<(GesTimelinePlayer, PlatformInt64)> createGesTimelinePlayer({
+  required TimelineData timelineData,
+  required PlatformInt64 engineHandle,
+}) => RustLib.instance.api.crateApiSimpleCreateGesTimelinePlayer(
+  timelineData: timelineData,
+  engineHandle: engineHandle,
+);
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<GESTimelinePlayer>>
+abstract class GesTimelinePlayer implements RustOpaqueInterface {
+  @override
+  Future<void> dispose();
+
+  int? getDurationMs();
+
+  FrameData? getLatestFrame();
+
+  BigInt getLatestTextureId();
+
+  int getPositionMs();
+
+  TextureFrame? getTextureFrame();
+
+  bool isPlaying();
+
+  bool isSeekable();
+
+  Future<void> loadTimeline({required TimelineData timelineData});
+
+  factory GesTimelinePlayer() =>
+      RustLib.instance.api.crateApiSimpleGesTimelinePlayerNew();
+
+  Future<void> pause();
+
+  Future<void> play();
+
+  Future<void> seekToPosition({required int positionMs});
+
+  void setTexturePtr({required PlatformInt64 ptr});
+
+  Stream<FrameData> setupFrameStream();
+
+  Stream<(double, BigInt)> setupPositionStream();
+
+  Future<void> stop();
+}
+
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<TimelinePlayer>>
 abstract class TimelinePlayer implements RustOpaqueInterface {
   @override
@@ -144,6 +192,8 @@ abstract class VideoPlayer implements RustOpaqueInterface {
   void setTexturePtr({required PlatformInt64 ptr});
 
   Stream<FrameData> setupFrameStream();
+
+  Stream<(double, BigInt)> setupPositionStream();
 
   Future<void> stop();
 

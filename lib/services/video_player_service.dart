@@ -8,6 +8,7 @@ class VideoPlayerService extends ChangeNotifier {
   String? _errorMessage;
   VideoPlayer? _activeVideoPlayer; // Reference to the active video player
   Timer? _positionPollingTimer;
+  StreamSubscription<(double, BigInt)>? _positionStreamSubscription;
   
   final String _logTag = 'VideoPlayerService';
 
@@ -48,14 +49,14 @@ class VideoPlayerService extends ChangeNotifier {
     hasActiveVideoNotifier.value = true;
     logDebug("Active video player registered", _logTag);
     
-    // Start position polling when player is registered
-    _startPositionPolling();
+    // Set up position stream for real-time updates
+    _setupPositionStream();
   }
 
   // Unregister the active video player
   void unregisterVideoPlayer() {
-    // Stop position polling FIRST to prevent race conditions
-    _stopPositionPolling();
+    // Stop position updates FIRST to prevent race conditions
+    _stopPositionUpdates();
     
     _activeVideoPlayer = null;
     
@@ -67,24 +68,50 @@ class VideoPlayerService extends ChangeNotifier {
     logDebug("Active video player unregistered", _logTag);
   }
 
-  // Start position updates via stream instead of polling
-  void _startPositionPolling() {
-    _stopPositionPolling(); // Stop any existing timer
+  // Set up position stream for real-time updates from GStreamer timer
+  void _setupPositionStream() {
+    _stopPositionUpdates(); // Stop any existing stream
     
-    // Use existing frame stream for position updates instead of polling
-    logDebug("Using stream-based position updates (no polling)", _logTag);
+    if (_activeVideoPlayer == null) {
+      logDebug("No active video player for position stream setup", _logTag);
+      return;
+    }
+    
+    logDebug("Setting up real-time position stream", _logTag);
+    
+    try {
+      final positionStream = _activeVideoPlayer!.setupPositionStream();
+      _positionStreamSubscription = positionStream.listen(
+        (positionData) {
+          final (positionSeconds, frameNumber) = positionData;
+          
+          // Update position notifiers with batch system to reduce rebuilds
+          _scheduleBatchUpdate(() {
+            positionSecondsNotifier.value = positionSeconds;
+            currentFrameNotifier.value = frameNumber.toInt();
+          });
+        },
+        onError: (error) {
+          logError(_logTag, "Position stream error: $error");
+        },
+        onDone: () {
+          logDebug("Position stream completed", _logTag);
+        },
+      );
+      
+      logDebug("Position stream setup completed", _logTag);
+    } catch (e) {
+      logError(_logTag, "Failed to setup position stream: $e");
+    }
   }
 
-  void _scheduleNextPoll() {
-    // This method is kept for compatibility but does nothing
-    // Position updates now come via the frame stream
-  }
-
-  // Stop position polling
-  void _stopPositionPolling() {
+  // Stop position updates
+  void _stopPositionUpdates() {
+    _positionStreamSubscription?.cancel();
+    _positionStreamSubscription = null;
     _positionPollingTimer?.cancel();
     _positionPollingTimer = null;
-    logDebug("Stopped position polling", _logTag);
+    logDebug("Stopped position updates", _logTag);
   }
 
   // Set playing state (called by video widgets to coordinate state)
@@ -190,7 +217,7 @@ class VideoPlayerService extends ChangeNotifier {
     _currentVideoPath = null;
     _errorMessage = null;
     _activeVideoPlayer = null;
-    _stopPositionPolling();
+    _stopPositionUpdates();
     isPlayingNotifier.value = false;
     positionSecondsNotifier.value = 0.0;
     currentFrameNotifier.value = 0;
@@ -219,7 +246,7 @@ class VideoPlayerService extends ChangeNotifier {
 
   @override
   void dispose() {
-    _stopPositionPolling();
+    _stopPositionUpdates();
     _batchUpdateTimer?.cancel();
     isPlayingNotifier.dispose();
     positionSecondsNotifier.dispose();

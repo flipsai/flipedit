@@ -2,6 +2,7 @@ use flutter_rust_bridge::frb;
 pub use crate::api::bridge::*;
 use crate::video::player::VideoPlayer as InternalVideoPlayer;
 use crate::video::timeline_player::TimelinePlayer as InternalTimelinePlayer;
+// use crate::video::ges_timeline_player::GESTimelinePlayer as InternalGESTimelinePlayer;
 pub use crate::common::types::{FrameData, TimelineData, TimelineClip, TimelineTrack, TextureFrame};
 use crate::utils::testing;
 use std::sync::{Arc, Mutex};
@@ -69,6 +70,17 @@ impl VideoPlayer {
                 // Log or handle the error appropriately
                 // For now, we'll just print it to stderr
                 eprintln!("Failed to send frame to sink: {:?}", e);
+            }
+            Ok(())
+        }))?;
+        Ok(())
+    }
+
+    pub fn setup_position_stream(&mut self, sink: StreamSink<(f64, u64)>) -> Result<()> {
+        self.inner.set_position_update_callback(Box::new(move |position, frame| {
+            if let Err(e) = sink.add((position, frame)) {
+                // Log or handle the error appropriately
+                eprintln!("Failed to send position update to sink: {:?}", e);
             }
             Ok(())
         }))?;
@@ -244,6 +256,97 @@ impl TimelinePlayer {
     }
 }
 
+// Simple placeholder to satisfy FFI generation
+pub struct GESTimelinePlayer {
+    // Just use the existing timeline player for now
+    inner: InternalTimelinePlayer,
+}
+
+impl GESTimelinePlayer {
+    #[frb(sync)]
+    pub fn new() -> Self {
+        Self {
+            inner: InternalTimelinePlayer::new(),
+        }
+    }
+
+    #[frb(sync)]
+    pub fn set_texture_ptr(&mut self, ptr: i64) {
+        self.inner.set_texture_ptr(ptr);
+    }
+
+    pub fn load_timeline(&mut self, timeline_data: TimelineData) -> Result<(), String> {
+        self.inner.load_timeline(timeline_data)
+    }
+
+    pub fn play(&mut self) -> Result<(), String> {
+        self.inner.play()
+    }
+
+    pub fn pause(&mut self) -> Result<(), String> {
+        self.inner.pause()
+    }
+
+    pub fn stop(&mut self) -> Result<(), String> {
+        self.inner.stop()
+    }
+
+    pub fn seek_to_position(&mut self, position_ms: i32) -> Result<(), String> {
+        self.inner.set_position_ms(position_ms);
+        Ok(())
+    }
+
+    #[frb(sync)]
+    pub fn get_position_ms(&self) -> i32 {
+        self.inner.get_position_ms()
+    }
+
+    #[frb(sync)]
+    pub fn get_duration_ms(&self) -> Option<i32> {
+        // Placeholder implementation
+        None
+    }
+
+    #[frb(sync)]
+    pub fn is_playing(&self) -> bool {
+        self.inner.is_playing()
+    }
+
+    #[frb(sync)]
+    pub fn is_seekable(&self) -> bool {
+        true
+    }
+
+    #[frb(sync)]
+    pub fn get_latest_frame(&self) -> Option<FrameData> {
+        self.inner.frame_handler.get_latest_frame()
+    }
+
+    #[frb(sync)]
+    pub fn get_latest_texture_id(&self) -> u64 {
+        self.inner.frame_handler.get_latest_texture_id()
+    }
+
+    #[frb(sync)]
+    pub fn get_texture_frame(&self) -> Option<TextureFrame> {
+        self.inner.frame_handler.get_texture_frame()
+    }
+
+    pub fn setup_frame_stream(&mut self, _sink: StreamSink<FrameData>) -> Result<()> {
+        // Placeholder implementation
+        Ok(())
+    }
+
+    pub fn setup_position_stream(&mut self, _sink: StreamSink<(f64, u64)>) -> Result<()> {
+        // Placeholder implementation
+        Ok(())
+    }
+
+    pub fn dispose(&mut self) -> Result<(), String> {
+        self.inner.dispose()
+    }
+}
+
 // =================== IRONDASH TEXTURE API ===================
 
 /// Create a new video texture using irondash for zero-copy rendering
@@ -297,4 +400,19 @@ pub fn play_dual_video(file_path_left: String, file_path_right: String, engine_h
     ACTIVE_VIDEOS.lock().unwrap().push(vp);
 
     Ok(texture_id)
+}
+
+/// Create and load a GES timeline player with timeline data (currently using TimelinePlayer as placeholder)
+pub fn create_ges_timeline_player(timeline_data: TimelineData, engine_handle: i64) -> Result<(GESTimelinePlayer, i64), String> {
+    // Create texture for video rendering
+    let texture_id = create_video_texture(1920, 1080, engine_handle)?;
+    
+    // Create GES timeline player (currently using TimelinePlayer internally)
+    let mut player = GESTimelinePlayer::new();
+    player.set_texture_ptr(texture_id);
+    
+    // Load timeline
+    player.load_timeline(timeline_data)?;
+    
+    Ok((player, texture_id))
 } 
