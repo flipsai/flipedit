@@ -4,37 +4,37 @@ use anyhow::{Result, Context};
 use gstreamer_editing_services as ges;
 use gstreamer::prelude::*; // For ElementExt (if context() was still used) and potentially others
 use gstreamer_editing_services::prelude::*; // For TimelineExt
-use log::{info}; // Removed debug, warn as unused
+use log::{info};
 
-use super::{VideoTrack, AudioTrack};
+use super::{VideoTrack}; // AudioTrack import removed
 
 /// Add a new video track to the timeline
 pub fn add_video_track(timeline: &ges::Timeline, name: &str) -> Result<VideoTrack> {
     // Create a new video track in the GES timeline
-    let ges_track = ges::VideoTrack::new(); // Returns VideoTrack directly, panics on GObject creation failure
+    let ges_track = ges::VideoTrack::new();
     
-    timeline.add_track(&ges_track) // TimelineExt
+    timeline.add_track(&ges_track)
         .map_err(|e| anyhow::anyhow!("Failed to add video track to timeline: {}", e))?;
     
-    let track = VideoTrack::new(ges_track.upcast(), name)?; // Cast needed if VideoTrack::new expects ges::Track
+    let track = VideoTrack::new(ges_track.upcast(), name)?;
     info!("Added video track: {}", name);
     
     Ok(track)
 }
 
-/// Add a new audio track to the timeline
-pub fn add_audio_track(timeline: &ges::Timeline, name: &str) -> Result<AudioTrack> {
-    // Create a new audio track in the GES timeline
-    let ges_track = ges::AudioTrack::new(); // Returns AudioTrack directly
-    
-    timeline.add_track(&ges_track) // TimelineExt
-        .map_err(|e| anyhow::anyhow!("Failed to add audio track to timeline: {}", e))?;
-    
-    let track = AudioTrack::new(ges_track.upcast(), name)?; // Cast needed if AudioTrack::new expects ges::Track
-    info!("Added audio track: {}", name);
-    
-    Ok(track)
-}
+// /// Add a new audio track to the timeline // Function removed
+// pub fn add_audio_track(timeline: &ges::Timeline, name: &str) -> Result<AudioTrack> {
+//     // Create a new audio track in the GES timeline
+//     let ges_track = ges::AudioTrack::new();
+//
+//     timeline.add_track(&ges_track)
+//         .map_err(|e| anyhow::anyhow!("Failed to add audio track to timeline: {}", e))?;
+//
+//     let track = AudioTrack::new(ges_track.upcast(), name)?;
+//     info!("Added audio track: {}", name);
+//
+//     Ok(track)
+// }
 
 /// Remove a track from the timeline
 pub fn remove_track(timeline: &ges::Timeline, track: &ges::Track) -> Result<()> {

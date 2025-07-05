@@ -7,11 +7,11 @@ use log::{info, error, warn}; // Added warn
 use std::sync::Arc;
 
 use crate::v2::core::{Project, VideoInfo, TimelineState};
-use crate.v2::rendering::PreviewRenderer;
+use crate::v2::rendering::PreviewRenderer; // Ensuring this path is correct
 // Assuming TextureHandler might still be used for other purposes or future explicit release.
 // use super::texture_handler::TextureHandler;
 use gstreamer as gst; // For ClockTime
-use gstreamer_editing_services::prelude::TimelineElementExt; // Corrected path
+use gstreamer_editing_services::prelude::TimelineElementExt;
 use rand::Rng; // Changed for more specific import
 
 pub struct VideoEditorV2 {

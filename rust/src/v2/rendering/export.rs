@@ -8,7 +8,7 @@ use std::path::Path;
 use crate::v2::core::Timeline;
 use super::renderer::Renderer;
 
-#[derive(Debug)] // Added Debug derive for ExportFormat
+#[derive(Debug)] // Ensure this is on ExportFormat as well
 pub enum ExportFormat {
     MP4,
     WebM,
@@ -69,8 +69,8 @@ impl Exporter {
         Ok(())
     }
     
-    pub fn cancel_export(&mut self) -> Result<()> { // Changed to &mut self
-        self.renderer.cancel_rendering()?;
+    pub fn cancel_export(&mut self) -> Result<()> { // Already &mut self, ensure this is correct
+        self.renderer.cancel_rendering()?; // This requires self.renderer to be &mut, which it is via &mut self
         info!("Export canceled");
         Ok(())
     }

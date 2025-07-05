@@ -108,8 +108,10 @@ impl Renderer {
         // Create a ghost pad for the render_sink_bin to accept input
         let sink_bin_sink_pad = videoconvert.static_pad("sink") // PadExt
             .ok_or_else(|| anyhow::anyhow!("Videoconvert should have a sink pad"))?;
-        let ghost_pad = gst::GhostPad::new(Some("sink"), Some(&sink_bin_sink_pad)) // Use new(name, target_pad)
-            .expect("Failed to create ghost pad for render_sink_bin"); // expect on Option from new
+        let ghost_pad = gst::GhostPad::new_no_target(Some("sink"), gst::PadDirection::Sink)
+            .expect("Failed to create ghost_pad (no target)"); // new_no_target returns Option
+        ghost_pad.set_target(Some(&sink_bin_sink_pad)) // PadExt for set_target
+            .map_err(|_| anyhow::anyhow!("Failed to set ghost pad target for render_sink_bin"))?;
         render_sink_bin.add_pad(&ghost_pad) // GstBinExt
             .context("Failed to add ghost pad to render_sink_bin")?;
 
