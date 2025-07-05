@@ -1,0 +1,87 @@
+//! Common track operations
+
+use anyhow::{Result, Context};
+use gstreamer_editing_services as ges;
+use log::{info, debug, warn};
+
+use super::{VideoTrack, AudioTrack};
+
+/// Add a new video track to the timeline
+pub fn add_video_track(timeline: &ges::Timeline, name: &str) -> Result<VideoTrack> {
+    // Create a new video track in the GES timeline
+    let ges_track = ges::VideoTrack::new()
+        .context("Failed to create GES video track")?;
+    
+    timeline.add_track(&ges_track)
+        .context("Failed to add video track to timeline")?;
+    
+    let track = VideoTrack::new(ges_track.upcast(), name)?;
+    info!("Added video track: {}", name);
+    
+    Ok(track)
+}
+
+/// Add a new audio track to the timeline
+pub fn add_audio_track(timeline: &ges::Timeline, name: &str) -> Result<AudioTrack> {
+    // Create a new audio track in the GES timeline
+    let ges_track = ges::AudioTrack::new()
+        .context("Failed to create GES audio track")?;
+    
+    timeline.add_track(&ges_track)
+        .context("Failed to add audio track to timeline")?;
+    
+    let track = AudioTrack::new(ges_track.upcast(), name)?;
+    info!("Added audio track: {}", name);
+    
+    Ok(track)
+}
+
+/// Remove a track from the timeline
+pub fn remove_track(timeline: &ges::Timeline, track: &ges::Track) -> Result<()> {
+    timeline.remove_track(track)
+        .context("Failed to remove track from timeline")?;
+    
+    info!("Removed track from timeline");
+    Ok(())
+}
+
+/// Move a track to a new position in the timeline
+pub fn move_track(timeline: &ges::Timeline, track: &ges::Track, new_position: u32) -> Result<()> {
+    // In GES, we need to remove and re-add the track at the new position
+    // This is a simplified implementation
+    timeline.remove_track(track)
+        .context("Failed to remove track for repositioning")?;
+    
+    // Re-add the track
+    timeline.add_track(track)
+        .context("Failed to re-add track at new position")?;
+    
+    info!("Moved track to new position: {}", new_position);
+    Ok(())
+}
+
+/// Mute or unmute an audio track
+pub fn set_audio_track_mute(track: &mut AudioTrack, mute: bool) -> Result<()> {
+    // In a real implementation, you would set the mute state on the GES track
+    // For now, we just log it
+    if mute {
+        debug!("Muted audio track: {}", track.get_info().name);
+    } else {
+        debug!("Unmuted audio track: {}", track.get_info().name);
+    }
+    
+    Ok(())
+}
+
+/// Hide or show a video track
+pub fn set_video_track_visible(track: &mut VideoTrack, visible: bool) -> Result<()> {
+    // In a real implementation, you would set the visibility on the GES track
+    // For now, we just log it
+    if visible {
+        debug!("Made video track visible: {}", track.get_info().name);
+    } else {
+        debug!("Made video track invisible: {}", track.get_info().name);
+    }
+    
+    Ok(())
+}

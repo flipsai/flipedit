@@ -88,16 +88,13 @@ pub fn update_video_frame(frame_data: FrameData) -> Result<()> {
             }
         }
     }
-    debug!("Updated {} texture providers with new frame data", 
-           TEXTURE_PROVIDERS.lock().map(|p| p.len()).unwrap_or(0));
 
     if let Ok(sendables) = STATIC_TEXTURES.lock() {
         for sendable in sendables.iter() {
             sendable.mark_frame_available();
         }
     }
-    debug!("Marked {} static textures for frame availability", 
-           STATIC_TEXTURES.lock().map(|p| p.len()).unwrap_or(0));
+
     Ok(())
 }
 
