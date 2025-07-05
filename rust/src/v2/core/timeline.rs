@@ -3,6 +3,7 @@
 use anyhow::{Result, Context};
 use gstreamer_editing_services as ges;
 use gstreamer as gst;
+use rand; // Added for rand::random
 use log::{info, warn, error};
 
 use super::types::{VideoInfo, TimelineState};
@@ -41,14 +42,25 @@ impl Timeline {
         self.layer.add_clip(&clip)
             .context("Failed to add clip to layer")?;
 
-        let clip_id = format!("clip_{}", clip.start().nseconds());
-        info!("Added video clip: {} at {}ns for {}ns", uri, start, duration);
+        // Generate a unique ID for the clip. Using a more robust UUID is recommended for production.
+        // For now, using timestamp and a random number part.
+        let clip_id = format!("clip_{}_{}", clip.start().nseconds(), rand::random::<u32>());
+
+        // Set the name of the ges::TimelineElement to this clip_id so we can find it later.
+        // ges::Clip inherits from ges::TimelineElement.
+        clip.upcast_ref::<ges::TimelineElement>().set_name(Some(&clip_id));
+
+        info!("Added video clip: {} (ID: {}) at {}ns for {}ns", uri, clip_id, start, duration);
 
         Ok(clip_id)
     }
 
     pub fn get_timeline(&self) -> &ges::Timeline {
         &self.ges_timeline
+    }
+
+    pub fn get_layer(&self) -> &ges::Layer { // Added getter for the layer
+        &self.layer
     }
 
     pub fn get_duration(&self) -> u64 {

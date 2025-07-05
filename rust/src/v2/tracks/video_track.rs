@@ -37,11 +37,14 @@ impl VideoTrack {
     // pub fn add_clip(&mut self, clip: &VideoClip) -> Result<()> { ... }
     // pub fn remove_clip(&mut self, clip_id: &str) -> Result<()> { ... }
 
-    pub fn set_name(&mut self, name: &str) -> Result<()> {
-        self.info.name = name.to_string();
-        debug!("Set video track {} name to {}", self.track_id, name);
-        Ok(())
-    }
+    // Placeholder for track name removed as per current focus.
+    // Real implementation would interact with ges_track properties.
+    // pub fn set_name(&mut self, name: &str) -> Result<()> {
+    //     self.info.name = name.to_string();
+    //     // self.ges_track.set_property("name", name)... // Example
+    //     debug!("Set video track {} name to {}", self.track_id, name);
+    //     Ok(())
+    // }
     
     pub fn get_info(&self) -> &TrackInfo {
         &self.info

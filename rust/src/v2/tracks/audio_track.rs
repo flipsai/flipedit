@@ -37,18 +37,20 @@ impl AudioTrack {
     // pub fn add_clip(&mut self, clip: &AudioClip) -> Result<()> { ... }
     // pub fn remove_clip(&mut self, clip_id: &str) -> Result<()> { ... }
     
-    pub fn set_name(&mut self, name: &str) -> Result<()> {
-        self.info.name = name.to_string();
-        debug!("Set audio track {} name to {}", self.track_id, name);
-        Ok(())
-    }
+    // Placeholders for track name and volume removed as per current focus.
+    // Real implementation would interact with ges_track properties.
+    // pub fn set_name(&mut self, name: &str) -> Result<()> {
+    //     self.info.name = name.to_string();
+    //     // self.ges_track.set_property("name", name)... // Example
+    //     debug!("Set audio track {} name to {}", self.track_id, name);
+    //     Ok(())
+    // }
     
-    pub fn set_volume(&mut self, volume: f64) -> Result<()> {
-        // In a real implementation, you would set the volume on the GES track
-        // For now, we just log it
-        debug!("Set audio track {} volume to {}", self.track_id, volume);
-        Ok(())
-    }
+    // pub fn set_volume(&mut self, volume: f64) -> Result<()> {
+    //     // self.ges_track.set_property("volume", volume)... // Example
+    //     debug!("Set audio track {} volume to {}", self.track_id, volume);
+    //     Ok(())
+    // }
     
     pub fn get_info(&self) -> &TrackInfo {
         &self.info
