@@ -72,9 +72,11 @@ pub fn merge_clips(timeline: &ges::Timeline, clip1: &ges::Clip, clip2: &ges::Cli
     group.add(clip1).context("Failed to add clip1 to group")?;
     group.add(clip2).context("Failed to add clip2 to group")?;
     
-    // Ungroup to merge
-    group.ungroup(true).context("Failed to ungroup and merge clips")?;
+    // Ungrouping dissolves the group, placing its children (clip1, clip2)
+    // directly into the container the group was in (e.g., the layer).
+    // This does not create a single new ges::Clip from the two inputs.
+    group.ungroup(true).context("Failed to ungroup clips")?;
     
-    info!("Merged clips");
+    info!("Grouped and then ungrouped clips (effectively placing them sequentially in parent container)");
     Ok(())
 }

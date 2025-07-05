@@ -31,21 +31,12 @@ impl VideoTrack {
         })
     }
     
-    pub fn add_clip(&mut self, clip: &VideoClip) -> Result<()> {
-        // In a real implementation, you would add the clip to the track
-        // For now, we just update our internal state
-        self.info.clips.push(clip.get_info().clone());
-        debug!("Added clip {} to video track {}", clip.get_info().id, self.track_id);
-        Ok(())
-    }
-    
-    pub fn remove_clip(&mut self, clip_id: &str) -> Result<()> {
-        // Remove the clip from our internal state
-        self.info.clips.retain(|c| c.id != clip_id);
-        debug!("Removed clip {} from video track {}", clip_id, self.track_id);
-        Ok(())
-    }
-    
+    // Note: Clips are added to ges::Layers, not directly to ges::Tracks.
+    // A ges::Track typically represents a category (e.g., all video) within the timeline
+    // rather than directly holding clips. Clip management is done at the Layer or Project level.
+    // pub fn add_clip(&mut self, clip: &VideoClip) -> Result<()> { ... }
+    // pub fn remove_clip(&mut self, clip_id: &str) -> Result<()> { ... }
+
     pub fn set_name(&mut self, name: &str) -> Result<()> {
         self.info.name = name.to_string();
         debug!("Set video track {} name to {}", self.track_id, name);

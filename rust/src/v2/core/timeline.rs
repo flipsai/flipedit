@@ -12,11 +12,12 @@ pub struct Timeline {
     layer: ges::Layer,
 }
 
+use crate::v2::utils; // For gst_utils::init_gstreamer
+
 impl Timeline {
     pub fn new() -> Result<Self> {
-        // Initialize GStreamer and GES
-        gst::init().context("Failed to initialize GStreamer")?;
-        ges::init().context("Failed to initialize GES")?;
+        // Initialize GStreamer and GES using the utility function
+        utils::gst_utils::init_gstreamer().context("Failed to initialize GStreamer/GES in Timeline::new")?;
 
         // Create timeline and layer
         let ges_timeline = ges::Timeline::new_audio_video();
