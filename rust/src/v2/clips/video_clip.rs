@@ -1,9 +1,10 @@
 //! Video clip operations
 
-use anyhow::{Result, Context};
+use anyhow::{Result}; // Removed unused Context
 use gstreamer_editing_services as ges;
 use gstreamer as gst;
-use log::{info, debug};
+use gstreamer_editing_services::prelude::*; // For TimelineElementExt
+use log::{debug}; // Removed unused info
 
 use crate::v2::core::types::ClipInfo;
 

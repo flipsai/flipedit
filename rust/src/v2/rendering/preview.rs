@@ -4,9 +4,10 @@ use anyhow::{Result, Context};
 use gstreamer as gst;
 use gstreamer_editing_services as ges;
 use gstreamer_app::AppSink;
-use gstreamer::prelude::{ElementExt, ElementExtManual, Cast, GstBinExt, GstObjectExt, PadExt, ElementExtGST};
-use gstreamer_editing_services::prelude::GESPipelineExt;
-use irondash_texture::{Texture, TextureId};
+use gstreamer_app::prelude::*; // Added for AppSinkBuilderExt etc.
+use gstreamer::prelude::*;
+use gstreamer_editing_services::prelude::*;
+use irondash_texture::{Texture, TextureId, BoxedPixelData}; // Added BoxedPixelData
 use log::{info, error, debug};
 use std::sync::Arc;
 
@@ -21,7 +22,7 @@ pub struct PreviewRenderer {
 impl PreviewRenderer {
     // Note: The caller (e.g., flutter_bridge) will need to manage Texture creation and provide an Arc<Texture>.
     // This constructor assumes it receives the TextureId and the Arc<Texture> it should update.
-    pub fn new(timeline: &Timeline, texture_id: TextureId, texture: Arc<Texture>) -> Result<Self> {
+    pub fn new(timeline: &Timeline, texture_id: TextureId, texture: Arc<Texture<BoxedPixelData>>) -> Result<Self> { // Specified BoxedPixelData
         let ges_pipeline = ges::Pipeline::new();
 
         ges_pipeline.set_timeline(timeline.get_timeline())
@@ -87,7 +88,7 @@ impl PreviewRenderer {
                         debug!("AppSink: Texture for preview appsink dropped");
                         return Err(gst::FlowError::Eos);
                     }
-                    Ok(gst::FlowReturn::Ok)
+                    Ok(gst::FlowSuccess::Ok) // Changed to FlowSuccess::Ok
                 })
                 .build()
         );
@@ -107,23 +108,24 @@ impl PreviewRenderer {
             .context("Failed to create capsfilter for preview")?;
 
         let sink_bin = gst::Bin::with_name("preview_sink_bin");
-        sink_bin.add_many(&[&videoconvert, &capsfilter, &appsink.clone().upcast()])
+        sink_bin.add_many(&[&videoconvert, &capsfilter, &appsink.clone().upcast()]) // GstBinExtManual for add_many
             .context("Failed to add elements to preview sink_bin")?;
 
         gst::Element::link_many(&[&videoconvert, &capsfilter, &appsink.clone().upcast()])
             .context("Failed to link elements in preview sink_bin")?;
 
         let sink_pad = videoconvert.static_pad("sink").expect("Videoconvert should have a sink pad");
-        let ghost_pad = gst::GhostPad::with_target(Some("sink"), &sink_pad)
+        // Use new_from_target for GhostPad creation based on GStreamer docs
+        let ghost_pad = gst::GhostPad::new_from_target(Some("sink"), &sink_pad)
             .expect("Failed to create ghost pad for preview_sink_bin");
-        sink_bin.add_pad(&ghost_pad)
+        sink_bin.add_pad(&ghost_pad) // GstBinExt for add_pad
             .context("Failed to add ghost pad to preview_sink_bin")?;
 
         // Set the custom bin as the video-sink for the ges_pipeline
-        ges_pipeline.set_property("video-sink", &sink_bin.upcast::<gst::Element>())
+        ges_pipeline.set_property("video-sink", &sink_bin.upcast::<gst::Element>()) // ObjectExt for set_property
             .context("Failed to set video-sink property on ges_pipeline with custom sink_bin")?;
 
-        let gst_pipeline_final = ges_pipeline.upcast::<gst::Pipeline>();
+        let gst_pipeline_final = ges_pipeline.upcast::<gst::Pipeline>(); // Cast
         info!("Created preview renderer with AppSink and videoconvert to RGBA");
 
         Ok(PreviewRenderer {

@@ -3,10 +3,11 @@
 use anyhow::{Result, Context};
 use gstreamer_editing_services as ges;
 use gstreamer as gst;
+use gstreamer_editing_services::prelude::*; // For ClipExt, TimelineElementExt, GESContainerExt
 use log::{info, debug, warn};
 
-use crate::v2::core::types::ClipInfo;
-use super::{VideoClip, AudioClip};
+// ClipInfo and AudioClip are unused based on diagnostics, VideoClip is used by functions
+use super::{VideoClip};
 
 /// Move a clip to a new position on the timeline
 pub fn move_clip(clip: &mut VideoClip, new_start: u64) -> Result<()> {

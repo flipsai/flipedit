@@ -2,7 +2,9 @@
 
 use anyhow::{Result, Context};
 use gstreamer_editing_services as ges;
-use log::{info, debug, warn};
+use gstreamer::prelude::*; // For ElementExt (if context() was still used) and potentially others
+use gstreamer_editing_services::prelude::*; // For TimelineExt
+use log::{info}; // Removed debug, warn as unused
 
 use super::{VideoTrack, AudioTrack};
 

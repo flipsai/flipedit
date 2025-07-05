@@ -2,8 +2,8 @@
 
 use anyhow::{Result, Context};
 use flutter_rust_bridge::frb;
-use irondash_texture::{TextureId, Texture};
-use log::{info, error};
+use irondash_texture::{TextureId, Texture, BoxedPixelData, SimplePixelDataProvider};
+use log::{info, error, warn}; // Added warn
 use std::sync::Arc;
 
 use crate::v2::core::{Project, VideoInfo, TimelineState};
@@ -47,7 +47,12 @@ pub fn add_video_file_v2(editor: &mut VideoEditorV2, file_path: String) -> Resul
 #[frb(sync)]
 pub fn setup_preview_v2(editor: &mut VideoEditorV2, width: u32, height: u32) -> Result<i64> {
     // 1. Create the Texture object that Rust will update.
-    let new_preview_texture = Arc::new(Texture::new_with_size(width, height)
+    let initial_size = (width * height * 4) as usize; // Assuming RGBA
+    let initial_pixels = vec![0u8; initial_size];
+    let initial_data = BoxedPixelData::from_vec(initial_pixels, width, height);
+    let provider = SimplePixelDataProvider::new(initial_data);
+
+    let new_preview_texture = Arc::new(Texture::new_with_data_provider(Arc::new(provider))
         .context("Failed to create preview texture for setup_preview_v2")?);
     let texture_id = new_preview_texture.id();
 

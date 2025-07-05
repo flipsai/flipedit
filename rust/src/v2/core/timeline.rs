@@ -1,23 +1,27 @@
 //! Timeline management using GStreamer Editing Services
 
-use anyhow::{Result, Context};
+use anyhow::{Result, Context}; // Context might be unused if all .context calls are removed/changed
 use gstreamer_editing_services as ges;
 use gstreamer as gst;
-use rand; // Added for rand::random
-use log::{info, warn, error};
+use gstreamer::prelude::Cast;
+use gstreamer_editing_services::prelude::*; // For TimelineExt, TimelineElementExt, LayerExt
+use rand;
+use log::{info}; // warn, error were unused
 
-use super::types::{VideoInfo, TimelineState};
+use super::types::{VideoInfo}; // TimelineState was unused
+use crate::v2::utils;
 
 pub struct Timeline {
     ges_timeline: ges::Timeline,
     layer: ges::Layer,
 }
 
-use crate::v2::utils; // For gst_utils::init_gstreamer
+// Note: crate::v2::utils is already imported below where it's used.
+// No, it's better to have 'use' at the top level of the module.
+// use crate::v2::utils; // This was a bit misplaced, should be with other uses if not scoped.
 
 impl Timeline {
     pub fn new() -> Result<Self> {
-        // Initialize GStreamer and GES using the utility function
         utils::gst_utils::init_gstreamer().context("Failed to initialize GStreamer/GES in Timeline::new")?;
 
         // Create timeline and layer

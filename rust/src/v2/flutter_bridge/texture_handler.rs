@@ -1,14 +1,14 @@
 //! IronDash texture management for Flutter integration
 
 use anyhow::{Result, Context};
-use irondash_texture::{Texture, TextureId, TextureRegistry};
-use log::{info, debug, warn, error};
+use irondash_texture::{BoxedPixelData, SimplePixelDataProvider, Texture, TextureId, TextureRegistry};
+use log::{info, debug, warn}; // error was indeed unused as per previous diagnostic analysis.
 use std::sync::{Arc, Mutex};
 
 /// Manages textures for Flutter integration
 pub struct TextureHandler {
-    registry: TextureRegistry,
-    textures: Arc<Mutex<Vec<(TextureId, Texture)>>>,
+    registry: TextureRegistry, // Assuming TextureRegistry import is fine
+    textures: Arc<Mutex<Vec<(TextureId, Texture<BoxedPixelData>)>>>,
 }
 
 impl TextureHandler {
@@ -25,15 +25,20 @@ impl TextureHandler {
     
     /// Create a new texture with the specified dimensions
     pub fn create_texture(&self, width: u32, height: u32) -> Result<TextureId> {
-        let texture = Texture::new_with_size(width, height)
-            .context("Failed to create texture")?;
+        let initial_size = (width * height * 4) as usize; // Assuming RGBA
+        let initial_pixels = vec![0u8; initial_size];
+        let initial_data = BoxedPixelData::from_vec(initial_pixels, width, height);
+        let provider = SimplePixelDataProvider::new(initial_data);
+
+        let texture = Texture::new_with_data_provider(Arc::new(provider))
+            .context("Failed to create texture with data provider")?;
         
         let texture_id = texture.id();
         
         // Store the texture to keep it alive
         self.textures.lock().unwrap().push((texture_id, texture));
         
-        info!("Created texture: {}x{}, ID: {:?}", width, height, texture_id);
+        info!("Created texture: {}x{}, ID: {:?}", width, height, texture_id.0); // Use .0 for TextureId
         
         Ok(texture_id)
     }

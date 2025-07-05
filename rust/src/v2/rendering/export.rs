@@ -1,9 +1,8 @@
 //! Export functionality for different formats
 
-use anyhow::{Result, Context};
-use gstreamer as gst;
-use gstreamer_editing_services as ges;
-use log::{info, debug, warn};
+use anyhow::{Result}; // Context removed
+// gst, ges removed
+use log::{info}; // debug, warn removed
 use std::path::Path;
 
 use crate::v2::core::Timeline;
@@ -16,6 +15,7 @@ pub enum ExportFormat {
     PNG,
 }
 
+#[derive(Debug)] // Added Debug derive
 pub struct ExportSettings {
     pub format: ExportFormat,
     pub width: u32,
@@ -51,7 +51,7 @@ impl Exporter {
         })
     }
     
-    pub fn export(&self, output_path: &Path, settings: &ExportSettings) -> Result<()> {
+    pub fn export(&mut self, output_path: &Path, settings: &ExportSettings) -> Result<()> { // Changed to &mut self
         info!("Starting export with settings: {:?}", settings);
         
         // Convert ExportFormat to string for renderer

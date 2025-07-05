@@ -3,14 +3,14 @@
 use anyhow::{Result, Context};
 use gstreamer as gst;
 use gstreamer_editing_services as ges;
+use gstreamer::glib; // For glib::Continue
+use gstreamer::bus::BusWatchGuard; // Correct path
+use gstreamer::prelude::*; // For ElementExt, GstBinExt, GstBinExtManual, ObjectExt, PadExt, Cast, ElementExtManual
+use gstreamer_editing_services::prelude::*; // For GESPipelineExt
 use log::{info, debug, warn, error};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
-
-// Add GstBinExt and GstObjectExt for set_property and bin operations
-use gstreamer::prelude::{ElementExt, GstBinExt, GstObjectExt, PadExt, ElementExtGST};
-use gstreamer_editing_services::prelude::GESPipelineExt;
 
 
 use crate::v2::core::Timeline;
@@ -28,17 +28,17 @@ pub struct Renderer {
     progress: Arc<Mutex<RenderProgress>>,
     // We need to keep the bus watch ID to remove it later if necessary,
     // though dropping the pipeline should also clean up watches.
-    bus_watch_id: Option<gst::BusWatchGuard>,
+    bus_watch_id: Option<BusWatchGuard>, // Corrected path
 }
 
 impl Renderer {
     pub fn new(timeline: &Timeline) -> Result<Self> {
         let ges_pipeline = ges::Pipeline::new();
         
-        ges_pipeline.set_timeline(timeline.get_timeline())
+        ges_pipeline.set_timeline(timeline.get_timeline()) // GESPipelineExt
             .context("Failed to set timeline on pipeline")?;
 
-        let gst_pipeline = ges_pipeline.upcast::<gst::Pipeline>();
+        let gst_pipeline = ges_pipeline.upcast::<gst::Pipeline>(); // Cast
         
         let progress = RenderProgress {
             position: 0,
@@ -100,27 +100,21 @@ impl Renderer {
 
         render_sink_bin.add_many(&[&videoconvert, &video_encoder, &muxer, &filesink])
             .context("Failed to add elements to render_sink_bin")?;
-        
+
         // Link: videoconvert -> video_encoder -> muxer -> filesink
         gst::Element::link_many(&[&videoconvert, &video_encoder, &muxer, &filesink])
             .context("Failed to link elements in render_sink_bin")?;
         
         // Create a ghost pad for the render_sink_bin to accept input
-        let sink_bin_sink_pad = videoconvert.static_pad("sink")
+        let sink_bin_sink_pad = videoconvert.static_pad("sink") // PadExt
             .ok_or_else(|| anyhow::anyhow!("Videoconvert should have a sink pad"))?;
-        let ghost_pad = gst::GhostPad::with_target(Some("sink"), &sink_bin_sink_pad)
-            .ok_or_else(|| anyhow::anyhow!("Failed to create ghost pad for render_sink_bin"))?;
-        render_sink_bin.add_pad(&ghost_pad)
+        let ghost_pad = gst::GhostPad::new_from_target(Some("sink"), &sink_bin_sink_pad) // Corrected constructor
+            .context("Failed to create ghost pad for render_sink_bin")?; // Anyhow context for Result
+        render_sink_bin.add_pad(&ghost_pad) // GstBinExt
             .context("Failed to add ghost pad to render_sink_bin")?;
 
         // Set this new bin as the video sink for the ges_pipeline (self.pipeline)
-        // self.pipeline is already the ges_pipeline upcasted to gst::Pipeline
-        // We need to ensure we are calling set_property on the original ges::Pipeline or that it's applicable.
-        // Let's assume self.pipeline can be used directly if it still holds GES properties.
-        // Or, more safely, keep a reference to ges_pipeline if needed for specific GES properties.
-        // For now, assuming set_property works on the upcasted GstPipeline if it's a GES one.
-        // GObject properties are generally accessible via the base types.
-        self.pipeline.set_property("video-sink", &render_sink_bin.upcast::<gst::Element>())
+        self.pipeline.set_property("video-sink", &render_sink_bin.upcast::<gst::Element>()) // ObjectExt, Cast
             .context("Failed to set video-sink property on pipeline")?;
         
         // TODO: Add audio sink configuration if audio is to be rendered.
@@ -143,47 +137,45 @@ impl Renderer {
         let bus_watch_guard = bus.add_watch(move |_, msg| {
             let pipeline = match pipeline_weak.upgrade() {
                 Some(p) => p,
-                None => return glib::Continue(false), // Pipeline is gone
+                None => return glib::Continue(false), // Pipeline is gone // Corrected to use glib::Continue
             };
 
             match msg.view() {
                 gst::MessageView::Eos(_) => {
                     info!("Rendering: End of stream reached.");
                     let mut p_lock = progress_clone.lock().unwrap();
-                    if p_lock.duration > 0 { // Avoid division by zero if duration is unknown
+                    if p_lock.duration > 0 {
                         p_lock.position = p_lock.duration;
                         p_lock.percent = 100.0;
                     }
-                    // self.is_rendering.store(false, Ordering::SeqCst); // Handled by drop or explicit stop
-                    return glib::Continue(false); // Stop watch
+                    return glib::Continue(false);
                 },
                 gst::MessageView::Error(err) => {
                     error!("Rendering Error: {}, Debug: {:?}", err.error(), err.debug());
-                    // self.is_rendering.store(false, Ordering::SeqCst);
-                    return glib::Continue(false); // Stop watch
+                    return glib::Continue(false);
                 },
                 gst::MessageView::StateChanged(state_changed) => {
-                    if state_changed.src().map_or(false, |s| s == pipeline.upcast_ref()) {
+                    if state_changed.src().map_or(false, |s| s == pipeline.upcast_ref::<gst::Element>()) { // Cast
                         debug!("Renderer pipeline state changed from {:?} to {:?} (pending {:?})",
                                state_changed.old(), state_changed.current(), state_changed.pending());
                     }
                     return glib::Continue(true);
                 },
                 gst::MessageView::Element(element_msg) => {
-                    // GES progress messages are GstElement messages
-                    let s = element_msg.structure();
-                    if s.map_or(false, |s| s.name() == "ges-progress") {
-                         if let (Ok(percent), Ok(duration), Ok(position)) = (
-                             s.get::<f64>("percent"),
-                             s.get::<u64>("duration"), // Assuming GES sends these, might need to check actual fields
-                             s.get::<u64>("position")
-                         ) {
-                            let mut p_lock = progress_clone.lock().unwrap();
-                            p_lock.percent = percent;
-                            p_lock.duration = duration;
-                            p_lock.position = position;
-                            debug!("Render progress: {:.2}% (pos: {}ns / dur: {}ns)", percent, position, duration);
-                         }
+                    if let Some(s) = element_msg.structure() { // Check if structure exists
+                        if s.name() == "ges-progress" {
+                             if let (Ok(percent), Ok(duration), Ok(position)) = (
+                                 s.get::<f64>("percent"),
+                                 s.get::<u64>("duration"),
+                                 s.get::<u64>("position")
+                             ) {
+                                let mut p_lock = progress_clone.lock().unwrap();
+                                p_lock.percent = percent;
+                                p_lock.duration = duration;
+                                p_lock.position = position;
+                                debug!("Render progress: {:.2}% (pos: {}ns / dur: {}ns)", percent, position, duration);
+                             }
+                        }
                     }
                     return glib::Continue(true);
                 }
@@ -193,7 +185,7 @@ impl Renderer {
         self.bus_watch_id = Some(bus_watch_guard);
         
         self.is_rendering.store(true, Ordering::SeqCst);
-        self.pipeline.set_state(gst::State::Playing)
+        self.pipeline.set_state(gst::State::Playing) // ElementExt
             .context("Failed to start rendering pipeline")?;
         
         info!("Started rendering to file: {:?} with format {}", output_path, format);
@@ -201,10 +193,10 @@ impl Renderer {
         Ok(())
     }
     
-    pub fn cancel_rendering(&mut self) -> Result<()> {
+    pub fn cancel_rendering(&mut self) -> Result<()> { // Takes &mut self now
         if self.is_rendering.load(Ordering::SeqCst) {
             info!("Attempting to cancel rendering...");
-            self.pipeline.set_state(gst::State::Null)
+            self.pipeline.set_state(gst::State::Null) // ElementExt
                 .context("Failed to set pipeline to Null state for cancellation")?;
             
             self.is_rendering.store(false, Ordering::SeqCst);

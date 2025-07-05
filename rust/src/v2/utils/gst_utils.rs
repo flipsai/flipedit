@@ -1,20 +1,23 @@
 //! GStreamer utilities
 
 use anyhow::{Result, Context};
-use gstreamer as gst;
-use gstreamer_editing_services as ges;
+use gstreamer; // Direct use instead of alias for is_initialized
+use gstreamer_editing_services; // Direct use instead of alias for is_initialized
+use gstreamer_pbutils; // For Discoverer
+use gstreamer as gst; // Keep alias for other uses like gst::ClockTime, gst::Element etc.
+use gstreamer_editing_services as ges; // Keep alias for other uses
 use log::{info, debug, warn};
 use std::path::Path;
 
 /// Initialize GStreamer and GES
 pub fn init_gstreamer() -> Result<()> {
-    if !gst::is_initialized() {
-        gst::init().context("Failed to initialize GStreamer")?;
+    if !gstreamer::is_initialized() { // Use full path
+        gstreamer::init().context("Failed to initialize GStreamer")?;
         info!("GStreamer initialized");
     }
     
-    if !ges::is_initialized() {
-        ges::init().context("Failed to initialize GES")?;
+    if !gstreamer_editing_services::is_initialized() { // Use full path
+        gstreamer_editing_services::init().context("Failed to initialize GES")?;
         info!("GES initialized");
     }
     
@@ -29,8 +32,8 @@ pub fn check_media_file(file_path: &Path) -> Result<bool> {
     }
     
     // Create a discoverer to check the file
-    let timeout = gst::ClockTime::from_seconds(5);
-    let discoverer = gst::pbutils::Discoverer::new(timeout)
+    let timeout = gst::ClockTime::from_seconds(5); // gst alias is fine here
+    let discoverer = gstreamer_pbutils::Discoverer::new(timeout) // Use full path for Discoverer
         .context("Failed to create GStreamer Discoverer")?;
     
     // Convert path to URI
@@ -59,10 +62,10 @@ pub fn check_media_file(file_path: &Path) -> Result<bool> {
 }
 
 /// Get media file information
-pub fn get_media_info(file_path: &Path) -> Result<gst::pbutils::DiscovererInfo> {
+pub fn get_media_info(file_path: &Path) -> Result<gstreamer_pbutils::DiscovererInfo> { // Use full path for DiscovererInfo
     // Create a discoverer to check the file
-    let timeout = gst::ClockTime::from_seconds(5);
-    let discoverer = gst::pbutils::Discoverer::new(timeout)
+    let timeout = gst::ClockTime::from_seconds(5); // gst alias is fine here
+    let discoverer = gstreamer_pbutils::Discoverer::new(timeout) // Use full path for Discoverer
         .context("Failed to create GStreamer Discoverer")?;
     
     // Convert path to URI

@@ -3,6 +3,9 @@
 use anyhow::Result;
 use std::collections::HashMap;
 use log::info;
+use gstreamer_editing_services::prelude::*; // For LayerExt, TimelineElementExt
+use gstreamer::prelude::Cast; // For downcast
+use gstreamer_editing_services as ges; // To use ges::Clip type directly
 
 use super::timeline::Timeline;
 use super::types::{ClipInfo, TrackInfo, TimelineState};
@@ -76,15 +79,15 @@ impl Project {
 
     // Helper to find a ges::Clip in the project's main layer by its ID (name)
     // Made public for bridge access.
-    pub fn find_ges_clip_by_id(&self, clip_id_to_find: &str) -> Option<ges::Clip> {
+    pub fn find_ges_clip_by_id(&self, clip_id_to_find: &str) -> Option<ges::Clip> { // Now ges::Clip can be used
         // Assuming clips are on the first layer, which is typical for simple setups.
         // self.timeline.layer is the ges::Layer object.
-        for element in self.timeline.get_layer().clips() { // get_layer() would be a new method on our Timeline struct
-            if let Some(name) = element.name() {
+        for element in self.timeline.get_layer().clips() { // LayerExt provides .clips()
+            if let Some(name) = element.name() { // TimelineElementExt provides .name()
                 if name == clip_id_to_find {
                     // Attempt to downcast TimelineElement to Clip
                     // This returns a new GObject reference (cloned). Operations on it affect the original.
-                    return element.downcast::<ges::Clip>().ok();
+                    return element.downcast::<ges::Clip>().ok(); // ges::Clip can be used
                 }
             }
         }

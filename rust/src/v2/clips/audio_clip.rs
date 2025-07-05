@@ -3,7 +3,8 @@
 use anyhow::{Result, Context};
 use gstreamer_editing_services as ges;
 use gstreamer as gst;
-use log::{info, debug};
+use gstreamer_editing_services::prelude::*; // For TimelineElementExt, ClipExt
+use log::{debug}; // Removed info as it's unused based on diagnostic
 
 use crate::v2::core::types::ClipInfo;
 
