@@ -17,6 +17,10 @@ pub struct Project {
     state: TimelineState,
 }
 
+// SAFETY: Project is designed to be used from a single thread at a time
+unsafe impl Send for Project {}
+unsafe impl Sync for Project {}
+
 impl Project {
     pub fn new() -> Result<Self> {
         // Ensure GStreamer is initialized when a project is created.

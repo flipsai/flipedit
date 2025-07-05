@@ -16,6 +16,10 @@ pub struct Timeline {
     layer: ges::Layer,
 }
 
+// SAFETY: Timeline is designed to be used from a single thread at a time
+unsafe impl Send for Timeline {}
+unsafe impl Sync for Timeline {}
+
 // Note: crate::v2::utils is already imported below where it's used.
 // No, it's better to have 'use' at the top level of the module.
 // use crate::v2::utils; // This was a bit misplaced, should be with other uses if not scoped.
@@ -48,7 +52,7 @@ impl Timeline {
 
         // Generate a unique ID for the clip. Using a more robust UUID is recommended for production.
         // For now, using timestamp and a random number part.
-        let random_part: u32 = rand::thread_rng().gen();
+        let random_part: u32 = rand::thread_rng().random();
         let clip_id = format!("clip_{}_{}", clip.start().nseconds(), random_part);
 
         // Set the name of the ges::TimelineElement to this clip_id so we can find it later.

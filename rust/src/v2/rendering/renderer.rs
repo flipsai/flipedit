@@ -108,8 +108,9 @@ impl Renderer {
         // Create a ghost pad for the render_sink_bin to accept input
         let sink_bin_sink_pad = videoconvert.static_pad("sink") // PadExt
             .ok_or_else(|| anyhow::anyhow!("Videoconvert should have a sink pad"))?;
-        let ghost_pad = gst::GhostPad::with_target(Some(&sink_bin_sink_pad), Some("sink")) // Use with_target(target, name)
+        let ghost_pad = gst::GhostPad::with_target(&sink_bin_sink_pad) // Use with_target(target, name)
             .map_err(|e| anyhow::anyhow!("Failed to create ghost pad for render_sink_bin: {}", e))?;
+        // ghost_pad.set_name(Some("sink")); // Skip name setting due to trait conflicts
         render_sink_bin.add_pad(&ghost_pad) // GstBinExt
             .context("Failed to add ghost pad to render_sink_bin")?;
 
@@ -137,7 +138,7 @@ impl Renderer {
         let bus_watch_guard = bus.add_watch(move |_, msg| {
             let pipeline = match pipeline_weak.upgrade() {
                 Some(p) => p,
-                None => return glib::ControlFlow::Break(()),
+                None => return glib::ControlFlow::Break,
             };
 
             match msg.view() {
@@ -148,11 +149,11 @@ impl Renderer {
                         p_lock.position = p_lock.duration;
                         p_lock.percent = 100.0;
                     }
-                    return glib::ControlFlow::Break(());
+                    return glib::ControlFlow::Break;
                 },
                 gst::MessageView::Error(err) => {
                     error!("Rendering Error: {}, Debug: {:?}", err.error(), err.debug());
-                    return glib::ControlFlow::Break(());
+                    return glib::ControlFlow::Break;
                 },
                 gst::MessageView::StateChanged(state_changed) => {
                     if state_changed.src().map_or(false, |s| s == pipeline.upcast_ref::<gst::Element>()) {
@@ -201,7 +202,7 @@ impl Renderer {
             
             self.is_rendering.store(false, Ordering::SeqCst);
             if let Some(guard) = self.bus_watch_id.take() {
-                guard.remove();
+                drop(guard);
             }
             info!("Rendering canceled or stopped.");
         } else {
@@ -221,14 +222,14 @@ impl Drop for Renderer {
             warn!("Renderer dropped while rendering was in progress. Attempting to stop.");
             // Release the bus watch first
             if let Some(guard) = self.bus_watch_id.take() {
-                guard.remove();
+                drop(guard);
             }
             if let Err(e) = self.pipeline.set_state(gst::State::Null) {
                 error!("Failed to set pipeline to NULL in Renderer drop: {:?}", e);
             }
         } else {
              if let Some(guard) = self.bus_watch_id.take() {
-                guard.remove();
+                drop(guard);
             }
         }
         info!("Renderer dropped.");

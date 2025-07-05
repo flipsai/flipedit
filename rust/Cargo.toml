@@ -28,6 +28,7 @@ lazy_static = "1.4"
 irondash_engine_context = { git = "https://github.com/irondash/irondash.git", rev = "65343873472d6796c0388362a8e04b6e9a499044", package = "irondash_engine_context" }
 # The Rust-only crate for creating and managing Flutter external textures.
 irondash_texture = { git = "https://github.com/irondash/irondash.git", rev = "65343873472d6796c0388362a8e04b6e9a499044", package = "irondash_texture" }
+rand = "0.9.1"
 
 [target.'cfg(target_os = "android")'.dependencies]
 android_logger = "0.14"

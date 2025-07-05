@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:flipedit/src/rust/api/simple.dart';
+import 'package:flipedit/src/rust/v2/flutter_bridge/api.dart';
 import 'package:flipedit/utils/logger.dart';
 import 'package:flutter/material.dart';
 import 'package:irondash_engine_context/irondash_engine_context.dart';
@@ -23,7 +23,7 @@ class VideoPlayerWidget extends StatefulWidget with WatchItStatefulWidgetMixin {
 class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   int? _textureId;
   String? _errorMessage;
-  VideoPlayer? _videoPlayer;
+  VideoEditorV2? _videoEditor;
 
   @override
   void initState() {
@@ -33,49 +33,49 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
 
   Future<void> _init() async {
     try {
-      // Get engine handle for texture rendering
-      final handle = await EngineContext.instance.getEngineHandle();
-      
-      // Create texture for video rendering
-      final textureId = createVideoTexture(
-        width: 1920, 
-        height: 1080, 
-        engineHandle: handle,
-      );
-      
-      // Create a VideoPlayer instance for proper play/pause control
-      _videoPlayer = VideoPlayer();
-      
-      // Set texture pointer for the video player
-      _videoPlayer!.setTexturePtr(ptr: textureId);
-      
-      // Load the left video (for now, we'll focus on single video functionality)
-      await _videoPlayer!.loadVideo(filePath: widget.leftVideoPath);
-      
-      // Register with the video player service for position updates
-      final videoPlayerService = di<VideoPlayerService>();
-      videoPlayerService.registerVideoPlayer(_videoPlayer!);
-      videoPlayerService.setCurrentVideoPath(widget.leftVideoPath);
-      
-      setState(() => _textureId = textureId);
+      // Ensure all operations happen on the main thread
+       // Get engine handle for texture rendering
+       final handle = await EngineContext.instance.getEngineHandle();
+       
+       // Create VideoEditorV2 instance
+       _videoEditor = createVideoEditorV2();
+       
+       // Add video file to the editor
+       addVideoFileV2(editor: _videoEditor!, filePath: widget.leftVideoPath);
+       
+       // Setup preview with texture rendering
+       final textureId = setupPreviewV2(
+         editor: _videoEditor!,
+         engineHandle: handle,
+         width: 1920,
+         height: 1080,
+       );
+       
+       // Register with the video player service
+       final videoPlayerService = di<VideoPlayerService>();
+       videoPlayerService.registerVideoEditor(_videoEditor!);
+       videoPlayerService.setCurrentVideoPath(widget.leftVideoPath);
+       
+       setState(() => _textureId = textureId);
     } catch (e) {
-      setState(() => _errorMessage = "Failed to initialize video player: $e");
+      setState(() => _errorMessage = "Initialization error: $e");
+      logInfo("Flutter: Error in initialization: $e");
     }
   }
 
   @override
   void dispose() {
     // Unregister from video player service
-    if (_videoPlayer != null) {
+    if (_videoEditor != null) {
       final videoPlayerService = di<VideoPlayerService>();
-      videoPlayerService.unregisterVideoPlayer();
-      _videoPlayer!.dispose();
+      videoPlayerService.unregisterVideoEditor();
+      // Note: VideoEditorV2 doesn't have explicit dispose method
     }
     super.dispose();
   }
 
   void _togglePlayPause() async {
-    if (_videoPlayer == null) return;
+    if (_videoEditor == null) return;
     
     try {
       final videoPlayerService = di<VideoPlayerService>();
@@ -86,13 +86,13 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       logInfo("Flutter: Toggle play/pause - currently playing: $isCurrentlyPlaying");
       
       if (isCurrentlyPlaying) {
-        logInfo("Flutter: Calling pause()");
-        await _videoPlayer!.pause();
+        logInfo("Flutter: Calling pausePreviewV2()");
+        pausePreviewV2(editor: _videoEditor!);
         videoPlayerService.setPlayingState(false);
         logInfo("Flutter: Pause completed, state set to false");
       } else {
-        logInfo("Flutter: Calling play()");
-        await _videoPlayer!.play();
+        logInfo("Flutter: Calling playPreviewV2()");
+        playPreviewV2(editor: _videoEditor!);
         videoPlayerService.setPlayingState(true);
         logInfo("Flutter: Play completed, state set to true");
       }

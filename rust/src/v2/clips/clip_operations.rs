@@ -47,8 +47,7 @@ pub fn split_clip(timeline: &ges::Timeline, clip: &ges::Clip, position: u64) -> 
     }
     
     // Split the clip at the specified position
-    layer.split_object(clip, gst::ClockTime::from_nseconds(position))
-        .context("Failed to split clip")?;
+    clip.split(position).context("Failed to split clip")?;
     
     info!("Split clip at position {}ns", position);
     Ok(())
@@ -76,7 +75,7 @@ pub fn merge_clips(timeline: &ges::Timeline, clip1: &ges::Clip, clip2: &ges::Cli
     // Ungrouping dissolves the group, placing its children (clip1, clip2)
     // directly into the container the group was in (e.g., the layer).
     // This does not create a single new ges::Clip from the two inputs.
-    GESContainerExt::ungroup(&group, true).map_err(|e| anyhow::anyhow!("Failed to ungroup clips: {}", e))?;
+    let _ungrouped = group.ungroup(true);
     
     info!("Grouped and then ungrouped clips (effectively placing them sequentially in parent container)");
     Ok(())

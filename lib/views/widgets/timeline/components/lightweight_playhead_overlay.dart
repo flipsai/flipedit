@@ -96,7 +96,10 @@ class _LightweightPlayheadOverlayState extends State<LightweightPlayheadOverlay>
     _wasPlayingBeforeDrag = _videoPlayerService.isPlaying;
     if (_wasPlayingBeforeDrag) {
       // Pause playback during drag
-      _videoPlayerService.activeVideoPlayer?.pause();
+      if (_videoPlayerService.activeVideoEditor != null) {
+        // Note: Would need to implement pause in VideoEditorV2
+        _videoPlayerService.setPlayingState(false);
+      }
     }
     
     // Cache expensive calculations for drag performance
@@ -125,9 +128,10 @@ class _LightweightPlayheadOverlayState extends State<LightweightPlayheadOverlay>
     if (_isDragging) {
       _updateThrottleTimer?.cancel();
       
-      // Seek to final position
+      // Note: VideoEditorV2 doesn't have direct frame seeking
+      // Would need to implement seeking through timeline state management
       final frameNumber = _dragPosition.round();
-      _videoPlayerService.seekToFrame(frameNumber);
+      // _videoPlayerService.seekToFrame(frameNumber); // Not available in V2
       
       setState(() {
         _isDragging = false;

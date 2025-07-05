@@ -12,7 +12,6 @@ import 'package:flipedit/services/media_duration_service.dart';
 import 'package:flipedit/services/video_player_service.dart';
 import 'package:flipedit/services/tab_system_persistence_service.dart';
 import 'package:flipedit/services/tab_content_factory.dart';
-import 'package:flipedit/src/rust/api/simple.dart';
 import 'package:flipedit/viewmodels/app_viewmodel.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
@@ -58,8 +57,6 @@ Future<void> setupServiceLocator() async {
     () => CanvasDimensionsService(),
     dispose: (service) => service.dispose(),
   );
-
-  di.registerLazySingleton<VideoPlayer>(() => VideoPlayer());
 
   // Undo/Redo service for project clips
   di.registerLazySingleton<UndoRedoService>(

@@ -3,6 +3,7 @@ import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/services/optimized_playback_service.dart';
 import 'package:flipedit/services/timeline_navigation_service.dart';
 import 'package:flipedit/services/video_player_service.dart';
+import 'package:flipedit/src/rust/v2/flutter_bridge/api.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
 import 'package:watch_it/watch_it.dart';
 
@@ -39,6 +40,7 @@ class TimelineNavigationViewModel extends ChangeNotifier {
       setCurrentFrame: (frame) {
         // Don't set directly - Rust is source of truth
         // Only set if we're manually seeking
+      // Note: VideoEditorV2 doesn't have direct frame seeking
       },
       getTotalFrames: () => _videoPlayerService.getTotalFrames(),
       getDefaultEmptyDurationFrames: _navigationService.getDefaultEmptyDurationFramesValue,
@@ -100,11 +102,11 @@ class TimelineNavigationViewModel extends ChangeNotifier {
   int get currentFrame => _navigationService.currentFrame;
   set currentFrame(int value) {
     // When setting frame manually (e.g., from timeline interaction),
-    // seek through the video player service which will update Rust
+    // update navigation service state
     if (_navigationService.currentFrame != value) {
       _navigationService.currentFrame = value;
-      // Trigger seek in Rust
-      _videoPlayerService.seekToFrame(value);
+      // Note: VideoEditorV2 doesn't have direct frame seeking
+      // Seeking would need to be implemented through timeline state management
     }
   }
 
@@ -119,11 +121,12 @@ class TimelineNavigationViewModel extends ChangeNotifier {
   Future<void> startPlayback() async {
     if (isPlaying) return;
     
-    // Start playback through the video player instead of internal service
-    if (_videoPlayerService.activeVideoPlayer != null) {
+    // Start playback through the video editor
+    if (_videoPlayerService.activeVideoEditor != null) {
       try {
-        await _videoPlayerService.activeVideoPlayer!.play();
-        logger.logDebug("Started playback through Rust video player", _logTag);
+        playPreviewV2(editor: _videoPlayerService.activeVideoEditor!);
+        _videoPlayerService.setPlayingState(true);
+        logger.logDebug("Started playback through VideoEditorV2", _logTag);
       } catch (e) {
         logger.logError(_logTag, "Error starting playback: $e");
       }
@@ -138,11 +141,12 @@ class TimelineNavigationViewModel extends ChangeNotifier {
   void stopPlayback() {
     if (!isPlaying) return;
     
-    // Stop playback through the video player
-    if (_videoPlayerService.activeVideoPlayer != null) {
+    // Stop playback through the video editor
+    if (_videoPlayerService.activeVideoEditor != null) {
       try {
-        _videoPlayerService.activeVideoPlayer!.pause();
-        logger.logDebug("Stopped playback through Rust video player", _logTag);
+        pausePreviewV2(editor: _videoPlayerService.activeVideoEditor!);
+        _videoPlayerService.setPlayingState(false);
+        logger.logDebug("Stopped playback through VideoEditorV2", _logTag);
       } catch (e) {
         logger.logError(_logTag, "Error stopping playback: $e");
       }
