@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flipedit/services/video_player_service.dart';
 import 'package:watch_it/watch_it.dart';
@@ -325,7 +324,7 @@ class _PlayheadRendererState extends State<_PlayheadRenderer> {
                     color: theme.accentColor,
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF000000).withOpacity(0.3),
+                        color: const Color(0xFF000000).withValues(alpha: 0.3),
                         blurRadius: 2,
                         offset: const Offset(0, 1),
                       ),

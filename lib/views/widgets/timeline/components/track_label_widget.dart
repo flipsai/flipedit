@@ -95,7 +95,7 @@ class _TrackLabelWidgetState extends State<TrackLabelWidget> {
         decoration: BoxDecoration(
           color:
               widget.isSelected
-                  ? theme.accentColor.withOpacity(0.2)
+                  ? theme.accentColor.withValues(alpha: 0.2)
                   : theme.resources.subtleFillColorTertiary,
           border: Border(
             right: BorderSide(color: theme.resources.controlStrokeColorDefault),

@@ -1,7 +1,6 @@
 import 'package:flipedit/app.dart';
 import 'package:flipedit/di/service_locator.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
-import 'package:flipedit/services/uv_manager.dart';
 import 'package:flipedit/utils/texture_bridge_check.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:fluent_ui/fluent_ui.dart';
@@ -15,19 +14,7 @@ class _MyWindowListener implements WindowListener {
   @override
   void onWindowClose() async {
     logInfo('main', 'Window close requested. Shutting down video server...');
-    bool isPreventClose = await windowManager.isPreventClose();
-    if (isPreventClose) {
-      try {
-        final uvManager = di.get<UvManager>();
-        await uvManager.shutdownVideoStreamServer();
-        logInfo('main', 'Video server shutdown complete.');
-      } catch (e) {
-        logError('main', 'Error during video server shutdown: $e');
-      } finally {
-        // Allow the window to close by destroying it
-        await windowManager.destroy();
-      }
-    }
+    await windowManager.destroy();
   }
 
   // Add empty implementations for all other required methods

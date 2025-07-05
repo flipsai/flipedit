@@ -152,7 +152,7 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
                     : HugeIcons.strokeRoundedPlay,
                 size: 16,
                 color: !hasActiveVideo 
-                  ? controlsContentColor.withOpacity(0.5)  // Dimmed when not ready
+                  ? controlsContentColor.withValues(alpha: 0.5)  // Dimmed when not ready
                   : controlsContentColor,
               ),
               // Use PlayPauseCommand for unified playback control

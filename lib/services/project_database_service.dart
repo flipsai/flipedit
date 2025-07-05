@@ -284,11 +284,6 @@ class ProjectDatabaseService {
           _logTag,
           "Refreshed tracks notifier after deleting clips for source: $sourcePath",
         );
-
-        // Optionally, emit a change notification to force timeline refresh
-        // In a well-architected reactive system, the above track refresh should be sufficient
-        // but we'll add this to ensure all views are properly updated
-        tracksNotifier.notifyListeners();
       }
 
       return deletedCount;
@@ -473,7 +468,7 @@ class ProjectDatabaseService {
     List<ClipModel> allClips = [];
 
     try {
-      for (final track in tracks.where((t) => t.id != null)) {
+      for (final track in tracks) {
         final dbClips = await clipDao!.getClipsForTrack(track.id);
         allClips.addAll(
           dbClips.map((dbClip) {

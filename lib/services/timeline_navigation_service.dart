@@ -116,12 +116,10 @@ class TimelineNavigationService extends ChangeNotifier {
     if (_isDisposed) return;
 
     final newTotalFrames = _calculateTotalFrames();
-    bool changed = false;
 
     if (totalFramesNotifier.value != newTotalFrames) {
       totalFramesNotifier.value = newTotalFrames;
       logger.logInfo('Total frames updated to: $newTotalFrames', _logTag);
-      changed = true;
     }
 
     // Calculate timeline end: either total frames + minimum scroll area or default duration
@@ -137,7 +135,6 @@ class TimelineNavigationService extends ChangeNotifier {
         'Timeline end updated to: $newTimelineEnd frames (total clips frames: $newTotalFrames)',
         _logTag,
       );
-      changed = true;
     }
 
     final current = currentFrame; // Use getter

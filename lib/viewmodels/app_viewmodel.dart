@@ -1,10 +1,6 @@
 import 'package:flutter/foundation.dart';
-import 'package:flipedit/services/uv_manager.dart';
-import 'package:watch_it/watch_it.dart';
 
 class AppViewModel {
-  final UvManager _uvManager = di<UvManager>();
-
   final ValueNotifier<bool> isInitializedNotifier = ValueNotifier<bool>(false);
   bool get isInitialized => isInitializedNotifier.value;
   set isInitialized(bool value) {
@@ -50,8 +46,6 @@ class AppViewModel {
     try {
       isDownloading = true;
       statusMessage = "Setting up environment...";
-
-      await _uvManager.initialize();
 
       isDownloading = false;
       isInitialized = true;

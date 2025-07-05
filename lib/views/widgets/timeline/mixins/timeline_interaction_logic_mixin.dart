@@ -20,8 +20,6 @@ mixin TimelineInteractionLogicMixin on State<Timeline> {
   double get viewportWidth;
 
   // --- Constants ---
-  static const double _timeRulerHeight = 25.0;
-  static const double _trackItemSpacing = 4.0;
   static const double _framePixelWidth = 5.0;
 
   // --- Drag and Drop Handling ---

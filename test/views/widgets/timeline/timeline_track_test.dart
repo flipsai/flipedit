@@ -11,6 +11,7 @@ import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/persistence/database/project_database.dart'
     as project_db;
 import 'package:watch_it/watch_it.dart';
+import 'package:flipedit/utils/logger.dart';
 
 // Mocks
 @GenerateMocks([
@@ -103,13 +104,12 @@ void main() {
     testWidgets('should call onDelete when delete action is triggered', (
       WidgetTester tester,
     ) async {
-      bool deleteCalled = false;
       await tester.pumpWidget(
         FluentApp(
           home: TimelineTrack(
             track: testTrack,
             onDelete: () {
-              deleteCalled = true;
+              logInfo('TimelineTrackTest', 'onDelete called');
             },
             trackLabelWidth: 120.0,
             scrollOffset: 0.0, // Added required parameter

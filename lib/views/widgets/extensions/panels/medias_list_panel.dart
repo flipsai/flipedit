@@ -122,7 +122,6 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
   // Update method to accept model.ProjectAsset
   Widget _buildClipListItem(BuildContext context, model.ProjectAsset asset) {
     final theme = FluentTheme.of(context);
-    final projectVm = di<ProjectViewModel>();
 
     // Use durationMs from model.ProjectAsset
     final String durationString =

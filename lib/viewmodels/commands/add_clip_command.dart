@@ -13,7 +13,6 @@ import '../../services/project_database_service.dart';
 import '../../services/media_duration_service.dart';
 import '../../services/canvas_dimensions_service.dart';
 import 'package:watch_it/watch_it.dart';
-import '../../viewmodels/timeline_navigation_viewmodel.dart';
 
 class AddClipCommand implements TimelineCommand, UndoableCommand {
   // Implement UndoableCommand
@@ -28,8 +27,6 @@ class AddClipCommand implements TimelineCommand, UndoableCommand {
   final MediaDurationService _mediaDurationService = di<MediaDurationService>();
   final CanvasDimensionsService _canvasDimensionsService =
       di<CanvasDimensionsService>();
-  final TimelineNavigationViewModel _timelineNavViewModel =
-      di<TimelineNavigationViewModel>();
 
   int? _insertedClipId;
   List<ClipModel>? _originalNeighborStates;
@@ -50,8 +47,9 @@ class AddClipCommand implements TimelineCommand, UndoableCommand {
     // Assign to new field
     // Restore state if provided (e.g., fromJson)
     if (insertedClipId != null) _insertedClipId = insertedClipId;
-    if (originalNeighborStates != null)
+    if (originalNeighborStates != null) {
       _originalNeighborStates = originalNeighborStates;
+    }
     if (removedNeighborIds != null) _removedNeighborIds = removedNeighborIds;
   }
 

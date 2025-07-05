@@ -4,6 +4,7 @@ import 'package:flipedit/di/service_locator.dart';
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/services/project_metadata_service.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
+import 'package:flipedit/utils/logger.dart';
 import 'package:flutter/foundation.dart'; // Required for kIsWeb
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/services.dart'; // Added import for window_manager mocking
@@ -119,7 +120,7 @@ void setupMockWindowManager() {
 
   // Provide actual implementations for common window_manager methods
   channel.setMockMethodCallHandler((MethodCall methodCall) async {
-    print('Window manager call: ${methodCall.method}');
+    logInfo('Window manager call: ${methodCall.method}');
 
     switch (methodCall.method) {
       case 'show':
@@ -151,7 +152,7 @@ void setupMockWindowManager() {
         return true;
       // Add more method handlers as needed
       default:
-        print('Unhandled window_manager method: ${methodCall.method}');
+        logInfo('Unhandled window_manager method: ${methodCall.method}');
         return null;
     }
   });
@@ -177,38 +178,38 @@ Future<void> setupTestDependencyInjection() async {
 
 // Function to clean up databases and DI before/after tests
 Future<void> cleanupTestState(String tempDirPath) async {
-  print('--- Starting Cleanup ---');
+  logInfo('--- Starting Cleanup ---');
   try {
     // Close any active project in services that hold state
     try {
       // Check registration before accessing to avoid errors if DI was reset improperly
       if (di.isRegistered<ProjectViewModel>()) {
-        print('Checked ProjectViewModel registration during cleanup.');
+        logInfo('Checked ProjectViewModel registration during cleanup.');
       }
       if (di.isRegistered<ProjectMetadataService>()) {
         final metaService = di<ProjectMetadataService>();
         await metaService
             .closeProject(); // Close any open project DB connection
-        print('Closed current project database in ProjectMetadataService.');
+        logInfo('Closed current project database in ProjectMetadataService.');
       } else {
-        print('ProjectMetadataService not registered during cleanup.');
+        logInfo('ProjectMetadataService not registered during cleanup.');
       }
       if (di.isRegistered<ProjectDatabaseService>()) {
         final dbService = di<ProjectDatabaseService>();
         await dbService
             .closeCurrentProject(); // Ensure this service is also reset
-        print('Closed current project in ProjectDatabaseService.');
+        logInfo('Closed current project in ProjectDatabaseService.');
       } else {
-        print('ProjectDatabaseService not registered during cleanup.');
+        logInfo('ProjectDatabaseService not registered during cleanup.');
       }
     } catch (e) {
-      print('Error during service state cleanup: $e');
+      logInfo('Error during service state cleanup: $e');
     }
 
     // Delete database files from the specific temp directory
     // Use the provided tempDirPath instead of calling getApplicationDocumentsDirectory
     final dbFolder = Directory(p.join(tempDirPath, 'documents'));
-    print('Attempting cleanup in: ${dbFolder.path}');
+    logInfo('Attempting cleanup in: ${dbFolder.path}');
 
     if (await dbFolder.exists()) {
       final metadataDbFile = File(
@@ -217,12 +218,12 @@ Future<void> cleanupTestState(String tempDirPath) async {
       if (await metadataDbFile.exists()) {
         try {
           await metadataDbFile.delete();
-          print('Deleted metadata DB: ${metadataDbFile.path}');
+          logInfo('Deleted metadata DB: ${metadataDbFile.path}');
         } catch (e) {
-          print('Failed to delete metadata DB ${metadataDbFile.path}: $e');
+          logInfo('Failed to delete metadata DB ${metadataDbFile.path}: $e');
         }
       } else {
-        print('Metadata DB not found for deletion: ${metadataDbFile.path}');
+        logInfo('Metadata DB not found for deletion: ${metadataDbFile.path}');
       }
 
       // Delete project-specific databases
@@ -234,100 +235,100 @@ Future<void> cleanupTestState(String tempDirPath) async {
               entity.path.endsWith('.sqlite')) {
             try {
               await entity.delete();
-              print('Deleted project DB: ${entity.path}');
+              logInfo('Deleted project DB: ${entity.path}');
             } catch (e) {
-              print('Failed to delete project DB ${entity.path}: $e');
+              logInfo('Failed to delete project DB ${entity.path}: $e');
             }
           }
         }
       } catch (e) {
-        print('Error listing or deleting project DBs in ${dbFolder.path}: $e');
+        logInfo('Error listing or deleting project DBs in ${dbFolder.path}: $e');
       }
     } else {
-      print('Documents directory not found during cleanup: ${dbFolder.path}');
+      logInfo('Documents directory not found during cleanup: ${dbFolder.path}');
     }
 
     // Reset the DI container to ensure a clean slate for dependencies
-    print('Resetting DI container...');
+    logInfo('Resetting DI container...');
     await di.reset(dispose: true);
 
     // Re-initialize essential services for the next test
-    print('Re-initializing dependencies...');
+    logInfo('Re-initializing dependencies...');
     await setupTestDependencyInjection();
-    print('--- Cleanup Complete ---');
+    logInfo('--- Cleanup Complete ---');
   } catch (e) {
-    print('Error during cleanup: $e');
+    logInfo('Error during cleanup: $e');
   }
 }
 
 // Common setup for all tests
 Future<Directory> commonSetUpAll() async {
-  print('Running common setUpAll...');
+  logInfo('Running common setUpAll...');
   // 1. Create a temporary directory for this test run
   final testTempDir = await Directory.systemTemp.createTemp('flipedit_test_');
-  print('Using temporary directory for tests: ${testTempDir.path}');
+  logInfo('Using temporary directory for tests: ${testTempDir.path}');
 
   // 2. Set the mock PathProviderPlatform BEFORE anything else that might use paths
   PathProviderPlatform.instance = FakePathProviderPlatform(testTempDir.path);
-  print('Mock PathProviderPlatform set.');
+  logInfo('Mock PathProviderPlatform set.');
 
   // Mock window_manager plugin to prevent MissingPluginException
   setupMockWindowManager();
-  print('Mock window_manager plugin set.');
+  logInfo('Mock window_manager plugin set.');
 
   // 3. Clean up state thoroughly before any tests run (will now use the temp dir)
   // Pass the temp dir path to cleanup function
   await cleanupTestState(testTempDir.path);
 
   // 4. Setup DI (will also use the temp dir now) - cleanupTestState already calls this
-  print('Common setUpAll complete.');
+  logInfo('Common setUpAll complete.');
   return testTempDir; // Return the directory path for teardown
 }
 
 // Common teardown for all tests
 Future<void> commonTearDownAll(Directory testTempDir) async {
-  print('Running common tearDownAll...');
+  logInfo('Running common tearDownAll...');
   try {
     // Attempt to reset DI one last time
     await di.reset(dispose: true);
-    print('Final DI reset complete.');
+    logInfo('Final DI reset complete.');
 
     // Delete the temporary directory
     if (await testTempDir.exists()) {
-      print('Deleting temporary directory: ${testTempDir.path}');
+      logInfo('Deleting temporary directory: ${testTempDir.path}');
       await testTempDir.delete(recursive: true);
-      print('Temporary directory deleted.');
+      logInfo('Temporary directory deleted.');
     } else {
-      print(
+      logInfo(
         'Temporary directory did not exist for deletion: ${testTempDir.path}',
       );
     }
   } catch (e) {
-    print(
+    logInfo(
       'Error during common tearDownAll (deleting temp dir ${testTempDir.path}): $e',
     );
   }
   // Reset the mock (optional, good practice)
   // PathProviderPlatform.instance = const PathProviderPlatform(); // Reset to default if needed
-  print('Common tearDownAll complete.');
+  logInfo('Common tearDownAll complete.');
 }
 
 // Common setup for each test
 Future<void> commonSetUp(String tempDirPath) async {
   // Ensure PathProviderPlatform is still the fake one
   if (PathProviderPlatform.instance is! FakePathProviderPlatform) {
-    print('Re-setting FakePathProviderPlatform in commonSetUp');
+    logInfo('Re-setting FakePathProviderPlatform in commonSetUp');
     PathProviderPlatform.instance = FakePathProviderPlatform(tempDirPath);
   }
   // No DI reset here, cleanupState handles it before setupTestDependencyInjection
   // Just ensure DI is ready (it should be after cleanup/re-init)
-  print('Common setUp finished.');
+  logInfo('Common setUp finished.');
 }
 
 // Common teardown for each test
 Future<void> commonTearDown(String tempDirPath) async {
-  print('Running common tearDown...');
+  logInfo('Running common tearDown...');
   // Clean up after each test to isolate them
   await cleanupTestState(tempDirPath);
-  print('Common tearDown complete.');
+  logInfo('Common tearDown complete.');
 }

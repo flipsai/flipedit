@@ -63,11 +63,6 @@ mixin TimelineScrollLogicMixin on State<Timeline> {
 
     // Calculate visible range
     final double scrollOffset = scrollController.offset;
-    final double visibleStart = scrollOffset; // Adjusted: Offset is the start
-    final double visibleEnd =
-        scrollOffset +
-        viewportWidth -
-        trackLabelWidth; // Adjusted: Viewport relative to scrollable area
 
     // Calculate absolute playhead position within the scrollable content (excluding label)
     final double absolutePlayheadPosition = playheadPosition;

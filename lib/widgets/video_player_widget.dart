@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flipedit/src/rust/api/simple.dart';
+import 'package:flipedit/utils/logger.dart';
 import 'package:flutter/material.dart';
 import 'package:irondash_engine_context/irondash_engine_context.dart';
 import 'package:flipedit/services/video_player_service.dart';
@@ -82,22 +83,22 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       // Use the video player service state as the source of truth
       final isCurrentlyPlaying = videoPlayerService.isPlaying;
       
-      print("Flutter: Toggle play/pause - currently playing: $isCurrentlyPlaying");
+      logInfo("Flutter: Toggle play/pause - currently playing: $isCurrentlyPlaying");
       
       if (isCurrentlyPlaying) {
-        print("Flutter: Calling pause()");
+        logInfo("Flutter: Calling pause()");
         await _videoPlayer!.pause();
         videoPlayerService.setPlayingState(false);
-        print("Flutter: Pause completed, state set to false");
+        logInfo("Flutter: Pause completed, state set to false");
       } else {
-        print("Flutter: Calling play()");
+        logInfo("Flutter: Calling play()");
         await _videoPlayer!.play();
         videoPlayerService.setPlayingState(true);
-        print("Flutter: Play completed, state set to true");
+        logInfo("Flutter: Play completed, state set to true");
       }
     } catch (e) {
       setState(() => _errorMessage = "Playback error: $e");
-      print("Flutter: Error in toggle play/pause: $e");
+      logInfo("Flutter: Error in toggle play/pause: $e");
     }
   }
 

@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 import 'package:flipedit/persistence/database/project_database.dart';
 import 'package:flipedit/persistence/tables/tracks.dart';
+import 'package:flipedit/utils/logger.dart';
 
 part 'project_database_track_dao.g.dart';
 
@@ -64,7 +65,7 @@ class ProjectDatabaseTrackDao extends DatabaseAccessor<ProjectDatabase>
         final track = reorderedTracks[i];
 
         // Log the planned update for debugging
-        print('Planning update in batch: Track ${track.id} to order $i');
+        logInfo('Planning update in batch: Track ${track.id} to order $i');
 
         // Use batch.update to stage the update operation
         batch.update(
@@ -79,19 +80,19 @@ class ProjectDatabaseTrackDao extends DatabaseAccessor<ProjectDatabase>
         );
       }
 
-      print('All track updates planned in batch. Executing batch...');
+      logInfo('All track updates planned in batch. Executing batch...');
       // The batch is automatically executed when the callback completes.
     });
 
     // Optional: Verification after batch execution
     try {
       final updatedTracks = await getAllTracks(); // Use existing getter
-      print('Verification after batch:');
+      logInfo('Verification after batch:');
       for (final track in updatedTracks) {
-        print('  Track ${track.id}, order: ${track.order}');
+        logInfo('  Track ${track.id}, order: ${track.order}');
       }
     } catch (e) {
-      print('Error verifying tracks after batch update: $e');
+      logInfo('Error verifying tracks after batch update: $e');
       // Decide if this error should be rethrown or just logged
     }
   }

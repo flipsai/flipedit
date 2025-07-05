@@ -121,7 +121,7 @@ class _PlayerPanelState extends State<PlayerPanel> {
                           Icon(
                             FluentIcons.video,
                             size: 48,
-                            color: Colors.white.withOpacity(0.54),
+                            color: Colors.white.withValues(alpha: 0.54),
                           ),
                           const SizedBox(height: 16),
                           Text(
@@ -137,7 +137,7 @@ class _PlayerPanelState extends State<PlayerPanel> {
                                 ? 'Add some video clips to the timeline'
                                 : 'Check that video files exist:\n${clips.map((c) => c.sourcePath).join('\n')}',
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.54),
+                              color: Colors.white.withValues(alpha: 0.54),
                               fontSize: 12,
                             ),
                             textAlign: TextAlign.center,

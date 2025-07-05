@@ -7,7 +7,7 @@ import '../services/tab_content_factory.dart';
 import 'widgets/tab_system_widget.dart';
 
 class DemoTabSystemView extends StatefulWidget {
-  const DemoTabSystemView({Key? key}) : super(key: key);
+  const DemoTabSystemView({super.key});
 
   @override
   State<DemoTabSystemView> createState() => _DemoTabSystemViewState();

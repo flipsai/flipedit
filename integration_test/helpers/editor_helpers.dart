@@ -5,6 +5,7 @@ import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
+import 'package:flipedit/utils/logger.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:watch_it/watch_it.dart'; // For di
 
@@ -27,7 +28,7 @@ Future<int> createAndLoadProject(
   await projectVm.loadProject(projectId);
   // Allow time for project loading and UI updates
   await tester.pumpAndSettle(const Duration(seconds: 2));
-  print('Created and loaded project "$projectName" (ID: $projectId)');
+  logInfo('Created and loaded project "$projectName" (ID: $projectId)');
   return projectId;
 }
 
@@ -53,7 +54,7 @@ Future<void> importTestMedia(
   );
   // Allow time for the media list panel to update
   await tester.pumpAndSettle(const Duration(seconds: 2));
-  print('Imported test media: $fileName');
+  logInfo('Imported test media: $fileName');
 }
 
 /// Finds the Draggable<ClipModel> widget associated with a media file name in the media panel.
@@ -74,7 +75,7 @@ Future<Finder> findMediaPanelDraggable(
     reason:
         'Expected to find one Draggable<ClipModel> containing text "$mediaFileName" in the media panel.',
   );
-  print('Found draggable for media: $mediaFileName');
+  logInfo('Found draggable for media: $mediaFileName');
   return draggableFinder;
 }
 
@@ -104,7 +105,7 @@ Future<void> dragMediaToTimeline(
   final Offset timelineTopLeft = tester.getTopLeft(timelineFinder);
   final Offset targetDropPosition = timelineTopLeft + dropOffset;
 
-  print(
+  logInfo(
     'Dragging from $draggableCenter to $targetDropPosition (Timeline TopLeft: $timelineTopLeft, Offset: $dropOffset)',
   );
 
@@ -113,7 +114,7 @@ Future<void> dragMediaToTimeline(
   await tester.pumpAndSettle(
     const Duration(seconds: 3),
   ); // Increased settle time might be needed
-  print('Drag and drop completed.');
+  logInfo('Drag and drop completed.');
 }
 
 /// Verifies that at least one track and at least one clip exist in the database after an operation.
@@ -132,7 +133,7 @@ Future<void> verifyTrackAndClipCreation(WidgetTester tester) async {
     isNotEmpty,
     reason: 'Expected at least one track to be created.',
   );
-  print('Verified track creation (found ${tracks.length} track(s)).');
+  logInfo('Verified track creation (found ${tracks.length} track(s)).');
 
   // Check clips directly in the database
   final clipDao = dbService.clipDao;
@@ -150,7 +151,7 @@ Future<void> verifyTrackAndClipCreation(WidgetTester tester) async {
     isNotEmpty,
     reason: 'Expected at least one clip to be created in the database.',
   );
-  print('Verified clip creation (found ${allClips.length} clip(s) in DB).');
+  logInfo('Verified clip creation (found ${allClips.length} clip(s) in DB).');
 
   // Optional: Verify UI representation (e.g., find TimelineClip widget)
   // final timelineClipFinder = find.byType(TimelineClip);
@@ -233,9 +234,9 @@ Future<void> testPanelToggleViaViewMenu({
   }
   // --- End Scoped Helper Functions ---
 
-  print('--- Testing $panelName toggle via View Menu ---');
+  logInfo('--- Testing $panelName toggle via View Menu ---');
   bool initialVisible = isVisibleGetter();
-  print('Initial $panelName Visible: $initialVisible');
+  logInfo('Initial $panelName Visible: $initialVisible');
 
   // Initial UI Check:
   expect(
@@ -246,7 +247,7 @@ Future<void> testPanelToggleViaViewMenu({
   );
 
   // --- First Toggle ---
-  print('Toggling $panelName via menu...');
+  logInfo('Toggling $panelName via menu...');
   await tester.tap(viewMenuButtonFinder); // Open menu
   await tester.pumpAndSettle();
 
@@ -265,14 +266,14 @@ Future<void> testPanelToggleViaViewMenu({
     reason:
         '[$panelName] ViewModel state should have toggled to $toggledVisible',
   );
-  print('$panelName ViewModel Visible after toggle: ${isVisibleGetter()}');
+  logInfo('$panelName ViewModel Visible after toggle: ${isVisibleGetter()}');
   expect(
     panelWidgetFinder,
     toggledVisible ? findsOneWidget : findsNothing,
     reason:
         '[$panelName] Panel Widget visibility should be updated after toggle ($toggledVisible)',
   );
-  print(
+  logInfo(
     '$panelName Panel Widget found after toggle: ${tester.any(panelWidgetFinder)}',
   );
 
@@ -287,7 +288,7 @@ Future<void> testPanelToggleViaViewMenu({
   );
 
   // --- Second Toggle --- (Back to initial state)
-  print('Toggling $panelName back via menu...');
+  logInfo('Toggling $panelName back via menu...');
   await tapFlyoutItemByTextScoped(panelName); // Tap menu item again
 
   expect(
@@ -295,14 +296,14 @@ Future<void> testPanelToggleViaViewMenu({
     initialVisible,
     reason: '[$panelName] ViewModel state should revert to $initialVisible',
   );
-  print('$panelName ViewModel Visible after revert: ${isVisibleGetter()}');
+  logInfo('$panelName ViewModel Visible after revert: ${isVisibleGetter()}');
   expect(
     panelWidgetFinder,
     initialVisible ? findsOneWidget : findsNothing,
     reason:
         '[$panelName] Panel Widget visibility should revert ($initialVisible)',
   );
-  print(
+  logInfo(
     '$panelName Panel Widget found after revert: ${tester.any(panelWidgetFinder)}',
   );
 
@@ -318,5 +319,5 @@ Future<void> testPanelToggleViaViewMenu({
   // Close the menu explicitly before finishing
   await tester.tap(viewMenuButtonFinder);
   await tester.pumpAndSettle();
-  print('$panelName toggle test complete.');
+  logInfo('$panelName toggle test complete.');
 }

@@ -1,5 +1,6 @@
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
+import 'package:flipedit/utils/logger.dart';
 
 class TimelineLogicService {
   int calculateFramePosition(
@@ -53,7 +54,7 @@ class TimelineLogicService {
     required int endTimeInSourceMs,
   }) {
     if (endTimeOnTrackMs <= startTimeOnTrackMs) {
-      print(
+      logInfo(
         "Warning: prepareClipPlacement received non-positive track duration. Adjusting.",
       );
       startTimeOnTrackMs = startTimeOnTrackMs;
@@ -237,7 +238,7 @@ class TimelineLogicService {
           endTimeInSourceMs: clampedEndTimeInSourceMs,
         );
       } else {
-        print(
+        logInfo(
           "Warning: Clip ID $clipId provided for update but not found in list. Adding as new.",
         );
         ClipModel newClipModel = ClipModel(
@@ -324,7 +325,7 @@ class TimelineLogicService {
     try {
       draggedClip = clips.firstWhere((c) => c.databaseId == clipId);
     } catch (e) {
-      print("Error: Dragged clip $clipId not found in getPreviewClipsForDrag.");
+      logInfo("Error: Dragged clip $clipId not found in getPreviewClipsForDrag.");
       return clips; // Return original list if dragged clip isn't found
     }
 
@@ -348,7 +349,7 @@ class TimelineLogicService {
     if (placementResult['success'] == true) {
       return List<ClipModel>.from(placementResult['updatedClips']);
     } else {
-      print("Warning: prepareClipPlacement failed during preview generation.");
+      logInfo("Warning: prepareClipPlacement failed during preview generation.");
       final others = clips.where((c) => c.databaseId != clipId).toList();
       final movedPreview = draggedClip.copyWith(
         trackId: targetTrackId,

@@ -272,7 +272,7 @@ class _TrackContentWidgetState extends State<TrackContentWidget> {
               color:
                   widget
                           .isSelected // Use isSelected from parent
-                      ? theme.accentColor.withOpacity(0.1)
+                      ? theme.accentColor.withValues(alpha: 0.1)
                       : candidateData.isNotEmpty
                       ? theme.accentColor.lightest.withValues(alpha: 0.3)
                       : theme.resources.subtleFillColorSecondary,
@@ -314,7 +314,7 @@ class _TrackContentWidgetState extends State<TrackContentWidget> {
                     child: IgnorePointer(
                       child: Container(
                         decoration: BoxDecoration(
-                          color: Colors.yellow.withOpacity(0.25),
+                          color: Colors.yellow.withValues(alpha: 0.25),
                           borderRadius: BorderRadius.circular(10.0),
                         ),
                       ),

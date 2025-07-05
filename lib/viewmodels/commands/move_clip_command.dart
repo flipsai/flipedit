@@ -246,12 +246,6 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
           '[MoveClipCommand] Timeline paused, fetching frame via HTTP...',
           _logTag,
         );
-        // Pass the current frame from the navigation view model
-        final frameToRefresh = _timelineNavViewModel.currentFrame;
-        logger.logDebug(
-          '[MoveClipCommand] Timeline paused. Frame refresh via HTTP removed, video player will update.',
-          _logTag,
-        );
       }
 
       logger.logInfo(

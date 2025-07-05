@@ -83,7 +83,7 @@ class _TabSystemWidgetState extends State<TabSystemWidget> {
           Icon(
             FluentIcons.document,
             size: 64,
-            color: theme.inactiveColor.withOpacity(0.5),
+            color: theme.inactiveColor.withValues(alpha: 0.5),
           ),
           const SizedBox(height: 16),
           Text(

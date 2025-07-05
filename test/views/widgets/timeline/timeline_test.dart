@@ -40,14 +40,10 @@ void main() {
   testZoomNotifier; // Needed for TimelineNavigationViewModel mock
   late ValueNotifier<int>
   testTotalFramesNotifier; // Needed for TimelineNavigationViewModel mock
-  // testTrackLabelWidthNotifier removed as it's no longer in TimelineViewModel
   late ScrollController
   testScrollController; // Still needed for Timeline widget itself
   late ValueNotifier<List<project_db.Track>>
   testTracksNotifier; // Needed for ProjectDatabaseService mock
-
-  // Define a static empty callback for test purposes
-  void emptyCallback() {}
 
   setUp(() {
     // 1. Reset DI first

@@ -4,6 +4,7 @@ import 'package:equatable/equatable.dart'; // Added for Equatable
 import 'package:flipedit/models/effect.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:drift/drift.dart' show Value;
+import 'package:flipedit/utils/logger.dart';
 
 // Import the generated part of project_database which contains the Clip class
 import 'package:flipedit/persistence/database/project_database.dart'
@@ -334,10 +335,10 @@ class ClipModel extends Equatable {
                   ) -
                   startTimeSource)),
       metadata: loadedMetadata,
-      previewPositionX: dbData.previewPositionX ?? 0.0,
-      previewPositionY: dbData.previewPositionY ?? 0.0,
-      previewWidth: dbData.previewWidth ?? 100.0,
-      previewHeight: dbData.previewHeight ?? 100.0,
+      previewPositionX: dbData.previewPositionX,
+      previewPositionY: dbData.previewPositionY,
+      previewWidth: dbData.previewWidth,
+      previewHeight: dbData.previewHeight,
     );
   }
 
@@ -409,15 +410,15 @@ class ClipModel extends Equatable {
 
   Map<String, dynamic> toJson() {
     // Debug log for clip conversion to json
-    print('ClipModel.toJson: Converting clip $databaseId to JSON');
-    print(
+    logInfo('ClipModel.toJson: Converting clip $databaseId to JSON');
+    logInfo(
       'ClipModel.toJson: previewWidth=$previewWidth, previewHeight=$previewHeight',
     );
-    print('ClipModel.toJson: metadata content: $metadata');
+    logInfo('ClipModel.toJson: metadata content: $metadata');
     if (metadata.containsKey('previewRect')) {
-      print('ClipModel.toJson: previewRect found: ${metadata['previewRect']}');
+      logInfo('ClipModel.toJson: previewRect found: ${metadata['previewRect']}');
     } else {
-      print('ClipModel.toJson: No previewRect found in metadata');
+      logInfo('ClipModel.toJson: No previewRect found in metadata');
     }
 
     // Select fields relevant for the preview server
@@ -440,7 +441,7 @@ class ClipModel extends Equatable {
       'metadata': metadata,
     };
 
-    print(
+    logInfo(
       'ClipModel.toJson: Final JSON contains previewWidth=${jsonData['previewWidth']}, previewHeight=${jsonData['previewHeight']}',
     );
     return jsonData;
@@ -470,7 +471,7 @@ class ClipModel extends Equatable {
             jsonDecode(json['metadata'] as String) as Map<String, dynamic>;
       } catch (e) {
         // Log error or handle as appropriate if metadata string is malformed
-        print('Error decoding metadata from JSON string: $e');
+        logInfo('Error decoding metadata from JSON string: $e');
       }
     }
 

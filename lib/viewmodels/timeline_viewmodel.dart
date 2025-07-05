@@ -114,9 +114,6 @@ class TimelineViewModel extends ChangeNotifier {
     }
   }
 
-  final List<VoidCallback> _internalListeners =
-      []; // Store listeners for disposal
-
   /// Executes a TimelineCommand. If the command is Undoable, it's processed
   /// via the UndoRedoService. Otherwise, it's executed directly.
   Future<void> runCommand(TimelineCommand cmd) async {

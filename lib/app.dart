@@ -1,5 +1,4 @@
 import 'dart:io' show Platform;
-import 'package:flipedit/views/demo_tab_system_view.dart';
 import 'package:flipedit/views/screens/editor_screen.dart';
 import 'package:fluent_ui/fluent_ui.dart' as fluent;
 import 'package:flutter/widgets.dart';

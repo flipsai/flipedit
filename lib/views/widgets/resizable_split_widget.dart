@@ -22,13 +22,13 @@ class ResizableSplitWidget extends StatefulWidget {
   final Function(List<double> weights)? onWeightsChanged;
 
   const ResizableSplitWidget({
-    Key? key,
+    super.key,
     required this.children,
     this.axis = Axis.horizontal,
     this.dividerWidth = 4.0,
     this.dividerColor,
     this.onWeightsChanged,
-  }) : super(key: key);
+  });
 
   @override
   State<ResizableSplitWidget> createState() => _ResizableSplitWidgetState();
@@ -92,7 +92,7 @@ class _ResizableSplitWidgetState extends State<ResizableSplitWidget> {
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
     final dividerColor = widget.dividerColor ?? 
-        theme.resources.cardStrokeColorDefault.withOpacity(0.3);
+        theme.resources.cardStrokeColorDefault.withValues(alpha: 0.3);
 
     if (widget.children.isEmpty) {
       return const SizedBox.shrink();
@@ -173,7 +173,7 @@ class _ResizableSplitWidgetState extends State<ResizableSplitWidget> {
             child: Container(
               width: widget.axis == Axis.horizontal ? 1 : double.infinity,
               height: widget.axis == Axis.vertical ? 1 : double.infinity,
-              color: color.withOpacity(0.8),
+              color: color.withValues(alpha: 0.8),
             ),
           ),
         ),

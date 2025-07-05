@@ -9,7 +9,6 @@ import 'package:flipedit/services/layout_service.dart';
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/services/project_metadata_service.dart';
 import 'package:flipedit/services/media_duration_service.dart';
-import 'package:flipedit/services/uv_manager.dart';
 import 'package:flipedit/services/video_player_service.dart';
 import 'package:flipedit/services/tab_system_persistence_service.dart';
 import 'package:flipedit/services/tab_content_factory.dart';
@@ -23,7 +22,6 @@ import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flipedit/services/undo_redo_service.dart';
-import 'package:flipedit/viewmodels/preview_viewmodel.dart';
 import 'package:flipedit/services/video_processing_service.dart';
 import 'package:flipedit/services/timeline_processing_service.dart';
 import 'package:watch_it/watch_it.dart';
@@ -113,10 +111,6 @@ Future<void> setupServiceLocator() async {
 
   // Register TimelineLogicService
   di.registerLazySingleton<TimelineLogicService>(() => TimelineLogicService());
-  di.registerLazySingleton<PreviewViewModel>(
-    () => PreviewViewModel(),
-    dispose: (vm) => vm.dispose(), // Add dispose for consistency
-  );
 
   di.registerLazySingleton<MediaDurationService>(() => MediaDurationService());
 
@@ -154,18 +148,6 @@ Future<void> setupServiceLocator() async {
   di.registerLazySingleton<TimelineProcessingService>(
     () => TimelineProcessingService(),
     dispose: (service) => service.dispose(),
-  );
-
-  // Register UvManager for Python integration
-  di.registerLazySingletonAsync<UvManager>(
-    () async {
-      final manager = UvManager();
-      await manager.initialize();
-      return manager;
-    },
-    dispose: (manager) async {
-      await manager.shutdownVideoStreamServer();
-    },
   );
 
   // Register tab system services

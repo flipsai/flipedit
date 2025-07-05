@@ -1,11 +1,7 @@
 import 'dart:io';
-import 'dart:ui'; // Import for Size class
+// Import for Size class
 
-import 'package:flipedit/viewmodels/editor_viewmodel.dart'; // For EditorViewModel
-import 'package:flipedit/views/widgets/inspector/inspector_panel.dart'; // For InspectorPanel finder
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:watch_it/watch_it.dart'; // For di
-
 import 'package:flipedit/app.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/views/widgets/timeline/timeline.dart'; // Needed for timelineFinder
@@ -55,15 +51,9 @@ void main() {
     debugPrint('App pumped and settled.');
 
     // --- 2. Create and Load Project ---
-    final projectId = await createAndLoadProject(
-      tester,
-      'Main Journey Project',
-    );
-    // Basic verification that project ID is valid is done within the helper
 
     // --- 2b. Test View Menu Toggles ---
     debugPrint('--- Testing View Menu Toggles ---');
-    // TODO: Update for tab system
     // final editorVm = di<EditorViewModel>();
     // final viewMenuButtonFinder = findViewMenuButton(tester);
 
