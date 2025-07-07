@@ -1148,6 +1148,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "irondash_run_loop"
+version = "0.6.0"
+source = "git+https://github.com/irondash/irondash.git?rev=65343873472d6796c0388362a8e04b6e9a499044#65343873472d6796c0388362a8e04b6e9a499044"
+dependencies = [
+ "core-foundation",
+ "futures",
+ "irondash_engine_context 0.5.0",
+ "log",
+ "objc2",
+ "objc2-app-kit",
+ "objc2-foundation",
+ "once_cell",
+]
+
+[[package]]
 name = "irondash_texture"
 version = "0.5.0"
 source = "git+https://github.com/irondash/irondash.git?rev=65343873472d6796c0388362a8e04b6e9a499044#65343873472d6796c0388362a8e04b6e9a499044"
@@ -1158,7 +1173,7 @@ dependencies = [
  "gobject-sys 0.16.3",
  "icrate",
  "irondash_engine_context 0.5.0",
- "irondash_run_loop",
+ "irondash_run_loop 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "jni",
  "log",
  "ndk-sys 0.4.1+23.1.7779620",
@@ -1771,6 +1786,7 @@ dependencies = [
  "gstreamer-pbutils",
  "gstreamer-video",
  "irondash_engine_context 0.6.0",
+ "irondash_run_loop 0.6.0 (git+https://github.com/irondash/irondash.git?rev=65343873472d6796c0388362a8e04b6e9a499044)",
  "irondash_texture",
  "lazy_static",
  "log",

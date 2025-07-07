@@ -5,7 +5,6 @@ use crate::video::timeline_player::TimelinePlayer as InternalTimelinePlayer;
 pub use crate::common::types::{FrameData, TimelineData, TimelineClip, TimelineTrack, TextureFrame};
 use gstreamer as gst;
 use gstreamer_editing_services as ges;
-use gstreamer_editing_services::prelude::*;
 use crate::utils::testing;
 use std::sync::{Arc, Mutex};
 use anyhow::Result;
@@ -14,7 +13,7 @@ use lazy_static::lazy_static;
 use std::sync::Mutex as StdMutex;
 use crate::video::pipeline::VideoPipeline;
 use crate::video::frame_handler::FrameHandler;
-use log::{debug, info};
+use log::info;
 
 lazy_static! {
     static ref ACTIVE_VIDEOS: StdMutex<Vec<VideoPipeline>> = StdMutex::new(Vec::new());
@@ -285,6 +284,11 @@ impl GESTimelinePlayer {
         Ok(())
     }
 
+    /// Create texture for this player
+    pub fn create_texture(&mut self, engine_handle: i64) -> Result<i64, String> {
+        self.inner.create_texture(engine_handle).map_err(|e| e.to_string())
+    }
+
     pub fn load_timeline(&mut self, timeline_data: TimelineData) -> Result<(), String> {
         self.inner.load_timeline(timeline_data).map_err(|e| e.to_string())
     }
@@ -365,13 +369,25 @@ impl GESTimelinePlayer {
 /// Create a new video texture using irondash for zero-copy rendering
 #[frb(sync)]
 pub fn create_video_texture(width: u32, height: u32, engine_handle: i64) -> Result<i64, String> {
-    crate::video::irondash_texture::create_video_texture(width, height, engine_handle)
+    crate::video::irondash_texture::create_video_texture_on_main_thread(width, height, engine_handle)
         .map_err(|e| e.to_string())
 }
 
 /// Update video frame data for all irondash textures
 #[frb(sync)]
 pub fn update_video_frame(frame_data: FrameData) -> Result<(), String> {
+    // Use the texture registry to update all registered textures
+    crate::video::texture_registry::update_all_textures(frame_data.clone());
+    
+    // CRITICAL: Also call any specific irondash texture update functions
+    // This is the key to making individual textures work properly
+    if let Some(texture_id) = frame_data.texture_id {
+        if crate::video::timeline_player::call_irondash_texture_update(texture_id as i64, frame_data.clone()) {
+            log::debug!("Called specific irondash update for texture {}", texture_id);
+        }
+    }
+    
+    // Also call the legacy function for compatibility
     crate::video::irondash_texture::update_video_frame(frame_data)
         .map_err(|e| format!("Failed to update video frame: {}", e))
 }
@@ -379,14 +395,14 @@ pub fn update_video_frame(frame_data: FrameData) -> Result<(), String> {
 /// Get the number of active irondash textures
 #[frb(sync)]
 pub fn get_texture_count() -> usize {
-    crate::video::irondash_texture::get_texture_count()
+    crate::video::texture_registry::get_texture_count()
 } 
 
 /// Play a basic MP4 video and return irondash texture id
 #[frb(sync)]
 pub fn play_basic_video(file_path: String, engine_handle: i64) -> Result<i64, String> {
     // Create texture placeholder (1x1)
-    let texture_id = crate::video::irondash_texture::create_video_texture(1, 1, engine_handle)
+    let texture_id = crate::video::irondash_texture::create_video_texture_on_main_thread(1, 1, engine_handle)
         .map_err(|e| e.to_string())?;
 
     // Build pipeline
@@ -402,7 +418,7 @@ pub fn play_basic_video(file_path: String, engine_handle: i64) -> Result<i64, St
 
 #[frb(sync)]
 pub fn play_dual_video(file_path_left: String, file_path_right: String, engine_handle: i64) -> Result<i64, String> {
-    let texture_id = crate::video::irondash_texture::create_video_texture(1, 1, engine_handle)
+    let texture_id = crate::video::irondash_texture::create_video_texture_on_main_thread(1, 1, engine_handle)
         .map_err(|e| e.to_string())?;
 
     let handler = FrameHandler::new();
@@ -415,25 +431,22 @@ pub fn play_dual_video(file_path_left: String, file_path_right: String, engine_h
     Ok(texture_id)
 }
 
-/// Create and load a GES timeline player with timeline data (simplified implementation)
+/// Create and load a GES timeline player with timeline data (proper GES implementation)
 pub fn create_ges_timeline_player(timeline_data: TimelineData, engine_handle: i64) -> Result<(GESTimelinePlayer, i64), String> {
-    // Initialize GStreamer 
+    // Initialize GStreamer and GES
     gst::init().map_err(|e| format!("Failed to initialize GStreamer: {}", e))?;
     ges::init().map_err(|e| format!("Failed to initialize GES: {}", e))?;
     
-    // Create texture for video rendering
-    let texture_id = create_video_texture(1920, 1080, engine_handle)?;
-    
-    // Create simplified GES timeline player for now
-    // TODO: Implement full GES integration with proper timeline construction
+    // Create GES timeline player with proper GES integration
     let mut ges_player = GESTimelinePlayer::new();
-    ges_player.set_texture_ptr(texture_id)?;
     
-    // Load the timeline data so duration can be calculated
+    // Create texture for this specific player
+    let texture_id = ges_player.create_texture(engine_handle)?;
+    
+    // Load the timeline data
     ges_player.load_timeline(timeline_data.clone())?;
     
-    log::info!("Created simplified GES timeline player with {} tracks (full GES implementation pending)", timeline_data.tracks.len());
+    log::info!("Created GES timeline player with {} tracks using proper GES Timeline", timeline_data.tracks.len());
     
-    // For now, return the player - in the future this will create a real GES pipeline
     Ok((ges_player, texture_id))
 } 

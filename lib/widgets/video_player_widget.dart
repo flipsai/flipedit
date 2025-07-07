@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flipedit/services/video_player_service.dart';
+import 'package:flutter/services.dart';
 import 'package:flipedit/viewmodels/video_player_viewmodel.dart';
+import 'package:flipedit/utils/logger.dart';
 import 'package:watch_it/watch_it.dart';
 
 class VideoPlayerWidget extends StatefulWidget with WatchItStatefulWidgetMixin {
@@ -33,6 +34,9 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       valueListenable: _viewModel.errorMessageNotifier,
       builder: (context, errorMessage, _) {
         if (errorMessage != null) {
+          // Log error for debugging
+          logError('VideoPlayerWidget', 'Timeline player error: $errorMessage');
+          
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -40,6 +44,14 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                 const Icon(Icons.error, color: Colors.red, size: 48),
                 const SizedBox(height: 16),
                 Text('Error: $errorMessage'),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () {
+                    // Copy error to clipboard for easy sharing
+                    Clipboard.setData(ClipboardData(text: errorMessage));
+                  },
+                  child: const Text('Copy Error'),
+                ),
               ],
             ),
           );

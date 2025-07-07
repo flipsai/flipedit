@@ -4,7 +4,6 @@ use gstreamer_app::AppSink;
 use anyhow::{Result, Error};
 use log::{info, debug, error};
 use std::sync::{Arc, Mutex};
-use crate::video::irondash_texture;
 use crate::common::types::FrameData;
 
 pub struct VideoPipeline {
@@ -131,13 +130,15 @@ impl VideoPipeline {
         };
 
         // Directly update the irondash texture
-        if let Err(e) = irondash_texture::update_video_frame(frame_data) {
+        if let Err(e) = crate::video::irondash_texture::update_video_frame(frame_data) {
              error!("Failed to update irondash video frame: {}", e);
         }
 
         // Also update the frame handler's dimensions so the UI can get the correct aspect ratio
-        let mut handler = frame_handler.lock().unwrap();
-        handler.update_dimensions(info.width(), info.height());
+        {
+            let handler = frame_handler.lock().unwrap();
+            handler.update_dimensions(info.width(), info.height());
+        }
         
         debug!("Processed and sent frame to irondash texture. Dimensions: {}x{}", info.width(), info.height());
 
