@@ -60,6 +60,11 @@ Future<(GesTimelinePlayer, PlatformInt64)> createGesTimelinePlayer({
   engineHandle: engineHandle,
 );
 
+/// Get video duration in milliseconds using GStreamer
+/// This is a reliable way to get video duration without depending on fallback estimations
+BigInt getVideoDurationMs({required String filePath}) =>
+    RustLib.instance.api.crateApiSimpleGetVideoDurationMs(filePath: filePath);
+
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<GESTimelinePlayer>>
 abstract class GesTimelinePlayer implements RustOpaqueInterface {
   /// Create texture for this player

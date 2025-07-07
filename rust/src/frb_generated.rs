@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.7.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1678414533;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -451853142;
 
 // Section: executor
 
@@ -2932,6 +2932,36 @@ fn wire__crate__api__simple__get_texture_count_impl(
         },
     )
 }
+fn wire__crate__api__simple__get_video_duration_ms_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "get_video_duration_ms",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_file_path = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, String>((move || {
+                let output_ok = crate::api::simple::get_video_duration_ms(api_file_path)?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
 fn wire__crate__api__bridge__greet_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -3624,7 +3654,7 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        63 => wire__crate__api__bridge__init_app_impl(port, ptr, rust_vec_len, data_len),
+        64 => wire__crate__api__bridge__init_app_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -3749,11 +3779,12 @@ fn pde_ffi_dispatcher_sync_impl(
         48 => wire__crate__api__simple__VideoPlayer_new_player_impl(ptr, rust_vec_len, data_len),
         59 => wire__crate__api__simple__create_video_texture_impl(ptr, rust_vec_len, data_len),
         60 => wire__crate__api__simple__get_texture_count_impl(ptr, rust_vec_len, data_len),
-        61 => wire__crate__api__bridge__greet_impl(ptr, rust_vec_len, data_len),
-        62 => wire__crate__api__simple__greet_impl(ptr, rust_vec_len, data_len),
-        64 => wire__crate__api__simple__play_basic_video_impl(ptr, rust_vec_len, data_len),
-        65 => wire__crate__api__simple__play_dual_video_impl(ptr, rust_vec_len, data_len),
-        66 => wire__crate__api__simple__update_video_frame_impl(ptr, rust_vec_len, data_len),
+        61 => wire__crate__api__simple__get_video_duration_ms_impl(ptr, rust_vec_len, data_len),
+        62 => wire__crate__api__bridge__greet_impl(ptr, rust_vec_len, data_len),
+        63 => wire__crate__api__simple__greet_impl(ptr, rust_vec_len, data_len),
+        65 => wire__crate__api__simple__play_basic_video_impl(ptr, rust_vec_len, data_len),
+        66 => wire__crate__api__simple__play_dual_video_impl(ptr, rust_vec_len, data_len),
+        67 => wire__crate__api__simple__update_video_frame_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }

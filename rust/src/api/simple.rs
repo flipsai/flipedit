@@ -5,6 +5,7 @@ use crate::video::timeline_player::TimelinePlayer as InternalTimelinePlayer;
 pub use crate::common::types::{FrameData, TimelineData, TimelineClip, TimelineTrack, TextureFrame};
 use gstreamer as gst;
 use gstreamer_editing_services as ges;
+use gstreamer::prelude::*;
 use crate::utils::testing;
 use std::sync::{Arc, Mutex};
 use anyhow::Result;
@@ -13,7 +14,7 @@ use lazy_static::lazy_static;
 use std::sync::Mutex as StdMutex;
 use crate::video::pipeline::VideoPipeline;
 use crate::video::frame_handler::FrameHandler;
-use log::info;
+use log::{info, warn};
 
 lazy_static! {
     static ref ACTIVE_VIDEOS: StdMutex<Vec<VideoPipeline>> = StdMutex::new(Vec::new());
@@ -436,4 +437,91 @@ pub fn create_ges_timeline_player(timeline_data: TimelineData, engine_handle: i6
     log::info!("Created GES timeline player with {} tracks using proper GES Timeline", timeline_data.tracks.len());
     
     Ok((ges_player, texture_id))
+}
+
+/// Get video duration in milliseconds using GStreamer
+/// This is a reliable way to get video duration without depending on fallback estimations
+#[frb(sync)]
+pub fn get_video_duration_ms(file_path: String) -> Result<u64, String> {
+    // Initialize GStreamer if not already done
+    if let Err(e) = gst::init() {
+        return Err(format!("Failed to initialize GStreamer: {}", e));
+    }
+    
+    // Check if file exists
+    if !std::path::Path::new(&file_path).exists() {
+        return Err(format!("Video file not found: {}", file_path));
+    }
+    
+    info!("Getting video duration for: {}", file_path);
+    
+    // Create a minimal pipeline for duration query
+    let pipeline = gst::Pipeline::new();
+    
+    // Create elements
+    let source = gst::ElementFactory::make("filesrc")
+        .property("location", &file_path)
+        .build()
+        .map_err(|e| format!("Failed to create filesrc: {}", e))?;
+    
+    let decodebin = gst::ElementFactory::make("decodebin")
+        .build()
+        .map_err(|e| format!("Failed to create decodebin: {}", e))?;
+    
+    let fakesink = gst::ElementFactory::make("fakesink")
+        .build()
+        .map_err(|e| format!("Failed to create fakesink: {}", e))?;
+    
+    // Add elements to pipeline
+    pipeline.add_many(&[&source, &decodebin, &fakesink])
+        .map_err(|e| format!("Failed to add elements to pipeline: {}", e))?;
+    
+    // Link source to decodebin
+    source.link(&decodebin)
+        .map_err(|e| format!("Failed to link source to decodebin: {}", e))?;
+    
+    // Set up decodebin pad-added callback to link to fakesink
+    let fakesink_clone = fakesink.clone();
+    decodebin.connect_pad_added(move |_src, src_pad| {
+        // Just link the first pad to fakesink (we only need duration, not actual decoding)
+        if let Some(sink_pad) = fakesink_clone.static_pad("sink") {
+            if !sink_pad.is_linked() {
+                let _ = src_pad.link(&sink_pad);
+            }
+        }
+    });
+    
+    // Set pipeline to PAUSED state to get duration
+    pipeline.set_state(gst::State::Paused)
+        .map_err(|e| format!("Failed to set pipeline to PAUSED: {:?}", e))?;
+    
+    // Wait for pipeline to reach PAUSED state
+    let timeout = std::time::Duration::from_secs(5);
+    let start_time = std::time::Instant::now();
+    
+    while start_time.elapsed() < timeout {
+        let (_, current_state, _) = pipeline.state(Some(gst::ClockTime::from_nseconds(100_000_000)));
+        if current_state == gst::State::Paused {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    
+    // Query duration
+    let duration_ms = if let Some(duration) = pipeline.query_duration::<gst::ClockTime>() {
+        let duration_ns = duration.nseconds();
+        let duration_ms = duration_ns / 1_000_000; // Convert nanoseconds to milliseconds
+        info!("Successfully got video duration: {} ms", duration_ms);
+        duration_ms
+    } else {
+        // Clean up pipeline
+        pipeline.set_state(gst::State::Null).ok();
+        return Err("Could not query video duration".to_string());
+    };
+    
+    // Clean up pipeline
+    pipeline.set_state(gst::State::Null)
+        .map_err(|e| format!("Failed to clean up pipeline: {:?}", e))?;
+    
+    Ok(duration_ms)
 } 

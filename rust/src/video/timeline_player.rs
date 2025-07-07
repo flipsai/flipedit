@@ -31,6 +31,7 @@ pub struct TimelinePlayer {
     duration_ms: Arc<Mutex<Option<u64>>>,
     position_callback: Arc<Mutex<Option<PositionUpdateCallback>>>,
     position_timer_id: Arc<Mutex<Option<gst::glib::SourceId>>>,
+    bus_watch_guard: Option<gst::bus::BusWatchGuard>,
     // GL context sharing fields
     gl_display: Option<gst_gl::GLDisplay>,
     gl_context: Option<gst_gl::GLContext>,
@@ -59,6 +60,7 @@ impl TimelinePlayer {
             duration_ms: Arc::new(Mutex::new(None)),
             position_callback: Arc::new(Mutex::new(None)),
             position_timer_id: Arc::new(Mutex::new(None)),
+            bus_watch_guard: None,
             gl_display: None,
             gl_context: None,
             flutter_engine_handle: None,
@@ -114,8 +116,12 @@ impl TimelinePlayer {
         info!("Creating GES timeline with {} clips", 
               timeline_data.tracks.iter().flat_map(|t| &t.clips).count());
 
-        // Add clips to the timeline layer
-        for (index, clip) in timeline_data.tracks.iter().flat_map(|t| &t.clips).enumerate() {
+        // Collect all clips and sort them by start time for proper sequencing
+        let mut all_clips: Vec<_> = timeline_data.tracks.iter().flat_map(|t| &t.clips).collect();
+        all_clips.sort_by_key(|clip| clip.start_time_on_track_ms);
+        
+        // Add clips to the timeline layer in chronological order
+        for (index, clip) in all_clips.iter().enumerate() {
             let uri = format!("file://{}", clip.source_path);
             info!("Adding clip {} from URI: {}", index + 1, uri);
             
@@ -170,7 +176,7 @@ impl TimelinePlayer {
         Ok(timeline)
     }
 
-    fn create_ges_pipeline(&self, timeline: &ges::Timeline) -> Result<ges::Pipeline> {
+    fn create_ges_pipeline(&mut self, timeline: &ges::Timeline) -> Result<ges::Pipeline> {
         let pipeline = ges::Pipeline::new();
         
         pipeline.set_timeline(timeline)
@@ -183,7 +189,10 @@ impl TimelinePlayer {
             .build()?;
         pipeline.set_audio_sink(Some(&audio_sink));
         
-        info!("GES pipeline created successfully");
+        // Set up message bus handling for EOS and other pipeline events
+        self.setup_message_bus_handling(&pipeline)?;
+        
+        info!("GES pipeline created successfully with message bus handling");
         Ok(pipeline)
     }
 
@@ -289,6 +298,78 @@ impl TimelinePlayer {
         
         *position_timer_id.lock().unwrap() = Some(timeout_id);
         info!("GStreamer position monitoring started at 60fps");
+    }
+
+    fn setup_message_bus_handling(&mut self, pipeline: &ges::Pipeline) -> Result<()> {
+        info!("Setting up message bus handling for EOS and pipeline events");
+        
+        let bus = pipeline.bus().ok_or_else(|| anyhow!("Failed to get pipeline bus"))?;
+        
+        // Clone Arc references for the message handler
+        let is_playing = Arc::clone(&self.is_playing);
+        let duration_ms = Arc::clone(&self.duration_ms);
+        
+        // Set up async message handling
+        let watch_guard = bus.add_watch(move |_bus, message| {
+            match message.type_() {
+                gst::MessageType::Eos => {
+                    info!("Received EOS (End of Stream) message - timeline playback completed");
+                    
+                    // Reset position to beginning for potential replay
+                    // Note: We don't automatically restart - let the UI handle this
+                    *is_playing.lock().unwrap() = false;
+                    info!("Timeline playback finished, set playing state to false");
+                },
+                gst::MessageType::Error => {
+                    let error_msg = message.view();
+                    if let gst::MessageView::Error(err) = error_msg {
+                        warn!("Pipeline error: {} - {}", err.error(), err.debug().unwrap_or_default());
+                    }
+                    *is_playing.lock().unwrap() = false;
+                },
+                gst::MessageType::StateChanged => {
+                    if let Some(src) = message.src() {
+                        if src.name() == "pipeline0" { // GES pipeline name
+                            let state_msg = message.view();
+                            if let gst::MessageView::StateChanged(state_change) = state_msg {
+                                let old_state = state_change.old();
+                                let new_state = state_change.current();
+                                debug!("Pipeline state changed: {:?} -> {:?}", old_state, new_state);
+                                
+                                // Update playing state based on pipeline state
+                                match new_state {
+                                    gst::State::Playing => {
+                                        *is_playing.lock().unwrap() = true;
+                                        info!("Pipeline confirmed PLAYING state");
+                                    },
+                                    gst::State::Paused | gst::State::Null | gst::State::Ready => {
+                                        *is_playing.lock().unwrap() = false;
+                                        debug!("Pipeline confirmed non-playing state: {:?}", new_state);
+                                    },
+                                    _ => {}
+                                }
+                            }
+                        }
+                    }
+                },
+                gst::MessageType::DurationChanged => {
+                    debug!("Pipeline duration changed");
+                    // Duration is already calculated from timeline data, so we don't need to update it
+                },
+                _ => {
+                    // Log other message types for debugging
+                    debug!("Received message type: {:?}", message.type_());
+                }
+            }
+            
+            gst::glib::ControlFlow::Continue
+        }).map_err(|e| anyhow!("Failed to add bus watch: {}", e))?;
+        
+        // Store the watch guard to keep it alive
+        self.bus_watch_guard = Some(watch_guard);
+        
+        info!("Message bus handling setup completed");
+        Ok(())
     }
 
     pub fn update_position(&self) {
