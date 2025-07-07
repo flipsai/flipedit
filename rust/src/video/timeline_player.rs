@@ -31,7 +31,7 @@ pub struct TimelinePlayer {
     duration_ms: Arc<Mutex<Option<u64>>>,
     position_callback: Arc<Mutex<Option<PositionUpdateCallback>>>,
     position_timer_id: Arc<Mutex<Option<gst::glib::SourceId>>>,
-    bus_watch_guard: Option<gst::bus::BusWatchGuard>,
+    // Remove bus_watch_guard as it's not Send and causes hot restart issues
     // GL context sharing fields
     gl_display: Option<gst_gl::GLDisplay>,
     gl_context: Option<gst_gl::GLContext>,
@@ -60,7 +60,6 @@ impl TimelinePlayer {
             duration_ms: Arc::new(Mutex::new(None)),
             position_callback: Arc::new(Mutex::new(None)),
             position_timer_id: Arc::new(Mutex::new(None)),
-            bus_watch_guard: None,
             gl_display: None,
             gl_context: None,
             flutter_engine_handle: None,
@@ -86,15 +85,25 @@ impl TimelinePlayer {
         );
         self.stop_pipeline()?;
 
-        let max_clip_end = timeline_data
-            .tracks
+        // Calculate timeline duration more carefully
+        let all_clips: Vec<_> = timeline_data.tracks.iter().flat_map(|t| &t.clips).collect();
+        let max_clip_end = all_clips
             .iter()
-            .flat_map(|t| &t.clips)
             .map(|c| c.end_time_on_track_ms as u64)
             .max()
             .unwrap_or(0);
         let duration_ms = max_clip_end.max(30000);
-        info!("Timeline duration calculation: max_clip_end={}ms, final_duration={}ms", max_clip_end, duration_ms);
+        
+        info!("Timeline duration calculation:");
+        info!("  Total clips: {}", all_clips.len());
+        for (i, clip) in all_clips.iter().enumerate() {
+            info!("  Clip {}: {}ms -> {}ms (duration: {}ms)", 
+                  i + 1, 
+                  clip.start_time_on_track_ms, 
+                  clip.end_time_on_track_ms,
+                  clip.end_time_on_track_ms - clip.start_time_on_track_ms);
+        }
+        info!("  Max clip end: {}ms, Final duration: {}ms", max_clip_end, duration_ms);
         *self.duration_ms.lock().unwrap() = Some(duration_ms);
 
         // Create GES timeline
@@ -151,28 +160,39 @@ impl TimelinePlayer {
                 let max_duration = asset_duration_ms.saturating_sub(final_inpoint);
                 let final_duration = std::cmp::min(duration_ms, max_duration);
                 
-                let _ges_clip = layer.add_asset(
+                let ges_clip = layer.add_asset(
                     &asset,
                     gst::ClockTime::from_mseconds(start_ms),
                     gst::ClockTime::from_mseconds(final_inpoint),
                     gst::ClockTime::from_mseconds(final_duration),
-                    ges::TrackType::UNKNOWN,
+                    ges::TrackType::VIDEO | ges::TrackType::AUDIO,
                 ).map_err(|e| anyhow!("Failed to add asset {} to layer: {}", index + 1, e))?;
+                
+                info!("Added clip {} to timeline: start={}ms, duration={}ms, inpoint={}ms", 
+                      index + 1, start_ms, final_duration, final_inpoint);
                 
                 info!("Successfully added clip {} to timeline", index + 1);
             } else {
-                let _ges_clip = layer.add_asset(
+                let ges_clip = layer.add_asset(
                     &asset,
                     gst::ClockTime::from_mseconds(start_ms),
                     gst::ClockTime::from_mseconds(inpoint_ms),
                     gst::ClockTime::from_mseconds(duration_ms),
-                    ges::TrackType::UNKNOWN,
+                    ges::TrackType::VIDEO | ges::TrackType::AUDIO,
                 ).map_err(|e| anyhow!("Failed to add asset {} to layer: {}", index + 1, e))?;
                 
+                info!("Added clip {} to timeline: start={}ms, duration={}ms, inpoint={}ms", 
+                      index + 1, start_ms, duration_ms, inpoint_ms);
                 info!("Successfully added clip {} to timeline", index + 1);
             }
         }
 
+        // Commit the timeline after all clips are added
+        if !timeline.commit() {
+            return Err(anyhow!("Failed to commit GES timeline"));
+        }
+        
+        info!("GES timeline committed successfully with {} clips", all_clips.len());
         Ok(timeline)
     }
 
@@ -309,11 +329,13 @@ impl TimelinePlayer {
         let is_playing = Arc::clone(&self.is_playing);
         let duration_ms = Arc::clone(&self.duration_ms);
         
-        // Set up async message handling
-        let watch_guard = bus.add_watch(move |_bus, message| {
+        // Set up async message handling without storing the guard
+        // This prevents Send/Sync issues during hot restart
+        let _watch_guard = bus.add_watch(move |_bus, message| {
             match message.type_() {
                 gst::MessageType::Eos => {
-                    info!("Received EOS (End of Stream) message - timeline playback completed");
+                    info!("=== RECEIVED EOS (End of Stream) ===");
+                    info!("Timeline playback completed normally");
                     
                     // Reset position to beginning for potential replay
                     // Note: We don't automatically restart - let the UI handle this
@@ -365,8 +387,7 @@ impl TimelinePlayer {
             gst::glib::ControlFlow::Continue
         }).map_err(|e| anyhow!("Failed to add bus watch: {}", e))?;
         
-        // Store the watch guard to keep it alive
-        self.bus_watch_guard = Some(watch_guard);
+        // Let the watch guard be automatically cleaned up when pipeline is destroyed
         
         info!("Message bus handling setup completed");
         Ok(())
