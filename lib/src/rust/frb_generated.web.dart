@@ -113,6 +113,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RustStreamSink<FrameData> dco_decode_StreamSink_frame_data_Sse(dynamic raw);
 
   @protected
+  RustStreamSink<int> dco_decode_StreamSink_i_32_Sse(dynamic raw);
+
+  @protected
   RustStreamSink<(double, BigInt)> dco_decode_StreamSink_record_f_64_u_64_Sse(
     dynamic raw,
   );
@@ -287,6 +290,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RustStreamSink<FrameData> sse_decode_StreamSink_frame_data_Sse(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  RustStreamSink<int> sse_decode_StreamSink_i_32_Sse(
     SseDeserializer deserializer,
   );
 
@@ -493,6 +501,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_StreamSink_frame_data_Sse(
     RustStreamSink<FrameData> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_StreamSink_i_32_Sse(
+    RustStreamSink<int> self,
     SseSerializer serializer,
   );
 

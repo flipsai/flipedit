@@ -353,6 +353,16 @@ impl GESTimelinePlayer {
         Ok(())
     }
 
+    pub fn setup_seek_completion_stream(&mut self, sink: StreamSink<i32>) -> Result<()> {
+        self.inner.set_seek_completion_callback(Box::new(move |position_ms| {
+            if let Err(e) = sink.add(position_ms as i32) {
+                eprintln!("Failed to send seek completion to sink: {:?}", e);
+            }
+            Ok(())
+        })).map_err(|e| anyhow::anyhow!(e.to_string()))?;
+        Ok(())
+    }
+
     pub fn dispose(&mut self) -> Result<(), String> {
         self.inner.dispose().map_err(|e| e.to_string())
     }

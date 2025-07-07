@@ -13,6 +13,7 @@ use crate::common::types::{FrameData, TimelineData};
 use crate::video::irondash_texture::create_player_texture;
 
 pub type PositionUpdateCallback = Box<dyn Fn(f64, u64) -> Result<()> + Send + Sync>;
+pub type SeekCompletionCallback = Box<dyn Fn(u64) -> Result<()> + Send + Sync>;
 
 /// A timeline player that uses GES (GStreamer Editing Services) Timeline,
 /// following the proper architecture for video editing applications.
@@ -30,6 +31,7 @@ pub struct TimelinePlayer {
     current_position_ms: Arc<Mutex<u64>>,
     duration_ms: Arc<Mutex<Option<u64>>>,
     position_callback: Arc<Mutex<Option<PositionUpdateCallback>>>,
+    seek_completion_callback: Arc<Mutex<Option<SeekCompletionCallback>>>,
     position_timer_id: Arc<Mutex<Option<gst::glib::SourceId>>>,
     // Remove bus_watch_guard as it's not Send and causes hot restart issues
     // GL context sharing fields
@@ -59,6 +61,7 @@ impl TimelinePlayer {
             current_position_ms: Arc::new(Mutex::new(0)),
             duration_ms: Arc::new(Mutex::new(None)),
             position_callback: Arc::new(Mutex::new(None)),
+            seek_completion_callback: Arc::new(Mutex::new(None)),
             position_timer_id: Arc::new(Mutex::new(None)),
             gl_display: None,
             gl_context: None,
@@ -297,7 +300,6 @@ impl TimelinePlayer {
         let position_callback = Arc::clone(&self.position_callback);
         let is_playing = Arc::clone(&self.is_playing);
         let current_position_ms = Arc::clone(&self.current_position_ms);
-        let position_timer_id = Arc::clone(&self.position_timer_id);
         
         let timeout_id = gst::glib::timeout_add(Duration::from_millis(16), move || {
             let _playing = *is_playing.lock().unwrap();
@@ -316,7 +318,7 @@ impl TimelinePlayer {
             gst::glib::ControlFlow::Continue
         });
         
-        *position_timer_id.lock().unwrap() = Some(timeout_id);
+        *self.position_timer_id.lock().unwrap() = Some(timeout_id);
         info!("GStreamer position monitoring started at 60fps");
     }
 
@@ -328,6 +330,8 @@ impl TimelinePlayer {
         // Clone Arc references for the message handler
         let is_playing = Arc::clone(&self.is_playing);
         let duration_ms = Arc::clone(&self.duration_ms);
+        let seek_completion_callback = Arc::clone(&self.seek_completion_callback);
+        let current_position_ms = Arc::clone(&self.current_position_ms);
         
         // Set up async message handling without storing the guard
         // This prevents Send/Sync issues during hot restart
@@ -370,6 +374,17 @@ impl TimelinePlayer {
                                     },
                                     _ => {}
                                 }
+                            }
+                        }
+                    }
+                },
+                gst::MessageType::AsyncDone => {
+                    debug!("Received ASYNC_DONE – seek operation completed");
+                    let pos = *current_position_ms.lock().unwrap();
+                    if let Ok(callback_guard) = seek_completion_callback.lock() {
+                        if let Some(ref callback) = *callback_guard {
+                            if let Err(e) = callback(pos) {
+                                warn!("Seek completion callback error: {}", e);
                             }
                         }
                     }
@@ -490,11 +505,20 @@ impl TimelinePlayer {
         }
         
         *self.current_position_ms.lock().unwrap() = position_ms;
+        
+        // Seek completion will be emitted via ASYNC_DONE on the bus
+
         Ok(())
     }
     
     pub fn set_position_update_callback(&mut self, callback: PositionUpdateCallback) -> Result<()> {
         let mut guard = self.position_callback.lock().unwrap();
+        *guard = Some(callback);
+        Ok(())
+    }
+    
+    pub fn set_seek_completion_callback(&mut self, callback: SeekCompletionCallback) -> Result<()> {
+        let mut guard = self.seek_completion_callback.lock().unwrap();
         *guard = Some(callback);
         Ok(())
     }

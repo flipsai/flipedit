@@ -102,6 +102,8 @@ abstract class GesTimelinePlayer implements RustOpaqueInterface {
 
   Stream<(double, BigInt)> setupPositionStream();
 
+  Stream<int> setupSeekCompletionStream();
+
   Future<void> stop();
 
   /// Update position from GStreamer pipeline - call this regularly for smooth playhead updates

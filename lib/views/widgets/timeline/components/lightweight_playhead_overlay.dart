@@ -30,6 +30,7 @@ class _LightweightPlayheadOverlayState extends State<LightweightPlayheadOverlay>
   Timer? _resumeUpdatesTimer;
   int _lastRenderedFrame = -1;
   bool _ignorePositionUpdates = false;
+  StreamSubscription<int>? _seekCompletionSubscription;
   
   // Add scroll listener for position updates
   VoidCallback? _scrollListener;
@@ -63,6 +64,9 @@ class _LightweightPlayheadOverlayState extends State<LightweightPlayheadOverlay>
     };
     
     widget.scrollController.addListener(_scrollListener!);
+    
+    // Set up seek completion listener
+    _setupSeekCompletionListener();
   }
 
   @override
@@ -70,11 +74,15 @@ class _LightweightPlayheadOverlayState extends State<LightweightPlayheadOverlay>
     _updateThrottleTimer?.cancel();
     _resumeUpdatesTimer?.cancel();
     _scrollUpdateTimer?.cancel();
+    _seekCompletionSubscription?.cancel();
     
     // Remove scroll listener
     if (_scrollListener != null) {
       widget.scrollController.removeListener(_scrollListener!);
     }
+    
+    // Remove seek completion listener
+    _videoPlayerService.seekCompletionNotifier.removeListener(_onSeekCompleted);
     
     super.dispose();
   }
@@ -131,7 +139,7 @@ class _LightweightPlayheadOverlayState extends State<LightweightPlayheadOverlay>
       
       setState(() {
         _isDragging = false;
-        // Keep ignoring position updates briefly to prevent snapback
+        // Keep ignoring position updates until seek completes
         _ignorePositionUpdates = true;
       });
       
@@ -140,15 +148,8 @@ class _LightweightPlayheadOverlayState extends State<LightweightPlayheadOverlay>
       _cachedScrollOffset = 0.0;
       _cachedPxPerFrame = 0.0;
       
-      // Resume position updates after a short delay to allow Rust to update
-      _resumeUpdatesTimer?.cancel();
-      _resumeUpdatesTimer = Timer(const Duration(milliseconds: 150), () {
-        if (mounted) {
-          setState(() {
-            _ignorePositionUpdates = false;
-          });
-        }
-      });
+      // Position updates will resume when seek completion is received
+      // No need for fixed timer anymore
     }
   }
 
@@ -177,6 +178,20 @@ class _LightweightPlayheadOverlayState extends State<LightweightPlayheadOverlay>
     final adjustedPosition = timelineContentX.clamp(0.0, double.infinity);
     
     return adjustedPosition / _cachedPxPerFrame;
+  }
+
+  void _setupSeekCompletionListener() {
+    // Listen for seek completion events from the video player service
+    _videoPlayerService.seekCompletionNotifier.addListener(_onSeekCompleted);
+  }
+
+  void _onSeekCompleted() {
+    // Resume position updates when seek completes
+    if (mounted) {
+      setState(() {
+        _ignorePositionUpdates = false;
+      });
+    }
   }
 
   @override

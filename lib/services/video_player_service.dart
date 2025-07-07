@@ -12,6 +12,16 @@ class VideoPlayerService extends ChangeNotifier {
   dynamic _activePlayer; // Can be VideoPlayer or GesTimelinePlayer
   Timer? _positionPollingTimer;
   StreamSubscription<(double, BigInt)>? _positionStreamSubscription;
+  StreamSubscription<int>? _seekCompletionStreamSubscription;
+  // Timer to drive smooth UI updates between Rust position callbacks
+  Timer? _displayTimer;
+
+  // Store last position received from Rust to allow interpolation
+  double _lastRustPositionSeconds = 0.0;
+  DateTime _lastRustPositionTimestamp = DateTime.now();
+  
+  // Track whether a seek operation is currently in progress to pause position polling
+  bool _isSeeking = false;
   
   final String _logTag = 'VideoPlayerService';
 
@@ -64,6 +74,9 @@ class VideoPlayerService extends ChangeNotifier {
     
     // Set up position stream for real-time updates
     _setupPositionStream();
+    
+    // Set up seek completion stream for proper playhead handling
+    _setupSeekCompletionStream();
   }
 
   // Unregister the active video player
@@ -103,24 +116,25 @@ class VideoPlayerService extends ChangeNotifier {
     
     try {
       if (_activePlayer is GesTimelinePlayer) {
-        // For GES timeline players, we need to manually update position and poll
+        // For GES timeline players, use timer-based polling (avoids main-context threading issues)
         logDebug("Setting up position polling for GES timeline player", _logTag);
-        _positionPollingTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) { // Reduced frequency to 60fps
+        _positionPollingTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
+          if (_isSeeking) return;
           if (_activePlayer == null) {
             timer.cancel();
             return;
           }
-          
+
           try {
-            // Always call update_position to sync with GStreamer pipeline (needed for pause state too)
             _activePlayer!.updatePosition();
-            
-            // Get the updated position
             final positionMs = _activePlayer!.getPositionMs();
             final positionSeconds = positionMs / 1000.0;
-            final frameNumber = (positionSeconds * 30).round(); // Assuming 30 FPS
-            
-            // Update position notifiers with batch system to reduce rebuilds
+            final frameNumber = (positionSeconds * 30).round();
+
+            // Save as base for interpolation
+            _lastRustPositionSeconds = positionSeconds;
+            _lastRustPositionTimestamp = DateTime.now();
+
             _scheduleBatchUpdate(() {
               positionSecondsNotifier.value = positionSeconds;
               currentFrameNotifier.value = frameNumber;
@@ -130,13 +144,16 @@ class VideoPlayerService extends ChangeNotifier {
           }
         });
       } else {
-        // For regular video players, use the stream-based approach
+        // Push-based stream for simple VideoPlayer
         final positionStream = _activePlayer!.setupPositionStream();
         _positionStreamSubscription = positionStream.listen(
           (positionData) {
             final (positionSeconds, frameNumber) = positionData;
-            
-            // Update position notifiers with batch system to reduce rebuilds
+            if (_isSeeking) return;
+            // Save as base for interpolation
+            _lastRustPositionSeconds = positionSeconds;
+            _lastRustPositionTimestamp = DateTime.now();
+
             _scheduleBatchUpdate(() {
               positionSecondsNotifier.value = positionSeconds;
               currentFrameNotifier.value = frameNumber.toInt();
@@ -152,6 +169,9 @@ class VideoPlayerService extends ChangeNotifier {
       }
       
       logDebug("Position stream setup completed", _logTag);
+
+      // Start smooth display timer whenever a position stream is active
+      _startDisplayTimer();
     } catch (e) {
       logError(_logTag, "Failed to setup position stream: $e");
     }
@@ -163,7 +183,48 @@ class VideoPlayerService extends ChangeNotifier {
     _positionStreamSubscription = null;
     _positionPollingTimer?.cancel();
     _positionPollingTimer = null;
+    _displayTimer?.cancel();
+    _displayTimer = null;
+    _isSeeking = false;
+    _seekCompletionStreamSubscription?.cancel();
+    _seekCompletionStreamSubscription = null;
     logDebug("Stopped position updates", _logTag);
+  }
+
+  // Set up seek completion stream for proper playhead handling
+  void _setupSeekCompletionStream() {
+    if (_activePlayer == null || _activePlayer is! GesTimelinePlayer) {
+      return;
+    }
+    
+    try {
+      final seekCompletionStream = _activePlayer!.setupSeekCompletionStream();
+      _seekCompletionStreamSubscription = seekCompletionStream.listen(
+        (positionMs) {
+          logDebug("Seek completion: ${positionMs}ms", _logTag);
+
+          // Seek is finished – resume position polling
+          _isSeeking = false;
+          // Force position update when seek completes
+          final positionSeconds = positionMs / 1000.0;
+          final frameNumber = (positionSeconds * 30).round();
+          
+          _scheduleBatchUpdate(() {
+            positionSecondsNotifier.value = positionSeconds;
+            currentFrameNotifier.value = frameNumber;
+            // Notify UI components that seek is complete
+            seekCompletionNotifier.value = frameNumber;
+          });
+        },
+        onError: (error) {
+          logError(_logTag, "Seek completion stream error: $error");
+        },
+      );
+      
+      logDebug("Seek completion stream setup completed", _logTag);
+    } catch (e) {
+      logError(_logTag, "Failed to setup seek completion stream: $e");
+    }
   }
 
   // Set playing state (called by video widgets to coordinate state)
@@ -171,6 +232,12 @@ class VideoPlayerService extends ChangeNotifier {
     if (isPlayingNotifier.value != playing) {
       isPlayingNotifier.value = playing;
       logDebug("Playing state set to: $playing", _logTag);
+      // Manage display timer
+      if (playing) {
+        _startDisplayTimer();
+      } else {
+        _displayTimer?.cancel();
+      }
       notifyListeners();
     }
   }
@@ -184,9 +251,13 @@ class VideoPlayerService extends ChangeNotifier {
 
     try {
       logDebug("Seeking to frame: $frameNumber", _logTag);
+
+      // Pause position polling until seek completes
+      _isSeeking = true;
       
       if (_activePlayer is VideoPlayer) {
         await _activePlayer!.seekToFrame(frameNumber: BigInt.from(frameNumber));
+        _isSeeking = false;
       } else if (_activePlayer is GesTimelinePlayer) {
         // Convert frame to milliseconds (assuming 30fps)
         final positionMs = (frameNumber * 1000 / 30).round();
@@ -208,6 +279,9 @@ class VideoPlayerService extends ChangeNotifier {
 
     try {
       logDebug("Seeking to time: ${seconds}s (wasPlayingBefore: $wasPlayingBefore)", _logTag);
+
+      // Pause position polling until seek completes
+      _isSeeking = true;
       
       if (_activePlayer is VideoPlayer) {
         final actualPosition = await _activePlayer!.seekAndPauseControl(
@@ -215,6 +289,7 @@ class VideoPlayerService extends ChangeNotifier {
           wasPlayingBefore: wasPlayingBefore,
         );
         logDebug("Seek completed to actual position: ${actualPosition}s", _logTag);
+        _isSeeking = false;
       } else if (_activePlayer is GesTimelinePlayer) {
         final positionMs = (seconds * 1000).round();
         await _activePlayer!.seekToPosition(positionMs: positionMs);
@@ -338,6 +413,7 @@ class VideoPlayerService extends ChangeNotifier {
     _currentVideoPath = null;
     _errorMessage = null;
     _activePlayer = null;
+    _isSeeking = false;
     _stopPositionUpdates();
     isPlayingNotifier.value = false;
     positionSecondsNotifier.value = 0.0;
@@ -346,6 +422,9 @@ class VideoPlayerService extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Seek completion notifier for UI components
+  final ValueNotifier<int> seekCompletionNotifier = ValueNotifier<int>(-1);
+
   // Batch update system to reduce widget rebuild frequency
   void _scheduleBatchUpdate(VoidCallback update) {
     if (!_hasPendingUpdates) {
@@ -353,8 +432,8 @@ class VideoPlayerService extends ChangeNotifier {
       // Faster updates when playing for smooth video, slower when paused
       final isCurrentlyPlaying = _activePlayer?.isPlaying() ?? false;
       final delay = isCurrentlyPlaying 
-          ? const Duration(milliseconds: 8)  // ~120fps max when playing for smooth video
-          : const Duration(milliseconds: 32); // ~30fps when paused
+          ? const Duration(milliseconds: 16)  // 60 fps when playing for smooth video
+          : const Duration(milliseconds: 32); // 30 fps when paused
           
       _batchUpdateTimer = Timer(delay, () {
         if (_hasPendingUpdates) {
@@ -365,6 +444,25 @@ class VideoPlayerService extends ChangeNotifier {
     }
   }
 
+  // Smooth UI timer
+  void _startDisplayTimer() {
+    _displayTimer?.cancel();
+    _displayTimer = Timer.periodic(const Duration(milliseconds: 16), (_) {
+      if (!isPlayingNotifier.value || _isSeeking) return;
+
+      final elapsed = DateTime.now().difference(_lastRustPositionTimestamp).inMicroseconds / 1e6;
+      if (elapsed <= 0) return;
+
+      final predicted = _lastRustPositionSeconds + elapsed;
+      final predictedFrame = (predicted * 30).round();
+
+      _scheduleBatchUpdate(() {
+        positionSecondsNotifier.value = predicted;
+        currentFrameNotifier.value = predictedFrame;
+      });
+    });
+  }
+
   @override
   void dispose() {
     _stopPositionUpdates();
@@ -373,6 +471,7 @@ class VideoPlayerService extends ChangeNotifier {
     positionSecondsNotifier.dispose();
     currentFrameNotifier.dispose();
     hasActiveVideoNotifier.dispose();
+    seekCompletionNotifier.dispose();
     super.dispose();
   }
 } 
