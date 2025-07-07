@@ -102,24 +102,54 @@ class VideoPlayerService extends ChangeNotifier {
     logDebug("Setting up real-time position stream", _logTag);
     
     try {
-      final positionStream = _activePlayer!.setupPositionStream();
-      _positionStreamSubscription = positionStream.listen(
-        (positionData) {
-          final (positionSeconds, frameNumber) = positionData;
+      if (_activePlayer is GesTimelinePlayer) {
+        // For GES timeline players, we need to manually update position and poll
+        logDebug("Setting up position polling for GES timeline player", _logTag);
+        _positionPollingTimer = Timer.periodic(const Duration(milliseconds: 2), (timer) {
+          if (_activePlayer == null) {
+            timer.cancel();
+            return;
+          }
           
-          // Update position notifiers with batch system to reduce rebuilds
-          _scheduleBatchUpdate(() {
-            positionSecondsNotifier.value = positionSeconds;
-            currentFrameNotifier.value = frameNumber.toInt();
-          });
-        },
-        onError: (error) {
-          logError(_logTag, "Position stream error: $error");
-        },
-        onDone: () {
-          logDebug("Position stream completed", _logTag);
-        },
-      );
+          try {
+            // Call update_position to sync with GStreamer pipeline
+            _activePlayer!.updatePosition();
+            
+            // Get the updated position
+            final positionMs = _activePlayer!.getPositionMs();
+            final positionSeconds = positionMs / 1000.0;
+            final frameNumber = (positionSeconds * 30).round(); // Assuming 30 FPS
+            
+            // Update position notifiers with batch system to reduce rebuilds
+            _scheduleBatchUpdate(() {
+              positionSecondsNotifier.value = positionSeconds;
+              currentFrameNotifier.value = frameNumber;
+            });
+          } catch (e) {
+            logError(_logTag, "Position polling error: $e");
+          }
+        });
+      } else {
+        // For regular video players, use the stream-based approach
+        final positionStream = _activePlayer!.setupPositionStream();
+        _positionStreamSubscription = positionStream.listen(
+          (positionData) {
+            final (positionSeconds, frameNumber) = positionData;
+            
+            // Update position notifiers with batch system to reduce rebuilds
+            _scheduleBatchUpdate(() {
+              positionSecondsNotifier.value = positionSeconds;
+              currentFrameNotifier.value = frameNumber.toInt();
+            });
+          },
+          onError: (error) {
+            logError(_logTag, "Position stream error: $error");
+          },
+          onDone: () {
+            logDebug("Position stream completed", _logTag);
+          },
+        );
+      }
       
       logDebug("Position stream setup completed", _logTag);
     } catch (e) {

@@ -8,6 +8,7 @@ use ges::prelude::*;
 use log::{debug, info, warn};
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
+use std::time::Duration;
 
 use crate::common::types::{FrameData, TimelineData};
 use crate::video::irondash_texture::create_player_texture;
@@ -472,10 +473,68 @@ impl TimelinePlayer {
         Ok(())
     }
 
+    /// Get current position from the pipeline in seconds
+    pub fn get_current_position_seconds(&self) -> f64 {
+        if let Some(pipeline) = &self.pipeline {
+            if let Some(position) = pipeline.query_position::<gst::ClockTime>() {
+                let position_ns = position.nseconds();
+                return position_ns as f64 / 1_000_000_000.0;
+            }
+        }
+        // Fallback to stored position
+        *self.current_position_ms.lock().unwrap() as f64 / 1000.0
+    }
+
     fn setup_position_monitoring(&self, _pipeline: &ges::Pipeline) {
-        // TODO: Implement position monitoring without Send/Sync issues
-        // For now, we'll rely on manual position queries to avoid threading conflicts
-        info!("Position monitoring setup deferred due to thread safety constraints");
+        info!("Setting up GStreamer position monitoring for smooth playhead updates");
+        
+        // Clone necessary Arc<Mutex<_>> fields for the closure
+        let position_callback = Arc::clone(&self.position_callback);
+        let is_playing = Arc::clone(&self.is_playing);
+        let current_position_ms = Arc::clone(&self.current_position_ms);
+        let position_timer_id = Arc::clone(&self.position_timer_id);
+        
+        // Create a GStreamer timer that runs at ~60fps for smooth updates
+        // This timer will call update_position which queries the pipeline
+        let timeout_id = gst::glib::timeout_add(Duration::from_millis(16), move || {
+            // Get current playing state
+            let playing = *is_playing.lock().unwrap();
+            
+            // Use the stored position (which gets updated by update_position calls)
+            let current_position = *current_position_ms.lock().unwrap() as f64 / 1000.0;
+            
+            // Calculate frame number at 30 FPS
+            let frame_rate = 30.0;
+            let frame_number = (current_position * frame_rate) as u64;
+            
+            // Call position callback to update Flutter UI (whether playing or paused)
+            if let Ok(callback_guard) = position_callback.lock() {
+                if let Some(ref callback) = *callback_guard {
+                    if let Err(e) = callback(current_position, frame_number) {
+                        warn!("Position callback error: {}", e);
+                    }
+                }
+            }
+            
+            // Continue monitoring
+            gst::glib::ControlFlow::Continue
+        });
+        
+        // Store the timer ID so we can cancel it later
+        *position_timer_id.lock().unwrap() = Some(timeout_id);
+        
+        info!("GStreamer position monitoring started at 60fps using internal clock");
+    }
+
+    /// Update position from pipeline - should be called regularly when playing
+    pub fn update_position(&self) {
+        if let Some(pipeline) = &self.pipeline {
+            if let Some(position) = pipeline.query_position::<gst::ClockTime>() {
+                let position_ns = position.nseconds();
+                let position_ms = (position_ns as f64 / 1_000_000.0) as u64;
+                *self.current_position_ms.lock().unwrap() = position_ms;
+            }
+        }
     }
 
     pub fn play(&self) -> Result<()> {
@@ -511,11 +570,11 @@ impl TimelinePlayer {
             Err(e) => return Err(anyhow!("Failed to set pipeline to PLAYING state: {}", e)),
         }
         
-        // Note: Position monitoring is disabled due to threading constraints
-        // The timeline should still play and render video frames
+        // Set up position monitoring now that pipeline is playing
+        self.setup_position_monitoring(pipeline);
         
         *self.is_playing.lock().unwrap() = true;
-        info!("Pipeline is now PLAYING");
+        info!("Pipeline is now PLAYING with position monitoring active");
         Ok(())
     }
 
@@ -533,18 +592,22 @@ impl TimelinePlayer {
         }
         
         *self.is_playing.lock().unwrap() = false;
+        info!("Pipeline paused, position monitoring continues for smooth scrubbing");
         Ok(())
     }
 
     fn stop_pipeline(&self) -> Result<()> {
+        // Stop position monitoring timer first
+        if let Some(timer_id) = self.position_timer_id.lock().unwrap().take() {
+            timer_id.remove();
+            info!("Stopped GStreamer position monitoring timer");
+        }
+        
         if let Some(pipeline) = &self.pipeline {
             info!("Setting pipeline to NULL");
             pipeline.set_state(gst::State::Null)?;
             *self.is_playing.lock().unwrap() = false;
             *self.current_position_ms.lock().unwrap() = 0;
-        }
-        if let Some(timer_id) = self.position_timer_id.lock().unwrap().take() {
-            timer_id.remove();
         }
         Ok(())
     }

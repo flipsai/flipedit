@@ -51,7 +51,7 @@ PlatformInt64 playDualVideo({
   engineHandle: engineHandle,
 );
 
-/// Create and load a GES timeline player with timeline data (simplified implementation)
+/// Create and load a GES timeline player with timeline data (proper GES implementation)
 Future<(GesTimelinePlayer, PlatformInt64)> createGesTimelinePlayer({
   required TimelineData timelineData,
   required PlatformInt64 engineHandle,
@@ -62,6 +62,9 @@ Future<(GesTimelinePlayer, PlatformInt64)> createGesTimelinePlayer({
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<GESTimelinePlayer>>
 abstract class GesTimelinePlayer implements RustOpaqueInterface {
+  /// Create texture for this player
+  Future<PlatformInt64> createTexture({required PlatformInt64 engineHandle});
+
   @override
   Future<void> dispose();
 
@@ -97,6 +100,9 @@ abstract class GesTimelinePlayer implements RustOpaqueInterface {
   Stream<(double, BigInt)> setupPositionStream();
 
   Future<void> stop();
+
+  /// Update position from GStreamer pipeline - call this regularly for smooth playhead updates
+  void updatePosition();
 }
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<TimelinePlayer>>

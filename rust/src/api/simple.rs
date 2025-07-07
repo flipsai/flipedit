@@ -344,6 +344,12 @@ impl GESTimelinePlayer {
         None // Not implemented yet - need texture integration
     }
 
+    /// Update position from GStreamer pipeline - call this regularly for smooth playhead updates
+    #[frb(sync)]
+    pub fn update_position(&self) {
+        self.inner.update_position();
+    }
+
     pub fn setup_frame_stream(&mut self, _sink: StreamSink<FrameData>) -> Result<()> {
         info!("Frame stream setup requested for GES timeline player (not yet implemented)");
         Ok(())
