@@ -3,7 +3,7 @@ use cpal::{Device, Host, Stream, StreamConfig, SampleFormat, SampleRate, Channel
 use std::sync::{Arc, Mutex, mpsc};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
-use log::{info, warn, error, debug};
+use log::{info, error, debug};
 
 #[derive(Debug, Clone)]
 pub struct AudioFormat {

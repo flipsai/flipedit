@@ -105,14 +105,14 @@ class VideoPlayerService extends ChangeNotifier {
       if (_activePlayer is GesTimelinePlayer) {
         // For GES timeline players, we need to manually update position and poll
         logDebug("Setting up position polling for GES timeline player", _logTag);
-        _positionPollingTimer = Timer.periodic(const Duration(milliseconds: 2), (timer) {
+        _positionPollingTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) { // Reduced frequency to 60fps
           if (_activePlayer == null) {
             timer.cancel();
             return;
           }
           
           try {
-            // Call update_position to sync with GStreamer pipeline
+            // Always call update_position to sync with GStreamer pipeline (needed for pause state too)
             _activePlayer!.updatePosition();
             
             // Get the updated position
@@ -260,11 +260,15 @@ class VideoPlayerService extends ChangeNotifier {
         return _activePlayer!.getTotalFrames().toInt();
       } else if (_activePlayer is GesTimelinePlayer) {
         final durationMs = _activePlayer!.getDurationMs();
+        logInfo(_logTag, "GES Timeline Player duration: ${durationMs}ms");
         if (durationMs != null && durationMs > 0) {
           // Convert duration to frames (assuming 30 FPS)
-          return (durationMs / 1000.0 * 30.0).round();
+          final totalFrames = (durationMs / 1000.0 * 30.0).round();
+          logInfo(_logTag, "Converted to frames: $totalFrames frames (${totalFrames / 30.0} seconds)");
+          return totalFrames;
         }
         // Fallback: if no duration available, try to get it from project timeline
+        logInfo(_logTag, "No duration from GES player, falling back to timeline calculation");
         return _calculateTimelineFrames();
       }
       return 0;

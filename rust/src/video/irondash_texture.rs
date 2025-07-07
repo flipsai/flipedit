@@ -100,7 +100,6 @@ pub fn create_player_texture(width: u32, height: u32, engine_handle: i64) -> Res
                     
                     // This is the critical part - mark frame available to trigger Flutter repaint
                     sendable_texture_for_global.mark_frame_available();
-                    debug!("REAL irondash update: Marked frame available for texture {}", texture_id_for_logging);
                 } else {
                     debug!("Provider dropped for texture {}", texture_id_for_logging);
                 }
@@ -110,9 +109,9 @@ pub fn create_player_texture(width: u32, height: u32, engine_handle: i64) -> Res
             // This ensures update_video_frame() calls the actual irondash invalidation
             register_irondash_update_function(texture_id, global_update_fn);
             
-            // Create a simple placeholder for the returned function (not used anymore)
-            let return_update_fn: Box<dyn Fn(FrameData) + Send + Sync> = Box::new(move |frame_data| {
-                debug!("Placeholder update function called for texture {} (real update happens via global registry)", texture_id);
+            // Return a simple placeholder function (not used anymore)
+            let return_update_fn: Box<dyn Fn(FrameData) + Send + Sync> = Box::new(move |_frame_data| {
+                // No-op: all updates go through the global registry now
             });
             
             info!("Created player texture with ID: {} and registered REAL update function", texture_id);
@@ -128,7 +127,7 @@ pub fn create_player_texture(width: u32, height: u32, engine_handle: i64) -> Res
 
 /// Get Flutter's OpenGL context handle for sharing with GStreamer
 /// This function extracts the GL context that Flutter is using so GStreamer can share it
-pub fn get_flutter_gl_context_handle(engine_handle: i64) -> Result<Option<u64>> {
+pub fn get_flutter_gl_context_handle(_engine_handle: i64) -> Result<Option<u64>> {
     // For now, we return None since direct GL context extraction from Flutter
     // requires deeper integration with the Flutter engine's GL context
     // TODO: Implement proper GL context handle extraction from Flutter engine
@@ -155,7 +154,7 @@ pub fn create_gl_context_message(flutter_gl_handle: Option<u64>) -> Option<Strin
 
 /// Set GL context on GStreamer element for sharing
 /// This function configures a GStreamer element to use the shared GL context
-pub fn set_gl_context_on_element(element: &gstreamer::Element, context_message: &str) -> Result<()> {
+pub fn set_gl_context_on_element(_element: &gstreamer::Element, context_message: &str) -> Result<()> {
     // TODO: Implement proper GL context setting on GStreamer elements
     // This typically involves:
     // 1. Creating a GstGLContext from the handle
@@ -179,11 +178,11 @@ pub fn register_irondash_update_function(texture_id: i64, update_fn: Box<dyn Fn(
     }
 }
 
+
 /// Unregister an irondash texture update function
 pub fn unregister_irondash_update_function(texture_id: i64) {
     if let Ok(mut functions) = IRONDASH_UPDATE_FUNCTIONS.lock() {
         functions.remove(&texture_id);
-        info!("Unregistered REAL irondash update function for texture {}", texture_id);
     }
 }
 
@@ -196,16 +195,11 @@ pub fn update_video_frame(frame_data: FrameData) -> Result<()> {
         for (texture_id, update_fn) in functions.iter() {
             update_fn(frame_data.clone());
             updated_count += 1;
-            debug!("Called REAL irondash update for texture {}", texture_id);
         }
     }
     
     // Also call texture registry for compatibility
     crate::video::texture_registry::update_all_textures(frame_data);
-    
-    if updated_count > 0 {
-        debug!("Updated {} REAL irondash textures with frame data", updated_count);
-    }
     
     Ok(())
 }

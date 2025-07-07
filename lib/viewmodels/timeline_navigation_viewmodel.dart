@@ -123,6 +123,8 @@ class TimelineNavigationViewModel extends ChangeNotifier {
     if (_videoPlayerService.activePlayer != null) {
       try {
         await _videoPlayerService.activePlayer!.play();
+        // Ensure the VideoPlayerService state is updated immediately
+        _videoPlayerService.setPlayingState(true);
         logger.logDebug("Started playback through Rust video player", _logTag);
       } catch (e) {
         logger.logError(_logTag, "Error starting playback: $e");
@@ -142,6 +144,8 @@ class TimelineNavigationViewModel extends ChangeNotifier {
     if (_videoPlayerService.activePlayer != null) {
       try {
         _videoPlayerService.activePlayer!.pause();
+        // Ensure the VideoPlayerService state is updated immediately
+        _videoPlayerService.setPlayingState(false);
         logger.logDebug("Stopped playback through Rust video player", _logTag);
       } catch (e) {
         logger.logError(_logTag, "Error stopping playback: $e");

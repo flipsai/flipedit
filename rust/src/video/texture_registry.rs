@@ -72,9 +72,12 @@ pub fn unregister_texture(texture_id: i64) {
 }
 
 /// Update a specific texture with frame data
-pub fn update_texture(texture_id: i64, frame_data: FrameData) {
+pub fn update_texture(texture_id: i64, frame_data: FrameData) -> bool {
     if let Ok(registry) = TEXTURE_REGISTRY.lock() {
         registry.update_texture(texture_id, frame_data);
+        true
+    } else {
+        false
     }
 }
 

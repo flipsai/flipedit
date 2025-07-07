@@ -25,7 +25,7 @@ PlatformInt64 createVideoTexture({
 );
 
 /// Update video frame data for all irondash textures
-void updateVideoFrame({required FrameData frameData}) =>
+bool updateVideoFrame({required FrameData frameData}) =>
     RustLib.instance.api.crateApiSimpleUpdateVideoFrame(frameData: frameData);
 
 /// Get the number of active irondash textures
@@ -93,8 +93,6 @@ abstract class GesTimelinePlayer implements RustOpaqueInterface {
 
   Future<void> seekToPosition({required int positionMs});
 
-  void setTexturePtr({required PlatformInt64 ptr});
-
   Stream<FrameData> setupFrameStream();
 
   Stream<(double, BigInt)> setupPositionStream();
@@ -132,8 +130,6 @@ abstract class TimelinePlayer implements RustOpaqueInterface {
   Future<void> play();
 
   Future<void> setPositionMs({required int positionMs});
-
-  void setTexturePtr({required PlatformInt64 ptr});
 
   Future<void> stop();
 
@@ -194,8 +190,6 @@ abstract class VideoPlayer implements RustOpaqueInterface {
   });
 
   Future<void> seekToFrame({required BigInt frameNumber});
-
-  void setTexturePtr({required PlatformInt64 ptr});
 
   Stream<FrameData> setupFrameStream();
 

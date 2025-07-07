@@ -146,12 +146,6 @@ impl FrameHandler {
         }
     }
     
-    /// Update the current texture ID for GPU-based rendering
-    pub fn update_texture_id(&self, texture_id: u64) {
-        self.latest_texture_id.store(texture_id, Ordering::Relaxed);
-        debug!("Updated texture ID: {}", texture_id);
-    }
-    
     /// Get the latest texture ID for GPU-based rendering
     pub fn get_latest_texture_id(&self) -> u64 {
         self.latest_texture_id.load(Ordering::Relaxed)
@@ -211,15 +205,6 @@ impl FrameHandler {
     pub fn return_buffer_to_pool(&self, buffer: Vec<u8>) {
         if let Ok(pool) = self.buffer_pool.lock() {
             pool.return_buffer(buffer);
-        }
-    }
-
-    pub fn update_frame_rate(&self, fps: f64) {
-        if let Ok(mut frame_rate_guard) = self.frame_rate.try_lock() {
-            if (*frame_rate_guard - fps).abs() > 0.01 {
-                *frame_rate_guard = fps;
-                debug!("Updated frame rate: {} fps", fps);
-            }
         }
     }
 

@@ -44,10 +44,6 @@ impl VideoPlayer {
         Self::new()
     }
 
-    #[frb(sync)]
-    pub fn set_texture_ptr(&mut self, ptr: i64) {
-        self.inner.set_texture_ptr(ptr);
-    }
 
     pub fn load_video(&mut self, file_path: String) -> Result<(), String> {
         self.inner.load_video(file_path)
@@ -193,10 +189,6 @@ impl TimelinePlayer {
         }
     }
 
-    #[frb(sync)]
-    pub fn set_texture_ptr(&mut self, ptr: i64) {
-        self.inner.set_texture_ptr(ptr);
-    }
 
     pub fn load_timeline(&mut self, timeline_data: TimelineData) -> Result<(), String> {
         self.inner.load_timeline(timeline_data).map_err(|e| e.to_string())
@@ -278,11 +270,6 @@ impl GESTimelinePlayer {
         }
     }
 
-    #[frb(sync)]
-    pub fn set_texture_ptr(&mut self, ptr: i64) -> Result<(), String> {
-        self.inner.set_texture_ptr(ptr);
-        Ok(())
-    }
 
     /// Create texture for this player
     pub fn create_texture(&mut self, engine_handle: i64) -> Result<i64, String> {
@@ -381,21 +368,15 @@ pub fn create_video_texture(width: u32, height: u32, engine_handle: i64) -> Resu
 
 /// Update video frame data for all irondash textures
 #[frb(sync)]
-pub fn update_video_frame(frame_data: FrameData) -> Result<(), String> {
-    // Use the texture registry to update all registered textures
-    crate::video::texture_registry::update_all_textures(frame_data.clone());
-    
-    // CRITICAL: Also call any specific irondash texture update functions
-    // This is the key to making individual textures work properly
-    if let Some(texture_id) = frame_data.texture_id {
-        if crate::video::timeline_player::call_irondash_texture_update(texture_id as i64, frame_data.clone()) {
-            log::debug!("Called specific irondash update for texture {}", texture_id);
+pub fn update_video_frame(frame_data: FrameData) -> bool {
+    // Only call the real irondash texture update function
+    match crate::video::irondash_texture::update_video_frame(frame_data) {
+        Ok(_) => true,
+        Err(e) => {
+            log::error!("Failed to update video frame: {}", e);
+            false
         }
     }
-    
-    // Also call the legacy function for compatibility
-    crate::video::irondash_texture::update_video_frame(frame_data)
-        .map_err(|e| format!("Failed to update video frame: {}", e))
 }
 
 /// Get the number of active irondash textures

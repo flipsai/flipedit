@@ -7,48 +7,12 @@ use gst::prelude::*;
 use ges::prelude::*;
 use log::{debug, info, warn};
 use std::sync::{Arc, Mutex};
-use std::collections::HashMap;
 use std::time::Duration;
 
 use crate::common::types::{FrameData, TimelineData};
 use crate::video::irondash_texture::create_player_texture;
-use crate::video::texture_registry;
 
 pub type PositionUpdateCallback = Box<dyn Fn(f64, u64) -> Result<()> + Send + Sync>;
-
-// Global registry for storing actual irondash texture update functions
-// This stores the REAL update functions returned by create_player_texture
-lazy_static::lazy_static! {
-    static ref TEXTURE_UPDATE_FUNCTIONS: Arc<Mutex<HashMap<i64, Box<dyn Fn(FrameData) + Send + Sync>>>> = 
-        Arc::new(Mutex::new(HashMap::new()));
-}
-
-/// Register an irondash texture update function for a specific texture ID
-pub fn register_irondash_texture_update(texture_id: i64, update_fn: Box<dyn Fn(FrameData) + Send + Sync>) {
-    if let Ok(mut functions) = TEXTURE_UPDATE_FUNCTIONS.lock() {
-        functions.insert(texture_id, update_fn);
-        info!("Registered irondash update function for texture {}", texture_id);
-    }
-}
-
-/// Call the irondash texture update function for a specific texture
-pub fn call_irondash_texture_update(texture_id: i64, frame_data: FrameData) -> bool {
-    if let Ok(functions) = TEXTURE_UPDATE_FUNCTIONS.lock() {
-        if let Some(update_fn) = functions.get(&texture_id) {
-            update_fn(frame_data);
-            return true;
-        }
-    }
-    false
-}
-
-/// Remove texture update function when texture is disposed
-pub fn unregister_irondash_texture_update(texture_id: i64) {
-    if let Ok(mut functions) = TEXTURE_UPDATE_FUNCTIONS.lock() {
-        functions.remove(&texture_id);
-        info!("Unregistered irondash update function for texture {}", texture_id);
-    }
-}
 
 /// A timeline player that uses GES (GStreamer Editing Services) Timeline,
 /// following the proper architecture for video editing applications.
@@ -101,55 +65,16 @@ impl TimelinePlayer {
         })
     }
 
-    pub fn set_texture_ptr(&mut self, ptr: i64) {
-        self.texture_id = Some(ptr);
-        info!("Texture pointer set: {}", ptr);
-    }
-
     /// Create texture with proper GL context sharing for this player
     pub fn create_texture(&mut self, engine_handle: i64) -> Result<i64> {
         self.flutter_engine_handle = Some(engine_handle);
-        
-        // Initialize GL context sharing
-        self.setup_gl_context_sharing()?;
         
         let (texture_id, update_fn) = create_player_texture(1920, 1080, engine_handle)?;
         self.texture_id = Some(texture_id);
         self.texture_update_fn = Some(update_fn);
         
-        // CRITICAL FIX: Register the ACTUAL irondash update function  
-        // This is the function that contains sendable_texture.mark_frame_available()
-        if let Some(ref actual_update_fn) = self.texture_update_fn {
-            // We need to copy the function somehow. Since we can't clone it directly,
-            // let's store it in the global registry in the irondash_texture module
-            // The update_fn contains the real irondash texture invalidation logic
-            
-            // For now, register the old way but with better logging
-            register_irondash_texture_update(texture_id, Box::new(move |frame_data| {
-                debug!("Legacy registry update for texture {}: {}x{}", texture_id, frame_data.width, frame_data.height);
-            }));
-            
-            // TODO: Need to move the actual update function to global storage
-            // This is complex because of lifetime issues with the closure
-        }
-        
-        // Also register with the standard texture registry for compatibility  
-        texture_registry::register_texture(texture_id, Box::new(move |frame_data| {
-            debug!("Standard registry update for texture {}: {}x{}", texture_id, frame_data.width, frame_data.height);
-        }));
-        
-        info!("Created GL-enabled texture with ID: {} and registered actual update function", texture_id);
+        info!("Created GL-enabled texture with ID: {}", texture_id);
         Ok(texture_id)
-    }
-
-    /// Setup OpenGL context sharing between GStreamer and Flutter
-    fn setup_gl_context_sharing(&mut self) -> Result<()> {
-        info!("Setting up GL context sharing between GStreamer and Flutter");
-
-        // For now, store the engine handle - GL context setup will be done in pipeline creation
-        // This is because GStreamer GL context creation needs to be done with proper GL elements
-        info!("GL context sharing setup deferred to pipeline creation");
-        Ok(())
     }
 
     pub fn load_timeline(&mut self, timeline_data: TimelineData) -> Result<()> {
@@ -159,14 +84,15 @@ impl TimelinePlayer {
         );
         self.stop_pipeline()?;
 
-        let duration_ms = timeline_data
+        let max_clip_end = timeline_data
             .tracks
             .iter()
             .flat_map(|t| &t.clips)
             .map(|c| c.end_time_on_track_ms as u64)
             .max()
-            .unwrap_or(0)
-            .max(30000);
+            .unwrap_or(0);
+        let duration_ms = max_clip_end.max(30000);
+        info!("Timeline duration calculation: max_clip_end={}ms, final_duration={}ms", max_clip_end, duration_ms);
         *self.duration_ms.lock().unwrap() = Some(duration_ms);
 
         // Create GES timeline
@@ -193,182 +119,51 @@ impl TimelinePlayer {
             let uri = format!("file://{}", clip.source_path);
             info!("Adding clip {} from URI: {}", index + 1, uri);
             
-            // Validate clip timing with detailed logging
             let start_ms = clip.start_time_on_track_ms as u64;
             let duration_ms = (clip.end_time_on_track_ms - clip.start_time_on_track_ms) as u64;
             let inpoint_ms = clip.start_time_in_source_ms as u64;
             
-            // Log raw clip data for debugging
-            info!("Clip {} raw data: start_time_on_track_ms={}, end_time_on_track_ms={}, start_time_in_source_ms={}, end_time_in_source_ms={}", 
-                  index + 1, clip.start_time_on_track_ms, clip.end_time_on_track_ms, 
-                  clip.start_time_in_source_ms, clip.end_time_in_source_ms);
-            
-            // Check for invalid timing constraints
             if duration_ms == 0 {
                 info!("Skipping clip {} with zero duration", index + 1);
                 continue;
             }
             
-            // Check for negative values that could cause issues
             if clip.start_time_on_track_ms < 0 || clip.end_time_on_track_ms < 0 || 
                clip.start_time_in_source_ms < 0 || clip.end_time_in_source_ms < 0 {
-                info!("Warning: Clip {} has negative timing values - this will cause constraint violations", index + 1);
+                info!("Warning: Clip {} has negative timing values", index + 1);
                 continue;
             }
             
-            // Check for overlapping constraints
-            if inpoint_ms + duration_ms > (clip.end_time_in_source_ms as u64) {
-                info!("Warning: Clip {} inpoint + duration ({} + {} = {}) exceeds source end time ({})", 
-                      index + 1, inpoint_ms, duration_ms, inpoint_ms + duration_ms, clip.end_time_in_source_ms);
-                // Adjust duration to fit within source bounds
-                let max_duration = (clip.end_time_in_source_ms as u64).saturating_sub(inpoint_ms);
-                if max_duration == 0 {
-                    info!("Skipping clip {} - no valid duration after constraint adjustment", index + 1);
-                    continue;
-                }
-                info!("Adjusting clip {} duration from {}ms to {}ms", index + 1, duration_ms, max_duration);
-                // Update duration_ms for the asset addition
-                let duration_ms = max_duration;
+            let asset = ges::UriClipAsset::request_sync(&uri)
+                .map_err(|e| anyhow!("Failed to create asset for {}: {}", uri, e))?;
+            
+            if let Some(asset_duration) = asset.duration() {
+                let asset_duration_ms = asset_duration.mseconds();
+                info!("Asset {} duration: {}ms", index + 1, asset_duration_ms);
                 
-                info!("Clip {} final timing: start={}ms, duration={}ms, inpoint={}ms", 
-                      index + 1, start_ms, duration_ms, inpoint_ms);
+                let final_inpoint = if inpoint_ms > asset_duration_ms { 0 } else { inpoint_ms };
+                let max_duration = asset_duration_ms.saturating_sub(final_inpoint);
+                let final_duration = std::cmp::min(duration_ms, max_duration);
                 
-                // Request the asset synchronously
-                let asset = ges::UriClipAsset::request_sync(&uri)
-                    .map_err(|e| anyhow!("Failed to create asset for {}: {}", uri, e))?;
+                let _ges_clip = layer.add_asset(
+                    &asset,
+                    gst::ClockTime::from_mseconds(start_ms),
+                    gst::ClockTime::from_mseconds(final_inpoint),
+                    gst::ClockTime::from_mseconds(final_duration),
+                    ges::TrackType::UNKNOWN,
+                ).map_err(|e| anyhow!("Failed to add asset {} to layer: {}", index + 1, e))?;
                 
-                // Check asset duration to ensure our constraints are valid
-                if let Some(asset_duration) = asset.duration() {
-                    let asset_duration_ms = asset_duration.mseconds();
-                    info!("Asset {} duration: {}ms", index + 1, asset_duration_ms);
-                    
-                    if inpoint_ms > asset_duration_ms {
-                        info!("Warning: Clip {} inpoint ({}ms) exceeds asset duration ({}ms) - adjusting to use entire asset from start", 
-                              index + 1, inpoint_ms, asset_duration_ms);
-                        // Fallback: use the entire asset duration from the beginning
-                        let fallback_inpoint = 0u64;
-                        let fallback_duration = std::cmp::min(duration_ms, asset_duration_ms);
-                        
-                        info!("Using fallback timing for clip {}: inpoint={}ms, duration={}ms", 
-                              index + 1, fallback_inpoint, fallback_duration);
-                        
-                        // Add asset with fallback timing
-                        let _ges_clip = layer.add_asset(
-                            &asset,
-                            gst::ClockTime::from_mseconds(start_ms),
-                            gst::ClockTime::from_mseconds(fallback_inpoint),
-                            gst::ClockTime::from_mseconds(fallback_duration),
-                            ges::TrackType::UNKNOWN,
-                        ).map_err(|e| anyhow!("Failed to add asset {} to layer with fallback timing: {} - Timing: start={}ms, inpoint={}ms, duration={}ms", 
-                                             index + 1, e, start_ms, fallback_inpoint, fallback_duration))?;
-                        
-                        info!("Successfully added clip {} to timeline with fallback timing", index + 1);
-                        continue;
-                    }
-                    
-                    // Final constraint check
-                    let effective_duration = std::cmp::min(duration_ms, asset_duration_ms.saturating_sub(inpoint_ms));
-                    if effective_duration != duration_ms {
-                        info!("Adjusting clip {} duration from {}ms to {}ms based on asset constraints", 
-                              index + 1, duration_ms, effective_duration);
-                    }
-                    
-                    // Add asset with validated timing
-                    let _ges_clip = layer.add_asset(
-                        &asset,
-                        gst::ClockTime::from_mseconds(start_ms),
-                        gst::ClockTime::from_mseconds(inpoint_ms),
-                        gst::ClockTime::from_mseconds(effective_duration),
-                        ges::TrackType::UNKNOWN,
-                    ).map_err(|e| anyhow!("Failed to add asset {} to layer: {} - Timing: start={}ms, inpoint={}ms, duration={}ms, asset_duration={}ms", 
-                                         index + 1, e, start_ms, inpoint_ms, effective_duration, asset_duration_ms))?;
-                    
-                    info!("Successfully added clip {} to timeline with duration {}ms", index + 1, effective_duration);
-                } else {
-                    info!("Warning: Could not get duration for asset {}", index + 1);
-                    // Try with original duration if asset duration is unknown
-                    let _ges_clip = layer.add_asset(
-                        &asset,
-                        gst::ClockTime::from_mseconds(start_ms),
-                        gst::ClockTime::from_mseconds(inpoint_ms),
-                        gst::ClockTime::from_mseconds(duration_ms),
-                        ges::TrackType::UNKNOWN,
-                    ).map_err(|e| anyhow!("Failed to add asset {} to layer: {} - Timing: start={}ms, inpoint={}ms, duration={}ms", 
-                                         index + 1, e, start_ms, inpoint_ms, duration_ms))?;
-                    
-                    info!("Successfully added clip {} to timeline", index + 1);
-                }
+                info!("Successfully added clip {} to timeline", index + 1);
             } else {
-                info!("Clip {} timing validation passed: start={}ms, duration={}ms, inpoint={}ms", 
-                      index + 1, start_ms, duration_ms, inpoint_ms);
+                let _ges_clip = layer.add_asset(
+                    &asset,
+                    gst::ClockTime::from_mseconds(start_ms),
+                    gst::ClockTime::from_mseconds(inpoint_ms),
+                    gst::ClockTime::from_mseconds(duration_ms),
+                    ges::TrackType::UNKNOWN,
+                ).map_err(|e| anyhow!("Failed to add asset {} to layer: {}", index + 1, e))?;
                 
-                // Request the asset synchronously
-                let asset = ges::UriClipAsset::request_sync(&uri)
-                    .map_err(|e| anyhow!("Failed to create asset for {}: {}", uri, e))?;
-                
-                // Check asset duration for validation
-                if let Some(asset_duration) = asset.duration() {
-                    let asset_duration_ms = asset_duration.mseconds();
-                    info!("Asset {} duration: {}ms", index + 1, asset_duration_ms);
-                    
-                    if inpoint_ms > asset_duration_ms {
-                        info!("Warning: Clip {} inpoint ({}ms) exceeds asset duration ({}ms) - adjusting to use entire asset from start", 
-                              index + 1, inpoint_ms, asset_duration_ms);
-                        // Fallback: use the entire asset duration from the beginning
-                        let fallback_inpoint = 0u64;
-                        let fallback_duration = std::cmp::min(duration_ms, asset_duration_ms);
-                        
-                        info!("Using fallback timing for clip {}: inpoint={}ms, duration={}ms", 
-                              index + 1, fallback_inpoint, fallback_duration);
-                        
-                        // Add asset with fallback timing
-                        let _ges_clip = layer.add_asset(
-                            &asset,
-                            gst::ClockTime::from_mseconds(start_ms),
-                            gst::ClockTime::from_mseconds(fallback_inpoint),
-                            gst::ClockTime::from_mseconds(fallback_duration),
-                            ges::TrackType::UNKNOWN,
-                        ).map_err(|e| anyhow!("Failed to add asset {} to layer with fallback timing: {} - Timing: start={}ms, inpoint={}ms, duration={}ms", 
-                                             index + 1, e, start_ms, fallback_inpoint, fallback_duration))?;
-                        
-                        info!("Successfully added clip {} to timeline with fallback timing", index + 1);
-                        continue;
-                    }
-                    
-                    // Ensure duration doesn't exceed what's available from the inpoint
-                    let max_available_duration = asset_duration_ms.saturating_sub(inpoint_ms);
-                    let final_duration = std::cmp::min(duration_ms, max_available_duration);
-                    
-                    if final_duration != duration_ms {
-                        info!("Adjusting clip {} duration from {}ms to {}ms based on asset constraints", 
-                              index + 1, duration_ms, final_duration);
-                    }
-                    
-                    // Add asset with validated timing
-                    let _ges_clip = layer.add_asset(
-                        &asset,
-                        gst::ClockTime::from_mseconds(start_ms),
-                        gst::ClockTime::from_mseconds(inpoint_ms),
-                        gst::ClockTime::from_mseconds(final_duration),
-                        ges::TrackType::UNKNOWN,
-                    ).map_err(|e| anyhow!("Failed to add asset {} to layer: {} - Timing: start={}ms, inpoint={}ms, duration={}ms, asset_duration={}ms", 
-                                         index + 1, e, start_ms, inpoint_ms, final_duration, asset_duration_ms))?;
-                    
-                    info!("Successfully added clip {} to timeline with final duration {}ms", index + 1, final_duration);
-                } else {
-                    info!("Asset {} duration unknown, trying with original timing", index + 1);
-                    // Try with original duration if asset duration is unknown
-                    let _ges_clip = layer.add_asset(
-                        &asset,
-                        gst::ClockTime::from_mseconds(start_ms),
-                        gst::ClockTime::from_mseconds(inpoint_ms),
-                        gst::ClockTime::from_mseconds(duration_ms),
-                        ges::TrackType::UNKNOWN,
-                    ).map_err(|e| anyhow!("Failed to add asset {} to layer: {} - Timing: start={}ms, inpoint={}ms, duration={}ms", 
-                                         index + 1, e, start_ms, inpoint_ms, duration_ms))?;
-                    
-                    info!("Successfully added clip {} to timeline", index + 1);
-                }
+                info!("Successfully added clip {} to timeline", index + 1);
             }
         }
 
@@ -378,28 +173,21 @@ impl TimelinePlayer {
     fn create_ges_pipeline(&self, timeline: &ges::Timeline) -> Result<ges::Pipeline> {
         let pipeline = ges::Pipeline::new();
         
-        // Set the timeline on the pipeline
         pipeline.set_timeline(timeline)
             .map_err(|e| anyhow!("Failed to set timeline on pipeline: {}", e))?;
         
-        // Create and set video sink
         let video_sink = self.create_texture_video_sink()?;
         pipeline.preview_set_video_sink(Some(&video_sink));
         
-        // Create and set audio sink
         let audio_sink = gst::ElementFactory::make("autoaudiosink")
             .build()?;
         pipeline.set_audio_sink(Some(&audio_sink));
-        
-        // Note: Position monitoring will be set up when play() is called to avoid threading issues
         
         info!("GES pipeline created successfully");
         Ok(pipeline)
     }
 
     fn create_texture_video_sink(&self) -> Result<gst::Element> {
-        // For now, use a standard appsink while we work on GL context sharing
-        // TODO: Implement proper GL context sharing with glcolorconvert ! gldownload ! appsink
         let video_sink = gst::ElementFactory::make("appsink")
             .name("texture_video_sink")
             .build()?;
@@ -416,7 +204,6 @@ impl TimelinePlayer {
             .build();
         video_sink.set_property("caps", &caps);
 
-        // Set up video sample callbacks only if we have a texture update function
         let appsink = video_sink
             .clone()
             .dynamic_cast::<gst_app::AppSink>()
@@ -435,7 +222,6 @@ impl TimelinePlayer {
             );
         }
 
-        warn!("Using standard appsink - GL context sharing not yet implemented");
         Ok(video_sink)
     }
 
@@ -459,21 +245,13 @@ impl TimelinePlayer {
             texture_id: Some(texture_id as u64),
         };
 
-        // CRITICAL: Call the actual irondash texture update function directly
-        // This bypasses all the registry complexity and calls the real update function
-        if let Err(e) = crate::api::simple::update_video_frame(frame_data.clone()) {
-            debug!("Failed to update video frame: {}", e);
-        } else {
-            debug!("Successfully called update_video_frame for texture {}", texture_id);
+        if !crate::api::simple::update_video_frame(frame_data.clone()) {
+            debug!("Failed to update video frame");
         }
 
-        // IMPORTANT: Following memory about GStreamer clock - remove any Flutter timing conflicts
-        // Use GStreamer's internal clock timing only, don't interfere with Flutter's clock
-        debug!("Processed video frame: {}x{} for texture {} (using GStreamer internal clock only)", width, height, texture_id);
         Ok(())
     }
 
-    /// Get current position from the pipeline in seconds
     pub fn get_current_position_seconds(&self) -> f64 {
         if let Some(pipeline) = &self.pipeline {
             if let Some(position) = pipeline.query_position::<gst::ClockTime>() {
@@ -481,33 +259,23 @@ impl TimelinePlayer {
                 return position_ns as f64 / 1_000_000_000.0;
             }
         }
-        // Fallback to stored position
         *self.current_position_ms.lock().unwrap() as f64 / 1000.0
     }
 
     fn setup_position_monitoring(&self, _pipeline: &ges::Pipeline) {
         info!("Setting up GStreamer position monitoring for smooth playhead updates");
         
-        // Clone necessary Arc<Mutex<_>> fields for the closure
         let position_callback = Arc::clone(&self.position_callback);
         let is_playing = Arc::clone(&self.is_playing);
         let current_position_ms = Arc::clone(&self.current_position_ms);
         let position_timer_id = Arc::clone(&self.position_timer_id);
         
-        // Create a GStreamer timer that runs at ~60fps for smooth updates
-        // This timer will call update_position which queries the pipeline
         let timeout_id = gst::glib::timeout_add(Duration::from_millis(16), move || {
-            // Get current playing state
-            let playing = *is_playing.lock().unwrap();
-            
-            // Use the stored position (which gets updated by update_position calls)
+            let _playing = *is_playing.lock().unwrap();
             let current_position = *current_position_ms.lock().unwrap() as f64 / 1000.0;
-            
-            // Calculate frame number at 30 FPS
             let frame_rate = 30.0;
             let frame_number = (current_position * frame_rate) as u64;
             
-            // Call position callback to update Flutter UI (whether playing or paused)
             if let Ok(callback_guard) = position_callback.lock() {
                 if let Some(ref callback) = *callback_guard {
                     if let Err(e) = callback(current_position, frame_number) {
@@ -516,17 +284,13 @@ impl TimelinePlayer {
                 }
             }
             
-            // Continue monitoring
             gst::glib::ControlFlow::Continue
         });
         
-        // Store the timer ID so we can cancel it later
         *position_timer_id.lock().unwrap() = Some(timeout_id);
-        
-        info!("GStreamer position monitoring started at 60fps using internal clock");
+        info!("GStreamer position monitoring started at 60fps");
     }
 
-    /// Update position from pipeline - should be called regularly when playing
     pub fn update_position(&self) {
         if let Some(pipeline) = &self.pipeline {
             if let Some(position) = pipeline.query_position::<gst::ClockTime>() {
@@ -549,7 +313,6 @@ impl TimelinePlayer {
             },
             Ok(gst::StateChangeSuccess::Async) => {
                 info!("Pipeline state change to PLAYING is async, waiting...");
-                // Wait for async state change to complete
                 let (result, current_state, _pending_state) = pipeline.state(gst::ClockTime::from_seconds(5));
                 match result {
                     Ok(_) => {
@@ -570,9 +333,7 @@ impl TimelinePlayer {
             Err(e) => return Err(anyhow!("Failed to set pipeline to PLAYING state: {}", e)),
         }
         
-        // Set up position monitoring now that pipeline is playing
         self.setup_position_monitoring(pipeline);
-        
         *self.is_playing.lock().unwrap() = true;
         info!("Pipeline is now PLAYING with position monitoring active");
         Ok(())
@@ -592,15 +353,14 @@ impl TimelinePlayer {
         }
         
         *self.is_playing.lock().unwrap() = false;
-        info!("Pipeline paused, position monitoring continues for smooth scrubbing");
+        info!("Pipeline paused, position monitoring continues");
         Ok(())
     }
 
     fn stop_pipeline(&self) -> Result<()> {
-        // Stop position monitoring timer first
         if let Some(timer_id) = self.position_timer_id.lock().unwrap().take() {
             timer_id.remove();
-            info!("Stopped GStreamer position monitoring timer");
+            info!("Stopped position monitoring timer");
         }
         
         if let Some(pipeline) = &self.pipeline {
@@ -650,15 +410,9 @@ impl TimelinePlayer {
     }
     
     pub fn dispose(&mut self) -> Result<()> {
-        // Unregister the texture from all registries
         if let Some(texture_id) = self.texture_id {
-            texture_registry::unregister_texture(texture_id);
-            unregister_irondash_texture_update(texture_id);
-            
-            // CRITICAL: Also unregister from the REAL irondash update functions
             crate::video::irondash_texture::unregister_irondash_update_function(texture_id);
-            
-            info!("Unregistered texture {} from all registries including REAL irondash updates", texture_id);
+            info!("Unregistered texture {}", texture_id);
         }
         
         self.stop_pipeline()
