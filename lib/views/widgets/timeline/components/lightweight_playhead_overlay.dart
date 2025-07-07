@@ -96,7 +96,7 @@ class _LightweightPlayheadOverlayState extends State<LightweightPlayheadOverlay>
     _wasPlayingBeforeDrag = _videoPlayerService.isPlaying;
     if (_wasPlayingBeforeDrag) {
       // Pause playback during drag
-      _videoPlayerService.activeVideoPlayer?.pause();
+      _videoPlayerService.activePlayer?.pause();
     }
     
     // Cache expensive calculations for drag performance

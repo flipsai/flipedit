@@ -1,12 +1,15 @@
 import 'package:flutter/widgets.dart';
 import 'package:flipedit/utils/logger.dart';
 import 'package:flipedit/src/rust/api/simple.dart';
+import 'package:flipedit/services/project_database_service.dart';
+import 'package:watch_it/watch_it.dart';
 import 'dart:async';
+import 'dart:math';
 
 class VideoPlayerService extends ChangeNotifier {
   String? _currentVideoPath;
   String? _errorMessage;
-  VideoPlayer? _activeVideoPlayer; // Reference to the active video player
+  dynamic _activePlayer; // Can be VideoPlayer or GesTimelinePlayer
   Timer? _positionPollingTimer;
   StreamSubscription<(double, BigInt)>? _positionStreamSubscription;
   
@@ -30,7 +33,7 @@ class VideoPlayerService extends ChangeNotifier {
   bool get isPlaying => isPlayingNotifier.value;
   String? get currentVideoPath => _currentVideoPath;
   String? get errorMessage => _errorMessage;
-  VideoPlayer? get activeVideoPlayer => _activeVideoPlayer;
+  dynamic get activePlayer => _activePlayer;
   double get positionSeconds => positionSecondsNotifier.value;
   int get currentFrame => currentFrameNotifier.value;
 
@@ -45,7 +48,7 @@ class VideoPlayerService extends ChangeNotifier {
 
   // Register an active video player instance for seeking
   void registerVideoPlayer(VideoPlayer videoPlayer) {
-    _activeVideoPlayer = videoPlayer;
+    _activePlayer = videoPlayer;
     hasActiveVideoNotifier.value = true;
     logDebug("Active video player registered", _logTag);
     
@@ -53,34 +56,53 @@ class VideoPlayerService extends ChangeNotifier {
     _setupPositionStream();
   }
 
+  // Register an active timeline player instance for seeking
+  void registerTimelinePlayer(GesTimelinePlayer timelinePlayer) {
+    _activePlayer = timelinePlayer;
+    hasActiveVideoNotifier.value = true;
+    logDebug("Active timeline player registered", _logTag);
+    
+    // Set up position stream for real-time updates
+    _setupPositionStream();
+  }
+
   // Unregister the active video player
   void unregisterVideoPlayer() {
+    _unregisterPlayer();
+  }
+
+  // Unregister the active timeline player
+  void unregisterTimelinePlayer() {
+    _unregisterPlayer();
+  }
+
+  void _unregisterPlayer() {
     // Stop position updates FIRST to prevent race conditions
     _stopPositionUpdates();
     
-    _activeVideoPlayer = null;
+    _activePlayer = null;
     
     // Defer ValueNotifier update to prevent widget tree lock during disposal
     WidgetsBinding.instance.addPostFrameCallback((_) {
       hasActiveVideoNotifier.value = false;
     });
     
-    logDebug("Active video player unregistered", _logTag);
+    logDebug("Active player unregistered", _logTag);
   }
 
   // Set up position stream for real-time updates from GStreamer timer
   void _setupPositionStream() {
     _stopPositionUpdates(); // Stop any existing stream
     
-    if (_activeVideoPlayer == null) {
-      logDebug("No active video player for position stream setup", _logTag);
+    if (_activePlayer == null) {
+      logDebug("No active player for position stream setup", _logTag);
       return;
     }
     
     logDebug("Setting up real-time position stream", _logTag);
     
     try {
-      final positionStream = _activeVideoPlayer!.setupPositionStream();
+      final positionStream = _activePlayer!.setupPositionStream();
       _positionStreamSubscription = positionStream.listen(
         (positionData) {
           final (positionSeconds, frameNumber) = positionData;
@@ -125,14 +147,22 @@ class VideoPlayerService extends ChangeNotifier {
 
   // Seek to frame position
   Future<void> seekToFrame(int frameNumber) async {
-    if (_activeVideoPlayer == null) {
-      logDebug("No active video player for seeking", _logTag);
+    if (_activePlayer == null) {
+      logDebug("No active player for seeking", _logTag);
       return;
     }
 
     try {
       logDebug("Seeking to frame: $frameNumber", _logTag);
-      await _activeVideoPlayer!.seekToFrame(frameNumber: BigInt.from(frameNumber));
+      
+      if (_activePlayer is VideoPlayer) {
+        await _activePlayer!.seekToFrame(frameNumber: BigInt.from(frameNumber));
+      } else if (_activePlayer is GesTimelinePlayer) {
+        // Convert frame to milliseconds (assuming 30fps)
+        final positionMs = (frameNumber * 1000 / 30).round();
+        await _activePlayer!.seekToPosition(positionMs: positionMs);
+      }
+      
       logDebug("Seek completed to frame: $frameNumber", _logTag);
     } catch (e) {
       logError(_logTag, "Error seeking to frame $frameNumber: $e");
@@ -141,18 +171,25 @@ class VideoPlayerService extends ChangeNotifier {
 
   // Seek to time position with pause/resume control
   Future<void> seekToTime(double seconds, {bool wasPlayingBefore = false}) async {
-    if (_activeVideoPlayer == null) {
-      logDebug("No active video player for seeking", _logTag);
+    if (_activePlayer == null) {
+      logDebug("No active player for seeking", _logTag);
       return;
     }
 
     try {
       logDebug("Seeking to time: ${seconds}s (wasPlayingBefore: $wasPlayingBefore)", _logTag);
-      final actualPosition = await _activeVideoPlayer!.seekAndPauseControl(
-        seconds: seconds,
-        wasPlayingBefore: wasPlayingBefore,
-      );
-      logDebug("Seek completed to actual position: ${actualPosition}s", _logTag);
+      
+      if (_activePlayer is VideoPlayer) {
+        final actualPosition = await _activePlayer!.seekAndPauseControl(
+          seconds: seconds,
+          wasPlayingBefore: wasPlayingBefore,
+        );
+        logDebug("Seek completed to actual position: ${actualPosition}s", _logTag);
+      } else if (_activePlayer is GesTimelinePlayer) {
+        final positionMs = (seconds * 1000).round();
+        await _activePlayer!.seekToPosition(positionMs: positionMs);
+        logDebug("Seek completed to position: ${seconds}s", _logTag);
+      }
     } catch (e) {
       logError(_logTag, "Error seeking to time $seconds: $e");
     }
@@ -160,13 +197,13 @@ class VideoPlayerService extends ChangeNotifier {
 
   // Extract frame at position for preview
   Future<void> previewFrameAtTime(double seconds) async {
-    if (_activeVideoPlayer == null) {
+    if (_activePlayer == null || _activePlayer is! VideoPlayer) {
       logDebug("No active video player for frame preview", _logTag);
       return;
     }
 
     try {
-      await _activeVideoPlayer!.extractFrameAtPosition(seconds: seconds);
+      await _activePlayer!.extractFrameAtPosition(seconds: seconds);
     } catch (e) {
       logError(_logTag, "Error extracting frame at $seconds: $e");
     }
@@ -174,9 +211,12 @@ class VideoPlayerService extends ChangeNotifier {
 
   // Get video information
   double getFrameRate() {
-    if (_activeVideoPlayer == null) return 30.0; // Default frame rate
+    if (_activePlayer == null) return 30.0; // Default frame rate
     try {
-      return _activeVideoPlayer!.getFrameRate();
+      if (_activePlayer is VideoPlayer) {
+        return _activePlayer!.getFrameRate();
+      }
+      return 30.0; // Default for timeline player
     } catch (e) {
       logError(_logTag, "Error getting frame rate: $e");
       return 30.0;
@@ -184,19 +224,66 @@ class VideoPlayerService extends ChangeNotifier {
   }
 
   int getTotalFrames() {
-    if (_activeVideoPlayer == null) return 0;
+    if (_activePlayer == null) return 0;
     try {
-      return _activeVideoPlayer!.getTotalFrames().toInt();
+      if (_activePlayer is VideoPlayer) {
+        return _activePlayer!.getTotalFrames().toInt();
+      } else if (_activePlayer is GesTimelinePlayer) {
+        final durationMs = _activePlayer!.getDurationMs();
+        if (durationMs != null && durationMs > 0) {
+          // Convert duration to frames (assuming 30 FPS)
+          return (durationMs / 1000.0 * 30.0).round();
+        }
+        // Fallback: if no duration available, try to get it from project timeline
+        return _calculateTimelineFrames();
+      }
+      return 0;
     } catch (e) {
       logError(_logTag, "Error getting total frames: $e");
       return 0;
     }
   }
 
-  double getDuration() {
-    if (_activeVideoPlayer == null) return 0.0;
+  int _calculateTimelineFrames() {
     try {
-      return _activeVideoPlayer!.getDurationSeconds();
+      // Try to get timeline duration from dependency injection
+      final projectDatabaseService = di<ProjectDatabaseService>();
+      final tracks = projectDatabaseService.tracksNotifier.value;
+      
+      // Simple estimation: find maximum clip end time across all tracks
+      // This is not perfect but provides a reasonable estimate
+      int maxEndTimeMs = 0;
+      for (final track in tracks) {
+        // We can't easily access async clip data here, so use a heuristic
+        // If there are tracks, assume at least 10 seconds of content per track
+                 if (track.name.isNotEmpty) {
+           maxEndTimeMs = max(maxEndTimeMs + 10000, 30000); // At least 30 seconds if tracks exist
+         }
+      }
+      
+      if (maxEndTimeMs > 0) {
+        // Convert to frames (30 FPS)
+        return (maxEndTimeMs / 1000.0 * 30.0).round();
+      }
+      
+      // Default fallback: 30 seconds
+      return 900; // 30 seconds at 30 FPS
+    } catch (e) {
+      logError(_logTag, "Error calculating timeline frames: $e");
+      return 900; // Default fallback
+    }
+  }
+
+  double getDuration() {
+    if (_activePlayer == null) return 0.0;
+    try {
+      if (_activePlayer is VideoPlayer) {
+        return _activePlayer!.getDurationSeconds();
+      } else if (_activePlayer is GesTimelinePlayer) {
+        final durationMs = _activePlayer!.getDurationMs();
+        return durationMs != null ? durationMs / 1000.0 : 0.0;
+      }
+      return 0.0;
     } catch (e) {
       logError(_logTag, "Error getting duration: $e");
       return 0.0;
@@ -216,7 +303,7 @@ class VideoPlayerService extends ChangeNotifier {
   void clearState() {
     _currentVideoPath = null;
     _errorMessage = null;
-    _activeVideoPlayer = null;
+    _activePlayer = null;
     _stopPositionUpdates();
     isPlayingNotifier.value = false;
     positionSecondsNotifier.value = 0.0;
@@ -230,7 +317,7 @@ class VideoPlayerService extends ChangeNotifier {
     if (!_hasPendingUpdates) {
       _hasPendingUpdates = true;
       // Faster updates when playing for smooth video, slower when paused
-      final isCurrentlyPlaying = _activeVideoPlayer?.isPlaying() ?? false;
+      final isCurrentlyPlaying = _activePlayer?.isPlaying() ?? false;
       final delay = isCurrentlyPlaying 
           ? const Duration(milliseconds: 8)  // ~120fps max when playing for smooth video
           : const Duration(milliseconds: 32); // ~30fps when paused

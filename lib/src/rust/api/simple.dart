@@ -51,7 +51,7 @@ PlatformInt64 playDualVideo({
   engineHandle: engineHandle,
 );
 
-/// Create and load a GES timeline player with timeline data
+/// Create and load a GES timeline player with timeline data (simplified implementation)
 Future<(GesTimelinePlayer, PlatformInt64)> createGesTimelinePlayer({
   required TimelineData timelineData,
   required PlatformInt64 engineHandle,

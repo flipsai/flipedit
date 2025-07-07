@@ -1,16 +1,15 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flipedit/src/rust/api/simple.dart';
+import 'package:flipedit/src/rust/common/types.dart';
 import 'package:flipedit/services/video_player_service.dart';
+import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/utils/logger.dart';
 import 'package:irondash_engine_context/irondash_engine_context.dart';
 import 'package:watch_it/watch_it.dart';
 
 class VideoPlayerViewModel {
-  final String leftVideoPath;
-  final String? rightVideoPath;
-
-  VideoPlayer? _videoPlayer;
+  GesTimelinePlayer? _timelinePlayer;
   final ValueNotifier<int?> textureIdNotifier = ValueNotifier<int?>(null);
   final ValueNotifier<String?> errorMessageNotifier = ValueNotifier<String?>(null);
 
@@ -18,58 +17,91 @@ class VideoPlayerViewModel {
   int? get textureId => textureIdNotifier.value;
   String? get errorMessage => errorMessageNotifier.value;
 
-  VideoPlayerViewModel({
-    required this.leftVideoPath,
-    this.rightVideoPath,
-  }) {
+  VideoPlayerViewModel() {
     _initialize();
   }
 
   Future<void> _initialize() async {
     try {
+      // Build timeline data from current project
+      final timelineData = await _buildTimelineData();
+      
+      if (timelineData.tracks.isEmpty) {
+        logInfo('VideoPlayerViewModel', 'No tracks available for timeline initialization');
+        return;
+      }
+
       // Acquire Flutter engine handle for zero-copy texture rendering
       final handle = await EngineContext.instance.getEngineHandle();
 
-      // Create texture via Rust API
-      final textureId = createVideoTexture(
-        width: 1920,
-        height: 1080,
+      // Create GES timeline player with timeline data
+      final (player, textureId) = await createGesTimelinePlayer(
+        timelineData: timelineData,
         engineHandle: handle,
       );
 
-      // Instantiate video player (Rust side)
-      _videoPlayer = VideoPlayer();
-      _videoPlayer!.setTexturePtr(ptr: textureId);
+      _timelinePlayer = player;
 
-      // Load primary video (left)
-      await _videoPlayer!.loadVideo(filePath: leftVideoPath);
-
-      // Register player with service for shared state / seeking
       final videoPlayerService = di<VideoPlayerService>();
-      videoPlayerService.registerVideoPlayer(_videoPlayer!);
-      videoPlayerService.setCurrentVideoPath(leftVideoPath);
+      videoPlayerService.registerTimelinePlayer(_timelinePlayer!);
 
       textureIdNotifier.value = textureId;
+      
+      logInfo('VideoPlayerViewModel', 'Successfully initialized GES timeline player with ${timelineData.tracks.length} tracks');
     } catch (e) {
-      final errMsg = "Failed to initialize video player: $e";
+      final errMsg = "Failed to initialize timeline player: $e";
       errorMessageNotifier.value = errMsg;
       logError('VideoPlayerViewModel', errMsg);
     }
   }
 
+  Future<TimelineData> _buildTimelineData() async {
+    final projectDatabaseService = di<ProjectDatabaseService>();
+    final tracks = projectDatabaseService.tracksNotifier.value;
+    
+    List<TimelineTrack> timelineTracks = [];
+    
+    for (final track in tracks) {
+      // Get clips for this track
+      final clipRows = await projectDatabaseService.clipDao?.getClipsForTrack(track.id) ?? [];
+      
+      final clips = clipRows.map((clipRow) => TimelineClip(
+        id: clipRow.id,
+        trackId: clipRow.trackId,
+        sourcePath: clipRow.sourcePath,
+        startTimeOnTrackMs: clipRow.startTimeOnTrackMs,
+        endTimeOnTrackMs: clipRow.endTimeOnTrackMs ?? clipRow.startTimeOnTrackMs + (clipRow.endTimeInSourceMs - clipRow.startTimeInSourceMs),
+        startTimeInSourceMs: clipRow.startTimeInSourceMs,
+        endTimeInSourceMs: clipRow.endTimeInSourceMs,
+        previewPositionX: clipRow.previewPositionX,
+        previewPositionY: clipRow.previewPositionY,
+        previewWidth: clipRow.previewWidth,
+        previewHeight: clipRow.previewHeight,
+      )).toList();
+      
+      timelineTracks.add(TimelineTrack(
+        id: track.id,
+        name: track.name,
+        clips: clips,
+      ));
+    }
+    
+    return TimelineData(tracks: timelineTracks);
+  }
+
   Future<void> togglePlayPause() async {
-    if (_videoPlayer == null) return;
+    if (_timelinePlayer == null) return;
 
     try {
       final videoPlayerService = di<VideoPlayerService>();
       final isPlaying = videoPlayerService.isPlaying;
-      logInfo('Toggle play/pause – currently playing: $isPlaying', 'VideoPlayerViewModel');
+      logInfo('VideoPlayerViewModel', 'Toggle play/pause – currently playing: $isPlaying');
 
       if (isPlaying) {
-        await _videoPlayer!.pause();
+        await _timelinePlayer!.pause();
         videoPlayerService.setPlayingState(false);
       } else {
-        await _videoPlayer!.play();
+        await _timelinePlayer!.play();
         videoPlayerService.setPlayingState(true);
       }
     } catch (e) {
@@ -79,10 +111,24 @@ class VideoPlayerViewModel {
     }
   }
 
+  Future<void> refreshTimeline() async {
+    if (_timelinePlayer == null) return;
+    
+    try {
+      logInfo('VideoPlayerViewModel', 'Refreshing timeline with updated data');
+      final timelineData = await _buildTimelineData();
+      await _timelinePlayer!.loadTimeline(timelineData: timelineData);
+    } catch (e) {
+      final errMsg = "Failed to refresh timeline: $e";
+      errorMessageNotifier.value = errMsg;
+      logError('VideoPlayerViewModel', errMsg);
+    }
+  }
+
   void dispose() {
     final videoPlayerService = di<VideoPlayerService>();
-    videoPlayerService.unregisterVideoPlayer();
-    _videoPlayer?.dispose();
+    videoPlayerService.unregisterTimelinePlayer();
+    _timelinePlayer?.dispose();
     textureIdNotifier.dispose();
     errorMessageNotifier.dispose();
   }

@@ -694,7 +694,7 @@ fn wire__crate__api__simple__GesTimelinePlayer_set_texture_ptr_impl(
             >>::sse_decode(&mut deserializer);
             let api_ptr = <i64>::sse_decode(&mut deserializer);
             deserializer.end();
-            transform_result_sse::<_, ()>((move || {
+            transform_result_sse::<_, String>((move || {
                 let mut api_that_guard = None;
                 let decode_indices_ =
                     flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
@@ -709,12 +709,10 @@ fn wire__crate__api__simple__GesTimelinePlayer_set_texture_ptr_impl(
                     }
                 }
                 let mut api_that_guard = api_that_guard.unwrap();
-                let output_ok = Result::<_, ()>::Ok({
-                    crate::api::simple::GESTimelinePlayer::set_texture_ptr(
-                        &mut *api_that_guard,
-                        api_ptr,
-                    );
-                })?;
+                let output_ok = crate::api::simple::GESTimelinePlayer::set_texture_ptr(
+                    &mut *api_that_guard,
+                    api_ptr,
+                )?;
                 Ok(output_ok)
             })())
         },
@@ -745,7 +743,7 @@ fn wire__crate__api__simple__GesTimelinePlayer_setup_frame_stream_impl(
             let api_that = <RustOpaqueMoi<
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<GESTimelinePlayer>,
             >>::sse_decode(&mut deserializer);
-            let api_sink = <StreamSink<
+            let api__sink = <StreamSink<
                 crate::common::types::FrameData,
                 flutter_rust_bridge::for_generated::SseCodec,
             >>::sse_decode(&mut deserializer);
@@ -769,7 +767,7 @@ fn wire__crate__api__simple__GesTimelinePlayer_setup_frame_stream_impl(
                         let mut api_that_guard = api_that_guard.unwrap();
                         let output_ok = crate::api::simple::GESTimelinePlayer::setup_frame_stream(
                             &mut *api_that_guard,
-                            api_sink,
+                            api__sink,
                         )?;
                         Ok(output_ok)
                     })(),

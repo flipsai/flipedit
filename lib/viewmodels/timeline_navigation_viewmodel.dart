@@ -120,9 +120,9 @@ class TimelineNavigationViewModel extends ChangeNotifier {
     if (isPlaying) return;
     
     // Start playback through the video player instead of internal service
-    if (_videoPlayerService.activeVideoPlayer != null) {
+    if (_videoPlayerService.activePlayer != null) {
       try {
-        await _videoPlayerService.activeVideoPlayer!.play();
+        await _videoPlayerService.activePlayer!.play();
         logger.logDebug("Started playback through Rust video player", _logTag);
       } catch (e) {
         logger.logError(_logTag, "Error starting playback: $e");
@@ -139,9 +139,9 @@ class TimelineNavigationViewModel extends ChangeNotifier {
     if (!isPlaying) return;
     
     // Stop playback through the video player
-    if (_videoPlayerService.activeVideoPlayer != null) {
+    if (_videoPlayerService.activePlayer != null) {
       try {
-        _videoPlayerService.activeVideoPlayer!.pause();
+        _videoPlayerService.activePlayer!.pause();
         logger.logDebug("Stopped playback through Rust video player", _logTag);
       } catch (e) {
         logger.logError(_logTag, "Error stopping playback: $e");
