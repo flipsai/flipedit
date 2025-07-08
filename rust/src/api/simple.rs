@@ -1,10 +1,9 @@
 use flutter_rust_bridge::frb;
 pub use crate::api::bridge::*;
 use crate::video::player::VideoPlayer as InternalVideoPlayer;
-use crate::video::timeline_player::TimelinePlayer as InternalTimelinePlayer;
+use crate::video::direct_pipeline_player::DirectPipelinePlayer as InternalDirectPipelinePlayer;
 pub use crate::common::types::{FrameData, TimelineData, TimelineClip, TimelineTrack, TextureFrame};
 use gstreamer as gst;
-use gstreamer_editing_services as ges;
 use gstreamer::prelude::*;
 use crate::utils::testing;
 use std::sync::{Arc, Mutex};
@@ -179,14 +178,14 @@ impl VideoPlayer {
 }
 
 pub struct TimelinePlayer {
-    inner: InternalTimelinePlayer,
+    inner: InternalDirectPipelinePlayer,
 }
 
 impl TimelinePlayer {
     #[frb(sync)]
     pub fn new() -> Self {
         Self {
-            inner: InternalTimelinePlayer::new().expect("Failed to create TimelinePlayer"),
+            inner: InternalDirectPipelinePlayer::new().expect("Failed to create DirectPipelinePlayer"),
         }
     }
 
@@ -258,16 +257,16 @@ impl TimelinePlayer {
     }
 }
 
-// GES timeline player implementation (currently using fallback to TimelinePlayer)
+// GES timeline player implementation (now using DirectPipelinePlayer)
 pub struct GESTimelinePlayer {
-    inner: InternalTimelinePlayer,
+    inner: InternalDirectPipelinePlayer,
 }
 
 impl GESTimelinePlayer {
     #[frb(sync)]
     pub fn new() -> Self {
         Self {
-            inner: InternalTimelinePlayer::new().expect("Failed to create GESTimelinePlayer"),
+            inner: InternalDirectPipelinePlayer::new().expect("Failed to create DirectPipelinePlayer"),
         }
     }
 
@@ -429,24 +428,23 @@ pub fn play_dual_video(file_path_left: String, file_path_right: String, engine_h
     Ok(texture_id)
 }
 
-/// Create and load a GES timeline player with timeline data (proper GES implementation)
+/// Create and load a direct pipeline timeline player with timeline data (GStreamer-only implementation)
 pub fn create_ges_timeline_player(timeline_data: TimelineData, engine_handle: i64) -> Result<(GESTimelinePlayer, i64), String> {
-    // Initialize GStreamer and GES
+    // Initialize GStreamer only (no more GES)
     gst::init().map_err(|e| format!("Failed to initialize GStreamer: {}", e))?;
-    ges::init().map_err(|e| format!("Failed to initialize GES: {}", e))?;
     
-    // Create GES timeline player with proper GES integration
-    let mut ges_player = GESTimelinePlayer::new();
+    // Create direct pipeline player
+    let mut direct_player = GESTimelinePlayer::new();
     
     // Create texture for this specific player
-    let texture_id = ges_player.create_texture(engine_handle)?;
+    let texture_id = direct_player.create_texture(engine_handle)?;
     
     // Load the timeline data
-    ges_player.load_timeline(timeline_data.clone())?;
+    direct_player.load_timeline(timeline_data.clone())?;
     
-    log::info!("Created GES timeline player with {} tracks using proper GES Timeline", timeline_data.tracks.len());
+    log::info!("Created direct pipeline timeline player with {} tracks using GStreamer compositor", timeline_data.tracks.len());
     
-    Ok((ges_player, texture_id))
+    Ok((direct_player, texture_id))
 }
 
 /// Get video duration in milliseconds using GStreamer

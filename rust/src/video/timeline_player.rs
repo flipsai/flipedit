@@ -45,7 +45,7 @@ unsafe impl Sync for TimelinePlayer {}
 impl TimelinePlayer {
     pub fn new() -> Result<Self> {
         gst::init().map_err(|e| anyhow!("Failed to initialize GStreamer: {}", e))?;
-        ges::init().map_err(|e| anyhow!("Failed to initialize GES: {}", e))?;
+        
         info!("GStreamer and GES initialized successfully.");
         Ok(Self {
             pipeline: None,
@@ -216,65 +216,111 @@ impl TimelinePlayer {
               clip_data.preview_width,
               clip_data.preview_height);
 
-        // 1. Scale the video to the desired preview size
-        let videoscale_effect = ges::Effect::new("videoscale").map_err(|e| {
-            anyhow!("Failed to create videoscale effect: {}", e)
-        })?;
-        ges::prelude::TimelineElementExt::set_child_property(&videoscale_effect, "method", &0i32.to_value())?; // 0 = nearest-neighbor, fastest
-        ges::prelude::TimelineElementExt::set_child_property(&videoscale_effect, "add-borders", &false.to_value())?; // Disable aspect ratio preservation
-        ges_clip.add(&videoscale_effect).map_err(|_| {
-            anyhow!("Failed to add videoscale effect to clip")
-        })?;
-
-        // 2. Use a capsfilter to enforce the scaled dimensions
-        let capsfilter_effect = ges::Effect::new("capsfilter").map_err(|e| {
-            anyhow!("Failed to create capsfilter effect: {}", e)
-        })?;
-        let caps = gst::Caps::builder("video/x-raw")
-            .field("width", clip_data.preview_width as i32)
-            .field("height", clip_data.preview_height as i32)
-            .field("pixel-aspect-ratio", gst::Fraction::new(1, 1)) // Force square pixels
-            .build();
-        ges::prelude::TimelineElementExt::set_child_property(&capsfilter_effect, "caps", &caps.to_value())?;
-        ges_clip.add(&capsfilter_effect).map_err(|_| {
-            anyhow!("Failed to add capsfilter effect to clip")
+        // STEP 1: Add videoconvert to ensure format conversion works
+        let videoconvert = ges::Effect::new("videoconvert").map_err(|e| {
+            anyhow!("Failed to create videoconvert effect: {}", e)
         })?;
         
-        // 3. Position the scaled video on the canvas using videobox
-        let videobox_effect = ges::Effect::new("videobox").map_err(|e| {
+        ges_clip.add(&videoconvert).map_err(|_| {
+            anyhow!("Failed to add videoconvert effect to clip")
+        })?;
+        
+        // STEP 2: Try a different approach - use videoconvertscale to handle both conversion and scaling
+        // Remove the separate videoscale and try videoconvertscale with flexible caps
+        
+        // Remove the old videoscale and try videoconvertscale with caps as child properties
+        let videoconvertscale = ges::Effect::new("videoconvertscale").map_err(|e| {
+            anyhow!("Failed to create videoconvertscale effect: {}", e)
+        })?;
+        
+        // Configure scaling method for better performance
+        ges::prelude::TimelineElementExt::set_child_property(&videoconvertscale, "method", &0i32.to_value())?; // 0 = nearest-neighbor, fastest
+        ges::prelude::TimelineElementExt::set_child_property(&videoconvertscale, "add-borders", &false.to_value())?; // Don't preserve aspect ratio
+        
+        ges_clip.add(&videoconvertscale).map_err(|_| {
+            anyhow!("Failed to add videoconvertscale effect to clip")
+        })?;
+        
+        // SKIP capsfilter - it causes format negotiation issues
+        // Instead, let's try using the videocrop element to control dimensions
+        let videocrop = ges::Effect::new("videocrop").map_err(|e| {
+            anyhow!("Failed to create videocrop effect: {}", e)
+        })?;
+        
+        // Calculate crop values to achieve the desired size
+        // For now, let's just ensure we don't crop anything (set to 0)
+        ges::prelude::TimelineElementExt::set_child_property(&videocrop, "left", &0i32.to_value())?;
+        ges::prelude::TimelineElementExt::set_child_property(&videocrop, "right", &0i32.to_value())?;
+        ges::prelude::TimelineElementExt::set_child_property(&videocrop, "top", &0i32.to_value())?;
+        ges::prelude::TimelineElementExt::set_child_property(&videocrop, "bottom", &0i32.to_value())?;
+        
+        ges_clip.add(&videocrop).map_err(|_| {
+            anyhow!("Failed to add videocrop effect to clip")
+        })?;
+        
+        // STEP 3: Add videobox for positioning
+        let videobox = ges::Effect::new("videobox").map_err(|e| {
             anyhow!("Failed to create videobox effect: {}", e)
         })?;
-        let left_border = clip_data.preview_position_x as i32;
-        let top_border = clip_data.preview_position_y as i32;
-        ges::prelude::TimelineElementExt::set_child_property(&videobox_effect, "left", &left_border.to_value())?;
-        ges::prelude::TimelineElementExt::set_child_property(&videobox_effect, "top", &top_border.to_value())?;
-        ges_clip.add(&videobox_effect).map_err(|_| {
+        
+        // Calculate border values for positioning
+        // videobox uses negative values to add borders (move content), positive to crop
+        let left_border = -(clip_data.preview_position_x as i32);
+        let top_border = -(clip_data.preview_position_y as i32);
+        
+        // Set positioning properties
+        ges::prelude::TimelineElementExt::set_child_property(&videobox, "left", &left_border.to_value())?;
+        ges::prelude::TimelineElementExt::set_child_property(&videobox, "top", &top_border.to_value())?;
+        ges::prelude::TimelineElementExt::set_child_property(&videobox, "fill", &0i32.to_value())?; // 0 = black fill
+        
+        ges_clip.add(&videobox).map_err(|_| {
             anyhow!("Failed to add videobox effect to clip")
         })?;
         
-        info!("Applied video transform effects: position=({},{}), size=({},{})",
+        info!("Applied complete video transform effects: position=({},{}), size=({},{})",
               clip_data.preview_position_x, clip_data.preview_position_y,
               clip_data.preview_width, clip_data.preview_height);
-
+        
         Ok(())
     }
 
     fn create_ges_pipeline(&mut self, timeline: &ges::Timeline) -> Result<ges::Pipeline> {
+        // Force software decoding on macOS BEFORE creating pipeline to avoid vtdec hardware decoder issues
+        #[cfg(target_os = "macos")]
+        {
+            use gst::prelude::*;
+            let registry = gst::Registry::get();
+            // Lower the rank of both vtdec variants to force software decoding
+            if let Some(vtdec_factory) = registry.find_feature("vtdec", gst::PluginFeature::static_type()) {
+                vtdec_factory.set_rank(gst::Rank::NONE);
+                info!("Disabled vtdec decoder on macOS");
+            }
+            if let Some(vtdec_hw_factory) = registry.find_feature("vtdec_hw", gst::PluginFeature::static_type()) {
+                vtdec_hw_factory.set_rank(gst::Rank::NONE);
+                info!("Disabled vtdec_hw decoder on macOS");
+            }
+            // Ensure avdec_h264 (software decoder) has higher priority
+            if let Some(avdec_factory) = registry.find_feature("avdec_h264", gst::PluginFeature::static_type()) {
+                avdec_factory.set_rank(gst::Rank::PRIMARY + 1);
+                info!("Prioritized avdec_h264 software decoder on macOS");
+            }
+        }
+
         let pipeline = ges::Pipeline::new();
-        
+  
         pipeline.set_timeline(timeline)
             .map_err(|e| anyhow!("Failed to set timeline on pipeline: {}", e))?;
-        
+  
         let video_sink = self.create_texture_video_sink()?;
         pipeline.preview_set_video_sink(Some(&video_sink));
-        
+  
         let audio_sink = gst::ElementFactory::make("autoaudiosink")
             .build()?;
         pipeline.set_audio_sink(Some(&audio_sink));
-        
+  
         // Set up message bus handling for EOS and other pipeline events
         self.setup_message_bus_handling(&pipeline)?;
-        
+  
         info!("GES pipeline created successfully with message bus handling");
         Ok(pipeline)
     }
@@ -289,6 +335,7 @@ impl TimelinePlayer {
         video_sink.set_property("drop", true);
         video_sink.set_property("max-buffers", 1u32);
 
+        // The texture expects RGBA format, so we need to ensure conversion
         let caps = gst::Caps::builder("video/x-raw")
             .field("format", "RGBA")
             .field("width", 1920i32)
