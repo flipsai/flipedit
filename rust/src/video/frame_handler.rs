@@ -1,28 +1,32 @@
-use crate::common::types::{FrameData, TimelineData, TimelineClip};
-use std::sync::{Arc, Mutex};
+use crate::common::types::{FrameData, TimelineData, TimelineClip, FrameBufferPool, TextureFrame};
+use std::sync::{Arc, Mutex, atomic::{AtomicU64, Ordering}};
 use log::debug;
 
 #[derive(Clone)]
 pub struct FrameHandler {
-    pub latest_frame: Arc<Mutex<Option<FrameData>>>,
-    pub texture_ptr: Option<i64>,
+    pub latest_frame: Arc<Mutex<Option<FrameData>>>, // Keep for backwards compatibility
+    pub latest_texture_id: Arc<AtomicU64>, // Current GPU texture ID
+    pub texture_ptr: Option<i64>, // Flutter texture pointer
     pub width: Arc<Mutex<i32>>,
     pub height: Arc<Mutex<i32>>,
     pub frame_rate: Arc<Mutex<f64>>,
     pub timeline_data: Arc<Mutex<Option<TimelineData>>>,
     pub current_time_ms: Arc<Mutex<i32>>,
+    pub buffer_pool: Arc<Mutex<FrameBufferPool>>, // Keep for CPU fallback
 }
 
 impl FrameHandler {
     pub fn new() -> Self {
         Self {
             latest_frame: Arc::new(Mutex::new(None)),
+            latest_texture_id: Arc::new(AtomicU64::new(0)),
             texture_ptr: None,
             width: Arc::new(Mutex::new(0)),
             height: Arc::new(Mutex::new(0)),
             frame_rate: Arc::new(Mutex::new(25.0)),
             timeline_data: Arc::new(Mutex::new(None)),
             current_time_ms: Arc::new(Mutex::new(0)),
+            buffer_pool: Arc::new(Mutex::new(FrameBufferPool::default())),
         }
     }
 
@@ -100,13 +104,26 @@ impl FrameHandler {
             // Return empty/black frame when not within any clip
             let (width, height) = self.get_video_dimensions();
             if width > 0 && height > 0 {
-                let black_frame_size = (width * height * 4) as usize; // RGBA
-                let black_data = vec![0u8; black_frame_size];
+                let mut black_data = if let Ok(pool) = self.buffer_pool.lock() {
+                    pool.get_buffer()
+                } else {
+                    vec![0u8; (width * height * 4) as usize]
+                };
+                
+                let required_size = (width * height * 4) as usize;
+                if black_data.len() != required_size {
+                    black_data.resize(required_size, 0);
+                }
+                
+                // Fill with black pixels
+                black_data.fill(0);
+                
                 debug!("Returning black frame ({}x{}) - no active clip", width, height);
                 return Some(FrameData {
                     data: black_data,
                     width: width as u32,
                     height: height as u32,
+                    texture_id: None,
                 });
             }
             return None;
@@ -121,25 +138,73 @@ impl FrameHandler {
 
     pub fn store_frame(&self, frame_data: FrameData) {
         if let Ok(mut latest_frame) = self.latest_frame.try_lock() {
-            *latest_frame = Some(frame_data);
+            // Return old frame buffer to pool if it exists
+            if let Some(old_frame) = latest_frame.replace(frame_data) {
+                self.return_buffer_to_pool(old_frame.data);
+            }
             debug!("Stored frame data for Dart retrieval");
         }
     }
+    
+    /// Get the latest texture ID for GPU-based rendering
+    pub fn get_latest_texture_id(&self) -> u64 {
+        self.latest_texture_id.load(Ordering::Relaxed)
+    }
+    
+    /// Get texture frame data for GPU-based rendering
+    pub fn get_texture_frame(&self) -> Option<TextureFrame> {
+        let texture_id = self.get_latest_texture_id();
+        if texture_id > 0 {
+            let (width, height) = self.get_video_dimensions();
+            Some(TextureFrame {
+                texture_id,
+                width: width as u32,
+                height: height as u32,
+                timestamp: None,
+            })
+        } else {
+            None
+        }
+    }
+    
 
     pub fn update_dimensions(&self, width: u32, height: u32) {
+        let mut changed = false;
+        
         if let Ok(mut width_guard) = self.width.try_lock() {
-            *width_guard = width as i32;
+            if *width_guard != width as i32 {
+                *width_guard = width as i32;
+                changed = true;
+            }
         }
         if let Ok(mut height_guard) = self.height.try_lock() {
-            *height_guard = height as i32;
+            if *height_guard != height as i32 {
+                *height_guard = height as i32;
+                changed = true;
+            }
         }
-        debug!("Updated video dimensions: {}x{}", width, height);
+        
+        if changed {
+            // Update buffer pool for new dimensions
+            if let Ok(mut pool) = self.buffer_pool.lock() {
+                pool.resize_for_dimensions(width, height);
+            }
+            debug!("Updated video dimensions: {}x{}", width, height);
+        }
     }
 
-    pub fn update_frame_rate(&self, fps: f64) {
-        if let Ok(mut frame_rate_guard) = self.frame_rate.try_lock() {
-            *frame_rate_guard = fps;
-            debug!("Updated frame rate: {} fps", fps);
+    pub fn get_buffer_from_pool(&self) -> Vec<u8> {
+        if let Ok(pool) = self.buffer_pool.lock() {
+            pool.get_buffer()
+        } else {
+            // Fallback to default 1080p buffer
+            vec![0u8; 1920 * 1080 * 4]
+        }
+    }
+
+    pub fn return_buffer_to_pool(&self, buffer: Vec<u8>) {
+        if let Ok(pool) = self.buffer_pool.lock() {
+            pool.return_buffer(buffer);
         }
     }
 
@@ -155,6 +220,15 @@ impl FrameHandler {
     pub fn get_total_frames(&self, duration_seconds: f64) -> u64 {
         let frame_rate = self.get_frame_rate();
         (duration_seconds * frame_rate) as u64
+    }
+    
+    pub fn set_video_dimensions(&self, width: i32, height: i32) {
+        if let Ok(mut width_guard) = self.width.try_lock() {
+            *width_guard = width;
+        }
+        if let Ok(mut height_guard) = self.height.try_lock() {
+            *height_guard = height;
+        }
     }
 }
 

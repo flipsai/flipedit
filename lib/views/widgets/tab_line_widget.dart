@@ -158,7 +158,7 @@ class _TabLineWidgetState extends State<TabLineWidget> {
           height: 40,
           margin: const EdgeInsets.all(4),
           decoration: BoxDecoration(
-            color: theme.accentColor.withOpacity(0.3),
+            color: theme.accentColor.withValues(alpha: 0.3),
             borderRadius: BorderRadius.circular(4),
             border: Border.all(color: theme.accentColor, width: 2),
           ),
@@ -301,7 +301,7 @@ class _TabLineWidgetState extends State<TabLineWidget> {
           
           // Update active states if needed
           if (tabSystem.activeLineId == sourceLine.id) {
-            tabSystem.activeLineId = targetLine!.id;
+            tabSystem.activeLineId = targetLine.id;
           }
           if (tabSystem.activeGroupId == fromGroupId) {
             tabSystem.activeGroupId = toGroupId;
@@ -318,7 +318,7 @@ class _TabLineWidgetState extends State<TabLineWidget> {
     
     // Set the moved tab as active
     tabSystem.activeGroupId = toGroupId;
-    tabSystem.activeLineId = targetLine!.id;
+    tabSystem.activeLineId = targetLine.id;
     tabSystem.setActiveTab(tabId);
   }
 

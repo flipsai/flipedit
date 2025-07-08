@@ -146,10 +146,7 @@ class ProjectDatabaseClipDao extends DatabaseAccessor<ProjectDatabase>
         previewPositionY: Value(oldRow.previewPositionY),
         previewWidth: Value(oldRow.previewWidth),
         previewHeight: Value(oldRow.previewHeight),
-        createdAt:
-            oldRow.createdAt != null
-                ? Value(oldRow.createdAt)
-                : Value(DateTime.now()),
+        createdAt: Value(oldRow.createdAt),
         updatedAt: Value(DateTime.now()),
       );
 

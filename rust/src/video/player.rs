@@ -1,4 +1,5 @@
 use crate::audio_handler::{MediaSender, MediaData, AudioFormat, start_audio_thread};
+use crate::common::types::FrameData;
 use crate::video::frame_handler::FrameHandler;
 use crate::video::pipeline::PipelineManager;
 use gstreamer as gst;
@@ -7,7 +8,12 @@ use gstreamer_video as gst_video;
 use gstreamer_app as gst_app;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use std::thread;
 use log::{info, warn, debug};
+use anyhow::Result;
+
+pub type FrameCallback = Box<dyn Fn(FrameData) -> Result<()> + Send + Sync>;
+pub type PositionUpdateCallback = Box<dyn Fn(f64, u64) -> Result<()> + Send + Sync>;
 
 pub struct VideoPlayer {
     pub pipeline_manager: Option<PipelineManager>,
@@ -15,7 +21,6 @@ pub struct VideoPlayer {
     pub is_playing: Arc<Mutex<bool>>,
     // Audio-related fields
     pub audio_sender: Option<MediaSender>,
-    pub has_audio: Arc<Mutex<bool>>,
     // Seeking-related fields
     pub duration: Arc<Mutex<Option<u64>>>, // Duration in nanoseconds
     pub seekable: Arc<Mutex<bool>>,
@@ -23,6 +28,13 @@ pub struct VideoPlayer {
     pub file_path: Option<String>,
     // Frame extraction mutex to prevent concurrent operations
     pub frame_extraction_mutex: Arc<Mutex<()>>,
+    frame_callback: Arc<Mutex<Option<FrameCallback>>>,
+    // Position update callback for real-time updates
+    position_callback: Arc<Mutex<Option<PositionUpdateCallback>>>,
+    // Timer thread handle for position updates
+    timer_handle: Arc<Mutex<Option<thread::JoinHandle<()>>>>,
+    // Timer running flag
+    timer_running: Arc<Mutex<bool>>,
 }
 
 impl VideoPlayer {
@@ -35,16 +47,31 @@ impl VideoPlayer {
             frame_handler: FrameHandler::new(),
             is_playing: Arc::new(Mutex::new(false)),
             audio_sender: Some(audio_sender),
-            has_audio: Arc::new(Mutex::new(false)),
             duration: Arc::new(Mutex::new(None)),
             seekable: Arc::new(Mutex::new(false)),
             file_path: None,
             frame_extraction_mutex: Arc::new(Mutex::new(())),
+            frame_callback: Arc::new(Mutex::new(None)),
+            position_callback: Arc::new(Mutex::new(None)),
+            timer_handle: Arc::new(Mutex::new(None)),
+            timer_running: Arc::new(Mutex::new(false)),
         }
     }
 
     pub fn set_texture_ptr(&mut self, ptr: i64) {
         self.frame_handler.set_texture_ptr(ptr);
+    }
+
+    pub fn set_frame_callback(&mut self, callback: FrameCallback) -> Result<()> {
+        let mut guard = self.frame_callback.lock().unwrap();
+        *guard = Some(callback);
+        Ok(())
+    }
+
+    pub fn set_position_update_callback(&mut self, callback: PositionUpdateCallback) -> Result<()> {
+        let mut guard = self.position_callback.lock().unwrap();
+        *guard = Some(callback);
+        Ok(())
     }
 
     pub fn load_video(&mut self, file_path: String) -> Result<(), String> {
@@ -58,11 +85,10 @@ impl VideoPlayer {
         // Store the file path for frame extraction
         self.file_path = Some(file_path.clone());
 
-        // Create pipeline manager
+        // Create pipeline manager with shared GL context
         let mut pipeline_manager = PipelineManager::new(
             self.frame_handler.clone(),
-            self.audio_sender.clone(),
-            self.has_audio.clone(),
+            self.frame_callback.clone(),
         )?;
 
         // Load the video through pipeline manager
@@ -133,6 +159,8 @@ impl VideoPlayer {
     }
 
     pub fn play(&mut self) -> Result<(), String> {
+        info!("VideoPlayer::play() called");
+        
         if let Some(pipeline_manager) = &mut self.pipeline_manager {
             let result = pipeline_manager.play()?;
             
@@ -175,6 +203,9 @@ impl VideoPlayer {
                 }
             }
             
+            // Start position update timer when playing
+            self.start_position_timer();
+            
             Ok(result)
         } else {
             Err("No video loaded".to_string())
@@ -182,6 +213,8 @@ impl VideoPlayer {
     }
 
     pub fn pause(&mut self) -> Result<(), String> {
+        info!("VideoPlayer::pause() called");
+        
         if let Some(pipeline_manager) = &mut self.pipeline_manager {
             // Send pause command to audio system first
             if let Some(ref audio_sender) = self.audio_sender {
@@ -190,7 +223,9 @@ impl VideoPlayer {
                 }
             }
             
+            info!("Calling pipeline_manager.pause()");
             let result = pipeline_manager.pause()?;
+            info!("pipeline_manager.pause() completed successfully");
             
             // Instead of blocking wait, just try a quick state check
             if let Some(pipeline) = &pipeline_manager.pipeline {
@@ -203,6 +238,9 @@ impl VideoPlayer {
                 info!("Pause command completed - pipeline state: {:?}, internal state: {}", 
                       current_state, self.is_playing());
             }
+            
+            // Stop position update timer when paused
+            self.stop_position_timer();
             
             Ok(result)
         } else {
@@ -221,6 +259,10 @@ impl VideoPlayer {
             
             let result = pipeline_manager.stop()?;
             *self.is_playing.lock().unwrap() = false;
+            
+            // Stop position update timer when stopped
+            self.stop_position_timer();
+            
             Ok(result)
         } else {
             Err("No video loaded".to_string())
@@ -243,13 +285,26 @@ impl VideoPlayer {
     pub fn get_latest_frame(&self) -> Option<crate::common::types::FrameData> {
         self.frame_handler.get_latest_frame()
     }
+    
+    /// Get the latest texture ID for GPU-based rendering
+    pub fn get_latest_texture_id(&self) -> u64 {
+        self.frame_handler.get_latest_texture_id()
+    }
+    
+    /// Get texture frame data for GPU-based rendering
+    pub fn get_texture_frame(&self) -> Option<crate::common::types::TextureFrame> {
+        self.frame_handler.get_texture_frame()
+    }
 
     pub fn has_audio(&self) -> bool {
-        *self.has_audio.lock().unwrap()
+        false
     }
 
     pub fn dispose(&mut self) -> Result<(), String> {
         info!("Disposing VideoPlayer");
+        
+        // Stop position timer first
+        self.stop_position_timer();
         
         // Stop audio playback
         if let Some(ref audio_sender) = self.audio_sender {
@@ -267,6 +322,123 @@ impl VideoPlayer {
         
         info!("VideoPlayer disposed successfully");
         Ok(())
+    }
+
+    // TIMER FUNCTIONALITY FOR REAL-TIME POSITION UPDATES
+    
+    fn start_position_timer(&self) {
+        // Stop any existing timer first
+        self.stop_position_timer();
+        
+        // Only start timer if we have a position callback
+        let has_callback = {
+            let callback_guard = self.position_callback.lock().unwrap();
+            callback_guard.is_some()
+        };
+        
+        if !has_callback {
+            debug!("No position callback set, skipping timer start");
+            return;
+        }
+        
+        info!("Starting position update timer");
+        *self.timer_running.lock().unwrap() = true;
+        
+        // Clone necessary data for the timer thread
+        let is_playing = Arc::clone(&self.is_playing);
+        let timer_running = Arc::clone(&self.timer_running);
+        let position_callback = Arc::clone(&self.position_callback);
+        
+        // Get pipeline reference for position queries
+        let pipeline_ref = if let Some(pipeline_manager) = &self.pipeline_manager {
+            if let Some(pipeline) = &pipeline_manager.pipeline {
+                Some(pipeline.clone())
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        
+        let handle = thread::spawn(move || {
+            info!("Position timer thread started");
+            let mut start_time = std::time::Instant::now();
+            let mut last_position = 0.0;
+            
+            while *timer_running.lock().unwrap() {
+                // Check if we're still playing
+                let playing = *is_playing.lock().unwrap();
+                
+                // Always get current position from pipeline, whether playing or paused
+                let current_position = if let Some(ref pipeline) = pipeline_ref {
+                    // Get actual position from GStreamer pipeline
+                    if let Some(position) = pipeline.query_position::<gst::ClockTime>() {
+                        let position_ns = position.nseconds();
+                        position_ns as f64 / 1_000_000_000.0
+                    } else if playing {
+                        // Only use elapsed time fallback when playing
+                        let elapsed = start_time.elapsed().as_secs_f64();
+                        last_position + elapsed
+                    } else {
+                        // When paused, keep the last known position
+                        last_position
+                    }
+                } else if playing {
+                    // Fallback: calculate based on elapsed time when playing
+                    let elapsed = start_time.elapsed().as_secs_f64();
+                    last_position + elapsed
+                } else {
+                    // When paused, keep the last known position
+                    last_position
+                };
+                
+                // Calculate frame number (assuming 30 FPS default, this should be made configurable)
+                let frame_rate = 30.0;
+                let frame_number = (current_position * frame_rate) as u64;
+                
+                // Always trigger the position update callback (whether playing or paused)
+                if let Ok(callback_guard) = position_callback.lock() {
+                    if let Some(ref callback) = *callback_guard {
+                        if let Err(e) = callback(current_position, frame_number) {
+                            warn!("Position callback error: {}", e);
+                        }
+                    }
+                }
+                
+                if playing {
+                    last_position = current_position;
+                } else {
+                    // Reset timer when not playing
+                    start_time = std::time::Instant::now();
+                }
+                
+                // Update at ~60 FPS for smooth position updates
+                thread::sleep(Duration::from_millis(16));
+            }
+            
+            info!("Position timer thread stopped");
+        });
+        
+        // Store the handle
+        let mut timer_handle_guard = self.timer_handle.lock().unwrap();
+        *timer_handle_guard = Some(handle);
+    }
+    
+    fn stop_position_timer(&self) {
+        debug!("Stopping position update timer");
+        
+        // Signal the timer to stop
+        *self.timer_running.lock().unwrap() = false;
+        
+        // Wait for the timer thread to finish
+        let mut timer_handle_guard = self.timer_handle.lock().unwrap();
+        if let Some(handle) = timer_handle_guard.take() {
+            if let Err(e) = handle.join() {
+                warn!("Error waiting for timer thread to finish: {:?}", e);
+            }
+        }
+        
+        debug!("Position timer stopped successfully");
     }
 
     // SEEKING FUNCTIONALITY
@@ -549,7 +721,7 @@ impl VideoPlayer {
         let appsink = appsink.dynamic_cast::<gst_app::AppSink>().unwrap();
         appsink.set_caps(Some(
             &gst::Caps::builder("video/x-raw")
-                .field("format", "BGRA")
+                .field("format", "RGBA")
                 .field("pixel-aspect-ratio", gst::Fraction::new(1, 1))
                 .build()
         ));
@@ -669,11 +841,24 @@ impl VideoPlayer {
                     if let Ok(map) = buffer.map_readable() {
                         let data = map.as_slice();
                         
+                        // Get buffer from pool instead of allocating new Vec
+                        let mut buffer = self.frame_handler.get_buffer_from_pool();
+                        let required_size = (width * height * 4) as usize;
+                        
+                        // Resize buffer if needed
+                        if buffer.len() != required_size {
+                            buffer.resize(required_size, 0);
+                        }
+                        
+                        // Copy data to reused buffer
+                        buffer[..data.len().min(required_size)].copy_from_slice(&data[..data.len().min(required_size)]);
+                        
                         // Create frame data and store it in the main frame handler
                         let frame_data = crate::common::types::FrameData {
-                            data: data.to_vec(),
+                            data: buffer,
                             width,
                             height,
+                            texture_id: None,
                         };
                         
                         // Store the extracted frame in the main frame handler
@@ -821,7 +1006,7 @@ impl VideoPlayer {
         let appsink = appsink.dynamic_cast::<gst_app::AppSink>().unwrap();
         appsink.set_caps(Some(
             &gst::Caps::builder("video/x-raw")
-                .field("format", "BGRA")
+                .field("format", "RGBA")
                 .field("pixel-aspect-ratio", gst::Fraction::new(1, 1))
                 .build()
         ));
@@ -941,11 +1126,24 @@ impl VideoPlayer {
                     if let Ok(map) = buffer.map_readable() {
                         let data = map.as_slice();
                         
+                        // Get buffer from pool instead of allocating new Vec
+                        let mut buffer = self.frame_handler.get_buffer_from_pool();
+                        let required_size = (width * height * 4) as usize;
+                        
+                        // Resize buffer if needed
+                        if buffer.len() != required_size {
+                            buffer.resize(required_size, 0);
+                        }
+                        
+                        // Copy data to reused buffer
+                        buffer[..data.len().min(required_size)].copy_from_slice(&data[..data.len().min(required_size)]);
+                        
                         // Create frame data and store it in the main frame handler
                         let frame_data = crate::common::types::FrameData {
-                            data: data.to_vec(),
+                            data: buffer,
                             width,
                             height,
+                            texture_id: None,
                         };
                         
                         // Store the extracted frame in the main frame handler

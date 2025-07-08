@@ -16,7 +16,7 @@ class TabBarWidget extends StatelessWidget with WatchItMixin {
   final Function(String groupId)? onAddTab;
 
   const TabBarWidget({
-    Key? key,
+    super.key,
     required this.tabGroup,
     this.onTabSelected,
     this.onTabClosed,
@@ -24,15 +24,22 @@ class TabBarWidget extends StatelessWidget with WatchItMixin {
     this.onTabMovedBetweenGroups,
     this.onTabGroupClosed,
     this.onAddTab,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
     
     return DragTarget<TabDragData>(
-      onWillAccept: (data) => data != null,
-      onAccept: (data) {
+      onWillAcceptWithDetails: (details) {
+        final data = details.data;
+        if (data.sourceGroupId != tabGroup.id) {
+          return true;
+        }
+        return false;
+      },
+      onAcceptWithDetails: (details) {
+        final data = details.data;
         if (data.sourceGroupId != tabGroup.id) {
           // Moving tab from another group to this group
           onTabMovedBetweenGroups?.call(
@@ -77,8 +84,15 @@ class TabBarWidget extends StatelessWidget with WatchItMixin {
   Widget _buildTabList(BuildContext context, FluentThemeData theme) {
     if (tabGroup.tabs.isEmpty) {
       return DragTarget<TabDragData>(
-        onWillAccept: (data) => data != null && data.sourceGroupId != tabGroup.id,
-        onAccept: (data) {
+        onWillAcceptWithDetails: (details) {
+          final data = details.data;
+          if (data.sourceGroupId != tabGroup.id) {
+            return true;
+          }
+          return false;
+        },
+        onAcceptWithDetails: (details) {
+          final data = details.data;
           onTabMovedBetweenGroups?.call(
             data.tabId,
             data.sourceGroupId,
@@ -94,7 +108,7 @@ class TabBarWidget extends StatelessWidget with WatchItMixin {
             padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(
               color: isDropTarget 
-                ? theme.accentColor.withOpacity(0.1) 
+                ? theme.accentColor.withValues(alpha: 0.1) 
                 : Colors.transparent,
               borderRadius: BorderRadius.circular(4),
               border: isDropTarget 
@@ -191,7 +205,7 @@ class _TabWidget extends StatefulWidget {
   final Function(String tabId, String fromGroupId, String toGroupId, int? toIndex)? onTabMovedBetweenGroups;
 
   const _TabWidget({
-    Key? key,
+    super.key,
     required this.tab,
     required this.tabIndex,
     required this.groupId,
@@ -200,7 +214,7 @@ class _TabWidget extends StatefulWidget {
     this.onClose,
     this.onTabMoved,
     this.onTabMovedBetweenGroups,
-  }) : super(key: key);
+  });
 
   @override
   State<_TabWidget> createState() => _TabWidgetState();
@@ -209,8 +223,7 @@ class _TabWidget extends StatefulWidget {
 class _TabWidgetState extends State<_TabWidget> {
   bool _isHovered = false;
   bool _isDragging = false;
-  bool _isDragTarget = false;
-  bool _dropOnRight = false; // Track if dropping on right side of tab
+  bool _dropOnRight = false;
   double? _tabWidth;
   final GlobalKey _tabKey = GlobalKey();
 
@@ -259,13 +272,14 @@ class _TabWidgetState extends State<_TabWidget> {
         tabSystem.isDraggingTab = false;
       },
       child: DragTarget<TabDragData>(
-        onWillAccept: (data) {
-          if (data == null) return false;
+        onWillAcceptWithDetails: (details) {
+          final data = details.data;
           // Don't accept drops on self
-          if (data.tabId == widget.tab.id) return false;
+          if (data.tabId == widget.tab.id) return false; 
           return true;
         },
-        onAccept: (data) {
+        onAcceptWithDetails: (details) {
+          final data = details.data;
           if (data.sourceGroupId == widget.groupId) {
             // Moving within same group
             int targetIndex = widget.tabIndex;
@@ -293,19 +307,16 @@ class _TabWidgetState extends State<_TabWidget> {
             );
           }
           setState(() {
-            _isDragTarget = false;
             _dropOnRight = false;
           });
         },
         onLeave: (data) {
           setState(() {
-            _isDragTarget = false;
             _dropOnRight = false;
           });
         },
         onMove: (details) {
           setState(() {
-            _isDragTarget = true;
             // Determine if dragging over left or right half of tab
             final RenderBox? renderBox = _tabKey.currentContext?.findRenderObject() as RenderBox?;
             if (renderBox != null) {
@@ -342,7 +353,7 @@ class _TabWidgetState extends State<_TabWidget> {
                           width: 2,
                         ),
                         right: BorderSide(
-                          color: theme.resources.cardStrokeColorDefault.withOpacity(0.3),
+                          color: theme.resources.cardStrokeColorDefault.withValues(alpha: 0.3),
                           width: 1,
                         ),
                       ),
@@ -417,13 +428,13 @@ class _TabWidgetState extends State<_TabWidget> {
                 width: 16,
                 height: 16,
                 decoration: BoxDecoration(
-                  color: _isHovered ? theme.menuColor.withOpacity(0.1) : Colors.transparent,
+                  color: _isHovered ? theme.menuColor.withValues(alpha: 0.1) : Colors.transparent,
                   borderRadius: BorderRadius.circular(2),
                 ),
                 child: Icon(
                   FluentIcons.chrome_close,
                   size: 10,
-                  color: textColor.withOpacity(0.8),
+                  color: textColor.withValues(alpha: 0.8),
                 ),
               ),
             ),
@@ -449,7 +460,7 @@ class _TabWidgetState extends State<_TabWidget> {
           border: Border.all(color: theme.accentColor, width: 2),
           boxShadow: [
             BoxShadow(
-              color: theme.shadowColor.withOpacity(0.3),
+              color: theme.shadowColor.withValues(alpha: 0.3),
               blurRadius: 8,
               offset: const Offset(0, 4),
             ),
@@ -467,9 +478,9 @@ class _TabWidgetState extends State<_TabWidget> {
       width: width,
       height: 32,
       decoration: BoxDecoration(
-        color: theme.inactiveBackgroundColor.withOpacity(0.3),
+        color: theme.inactiveBackgroundColor.withValues(alpha: 0.3),
         border: Border.all(
-          color: theme.resources.cardStrokeColorDefault.withOpacity(0.5),
+          color: theme.resources.cardStrokeColorDefault.withValues(alpha: 0.5),
           style: BorderStyle.solid,
         ),
         borderRadius: BorderRadius.circular(4),
@@ -479,7 +490,7 @@ class _TabWidgetState extends State<_TabWidget> {
           width: width * 0.5, // Scale the placeholder line based on tab width
           height: 2,
           decoration: BoxDecoration(
-            color: theme.accentColor.withOpacity(0.5),
+            color: theme.accentColor.withValues(alpha: 0.5),
             borderRadius: BorderRadius.circular(1),
           ),
         ),
@@ -489,13 +500,13 @@ class _TabWidgetState extends State<_TabWidget> {
 
   Color _getBackgroundColor(FluentThemeData theme) {
     if (_isDragging) {
-      return theme.inactiveBackgroundColor.withOpacity(0.5);
+      return theme.inactiveBackgroundColor.withValues(alpha: 0.5);
     }
     if (widget.isActive) {
       return theme.cardColor;
     }
     if (_isHovered) {
-      return theme.menuColor.withOpacity(0.05);
+      return theme.menuColor.withValues(alpha: 0.05);
     }
     return theme.inactiveBackgroundColor;
   }

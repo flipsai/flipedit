@@ -9,10 +9,10 @@ import 'package:flipedit/services/layout_service.dart';
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/services/project_metadata_service.dart';
 import 'package:flipedit/services/media_duration_service.dart';
-import 'package:flipedit/services/uv_manager.dart';
 import 'package:flipedit/services/video_player_service.dart';
 import 'package:flipedit/services/tab_system_persistence_service.dart';
 import 'package:flipedit/services/tab_content_factory.dart';
+import 'package:flipedit/src/rust/api/simple.dart';
 import 'package:flipedit/viewmodels/app_viewmodel.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
@@ -22,7 +22,6 @@ import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flipedit/services/undo_redo_service.dart';
-import 'package:flipedit/viewmodels/preview_viewmodel.dart';
 import 'package:flipedit/services/video_processing_service.dart';
 import 'package:flipedit/services/timeline_processing_service.dart';
 import 'package:watch_it/watch_it.dart';
@@ -59,6 +58,8 @@ Future<void> setupServiceLocator() async {
     () => CanvasDimensionsService(),
     dispose: (service) => service.dispose(),
   );
+
+  di.registerLazySingleton<VideoPlayer>(() => VideoPlayer());
 
   // Undo/Redo service for project clips
   di.registerLazySingleton<UndoRedoService>(
@@ -110,10 +111,6 @@ Future<void> setupServiceLocator() async {
 
   // Register TimelineLogicService
   di.registerLazySingleton<TimelineLogicService>(() => TimelineLogicService());
-  di.registerLazySingleton<PreviewViewModel>(
-    () => PreviewViewModel(),
-    dispose: (vm) => vm.dispose(), // Add dispose for consistency
-  );
 
   di.registerLazySingleton<MediaDurationService>(() => MediaDurationService());
 
@@ -129,6 +126,19 @@ Future<void> setupServiceLocator() async {
     dispose: (service) => service.dispose(),
   );
 
+  // Register OptimizedPlaybackService after VideoPlayerService for proper dependency
+  di.registerLazySingleton<OptimizedPlaybackService>(
+    () => OptimizedPlaybackService(
+      getCurrentFrame: () => di<VideoPlayerService>().currentFrame,
+      setCurrentFrame: (int frame) {
+        // Video player service handles frame setting
+      },
+      getTotalFrames: () => di<VideoPlayerService>().getTotalFrames(),
+      getDefaultEmptyDurationFrames: () => 1000, // Default to ~40 seconds at 25fps
+      getFrameRate: () => di<VideoPlayerService>().getFrameRate(),
+    ),
+  );
+
   // Register video processing services
   di.registerLazySingleton<VideoProcessingService>(
     () => VideoProcessingService(),
@@ -138,27 +148,6 @@ Future<void> setupServiceLocator() async {
   di.registerLazySingleton<TimelineProcessingService>(
     () => TimelineProcessingService(),
     dispose: (service) => service.dispose(),
-  );
-
-  // Register UvManager for Python integration
-  di.registerLazySingletonAsync<UvManager>(
-    () async {
-      final manager = UvManager();
-      await manager.initialize();
-      return manager;
-    },
-    dispose: (manager) async {
-      await manager.shutdownVideoStreamServer();
-    },
-  );
-
-  di.registerLazySingleton<OptimizedPlaybackService>(
-    () => OptimizedPlaybackService(
-      getCurrentFrame: () => 0,
-      setCurrentFrame: (int frame) {},
-      getTotalFrames: () => 0,
-      getDefaultEmptyDurationFrames: () => 0,
-    ),
   );
 
   // Register tab system services

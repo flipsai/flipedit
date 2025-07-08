@@ -18,12 +18,12 @@ class TabDropZoneOverlay extends StatelessWidget {
   final DropZonePosition? hoveredZone;
 
   const TabDropZoneOverlay({
-    Key? key,
+    super.key,
     required this.isVisible,
     required this.layoutOrientation,
     this.onDropZoneHovered,
     this.hoveredZone,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -80,20 +80,9 @@ class TabDropZoneOverlay extends StatelessWidget {
     // but show preview covering the half when hovered
     double detectionZoneSize = 50.0; // Thin area at edge for hover detection
     
-    Widget detectionZone;
     Widget? previewArea;
     
     if (axis == Axis.horizontal) {
-      // Horizontal split (left/right)
-      detectionZone = Align(
-        alignment: alignment,
-        child: Container(
-          width: detectionZoneSize,
-          height: double.infinity,
-          color: Colors.transparent,
-        ),
-      );
-      
       if (isHovered) {
         previewArea = Align(
           alignment: alignment,
@@ -101,7 +90,7 @@ class TabDropZoneOverlay extends StatelessWidget {
             width: MediaQuery.of(context).size.width * fraction,
             height: double.infinity,
             decoration: BoxDecoration(
-              color: theme.accentColor.withOpacity(0.3),
+              color: theme.accentColor.withValues(alpha: 0.3),
               border: Border.all(
                 color: theme.accentColor,
                 width: 2,
@@ -113,15 +102,6 @@ class TabDropZoneOverlay extends StatelessWidget {
       }
     } else {
       // Vertical split (top/bottom)
-      detectionZone = Align(
-        alignment: alignment,
-        child: Container(
-          width: double.infinity,
-          height: detectionZoneSize,
-          color: Colors.transparent,
-        ),
-      );
-      
       if (isHovered) {
         previewArea = Align(
           alignment: alignment,
@@ -129,7 +109,7 @@ class TabDropZoneOverlay extends StatelessWidget {
             width: double.infinity,
             height: MediaQuery.of(context).size.height * fraction,
             decoration: BoxDecoration(
-              color: theme.accentColor.withOpacity(0.3),
+              color: theme.accentColor.withValues(alpha: 0.3),
               border: Border.all(
                 color: theme.accentColor,
                 width: 2,
@@ -209,7 +189,6 @@ class TabDropZoneOverlay extends StatelessWidget {
         icon = FluentIcons.down;
         break;
       case DropZonePosition.center:
-      default:
         label = 'Add to Group';
         icon = FluentIcons.add;
         break;

@@ -16,42 +16,23 @@ class PlayerPanel extends StatefulWidget {
 }
 
 class _PlayerPanelState extends State<PlayerPanel> {
-  late final TimelineNavigationViewModel _timelineNavViewModel;
-  late final TimelineStateViewModel _timelineStateViewModel;
-  late final VideoPlayerService _videoPlayerService;
-  String? _cachedVideoPath; // Cache the video path to prevent unnecessary recreation
-  final Map<String, bool> _fileExistsCache = {}; // Cache file existence checks
+  final TimelineNavigationViewModel _timelineNavViewModel = di<TimelineNavigationViewModel>();
+  final TimelineStateViewModel _timelineStateViewModel = di<TimelineStateViewModel>();
+  final VideoPlayerService _videoPlayerService = di<VideoPlayerService>();
 
   @override
   void initState() {
     super.initState();
     
-    logDebug("Initializing PlayerPanel", 'PlayerPanel');
-
-    _timelineNavViewModel = di<TimelineNavigationViewModel>();
-    _timelineStateViewModel = di<TimelineStateViewModel>();
-    _videoPlayerService = di<VideoPlayerService>();
-
-    // Listen for changes to rebuild UI (exclude currentFrameNotifier to prevent 30-60 fps rebuilds)
+    // Set up listeners for rebuilds when data changes
     _timelineNavViewModel.isPlayingNotifier.addListener(_rebuild);
-    // NOTE: Removed currentFrameNotifier listener to prevent excessive rebuilds
     _timelineStateViewModel.clipsNotifier.addListener(_rebuild);
     _videoPlayerService.isPlayingNotifier.addListener(_rebuild);
-    _videoPlayerService.addListener(_rebuild); // Listen to VideoPlayerService changes (including currentVideoPath)
-    
-    // Initialize cached video path
-    _cachedVideoPath = _getFirstVideoPath();
+    _videoPlayerService.addListener(_rebuild);
   }
 
   void _rebuild() {
     if (mounted) {
-      // Only update cached video path when clips change
-      final newVideoPath = _getFirstVideoPath();
-      if (newVideoPath != _cachedVideoPath) {
-        _cachedVideoPath = newVideoPath;
-        // Clear file cache when video path changes
-        _fileExistsCache.clear();
-      }
       setState(() {});
     }
   }
@@ -60,35 +41,10 @@ class _PlayerPanelState extends State<PlayerPanel> {
   void dispose() {
     // Remove listeners
     _timelineNavViewModel.isPlayingNotifier.removeListener(_rebuild);
-    // NOTE: currentFrameNotifier listener was not added, so no need to remove
     _timelineStateViewModel.clipsNotifier.removeListener(_rebuild);
     _videoPlayerService.isPlayingNotifier.removeListener(_rebuild);
     _videoPlayerService.removeListener(_rebuild);
     super.dispose();
-  }
-
-  String? _getFirstVideoPath() {
-    final clips = _timelineStateViewModel.clips;
-    if (clips.isEmpty) {
-      return null;
-    }
-    
-    // Find first video clip with cached file existence check
-    for (final clip in clips) {
-      if (clip.sourcePath.isNotEmpty) {
-        // Use cached file existence check to avoid blocking I/O
-        final exists = _fileExistsCache.putIfAbsent(
-          clip.sourcePath, 
-          () => File(clip.sourcePath).existsSync() // Still sync for now, but cached
-        );
-        
-        if (exists) {
-          return clip.sourcePath;
-        }
-      }
-    }
-    
-    return null;
   }
 
   @override
@@ -97,7 +53,6 @@ class _PlayerPanelState extends State<PlayerPanel> {
     final isVideoPlaying = _videoPlayerService.isPlayingNotifier.value;
     final currentFrame = _timelineNavViewModel.currentFrameNotifier.value;
     final clips = _timelineStateViewModel.clips;
-    final firstVideoPath = _cachedVideoPath;
 
     return Container(
       color: Colors.black,
@@ -106,10 +61,9 @@ class _PlayerPanelState extends State<PlayerPanel> {
         children: [
           // Video display area
           Expanded(
-            child: firstVideoPath != null
-                ? VideoPlayerWidget(
-                    key: ValueKey(firstVideoPath), // Prevent recreation during resizes
-                    videoPath: firstVideoPath,
+            child: clips.isNotEmpty
+                ? const VideoPlayerWidget(
+                    key: ValueKey('timeline_player'), // Stable key for timeline player
                   )
                 : Container(
                     color: Colors.black,
@@ -120,7 +74,7 @@ class _PlayerPanelState extends State<PlayerPanel> {
                           Icon(
                             FluentIcons.video,
                             size: 48,
-                            color: Colors.white.withOpacity(0.54),
+                            color: Colors.white.withValues(alpha: 0.54),
                           ),
                           const SizedBox(height: 16),
                           Text(
@@ -134,9 +88,9 @@ class _PlayerPanelState extends State<PlayerPanel> {
                           Text(
                             clips.isEmpty 
                                 ? 'Add some video clips to the timeline'
-                                : 'Check that video files exist:\n${clips.map((c) => c.sourcePath).join('\n')}',
+                                : 'Check that video files exist',
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.54),
+                              color: Colors.white.withValues(alpha: 0.54),
                               fontSize: 12,
                             ),
                             textAlign: TextAlign.center,
@@ -193,32 +147,18 @@ class _PlayerPanelState extends State<PlayerPanel> {
 
                 const Spacer(),
 
-                // Current video info
-                if (firstVideoPath != null)
-                  Flexible(
-                    child: Text(
-                      'Playing: ${firstVideoPath.split('/').last}',
-                      style: FluentTheme.of(context).typography.caption,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-
-                const SizedBox(width: 8),
-
-                // Status indicator
+                // Timeline status indicator
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 8,
                     vertical: 2,
                   ),
                   decoration: BoxDecoration(
-                    color: firstVideoPath != null ? Colors.green : 
-                           clips.isNotEmpty ? Colors.orange : Colors.red,
+                    color: clips.isNotEmpty ? Colors.green : Colors.red,
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
-                    firstVideoPath != null ? 'Video Ready' : 
-                    clips.isNotEmpty ? 'No Valid Videos' : 'No Clips',
+                    clips.isNotEmpty ? 'Timeline Ready' : 'No Clips',
                     style: FluentTheme.of(context).typography.caption?.copyWith(
                       color: Colors.white,
                     ),

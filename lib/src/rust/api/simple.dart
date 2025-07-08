@@ -7,10 +7,108 @@ import '../common/types.dart';
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `start_position_reporting`, `stop_position_reporting`
+// These types are ignored because they are not used by any `pub` functions: `ACTIVE_VIDEOS`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `deref`, `initialize`
 
 String greet({required String name}) =>
     RustLib.instance.api.crateApiSimpleGreet(name: name);
+
+/// Create a new video texture using irondash for zero-copy rendering
+PlatformInt64 createVideoTexture({
+  required int width,
+  required int height,
+  required PlatformInt64 engineHandle,
+}) => RustLib.instance.api.crateApiSimpleCreateVideoTexture(
+  width: width,
+  height: height,
+  engineHandle: engineHandle,
+);
+
+/// Update video frame data for all irondash textures
+bool updateVideoFrame({required FrameData frameData}) =>
+    RustLib.instance.api.crateApiSimpleUpdateVideoFrame(frameData: frameData);
+
+/// Get the number of active irondash textures
+BigInt getTextureCount() =>
+    RustLib.instance.api.crateApiSimpleGetTextureCount();
+
+/// Play a basic MP4 video and return irondash texture id
+PlatformInt64 playBasicVideo({
+  required String filePath,
+  required PlatformInt64 engineHandle,
+}) => RustLib.instance.api.crateApiSimplePlayBasicVideo(
+  filePath: filePath,
+  engineHandle: engineHandle,
+);
+
+PlatformInt64 playDualVideo({
+  required String filePathLeft,
+  required String filePathRight,
+  required PlatformInt64 engineHandle,
+}) => RustLib.instance.api.crateApiSimplePlayDualVideo(
+  filePathLeft: filePathLeft,
+  filePathRight: filePathRight,
+  engineHandle: engineHandle,
+);
+
+/// Create and load a GES timeline player with timeline data (proper GES implementation)
+Future<(GesTimelinePlayer, PlatformInt64)> createGesTimelinePlayer({
+  required TimelineData timelineData,
+  required PlatformInt64 engineHandle,
+}) => RustLib.instance.api.crateApiSimpleCreateGesTimelinePlayer(
+  timelineData: timelineData,
+  engineHandle: engineHandle,
+);
+
+/// Get video duration in milliseconds using GStreamer
+/// This is a reliable way to get video duration without depending on fallback estimations
+BigInt getVideoDurationMs({required String filePath}) =>
+    RustLib.instance.api.crateApiSimpleGetVideoDurationMs(filePath: filePath);
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<GESTimelinePlayer>>
+abstract class GesTimelinePlayer implements RustOpaqueInterface {
+  /// Create texture for this player
+  Future<PlatformInt64> createTexture({required PlatformInt64 engineHandle});
+
+  @override
+  Future<void> dispose();
+
+  int? getDurationMs();
+
+  FrameData? getLatestFrame();
+
+  BigInt getLatestTextureId();
+
+  int getPositionMs();
+
+  TextureFrame? getTextureFrame();
+
+  bool isPlaying();
+
+  bool isSeekable();
+
+  Future<void> loadTimeline({required TimelineData timelineData});
+
+  factory GesTimelinePlayer() =>
+      RustLib.instance.api.crateApiSimpleGesTimelinePlayerNew();
+
+  Future<void> pause();
+
+  Future<void> play();
+
+  Future<void> seekToPosition({required int positionMs});
+
+  Stream<FrameData> setupFrameStream();
+
+  Stream<(double, BigInt)> setupPositionStream();
+
+  Stream<int> setupSeekCompletionStream();
+
+  Future<void> stop();
+
+  /// Update position from GStreamer pipeline - call this regularly for smooth playhead updates
+  void updatePosition();
+}
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<TimelinePlayer>>
 abstract class TimelinePlayer implements RustOpaqueInterface {
@@ -19,7 +117,13 @@ abstract class TimelinePlayer implements RustOpaqueInterface {
 
   FrameData? getLatestFrame();
 
+  /// Get the latest texture ID for GPU-based rendering
+  BigInt getLatestTextureId();
+
   int getPositionMs();
+
+  /// Get texture frame data for GPU-based rendering
+  TextureFrame? getTextureFrame();
 
   bool isPlaying();
 
@@ -33,8 +137,6 @@ abstract class TimelinePlayer implements RustOpaqueInterface {
   Future<void> play();
 
   Future<void> setPositionMs({required int positionMs});
-
-  void setTexturePtr({required PlatformInt64 ptr});
 
   Future<void> stop();
 
@@ -59,7 +161,13 @@ abstract class VideoPlayer implements RustOpaqueInterface {
 
   FrameData? getLatestFrame();
 
+  /// Get the latest texture ID for GPU-based rendering
+  BigInt getLatestTextureId();
+
   double getPositionSeconds();
+
+  /// Get texture frame data for GPU-based rendering
+  TextureFrame? getTextureFrame();
 
   BigInt getTotalFrames();
 
@@ -90,7 +198,9 @@ abstract class VideoPlayer implements RustOpaqueInterface {
 
   Future<void> seekToFrame({required BigInt frameNumber});
 
-  void setTexturePtr({required PlatformInt64 ptr});
+  Stream<FrameData> setupFrameStream();
+
+  Stream<(double, BigInt)> setupPositionStream();
 
   Future<void> stop();
 

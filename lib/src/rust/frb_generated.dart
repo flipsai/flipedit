@@ -66,7 +66,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.7.0';
 
   @override
-  int get rustContentHash => 829194552;
+  int get rustContentHash => 1004575520;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -77,6 +77,83 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 }
 
 abstract class RustLibApi extends BaseApi {
+  Future<PlatformInt64> crateApiSimpleGesTimelinePlayerCreateTexture({
+    required GesTimelinePlayer that,
+    required PlatformInt64 engineHandle,
+  });
+
+  Future<void> crateApiSimpleGesTimelinePlayerDispose({
+    required GesTimelinePlayer that,
+  });
+
+  int? crateApiSimpleGesTimelinePlayerGetDurationMs({
+    required GesTimelinePlayer that,
+  });
+
+  FrameData? crateApiSimpleGesTimelinePlayerGetLatestFrame({
+    required GesTimelinePlayer that,
+  });
+
+  BigInt crateApiSimpleGesTimelinePlayerGetLatestTextureId({
+    required GesTimelinePlayer that,
+  });
+
+  int crateApiSimpleGesTimelinePlayerGetPositionMs({
+    required GesTimelinePlayer that,
+  });
+
+  TextureFrame? crateApiSimpleGesTimelinePlayerGetTextureFrame({
+    required GesTimelinePlayer that,
+  });
+
+  bool crateApiSimpleGesTimelinePlayerIsPlaying({
+    required GesTimelinePlayer that,
+  });
+
+  bool crateApiSimpleGesTimelinePlayerIsSeekable({
+    required GesTimelinePlayer that,
+  });
+
+  Future<void> crateApiSimpleGesTimelinePlayerLoadTimeline({
+    required GesTimelinePlayer that,
+    required TimelineData timelineData,
+  });
+
+  GesTimelinePlayer crateApiSimpleGesTimelinePlayerNew();
+
+  Future<void> crateApiSimpleGesTimelinePlayerPause({
+    required GesTimelinePlayer that,
+  });
+
+  Future<void> crateApiSimpleGesTimelinePlayerPlay({
+    required GesTimelinePlayer that,
+  });
+
+  Future<void> crateApiSimpleGesTimelinePlayerSeekToPosition({
+    required GesTimelinePlayer that,
+    required int positionMs,
+  });
+
+  Stream<FrameData> crateApiSimpleGesTimelinePlayerSetupFrameStream({
+    required GesTimelinePlayer that,
+  });
+
+  Stream<(double, BigInt)> crateApiSimpleGesTimelinePlayerSetupPositionStream({
+    required GesTimelinePlayer that,
+  });
+
+  Stream<int> crateApiSimpleGesTimelinePlayerSetupSeekCompletionStream({
+    required GesTimelinePlayer that,
+  });
+
+  Future<void> crateApiSimpleGesTimelinePlayerStop({
+    required GesTimelinePlayer that,
+  });
+
+  void crateApiSimpleGesTimelinePlayerUpdatePosition({
+    required GesTimelinePlayer that,
+  });
+
   Future<void> crateApiSimpleTimelinePlayerDispose({
     required TimelinePlayer that,
   });
@@ -85,7 +162,15 @@ abstract class RustLibApi extends BaseApi {
     required TimelinePlayer that,
   });
 
+  BigInt crateApiSimpleTimelinePlayerGetLatestTextureId({
+    required TimelinePlayer that,
+  });
+
   int crateApiSimpleTimelinePlayerGetPositionMs({required TimelinePlayer that});
+
+  TextureFrame? crateApiSimpleTimelinePlayerGetTextureFrame({
+    required TimelinePlayer that,
+  });
 
   bool crateApiSimpleTimelinePlayerIsPlaying({required TimelinePlayer that});
 
@@ -105,11 +190,6 @@ abstract class RustLibApi extends BaseApi {
   Future<void> crateApiSimpleTimelinePlayerSetPositionMs({
     required TimelinePlayer that,
     required int positionMs,
-  });
-
-  void crateApiSimpleTimelinePlayerSetTexturePtr({
-    required TimelinePlayer that,
-    required PlatformInt64 ptr,
   });
 
   Future<void> crateApiSimpleTimelinePlayerStop({required TimelinePlayer that});
@@ -140,7 +220,15 @@ abstract class RustLibApi extends BaseApi {
     required VideoPlayer that,
   });
 
+  BigInt crateApiSimpleVideoPlayerGetLatestTextureId({
+    required VideoPlayer that,
+  });
+
   double crateApiSimpleVideoPlayerGetPositionSeconds({
+    required VideoPlayer that,
+  });
+
+  TextureFrame? crateApiSimpleVideoPlayerGetTextureFrame({
     required VideoPlayer that,
   });
 
@@ -180,9 +268,12 @@ abstract class RustLibApi extends BaseApi {
     required BigInt frameNumber,
   });
 
-  void crateApiSimpleVideoPlayerSetTexturePtr({
+  Stream<FrameData> crateApiSimpleVideoPlayerSetupFrameStream({
     required VideoPlayer that,
-    required PlatformInt64 ptr,
+  });
+
+  Stream<(double, BigInt)> crateApiSimpleVideoPlayerSetupPositionStream({
+    required VideoPlayer that,
   });
 
   Future<void> crateApiSimpleVideoPlayerStop({required VideoPlayer that});
@@ -196,11 +287,49 @@ abstract class RustLibApi extends BaseApi {
     required String filePath,
   });
 
+  Future<(GesTimelinePlayer, PlatformInt64)>
+  crateApiSimpleCreateGesTimelinePlayer({
+    required TimelineData timelineData,
+    required PlatformInt64 engineHandle,
+  });
+
+  PlatformInt64 crateApiSimpleCreateVideoTexture({
+    required int width,
+    required int height,
+    required PlatformInt64 engineHandle,
+  });
+
+  BigInt crateApiSimpleGetTextureCount();
+
+  BigInt crateApiSimpleGetVideoDurationMs({required String filePath});
+
   String crateApiBridgeGreet({required String name});
 
   String crateApiSimpleGreet({required String name});
 
   Future<void> crateApiBridgeInitApp();
+
+  PlatformInt64 crateApiSimplePlayBasicVideo({
+    required String filePath,
+    required PlatformInt64 engineHandle,
+  });
+
+  PlatformInt64 crateApiSimplePlayDualVideo({
+    required String filePathLeft,
+    required String filePathRight,
+    required PlatformInt64 engineHandle,
+  });
+
+  bool crateApiSimpleUpdateVideoFrame({required FrameData frameData});
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_GesTimelinePlayer;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_GesTimelinePlayer;
+
+  CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_GesTimelinePlayerPtr;
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_TimelinePlayer;
@@ -229,6 +358,663 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   });
 
   @override
+  Future<PlatformInt64> crateApiSimpleGesTimelinePlayerCreateTexture({
+    required GesTimelinePlayer that,
+    required PlatformInt64 engineHandle,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+            that,
+            serializer,
+          );
+          sse_encode_i_64(engineHandle, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 1,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_i_64,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSimpleGesTimelinePlayerCreateTextureConstMeta,
+        argValues: [that, engineHandle],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleGesTimelinePlayerCreateTextureConstMeta =>
+      const TaskConstMeta(
+        debugName: "GesTimelinePlayer_create_texture",
+        argNames: ["that", "engineHandle"],
+      );
+
+  @override
+  Future<void> crateApiSimpleGesTimelinePlayerDispose({
+    required GesTimelinePlayer that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 2,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSimpleGesTimelinePlayerDisposeConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleGesTimelinePlayerDisposeConstMeta =>
+      const TaskConstMeta(
+        debugName: "GesTimelinePlayer_dispose",
+        argNames: ["that"],
+      );
+
+  @override
+  int? crateApiSimpleGesTimelinePlayerGetDurationMs({
+    required GesTimelinePlayer that,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+            that,
+            serializer,
+          );
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 3)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_box_autoadd_i_32,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSimpleGesTimelinePlayerGetDurationMsConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleGesTimelinePlayerGetDurationMsConstMeta =>
+      const TaskConstMeta(
+        debugName: "GesTimelinePlayer_get_duration_ms",
+        argNames: ["that"],
+      );
+
+  @override
+  FrameData? crateApiSimpleGesTimelinePlayerGetLatestFrame({
+    required GesTimelinePlayer that,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+            that,
+            serializer,
+          );
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 4)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_box_autoadd_frame_data,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSimpleGesTimelinePlayerGetLatestFrameConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleGesTimelinePlayerGetLatestFrameConstMeta =>
+      const TaskConstMeta(
+        debugName: "GesTimelinePlayer_get_latest_frame",
+        argNames: ["that"],
+      );
+
+  @override
+  BigInt crateApiSimpleGesTimelinePlayerGetLatestTextureId({
+    required GesTimelinePlayer that,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+            that,
+            serializer,
+          );
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 5)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_u_64,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSimpleGesTimelinePlayerGetLatestTextureIdConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kCrateApiSimpleGesTimelinePlayerGetLatestTextureIdConstMeta =>
+      const TaskConstMeta(
+        debugName: "GesTimelinePlayer_get_latest_texture_id",
+        argNames: ["that"],
+      );
+
+  @override
+  int crateApiSimpleGesTimelinePlayerGetPositionMs({
+    required GesTimelinePlayer that,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+            that,
+            serializer,
+          );
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 6)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_i_32,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSimpleGesTimelinePlayerGetPositionMsConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleGesTimelinePlayerGetPositionMsConstMeta =>
+      const TaskConstMeta(
+        debugName: "GesTimelinePlayer_get_position_ms",
+        argNames: ["that"],
+      );
+
+  @override
+  TextureFrame? crateApiSimpleGesTimelinePlayerGetTextureFrame({
+    required GesTimelinePlayer that,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+            that,
+            serializer,
+          );
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 7)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_box_autoadd_texture_frame,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSimpleGesTimelinePlayerGetTextureFrameConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleGesTimelinePlayerGetTextureFrameConstMeta =>
+      const TaskConstMeta(
+        debugName: "GesTimelinePlayer_get_texture_frame",
+        argNames: ["that"],
+      );
+
+  @override
+  bool crateApiSimpleGesTimelinePlayerIsPlaying({
+    required GesTimelinePlayer that,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+            that,
+            serializer,
+          );
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 8)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_bool,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSimpleGesTimelinePlayerIsPlayingConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleGesTimelinePlayerIsPlayingConstMeta =>
+      const TaskConstMeta(
+        debugName: "GesTimelinePlayer_is_playing",
+        argNames: ["that"],
+      );
+
+  @override
+  bool crateApiSimpleGesTimelinePlayerIsSeekable({
+    required GesTimelinePlayer that,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+            that,
+            serializer,
+          );
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 9)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_bool,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSimpleGesTimelinePlayerIsSeekableConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleGesTimelinePlayerIsSeekableConstMeta =>
+      const TaskConstMeta(
+        debugName: "GesTimelinePlayer_is_seekable",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<void> crateApiSimpleGesTimelinePlayerLoadTimeline({
+    required GesTimelinePlayer that,
+    required TimelineData timelineData,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+            that,
+            serializer,
+          );
+          sse_encode_box_autoadd_timeline_data(timelineData, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 10,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSimpleGesTimelinePlayerLoadTimelineConstMeta,
+        argValues: [that, timelineData],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleGesTimelinePlayerLoadTimelineConstMeta =>
+      const TaskConstMeta(
+        debugName: "GesTimelinePlayer_load_timeline",
+        argNames: ["that", "timelineData"],
+      );
+
+  @override
+  GesTimelinePlayer crateApiSimpleGesTimelinePlayerNew() {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 11)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSimpleGesTimelinePlayerNewConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleGesTimelinePlayerNewConstMeta =>
+      const TaskConstMeta(debugName: "GesTimelinePlayer_new", argNames: []);
+
+  @override
+  Future<void> crateApiSimpleGesTimelinePlayerPause({
+    required GesTimelinePlayer that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 12,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSimpleGesTimelinePlayerPauseConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleGesTimelinePlayerPauseConstMeta =>
+      const TaskConstMeta(
+        debugName: "GesTimelinePlayer_pause",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<void> crateApiSimpleGesTimelinePlayerPlay({
+    required GesTimelinePlayer that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 13,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSimpleGesTimelinePlayerPlayConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleGesTimelinePlayerPlayConstMeta =>
+      const TaskConstMeta(
+        debugName: "GesTimelinePlayer_play",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<void> crateApiSimpleGesTimelinePlayerSeekToPosition({
+    required GesTimelinePlayer that,
+    required int positionMs,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+            that,
+            serializer,
+          );
+          sse_encode_i_32(positionMs, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 14,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSimpleGesTimelinePlayerSeekToPositionConstMeta,
+        argValues: [that, positionMs],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleGesTimelinePlayerSeekToPositionConstMeta =>
+      const TaskConstMeta(
+        debugName: "GesTimelinePlayer_seek_to_position",
+        argNames: ["that", "positionMs"],
+      );
+
+  @override
+  Stream<FrameData> crateApiSimpleGesTimelinePlayerSetupFrameStream({
+    required GesTimelinePlayer that,
+  }) {
+    final sink = RustStreamSink<FrameData>();
+    unawaited(
+      handler.executeNormal(
+        NormalTask(
+          callFfi: (port_) {
+            final serializer = SseSerializer(generalizedFrbRustBinding);
+            sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+              that,
+              serializer,
+            );
+            sse_encode_StreamSink_frame_data_Sse(sink, serializer);
+            pdeCallFfi(
+              generalizedFrbRustBinding,
+              serializer,
+              funcId: 15,
+              port: port_,
+            );
+          },
+          codec: SseCodec(
+            decodeSuccessData: sse_decode_unit,
+            decodeErrorData: sse_decode_AnyhowException,
+          ),
+          constMeta: kCrateApiSimpleGesTimelinePlayerSetupFrameStreamConstMeta,
+          argValues: [that, sink],
+          apiImpl: this,
+        ),
+      ),
+    );
+    return sink.stream;
+  }
+
+  TaskConstMeta get kCrateApiSimpleGesTimelinePlayerSetupFrameStreamConstMeta =>
+      const TaskConstMeta(
+        debugName: "GesTimelinePlayer_setup_frame_stream",
+        argNames: ["that", "sink"],
+      );
+
+  @override
+  Stream<(double, BigInt)> crateApiSimpleGesTimelinePlayerSetupPositionStream({
+    required GesTimelinePlayer that,
+  }) {
+    final sink = RustStreamSink<(double, BigInt)>();
+    unawaited(
+      handler.executeNormal(
+        NormalTask(
+          callFfi: (port_) {
+            final serializer = SseSerializer(generalizedFrbRustBinding);
+            sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+              that,
+              serializer,
+            );
+            sse_encode_StreamSink_record_f_64_u_64_Sse(sink, serializer);
+            pdeCallFfi(
+              generalizedFrbRustBinding,
+              serializer,
+              funcId: 16,
+              port: port_,
+            );
+          },
+          codec: SseCodec(
+            decodeSuccessData: sse_decode_unit,
+            decodeErrorData: sse_decode_AnyhowException,
+          ),
+          constMeta:
+              kCrateApiSimpleGesTimelinePlayerSetupPositionStreamConstMeta,
+          argValues: [that, sink],
+          apiImpl: this,
+        ),
+      ),
+    );
+    return sink.stream;
+  }
+
+  TaskConstMeta
+  get kCrateApiSimpleGesTimelinePlayerSetupPositionStreamConstMeta =>
+      const TaskConstMeta(
+        debugName: "GesTimelinePlayer_setup_position_stream",
+        argNames: ["that", "sink"],
+      );
+
+  @override
+  Stream<int> crateApiSimpleGesTimelinePlayerSetupSeekCompletionStream({
+    required GesTimelinePlayer that,
+  }) {
+    final sink = RustStreamSink<int>();
+    unawaited(
+      handler.executeNormal(
+        NormalTask(
+          callFfi: (port_) {
+            final serializer = SseSerializer(generalizedFrbRustBinding);
+            sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+              that,
+              serializer,
+            );
+            sse_encode_StreamSink_i_32_Sse(sink, serializer);
+            pdeCallFfi(
+              generalizedFrbRustBinding,
+              serializer,
+              funcId: 17,
+              port: port_,
+            );
+          },
+          codec: SseCodec(
+            decodeSuccessData: sse_decode_unit,
+            decodeErrorData: sse_decode_AnyhowException,
+          ),
+          constMeta:
+              kCrateApiSimpleGesTimelinePlayerSetupSeekCompletionStreamConstMeta,
+          argValues: [that, sink],
+          apiImpl: this,
+        ),
+      ),
+    );
+    return sink.stream;
+  }
+
+  TaskConstMeta
+  get kCrateApiSimpleGesTimelinePlayerSetupSeekCompletionStreamConstMeta =>
+      const TaskConstMeta(
+        debugName: "GesTimelinePlayer_setup_seek_completion_stream",
+        argNames: ["that", "sink"],
+      );
+
+  @override
+  Future<void> crateApiSimpleGesTimelinePlayerStop({
+    required GesTimelinePlayer that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 18,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSimpleGesTimelinePlayerStopConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleGesTimelinePlayerStopConstMeta =>
+      const TaskConstMeta(
+        debugName: "GesTimelinePlayer_stop",
+        argNames: ["that"],
+      );
+
+  @override
+  void crateApiSimpleGesTimelinePlayerUpdatePosition({
+    required GesTimelinePlayer that,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+            that,
+            serializer,
+          );
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 19)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSimpleGesTimelinePlayerUpdatePositionConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleGesTimelinePlayerUpdatePositionConstMeta =>
+      const TaskConstMeta(
+        debugName: "GesTimelinePlayer_update_position",
+        argNames: ["that"],
+      );
+
+  @override
   Future<void> crateApiSimpleTimelinePlayerDispose({
     required TimelinePlayer that,
   }) {
@@ -243,7 +1029,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 1,
+            funcId: 20,
             port: port_,
           );
         },
@@ -276,7 +1062,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 2)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 21)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_frame_data,
@@ -296,6 +1082,37 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  BigInt crateApiSimpleTimelinePlayerGetLatestTextureId({
+    required TimelinePlayer that,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayer(
+            that,
+            serializer,
+          );
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 22)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_u_64,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSimpleTimelinePlayerGetLatestTextureIdConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleTimelinePlayerGetLatestTextureIdConstMeta =>
+      const TaskConstMeta(
+        debugName: "TimelinePlayer_get_latest_texture_id",
+        argNames: ["that"],
+      );
+
+  @override
   int crateApiSimpleTimelinePlayerGetPositionMs({
     required TimelinePlayer that,
   }) {
@@ -307,7 +1124,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 3)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 23)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_i_32,
@@ -327,6 +1144,37 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  TextureFrame? crateApiSimpleTimelinePlayerGetTextureFrame({
+    required TimelinePlayer that,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayer(
+            that,
+            serializer,
+          );
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 24)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_box_autoadd_texture_frame,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSimpleTimelinePlayerGetTextureFrameConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleTimelinePlayerGetTextureFrameConstMeta =>
+      const TaskConstMeta(
+        debugName: "TimelinePlayer_get_texture_frame",
+        argNames: ["that"],
+      );
+
+  @override
   bool crateApiSimpleTimelinePlayerIsPlaying({required TimelinePlayer that}) {
     return handler.executeSync(
       SyncTask(
@@ -336,7 +1184,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 4)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 25)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_bool,
@@ -372,7 +1220,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 5,
+            funcId: 26,
             port: port_,
           );
         },
@@ -399,7 +1247,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 6)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 27)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -431,7 +1279,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 28,
             port: port_,
           );
         },
@@ -467,7 +1315,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 29,
             port: port_,
           );
         },
@@ -502,7 +1350,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 30,
             port: port_,
           );
         },
@@ -524,39 +1372,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  void crateApiSimpleTimelinePlayerSetTexturePtr({
-    required TimelinePlayer that,
-    required PlatformInt64 ptr,
-  }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayer(
-            that,
-            serializer,
-          );
-          sse_encode_i_64(ptr, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 10)!;
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: null,
-        ),
-        constMeta: kCrateApiSimpleTimelinePlayerSetTexturePtrConstMeta,
-        argValues: [that, ptr],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiSimpleTimelinePlayerSetTexturePtrConstMeta =>
-      const TaskConstMeta(
-        debugName: "TimelinePlayer_set_texture_ptr",
-        argNames: ["that", "ptr"],
-      );
-
-  @override
   Future<void> crateApiSimpleTimelinePlayerStop({
     required TimelinePlayer that,
   }) {
@@ -571,7 +1386,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 31,
             port: port_,
           );
         },
@@ -603,7 +1418,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             serializer,
           );
           sse_encode_i_32(positionMs, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 12)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 32)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_bool,
@@ -635,7 +1450,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 13,
+            funcId: 33,
             port: port_,
           );
         },
@@ -670,7 +1485,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 14,
+            funcId: 34,
             port: port_,
           );
         },
@@ -703,7 +1518,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 15)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 35)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_record_f_64_u_64,
@@ -736,7 +1551,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 16)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 36)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_f_64,
@@ -765,7 +1580,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 17)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 37)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_f_64,
@@ -796,7 +1611,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 18)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 38)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_frame_data,
@@ -816,6 +1631,37 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  BigInt crateApiSimpleVideoPlayerGetLatestTextureId({
+    required VideoPlayer that,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVideoPlayer(
+            that,
+            serializer,
+          );
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 39)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_u_64,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSimpleVideoPlayerGetLatestTextureIdConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleVideoPlayerGetLatestTextureIdConstMeta =>
+      const TaskConstMeta(
+        debugName: "VideoPlayer_get_latest_texture_id",
+        argNames: ["that"],
+      );
+
+  @override
   double crateApiSimpleVideoPlayerGetPositionSeconds({
     required VideoPlayer that,
   }) {
@@ -827,7 +1673,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 19)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 40)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_f_64,
@@ -847,6 +1693,37 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  TextureFrame? crateApiSimpleVideoPlayerGetTextureFrame({
+    required VideoPlayer that,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVideoPlayer(
+            that,
+            serializer,
+          );
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 41)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_box_autoadd_texture_frame,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSimpleVideoPlayerGetTextureFrameConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleVideoPlayerGetTextureFrameConstMeta =>
+      const TaskConstMeta(
+        debugName: "VideoPlayer_get_texture_frame",
+        argNames: ["that"],
+      );
+
+  @override
   BigInt crateApiSimpleVideoPlayerGetTotalFrames({required VideoPlayer that}) {
     return handler.executeSync(
       SyncTask(
@@ -856,7 +1733,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 20)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 42)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_u_64,
@@ -887,7 +1764,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 21)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 43)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_record_i_32_i_32,
@@ -916,7 +1793,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 22)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 44)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_bool,
@@ -945,7 +1822,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 23)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 45)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_bool,
@@ -974,7 +1851,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 24)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 46)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_bool,
@@ -1010,7 +1887,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 25,
+            funcId: 47,
             port: port_,
           );
         },
@@ -1037,7 +1914,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 26)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 48)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -1060,7 +1937,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 27)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 49)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -1090,7 +1967,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 28,
+            funcId: 50,
             port: port_,
           );
         },
@@ -1121,7 +1998,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 29,
+            funcId: 51,
             port: port_,
           );
         },
@@ -1158,7 +2035,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 30,
+            funcId: 52,
             port: port_,
           );
         },
@@ -1196,7 +2073,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 31,
+            funcId: 53,
             port: port_,
           );
         },
@@ -1218,36 +2095,85 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  void crateApiSimpleVideoPlayerSetTexturePtr({
+  Stream<FrameData> crateApiSimpleVideoPlayerSetupFrameStream({
     required VideoPlayer that,
-    required PlatformInt64 ptr,
   }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVideoPlayer(
-            that,
-            serializer,
-          );
-          sse_encode_i_64(ptr, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 32)!;
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: null,
+    final sink = RustStreamSink<FrameData>();
+    unawaited(
+      handler.executeNormal(
+        NormalTask(
+          callFfi: (port_) {
+            final serializer = SseSerializer(generalizedFrbRustBinding);
+            sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVideoPlayer(
+              that,
+              serializer,
+            );
+            sse_encode_StreamSink_frame_data_Sse(sink, serializer);
+            pdeCallFfi(
+              generalizedFrbRustBinding,
+              serializer,
+              funcId: 54,
+              port: port_,
+            );
+          },
+          codec: SseCodec(
+            decodeSuccessData: sse_decode_unit,
+            decodeErrorData: sse_decode_AnyhowException,
+          ),
+          constMeta: kCrateApiSimpleVideoPlayerSetupFrameStreamConstMeta,
+          argValues: [that, sink],
+          apiImpl: this,
         ),
-        constMeta: kCrateApiSimpleVideoPlayerSetTexturePtrConstMeta,
-        argValues: [that, ptr],
-        apiImpl: this,
       ),
     );
+    return sink.stream;
   }
 
-  TaskConstMeta get kCrateApiSimpleVideoPlayerSetTexturePtrConstMeta =>
+  TaskConstMeta get kCrateApiSimpleVideoPlayerSetupFrameStreamConstMeta =>
       const TaskConstMeta(
-        debugName: "VideoPlayer_set_texture_ptr",
-        argNames: ["that", "ptr"],
+        debugName: "VideoPlayer_setup_frame_stream",
+        argNames: ["that", "sink"],
+      );
+
+  @override
+  Stream<(double, BigInt)> crateApiSimpleVideoPlayerSetupPositionStream({
+    required VideoPlayer that,
+  }) {
+    final sink = RustStreamSink<(double, BigInt)>();
+    unawaited(
+      handler.executeNormal(
+        NormalTask(
+          callFfi: (port_) {
+            final serializer = SseSerializer(generalizedFrbRustBinding);
+            sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVideoPlayer(
+              that,
+              serializer,
+            );
+            sse_encode_StreamSink_record_f_64_u_64_Sse(sink, serializer);
+            pdeCallFfi(
+              generalizedFrbRustBinding,
+              serializer,
+              funcId: 55,
+              port: port_,
+            );
+          },
+          codec: SseCodec(
+            decodeSuccessData: sse_decode_unit,
+            decodeErrorData: sse_decode_AnyhowException,
+          ),
+          constMeta: kCrateApiSimpleVideoPlayerSetupPositionStreamConstMeta,
+          argValues: [that, sink],
+          apiImpl: this,
+        ),
+      ),
+    );
+    return sink.stream;
+  }
+
+  TaskConstMeta get kCrateApiSimpleVideoPlayerSetupPositionStreamConstMeta =>
+      const TaskConstMeta(
+        debugName: "VideoPlayer_setup_position_stream",
+        argNames: ["that", "sink"],
       );
 
   @override
@@ -1263,7 +2189,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 33,
+            funcId: 56,
             port: port_,
           );
         },
@@ -1296,7 +2222,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 34,
+            funcId: 57,
             port: port_,
           );
         },
@@ -1334,7 +2260,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 35,
+            funcId: 58,
             port: port_,
           );
         },
@@ -1356,13 +2282,130 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<(GesTimelinePlayer, PlatformInt64)>
+  crateApiSimpleCreateGesTimelinePlayer({
+    required TimelineData timelineData,
+    required PlatformInt64 engineHandle,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_box_autoadd_timeline_data(timelineData, serializer);
+          sse_encode_i_64(engineHandle, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 59,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_record_auto_owned_rust_opaque_flutter_rust_bridgefor_generated_rust_auto_opaque_inner_ges_timeline_player_i_64,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSimpleCreateGesTimelinePlayerConstMeta,
+        argValues: [timelineData, engineHandle],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleCreateGesTimelinePlayerConstMeta =>
+      const TaskConstMeta(
+        debugName: "create_ges_timeline_player",
+        argNames: ["timelineData", "engineHandle"],
+      );
+
+  @override
+  PlatformInt64 crateApiSimpleCreateVideoTexture({
+    required int width,
+    required int height,
+    required PlatformInt64 engineHandle,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_u_32(width, serializer);
+          sse_encode_u_32(height, serializer);
+          sse_encode_i_64(engineHandle, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 60)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_i_64,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSimpleCreateVideoTextureConstMeta,
+        argValues: [width, height, engineHandle],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleCreateVideoTextureConstMeta =>
+      const TaskConstMeta(
+        debugName: "create_video_texture",
+        argNames: ["width", "height", "engineHandle"],
+      );
+
+  @override
+  BigInt crateApiSimpleGetTextureCount() {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 61)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_usize,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSimpleGetTextureCountConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleGetTextureCountConstMeta =>
+      const TaskConstMeta(debugName: "get_texture_count", argNames: []);
+
+  @override
+  BigInt crateApiSimpleGetVideoDurationMs({required String filePath}) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(filePath, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 62)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_u_64,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSimpleGetVideoDurationMsConstMeta,
+        argValues: [filePath],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleGetVideoDurationMsConstMeta =>
+      const TaskConstMeta(
+        debugName: "get_video_duration_ms",
+        argNames: ["filePath"],
+      );
+
+  @override
   String crateApiBridgeGreet({required String name}) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(name, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 36)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 63)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -1385,7 +2428,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(name, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 37)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 64)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -1410,7 +2453,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 38,
+            funcId: 65,
             port: port_,
           );
         },
@@ -1427,6 +2470,102 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiBridgeInitAppConstMeta =>
       const TaskConstMeta(debugName: "init_app", argNames: []);
+
+  @override
+  PlatformInt64 crateApiSimplePlayBasicVideo({
+    required String filePath,
+    required PlatformInt64 engineHandle,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(filePath, serializer);
+          sse_encode_i_64(engineHandle, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 66)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_i_64,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSimplePlayBasicVideoConstMeta,
+        argValues: [filePath, engineHandle],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimplePlayBasicVideoConstMeta =>
+      const TaskConstMeta(
+        debugName: "play_basic_video",
+        argNames: ["filePath", "engineHandle"],
+      );
+
+  @override
+  PlatformInt64 crateApiSimplePlayDualVideo({
+    required String filePathLeft,
+    required String filePathRight,
+    required PlatformInt64 engineHandle,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(filePathLeft, serializer);
+          sse_encode_String(filePathRight, serializer);
+          sse_encode_i_64(engineHandle, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 67)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_i_64,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSimplePlayDualVideoConstMeta,
+        argValues: [filePathLeft, filePathRight, engineHandle],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimplePlayDualVideoConstMeta =>
+      const TaskConstMeta(
+        debugName: "play_dual_video",
+        argNames: ["filePathLeft", "filePathRight", "engineHandle"],
+      );
+
+  @override
+  bool crateApiSimpleUpdateVideoFrame({required FrameData frameData}) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_box_autoadd_frame_data(frameData, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 68)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_bool,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSimpleUpdateVideoFrameConstMeta,
+        argValues: [frameData],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleUpdateVideoFrameConstMeta =>
+      const TaskConstMeta(
+        debugName: "update_video_frame",
+        argNames: ["frameData"],
+      );
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_GesTimelinePlayer =>
+      wire.rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_GesTimelinePlayer =>
+      wire.rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer;
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_TimelinePlayer =>
@@ -1445,6 +2584,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       wire.rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVideoPlayer;
 
   @protected
+  AnyhowException dco_decode_AnyhowException(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return AnyhowException(raw as String);
+  }
+
+  @protected
+  GesTimelinePlayer
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return GesTimelinePlayerImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
   TimelinePlayer
   dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayer(
     dynamic raw,
@@ -1460,6 +2614,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return VideoPlayerImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  GesTimelinePlayer
+  dco_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return GesTimelinePlayerImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -1481,6 +2644,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  GesTimelinePlayer
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return GesTimelinePlayerImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
   TimelinePlayer
   dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayer(
     dynamic raw,
@@ -1499,6 +2671,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  GesTimelinePlayer
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return GesTimelinePlayerImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
   TimelinePlayer
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayer(
     dynamic raw,
@@ -1514,6 +2695,26 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return VideoPlayerImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  RustStreamSink<FrameData> dco_decode_StreamSink_frame_data_Sse(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    throw UnimplementedError();
+  }
+
+  @protected
+  RustStreamSink<int> dco_decode_StreamSink_i_32_Sse(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    throw UnimplementedError();
+  }
+
+  @protected
+  RustStreamSink<(double, BigInt)> dco_decode_StreamSink_record_f_64_u_64_Sse(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    throw UnimplementedError();
   }
 
   @protected
@@ -1541,9 +2742,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  TextureFrame dco_decode_box_autoadd_texture_frame(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_texture_frame(raw);
+  }
+
+  @protected
   TimelineData dco_decode_box_autoadd_timeline_data(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_timeline_data(raw);
+  }
+
+  @protected
+  BigInt dco_decode_box_autoadd_u_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_u_64(raw);
   }
 
   @protected
@@ -1556,12 +2769,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   FrameData dco_decode_frame_data(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 3)
-      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
     return FrameData(
       data: dco_decode_list_prim_u_8_strict(arr[0]),
       width: dco_decode_u_32(arr[1]),
       height: dco_decode_u_32(arr[2]),
+      textureId: dco_decode_opt_box_autoadd_u_64(arr[3]),
     );
   }
 
@@ -1608,6 +2822,36 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  TextureFrame? dco_decode_opt_box_autoadd_texture_frame(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_texture_frame(raw);
+  }
+
+  @protected
+  BigInt? dco_decode_opt_box_autoadd_u_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_u_64(raw);
+  }
+
+  @protected
+  (GesTimelinePlayer, PlatformInt64)
+  dco_decode_record_auto_owned_rust_opaque_flutter_rust_bridgefor_generated_rust_auto_opaque_inner_ges_timeline_player_i_64(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2) {
+      throw Exception('Expected 2 elements, got ${arr.length}');
+    }
+    return (
+      dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+        arr[0],
+      ),
+      dco_decode_i_64(arr[1]),
+    );
+  }
+
+  @protected
   (double, BigInt) dco_decode_record_f_64_u_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -1628,11 +2872,25 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  TextureFrame dco_decode_texture_frame(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return TextureFrame(
+      textureId: dco_decode_u_64(arr[0]),
+      width: dco_decode_u_32(arr[1]),
+      height: dco_decode_u_32(arr[2]),
+      timestamp: dco_decode_opt_box_autoadd_u_64(arr[3]),
+    );
+  }
+
+  @protected
   TimelineClip dco_decode_timeline_clip(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 7)
-      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
+    if (arr.length != 11)
+      throw Exception('unexpected arr length: expect 11 but see ${arr.length}');
     return TimelineClip(
       id: dco_decode_opt_box_autoadd_i_32(arr[0]),
       trackId: dco_decode_i_32(arr[1]),
@@ -1641,6 +2899,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       endTimeOnTrackMs: dco_decode_i_32(arr[4]),
       startTimeInSourceMs: dco_decode_i_32(arr[5]),
       endTimeInSourceMs: dco_decode_i_32(arr[6]),
+      previewPositionX: dco_decode_f_64(arr[7]),
+      previewPositionY: dco_decode_f_64(arr[8]),
+      previewWidth: dco_decode_f_64(arr[9]),
+      previewHeight: dco_decode_f_64(arr[10]),
     );
   }
 
@@ -1697,6 +2959,25 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_String(deserializer);
+    return AnyhowException(inner);
+  }
+
+  @protected
+  GesTimelinePlayer
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return GesTimelinePlayerImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
   TimelinePlayer
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayer(
     SseDeserializer deserializer,
@@ -1715,6 +2996,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return VideoPlayerImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  GesTimelinePlayer
+  sse_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return GesTimelinePlayerImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -1745,6 +3038,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  GesTimelinePlayer
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return GesTimelinePlayerImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
   TimelinePlayer
   sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayer(
     SseDeserializer deserializer,
@@ -1763,6 +3068,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return VideoPlayerImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  GesTimelinePlayer
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return GesTimelinePlayerImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -1793,6 +3110,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  RustStreamSink<FrameData> sse_decode_StreamSink_frame_data_Sse(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    throw UnimplementedError('Unreachable ()');
+  }
+
+  @protected
+  RustStreamSink<int> sse_decode_StreamSink_i_32_Sse(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    throw UnimplementedError('Unreachable ()');
+  }
+
+  @protected
+  RustStreamSink<(double, BigInt)> sse_decode_StreamSink_record_f_64_u_64_Sse(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    throw UnimplementedError('Unreachable ()');
+  }
+
+  @protected
   String sse_decode_String(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_list_prim_u_8_strict(deserializer);
@@ -1818,11 +3159,25 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  TextureFrame sse_decode_box_autoadd_texture_frame(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_texture_frame(deserializer));
+  }
+
+  @protected
   TimelineData sse_decode_box_autoadd_timeline_data(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_timeline_data(deserializer));
+  }
+
+  @protected
+  BigInt sse_decode_box_autoadd_u_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_u_64(deserializer));
   }
 
   @protected
@@ -1837,7 +3192,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_data = sse_decode_list_prim_u_8_strict(deserializer);
     var var_width = sse_decode_u_32(deserializer);
     var var_height = sse_decode_u_32(deserializer);
-    return FrameData(data: var_data, width: var_width, height: var_height);
+    var var_textureId = sse_decode_opt_box_autoadd_u_64(deserializer);
+    return FrameData(
+      data: var_data,
+      width: var_width,
+      height: var_height,
+      textureId: var_textureId,
+    );
   }
 
   @protected
@@ -1912,6 +3273,44 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  TextureFrame? sse_decode_opt_box_autoadd_texture_frame(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_texture_frame(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  BigInt? sse_decode_opt_box_autoadd_u_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_u_64(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  (GesTimelinePlayer, PlatformInt64)
+  sse_decode_record_auto_owned_rust_opaque_flutter_rust_bridgefor_generated_rust_auto_opaque_inner_ges_timeline_player_i_64(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_field0 =
+        sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+          deserializer,
+        );
+    var var_field1 = sse_decode_i_64(deserializer);
+    return (var_field0, var_field1);
+  }
+
+  @protected
   (double, BigInt) sse_decode_record_f_64_u_64(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_field0 = sse_decode_f_64(deserializer);
@@ -1928,6 +3327,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  TextureFrame sse_decode_texture_frame(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_textureId = sse_decode_u_64(deserializer);
+    var var_width = sse_decode_u_32(deserializer);
+    var var_height = sse_decode_u_32(deserializer);
+    var var_timestamp = sse_decode_opt_box_autoadd_u_64(deserializer);
+    return TextureFrame(
+      textureId: var_textureId,
+      width: var_width,
+      height: var_height,
+      timestamp: var_timestamp,
+    );
+  }
+
+  @protected
   TimelineClip sse_decode_timeline_clip(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_id = sse_decode_opt_box_autoadd_i_32(deserializer);
@@ -1937,6 +3351,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_endTimeOnTrackMs = sse_decode_i_32(deserializer);
     var var_startTimeInSourceMs = sse_decode_i_32(deserializer);
     var var_endTimeInSourceMs = sse_decode_i_32(deserializer);
+    var var_previewPositionX = sse_decode_f_64(deserializer);
+    var var_previewPositionY = sse_decode_f_64(deserializer);
+    var var_previewWidth = sse_decode_f_64(deserializer);
+    var var_previewHeight = sse_decode_f_64(deserializer);
     return TimelineClip(
       id: var_id,
       trackId: var_trackId,
@@ -1945,6 +3363,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       endTimeOnTrackMs: var_endTimeOnTrackMs,
       startTimeInSourceMs: var_startTimeInSourceMs,
       endTimeInSourceMs: var_endTimeInSourceMs,
+      previewPositionX: var_previewPositionX,
+      previewPositionY: var_previewPositionY,
+      previewWidth: var_previewWidth,
+      previewHeight: var_previewHeight,
     );
   }
 
@@ -1994,6 +3416,28 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_AnyhowException(
+    AnyhowException self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.message, serializer);
+  }
+
+  @protected
+  void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+    GesTimelinePlayer self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as GesTimelinePlayerImpl).frbInternalSseEncode(move: true),
+      serializer,
+    );
+  }
+
+  @protected
   void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayer(
     TimelinePlayer self,
@@ -2015,6 +3459,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
       (self as VideoPlayerImpl).frbInternalSseEncode(move: true),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+    GesTimelinePlayer self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as GesTimelinePlayerImpl).frbInternalSseEncode(move: false),
       serializer,
     );
   }
@@ -2047,6 +3504,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+    GesTimelinePlayer self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as GesTimelinePlayerImpl).frbInternalSseEncode(move: false),
+      serializer,
+    );
+  }
+
+  @protected
+  void
   sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayer(
     TimelinePlayer self,
     SseSerializer serializer,
@@ -2073,6 +3543,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+    GesTimelinePlayer self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as GesTimelinePlayerImpl).frbInternalSseEncode(move: null),
+      serializer,
+    );
+  }
+
+  @protected
+  void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTimelinePlayer(
     TimelinePlayer self,
     SseSerializer serializer,
@@ -2093,6 +3576,57 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
       (self as VideoPlayerImpl).frbInternalSseEncode(move: null),
+      serializer,
+    );
+  }
+
+  @protected
+  void sse_encode_StreamSink_frame_data_Sse(
+    RustStreamSink<FrameData> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(
+      self.setupAndSerialize(
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_frame_data,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+      ),
+      serializer,
+    );
+  }
+
+  @protected
+  void sse_encode_StreamSink_i_32_Sse(
+    RustStreamSink<int> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(
+      self.setupAndSerialize(
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_i_32,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+      ),
+      serializer,
+    );
+  }
+
+  @protected
+  void sse_encode_StreamSink_record_f_64_u_64_Sse(
+    RustStreamSink<(double, BigInt)> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(
+      self.setupAndSerialize(
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_record_f_64_u_64,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+      ),
       serializer,
     );
   }
@@ -2125,12 +3659,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_texture_frame(
+    TextureFrame self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_texture_frame(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_timeline_data(
     TimelineData self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_timeline_data(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_u_64(BigInt self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_64(self, serializer);
   }
 
   @protected
@@ -2145,6 +3694,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_list_prim_u_8_strict(self.data, serializer);
     sse_encode_u_32(self.width, serializer);
     sse_encode_u_32(self.height, serializer);
+    sse_encode_opt_box_autoadd_u_64(self.textureId, serializer);
   }
 
   @protected
@@ -2217,6 +3767,43 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_texture_frame(
+    TextureFrame? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_texture_frame(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_u_64(BigInt? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_u_64(self, serializer);
+    }
+  }
+
+  @protected
+  void
+  sse_encode_record_auto_owned_rust_opaque_flutter_rust_bridgefor_generated_rust_auto_opaque_inner_ges_timeline_player_i_64(
+    (GesTimelinePlayer, PlatformInt64) self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGESTimelinePlayer(
+      self.$1,
+      serializer,
+    );
+    sse_encode_i_64(self.$2, serializer);
+  }
+
+  @protected
   void sse_encode_record_f_64_u_64(
     (double, BigInt) self,
     SseSerializer serializer,
@@ -2234,6 +3821,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_texture_frame(TextureFrame self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_64(self.textureId, serializer);
+    sse_encode_u_32(self.width, serializer);
+    sse_encode_u_32(self.height, serializer);
+    sse_encode_opt_box_autoadd_u_64(self.timestamp, serializer);
+  }
+
+  @protected
   void sse_encode_timeline_clip(TimelineClip self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_opt_box_autoadd_i_32(self.id, serializer);
@@ -2243,6 +3839,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_32(self.endTimeOnTrackMs, serializer);
     sse_encode_i_32(self.startTimeInSourceMs, serializer);
     sse_encode_i_32(self.endTimeInSourceMs, serializer);
+    sse_encode_f_64(self.previewPositionX, serializer);
+    sse_encode_f_64(self.previewPositionY, serializer);
+    sse_encode_f_64(self.previewWidth, serializer);
+    sse_encode_f_64(self.previewHeight, serializer);
   }
 
   @protected
@@ -2290,6 +3890,96 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 }
 
 @sealed
+class GesTimelinePlayerImpl extends RustOpaque implements GesTimelinePlayer {
+  // Not to be used by end users
+  GesTimelinePlayerImpl.frbInternalDcoDecode(List<dynamic> wire)
+    : super.frbInternalDcoDecode(wire, _kStaticData);
+
+  // Not to be used by end users
+  GesTimelinePlayerImpl.frbInternalSseDecode(
+    BigInt ptr,
+    int externalSizeOnNative,
+  ) : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
+
+  static final _kStaticData = RustArcStaticData(
+    rustArcIncrementStrongCount:
+        RustLib.instance.api.rust_arc_increment_strong_count_GesTimelinePlayer,
+    rustArcDecrementStrongCount:
+        RustLib.instance.api.rust_arc_decrement_strong_count_GesTimelinePlayer,
+    rustArcDecrementStrongCountPtr:
+        RustLib
+            .instance
+            .api
+            .rust_arc_decrement_strong_count_GesTimelinePlayerPtr,
+  );
+
+  /// Create texture for this player
+  Future<PlatformInt64> createTexture({required PlatformInt64 engineHandle}) =>
+      RustLib.instance.api.crateApiSimpleGesTimelinePlayerCreateTexture(
+        that: this,
+        engineHandle: engineHandle,
+      );
+
+  Future<void> dispose() =>
+      RustLib.instance.api.crateApiSimpleGesTimelinePlayerDispose(that: this);
+
+  int? getDurationMs() => RustLib.instance.api
+      .crateApiSimpleGesTimelinePlayerGetDurationMs(that: this);
+
+  FrameData? getLatestFrame() => RustLib.instance.api
+      .crateApiSimpleGesTimelinePlayerGetLatestFrame(that: this);
+
+  BigInt getLatestTextureId() => RustLib.instance.api
+      .crateApiSimpleGesTimelinePlayerGetLatestTextureId(that: this);
+
+  int getPositionMs() => RustLib.instance.api
+      .crateApiSimpleGesTimelinePlayerGetPositionMs(that: this);
+
+  TextureFrame? getTextureFrame() => RustLib.instance.api
+      .crateApiSimpleGesTimelinePlayerGetTextureFrame(that: this);
+
+  bool isPlaying() =>
+      RustLib.instance.api.crateApiSimpleGesTimelinePlayerIsPlaying(that: this);
+
+  bool isSeekable() => RustLib.instance.api
+      .crateApiSimpleGesTimelinePlayerIsSeekable(that: this);
+
+  Future<void> loadTimeline({required TimelineData timelineData}) =>
+      RustLib.instance.api.crateApiSimpleGesTimelinePlayerLoadTimeline(
+        that: this,
+        timelineData: timelineData,
+      );
+
+  Future<void> pause() =>
+      RustLib.instance.api.crateApiSimpleGesTimelinePlayerPause(that: this);
+
+  Future<void> play() =>
+      RustLib.instance.api.crateApiSimpleGesTimelinePlayerPlay(that: this);
+
+  Future<void> seekToPosition({required int positionMs}) =>
+      RustLib.instance.api.crateApiSimpleGesTimelinePlayerSeekToPosition(
+        that: this,
+        positionMs: positionMs,
+      );
+
+  Stream<FrameData> setupFrameStream() => RustLib.instance.api
+      .crateApiSimpleGesTimelinePlayerSetupFrameStream(that: this);
+
+  Stream<(double, BigInt)> setupPositionStream() => RustLib.instance.api
+      .crateApiSimpleGesTimelinePlayerSetupPositionStream(that: this);
+
+  Stream<int> setupSeekCompletionStream() => RustLib.instance.api
+      .crateApiSimpleGesTimelinePlayerSetupSeekCompletionStream(that: this);
+
+  Future<void> stop() =>
+      RustLib.instance.api.crateApiSimpleGesTimelinePlayerStop(that: this);
+
+  /// Update position from GStreamer pipeline - call this regularly for smooth playhead updates
+  void updatePosition() => RustLib.instance.api
+      .crateApiSimpleGesTimelinePlayerUpdatePosition(that: this);
+}
+
+@sealed
 class TimelinePlayerImpl extends RustOpaque implements TimelinePlayer {
   // Not to be used by end users
   TimelinePlayerImpl.frbInternalDcoDecode(List<dynamic> wire)
@@ -2314,8 +4004,16 @@ class TimelinePlayerImpl extends RustOpaque implements TimelinePlayer {
   FrameData? getLatestFrame() => RustLib.instance.api
       .crateApiSimpleTimelinePlayerGetLatestFrame(that: this);
 
+  /// Get the latest texture ID for GPU-based rendering
+  BigInt getLatestTextureId() => RustLib.instance.api
+      .crateApiSimpleTimelinePlayerGetLatestTextureId(that: this);
+
   int getPositionMs() => RustLib.instance.api
       .crateApiSimpleTimelinePlayerGetPositionMs(that: this);
+
+  /// Get texture frame data for GPU-based rendering
+  TextureFrame? getTextureFrame() => RustLib.instance.api
+      .crateApiSimpleTimelinePlayerGetTextureFrame(that: this);
 
   bool isPlaying() =>
       RustLib.instance.api.crateApiSimpleTimelinePlayerIsPlaying(that: this);
@@ -2337,9 +4035,6 @@ class TimelinePlayerImpl extends RustOpaque implements TimelinePlayer {
         that: this,
         positionMs: positionMs,
       );
-
-  void setTexturePtr({required PlatformInt64 ptr}) => RustLib.instance.api
-      .crateApiSimpleTimelinePlayerSetTexturePtr(that: this, ptr: ptr);
 
   Future<void> stop() =>
       RustLib.instance.api.crateApiSimpleTimelinePlayerStop(that: this);
@@ -2394,8 +4089,16 @@ class VideoPlayerImpl extends RustOpaque implements VideoPlayer {
   FrameData? getLatestFrame() =>
       RustLib.instance.api.crateApiSimpleVideoPlayerGetLatestFrame(that: this);
 
+  /// Get the latest texture ID for GPU-based rendering
+  BigInt getLatestTextureId() => RustLib.instance.api
+      .crateApiSimpleVideoPlayerGetLatestTextureId(that: this);
+
   double getPositionSeconds() => RustLib.instance.api
       .crateApiSimpleVideoPlayerGetPositionSeconds(that: this);
+
+  /// Get texture frame data for GPU-based rendering
+  TextureFrame? getTextureFrame() =>
+      RustLib.instance.api.crateApiSimpleVideoPlayerGetTextureFrame(that: this);
 
   BigInt getTotalFrames() =>
       RustLib.instance.api.crateApiSimpleVideoPlayerGetTotalFrames(that: this);
@@ -2437,8 +4140,11 @@ class VideoPlayerImpl extends RustOpaque implements VideoPlayer {
         frameNumber: frameNumber,
       );
 
-  void setTexturePtr({required PlatformInt64 ptr}) => RustLib.instance.api
-      .crateApiSimpleVideoPlayerSetTexturePtr(that: this, ptr: ptr);
+  Stream<FrameData> setupFrameStream() => RustLib.instance.api
+      .crateApiSimpleVideoPlayerSetupFrameStream(that: this);
+
+  Stream<(double, BigInt)> setupPositionStream() => RustLib.instance.api
+      .crateApiSimpleVideoPlayerSetupPositionStream(that: this);
 
   Future<void> stop() =>
       RustLib.instance.api.crateApiSimpleVideoPlayerStop(that: this);

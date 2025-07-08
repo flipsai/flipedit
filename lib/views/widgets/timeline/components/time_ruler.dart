@@ -54,8 +54,8 @@ class TimeRuler extends StatelessWidget {
           begin: Alignment.centerLeft,
           end: Alignment.centerRight,
           colors: [
-            theme.resources.controlStrokeColorDefault.withOpacity(0.1),
-            theme.resources.controlStrokeColorDefault.withOpacity(0.05),
+            theme.resources.controlStrokeColorDefault.withValues(alpha: 0.1),
+            theme.resources.controlStrokeColorDefault.withValues(alpha: 0.05),
           ],
         ),
       ),

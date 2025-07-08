@@ -15,7 +15,7 @@ class _PlayheadPainter extends CustomPainter {
         Paint()
           ..color = color
           ..strokeWidth = strokeWidth
-          ..style = PaintingStyle.fill; // Use fill for the triangle
+          ..style = PaintingStyle.fill;
 
     // --- Draw Triangle ---
     final path = Path();

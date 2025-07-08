@@ -10,15 +10,18 @@ class FrameData {
   final Uint8List data;
   final int width;
   final int height;
+  final BigInt? textureId;
 
   const FrameData({
     required this.data,
     required this.width,
     required this.height,
+    this.textureId,
   });
 
   @override
-  int get hashCode => data.hashCode ^ width.hashCode ^ height.hashCode;
+  int get hashCode =>
+      data.hashCode ^ width.hashCode ^ height.hashCode ^ textureId.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -27,7 +30,39 @@ class FrameData {
           runtimeType == other.runtimeType &&
           data == other.data &&
           width == other.width &&
-          height == other.height;
+          height == other.height &&
+          textureId == other.textureId;
+}
+
+class TextureFrame {
+  final BigInt textureId;
+  final int width;
+  final int height;
+  final BigInt? timestamp;
+
+  const TextureFrame({
+    required this.textureId,
+    required this.width,
+    required this.height,
+    this.timestamp,
+  });
+
+  @override
+  int get hashCode =>
+      textureId.hashCode ^
+      width.hashCode ^
+      height.hashCode ^
+      timestamp.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TextureFrame &&
+          runtimeType == other.runtimeType &&
+          textureId == other.textureId &&
+          width == other.width &&
+          height == other.height &&
+          timestamp == other.timestamp;
 }
 
 class TimelineClip {
@@ -38,6 +73,10 @@ class TimelineClip {
   final int endTimeOnTrackMs;
   final int startTimeInSourceMs;
   final int endTimeInSourceMs;
+  final double previewPositionX;
+  final double previewPositionY;
+  final double previewWidth;
+  final double previewHeight;
 
   const TimelineClip({
     this.id,
@@ -47,6 +86,10 @@ class TimelineClip {
     required this.endTimeOnTrackMs,
     required this.startTimeInSourceMs,
     required this.endTimeInSourceMs,
+    required this.previewPositionX,
+    required this.previewPositionY,
+    required this.previewWidth,
+    required this.previewHeight,
   });
 
   @override
@@ -57,7 +100,11 @@ class TimelineClip {
       startTimeOnTrackMs.hashCode ^
       endTimeOnTrackMs.hashCode ^
       startTimeInSourceMs.hashCode ^
-      endTimeInSourceMs.hashCode;
+      endTimeInSourceMs.hashCode ^
+      previewPositionX.hashCode ^
+      previewPositionY.hashCode ^
+      previewWidth.hashCode ^
+      previewHeight.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -70,7 +117,11 @@ class TimelineClip {
           startTimeOnTrackMs == other.startTimeOnTrackMs &&
           endTimeOnTrackMs == other.endTimeOnTrackMs &&
           startTimeInSourceMs == other.startTimeInSourceMs &&
-          endTimeInSourceMs == other.endTimeInSourceMs;
+          endTimeInSourceMs == other.endTimeInSourceMs &&
+          previewPositionX == other.previewPositionX &&
+          previewPositionY == other.previewPositionY &&
+          previewWidth == other.previewWidth &&
+          previewHeight == other.previewHeight;
 }
 
 class TimelineData {

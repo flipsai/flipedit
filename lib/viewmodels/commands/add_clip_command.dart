@@ -13,7 +13,6 @@ import '../../services/project_database_service.dart';
 import '../../services/media_duration_service.dart';
 import '../../services/canvas_dimensions_service.dart';
 import 'package:watch_it/watch_it.dart';
-import '../../viewmodels/timeline_navigation_viewmodel.dart';
 
 class AddClipCommand implements TimelineCommand, UndoableCommand {
   // Implement UndoableCommand
@@ -28,8 +27,6 @@ class AddClipCommand implements TimelineCommand, UndoableCommand {
   final MediaDurationService _mediaDurationService = di<MediaDurationService>();
   final CanvasDimensionsService _canvasDimensionsService =
       di<CanvasDimensionsService>();
-  final TimelineNavigationViewModel _timelineNavViewModel =
-      di<TimelineNavigationViewModel>();
 
   int? _insertedClipId;
   List<ClipModel>? _originalNeighborStates;
@@ -50,8 +47,9 @@ class AddClipCommand implements TimelineCommand, UndoableCommand {
     // Assign to new field
     // Restore state if provided (e.g., fromJson)
     if (insertedClipId != null) _insertedClipId = insertedClipId;
-    if (originalNeighborStates != null)
+    if (originalNeighborStates != null) {
       _originalNeighborStates = originalNeighborStates;
+    }
     if (removedNeighborIds != null) _removedNeighborIds = removedNeighborIds;
   }
 
@@ -97,22 +95,55 @@ class AddClipCommand implements TimelineCommand, UndoableCommand {
 
   /// Adjusts preview dimensions based on canvas settings or media dimensions
   ClipModel _adjustPreviewDimensions(ClipModel clip) {
-    // Use canvas dimensions for clip preview instead of default 100x100
+    // If preview dimensions already specified (>0), respect them.
+    if (clip.previewWidth > 0 && clip.previewHeight > 0) {
+      return clip;
+    }
+
     final canvasWidth = _canvasDimensionsService.canvasWidth;
     final canvasHeight = _canvasDimensionsService.canvasHeight;
 
-    // Get appropriate preview size based on canvas dimensions
-    final previewWidth = canvasWidth;
-    final previewHeight = canvasHeight;
+    // Fallback: scale source to fit canvas while preserving aspect ratio.
+    double targetWidth = canvasWidth;
+    double targetHeight = canvasHeight;
+
+    // If we have metadata with source dimensions, try to preserve aspect.
+    final sourceW = clip.metadata['source_width'];
+    final sourceH = clip.metadata['source_height'];
+    if (sourceW != null && sourceH != null && sourceW > 0 && sourceH > 0) {
+      final srcW = sourceW.toDouble();
+      final srcH = sourceH.toDouble();
+      final scale = (canvasWidth / srcW).clamp(0, double.infinity);
+      final scaledH = srcH * scale;
+      if (scaledH > canvasHeight) {
+        final scale2 = canvasHeight / srcH;
+        targetWidth = srcW * scale2;
+        targetHeight = canvasHeight;
+      } else {
+        targetWidth = canvasWidth;
+        targetHeight = scaledH;
+      }
+    } else {
+      // Default 16:9 fit
+      final aspectCanvas = canvasWidth / canvasHeight;
+      final aspectDefault = 16 / 9;
+      if (aspectCanvas > aspectDefault) {
+        targetHeight = canvasHeight;
+        targetWidth = targetHeight * aspectDefault;
+      } else {
+        targetWidth = canvasWidth;
+        targetHeight = targetWidth / aspectDefault;
+      }
+    }
 
     logger.logInfo(
-      '[AddClipCommand] Setting clip preview dimensions to match canvas: ${previewWidth}x$previewHeight',
+      '[AddClipCommand] Setting initial preview dimensions: ${targetWidth}x$targetHeight',
       _logTag,
     );
 
     return clip.copyWith(
-      previewWidth: previewWidth,
-      previewHeight: previewHeight,
+      previewWidth: targetWidth,
+      previewHeight: targetHeight,
     );
   }
 

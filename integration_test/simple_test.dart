@@ -1,5 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flipedit/main.dart';
 import 'package:flipedit/src/rust/frb_generated.dart';
 import 'package:integration_test/integration_test.dart';
 

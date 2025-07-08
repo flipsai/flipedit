@@ -31,7 +31,7 @@ class _ResizeClipHandleState extends State<ResizeClipHandle> {
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
     final bool isLeft = widget.direction == 'left';
-    final Color handleColor = theme.accentColor.light.withOpacity(0.5);
+    final Color handleColor = theme.accentColor.light.withValues(alpha: 0.5);
 
     return MouseRegion(
       cursor: SystemMouseCursors.resizeLeftRight,
@@ -64,14 +64,14 @@ class _ResizeClipHandleState extends State<ResizeClipHandle> {
                   isLeft
                       ? BorderSide.none
                       : BorderSide(
-                        color: Colors.black.withOpacity(0.2),
+                        color: Colors.black.withValues(alpha: 0.2),
                         width: 0.5,
                       ),
               right:
                   !isLeft
                       ? BorderSide.none
                       : BorderSide(
-                        color: Colors.black.withOpacity(0.2),
+                        color: Colors.black.withValues(alpha: 0.2),
                         width: 0.5,
                       ),
             ),

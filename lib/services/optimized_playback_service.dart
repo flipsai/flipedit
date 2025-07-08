@@ -7,6 +7,7 @@ typedef GetCurrentFrame = int Function();
 typedef SetCurrentFrame = void Function(int frame);
 typedef GetTotalFrames = int Function();
 typedef GetDefaultEmptyDurationFrames = int Function();
+typedef GetFrameRate = double Function();
 
 class OptimizedPlaybackService extends ChangeNotifier {
   final String _logTag = 'PlaybackService';
@@ -15,8 +16,7 @@ class OptimizedPlaybackService extends ChangeNotifier {
   bool get isPlaying => isPlayingNotifier.value;
 
   Timer? _playbackTimer;
-  final int _fps = 30;
-
+  
   DateTime? _lastFrameUpdateTime;
 
   // Dependencies (will be injected)
@@ -24,16 +24,19 @@ class OptimizedPlaybackService extends ChangeNotifier {
   final SetCurrentFrame _setCurrentFrame;
   final GetTotalFrames _getTotalFrames;
   final GetDefaultEmptyDurationFrames _getDefaultEmptyDurationFrames;
+  final GetFrameRate _getFrameRate;
 
   OptimizedPlaybackService({
     required GetCurrentFrame getCurrentFrame,
     required SetCurrentFrame setCurrentFrame,
     required GetTotalFrames getTotalFrames,
     required GetDefaultEmptyDurationFrames getDefaultEmptyDurationFrames,
+    required GetFrameRate getFrameRate,
   }) : _getCurrentFrame = getCurrentFrame,
        _setCurrentFrame = setCurrentFrame,
        _getTotalFrames = getTotalFrames,
-       _getDefaultEmptyDurationFrames = getDefaultEmptyDurationFrames;
+       _getDefaultEmptyDurationFrames = getDefaultEmptyDurationFrames,
+       _getFrameRate = getFrameRate;
 
   /// Starts playback from the current frame position
   Future<void> startPlayback() async {
@@ -46,10 +49,13 @@ class OptimizedPlaybackService extends ChangeNotifier {
     // Initialize the frame update timestamp
     _lastFrameUpdateTime = DateTime.now();
 
-    // Start a timer that advances the frame at the specified FPS
+    // Get the actual video frame rate for accurate timing
+    final fps = _getFrameRate();
+    
+    // Start a timer that advances the frame at the video's actual FPS
     _playbackTimer?.cancel();
     _playbackTimer = Timer.periodic(
-      Duration(milliseconds: (1000 / _fps).round()),
+      Duration(milliseconds: (1000 / fps).round()),
       (timer) {
         final now = DateTime.now();
 
@@ -58,7 +64,7 @@ class OptimizedPlaybackService extends ChangeNotifier {
         if (_lastFrameUpdateTime != null) {
           final elapsedMs =
               now.difference(_lastFrameUpdateTime!).inMilliseconds;
-          final idealFramesToAdvance = (elapsedMs * _fps / 1000).floor();
+          final idealFramesToAdvance = (elapsedMs * fps / 1000).floor();
 
           // Only update if at least one frame should have elapsed
           if (idealFramesToAdvance > 0) {

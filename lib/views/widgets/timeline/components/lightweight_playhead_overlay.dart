@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flipedit/services/video_player_service.dart';
 import 'package:watch_it/watch_it.dart';
@@ -31,6 +30,7 @@ class _LightweightPlayheadOverlayState extends State<LightweightPlayheadOverlay>
   Timer? _resumeUpdatesTimer;
   int _lastRenderedFrame = -1;
   bool _ignorePositionUpdates = false;
+  StreamSubscription<int>? _seekCompletionSubscription;
   
   // Add scroll listener for position updates
   VoidCallback? _scrollListener;
@@ -64,6 +64,9 @@ class _LightweightPlayheadOverlayState extends State<LightweightPlayheadOverlay>
     };
     
     widget.scrollController.addListener(_scrollListener!);
+    
+    // Set up seek completion listener
+    _setupSeekCompletionListener();
   }
 
   @override
@@ -71,11 +74,15 @@ class _LightweightPlayheadOverlayState extends State<LightweightPlayheadOverlay>
     _updateThrottleTimer?.cancel();
     _resumeUpdatesTimer?.cancel();
     _scrollUpdateTimer?.cancel();
+    _seekCompletionSubscription?.cancel();
     
     // Remove scroll listener
     if (_scrollListener != null) {
       widget.scrollController.removeListener(_scrollListener!);
     }
+    
+    // Remove seek completion listener
+    _videoPlayerService.seekCompletionNotifier.removeListener(_onSeekCompleted);
     
     super.dispose();
   }
@@ -97,7 +104,7 @@ class _LightweightPlayheadOverlayState extends State<LightweightPlayheadOverlay>
     _wasPlayingBeforeDrag = _videoPlayerService.isPlaying;
     if (_wasPlayingBeforeDrag) {
       // Pause playback during drag
-      _videoPlayerService.activeVideoPlayer?.pause();
+      _videoPlayerService.activePlayer?.pause();
     }
     
     // Cache expensive calculations for drag performance
@@ -132,7 +139,7 @@ class _LightweightPlayheadOverlayState extends State<LightweightPlayheadOverlay>
       
       setState(() {
         _isDragging = false;
-        // Keep ignoring position updates briefly to prevent snapback
+        // Keep ignoring position updates until seek completes
         _ignorePositionUpdates = true;
       });
       
@@ -141,45 +148,11 @@ class _LightweightPlayheadOverlayState extends State<LightweightPlayheadOverlay>
       _cachedScrollOffset = 0.0;
       _cachedPxPerFrame = 0.0;
       
-      // Resume position updates after a short delay to allow Rust to update
-      _resumeUpdatesTimer?.cancel();
-      _resumeUpdatesTimer = Timer(const Duration(milliseconds: 150), () {
-        if (mounted) {
-          setState(() {
-            _ignorePositionUpdates = false;
-          });
-        }
-      });
-      
-      // Resume playback if it was playing before
-      if (_wasPlayingBeforeDrag) {
-        _videoPlayerService.activeVideoPlayer?.play();
-      }
+      // Position updates will resume when seek completion is received
+      // No need for fixed timer anymore
     }
   }
 
-  double _calculateFrameFromPosition(double globalX) {
-    // Get our own render box to convert global to local coordinates
-    final RenderBox? renderBox = context.findRenderObject() as RenderBox?;
-    if (renderBox == null) return 0.0;
-    
-    // Convert global coordinates to our local coordinates
-    final localPosition = renderBox.globalToLocal(Offset(globalX, 0));
-    
-    const double framePixelWidth = 5.0;
-    final double pxPerFrame = framePixelWidth * widget.zoom;
-    
-    // Account for scroll offset and track label width
-    final scrollOffset = widget.scrollController.hasClients ? widget.scrollController.offset : 0.0;
-    
-    // The local position is relative to our overlay widget
-    // We need to subtract trackLabelWidth to get position relative to timeline content
-    // Then add scrollOffset to account for the current scroll position
-    final timelineContentX = localPosition.dx - widget.trackLabelWidth + scrollOffset;
-    final adjustedPosition = timelineContentX.clamp(0.0, double.infinity);
-    
-    return adjustedPosition / pxPerFrame;
-  }
 
   double _calculatePositionFromFrame(int frame) {
     const double framePixelWidth = 5.0;
@@ -205,6 +178,20 @@ class _LightweightPlayheadOverlayState extends State<LightweightPlayheadOverlay>
     final adjustedPosition = timelineContentX.clamp(0.0, double.infinity);
     
     return adjustedPosition / _cachedPxPerFrame;
+  }
+
+  void _setupSeekCompletionListener() {
+    // Listen for seek completion events from the video player service
+    _videoPlayerService.seekCompletionNotifier.addListener(_onSeekCompleted);
+  }
+
+  void _onSeekCompleted() {
+    // Resume position updates when seek completes
+    if (mounted) {
+      setState(() {
+        _ignorePositionUpdates = false;
+      });
+    }
   }
 
   @override
@@ -352,7 +339,7 @@ class _PlayheadRendererState extends State<_PlayheadRenderer> {
                     color: theme.accentColor,
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF000000).withOpacity(0.3),
+                        color: const Color(0xFF000000).withValues(alpha: 0.3),
                         blurRadius: 2,
                         offset: const Offset(0, 1),
                       ),

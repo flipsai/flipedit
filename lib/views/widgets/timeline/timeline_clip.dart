@@ -10,7 +10,6 @@ import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/services/timeline_clip_resize_service.dart';
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/services/timeline_logic_service.dart';
-import 'package:flipedit/services/clip_update_service.dart';
 
 // Import extracted components
 import 'resize_clip_handle.dart';
@@ -187,8 +186,6 @@ class _TimelineClipState extends State<TimelineClip> {
     // --- Calculate Visuals based on state (Move or Resize Preview) ---
     double dragOffset = 0.0;
     double previewWidthDelta = 0.0;
-    int currentDisplayStartFrame = widget.clip.startFrame;
-    int currentDisplayEndFrame = widget.clip.endFrame;
     final double pixelsPerFrame =
         (zoom > 0 ? 5.0 * zoom : 5.0); // Base pixels * zoom, safe default
 
@@ -247,8 +244,6 @@ class _TimelineClipState extends State<TimelineClip> {
         int actualFrameDelta = previewBoundary - _previewStartFrame!;
         previewWidthDelta = actualFrameDelta * pixelsPerFrame;
         dragOffset = 0; // Keep dragOffset at 0 for left resize preview
-        currentDisplayStartFrame = previewBoundary;
-        currentDisplayEndFrame = _previewEndFrame!;
       } else {
         // direction == 'right'
         // Calculate target source end based on track drag
@@ -275,8 +270,6 @@ class _TimelineClipState extends State<TimelineClip> {
         int actualFrameDelta = previewBoundary - _previewEndFrame!;
         previewWidthDelta = actualFrameDelta * pixelsPerFrame;
         dragOffset = 0;
-        currentDisplayStartFrame = _previewStartFrame!;
-        currentDisplayEndFrame = previewBoundary;
       }
     }
 
@@ -292,10 +285,6 @@ class _TimelineClipState extends State<TimelineClip> {
     final clipColor = baseClipColor;
     final contrastColor = _getContrastColor(clipColor);
     final selectionBorderColor = theme.accentColor.normal;
-    final durationInSec =
-        widget.clip.durationOnTrackMs / 1000.0; // Use durationOnTrackMs
-    final formattedDuration = durationInSec.toStringAsFixed(1);
-    const double fixedClipHeight = 65.0;
     const double borderRadiusValue = 10.0;
     const double borderWidth = 2.5;
     const double shadowBlur = 12.0;
@@ -354,7 +343,7 @@ class _TimelineClipState extends State<TimelineClip> {
                 boxShadow: [
                   // Consistent shadow application
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.10),
+                    color: Colors.black.withValues(alpha: 0.10),
                     blurRadius: shadowBlur,
                     offset: const Offset(0, 3),
                   ),
@@ -362,7 +351,7 @@ class _TimelineClipState extends State<TimelineClip> {
                       _resizingDirection ==
                           null) // Only show selection glow if not resizing
                     BoxShadow(
-                      color: selectionBorderColor.withOpacity(0.25),
+                      color: selectionBorderColor.withValues(alpha: 0.25),
                       blurRadius: shadowBlur * 1.2,
                       spreadRadius: 1.5,
                     ),
@@ -429,7 +418,7 @@ class _TimelineClipState extends State<TimelineClip> {
                       margin: const EdgeInsets.only(bottom: 2),
                       padding: const EdgeInsets.symmetric(horizontal: 6),
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.09),
+                        color: Colors.black.withValues(alpha: 0.09),
                         borderRadius: BorderRadius.only(
                           bottomLeft: Radius.circular(borderRadiusValue - 1),
                           bottomRight: Radius.circular(borderRadiusValue - 1),
@@ -619,33 +608,5 @@ class _TimelineClipState extends State<TimelineClip> {
       _previewStartFrame = null;
       _previewEndFrame = null;
     });
-  }
-
-  // Add a new method to handle the move commit using our new service:
-  void _commitMoveWithService(BuildContext context) {
-    if (!_awaitingMoveConfirmation) return;
-
-    final clipUpdateService = di<ClipUpdateService>();
-    final startTimeOnTrackMs = ClipModel.framesToMs(_currentMoveFrame);
-
-    // Use the new service to create and execute the command
-    clipUpdateService.moveClip(
-      clip: widget.clip,
-      newTrackId: widget.clip.trackId, // Same track for simple move
-      newStartTimeOnTrackMs: startTimeOnTrackMs,
-    );
-
-    // Reset state
-    setState(() {
-      _isMoving = false;
-      // _currentMoveFrame = null;
-      _awaitingMoveConfirmation = false;
-    });
-  }
-
-  // Then modify the existing _commitMove method to use our new service:
-  void _commitMove(BuildContext context) {
-    _commitMoveWithService(context);
-    // Remove the old implementation or keep it as fallback
   }
 }

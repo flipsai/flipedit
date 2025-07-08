@@ -24,6 +24,9 @@ import 'package:flipedit/services/commands/undoable_command.dart';
 import 'commands/move_clip_command.dart';
 import 'commands/resize_clip_command.dart';
 import '../services/canvas_dimensions_service.dart';
+import 'package:flipedit/src/rust/common/types.dart';
+import 'package:flipedit/src/rust/api/simple.dart';
+import 'package:flipedit/services/video_player_service.dart';
 
 class TimelineViewModel extends ChangeNotifier {
   final String _logTag = 'TimelineViewModel';
@@ -113,9 +116,6 @@ class TimelineViewModel extends ChangeNotifier {
       currentEditMode.value = mode;
     }
   }
-
-  final List<VoidCallback> _internalListeners =
-      []; // Store listeners for disposal
 
   /// Executes a TimelineCommand. If the command is Undoable, it's processed
   /// via the UndoRedoService. Otherwise, it's executed directly.
@@ -276,8 +276,8 @@ class TimelineViewModel extends ChangeNotifier {
         endTimeOnTrackMs: endTimeOnTrackMs,
         effects: [],
         metadata: {},
-        previewWidth: canvasWidth, // Use canvas width instead of default
-        previewHeight: canvasHeight, // Use canvas height instead of default
+        previewWidth: 640, // Default reasonable width
+        previewHeight: 360, // Maintain 16:9 aspect ratio by default
       );
 
       // Create an instance of the AddClipCommand class (imported at the top of the file)
@@ -490,12 +490,18 @@ class TimelineViewModel extends ChangeNotifier {
         oldWidth: clip.previewWidth,
         oldHeight: clip.previewHeight,
       );
+await runCommand(command);
 
-      await runCommand(command);
-      logger.logInfo(
-        'UpdateClipTransformCommand executed for clip $clipId with new transform: X=$newPositionX, Y=$newPositionY, W=$newWidth, H=$newHeight',
-        _logTag,
-      );
+// Refresh the active timeline player to apply the new transforms
+await _refreshActiveTimelinePlayer();
+
+logger.logInfo(
+  'UpdateClipTransformCommand executed for clip $clipId with new transform: X=$newPositionX, Y=$newPositionY, W=$newWidth, H=$newHeight',
+  _logTag,
+);
+
+      // Reload the active timeline player so that the new transform is visible immediately
+      await _refreshActiveTimelinePlayer();
     } catch (e) {
       logger.logError(
         'Error executing UpdateClipTransformCommand for transform update on clip $clipId: $e',
@@ -505,6 +511,67 @@ class TimelineViewModel extends ChangeNotifier {
     }
   }
   // updateClipPreviewRect method removed as per user request to remove flutter_box_transform
+
+  Future<TimelineData> buildTimelineData() async {
+    final tracks = _projectDatabaseService.tracksNotifier.value;
+
+    List<TimelineTrack> timelineTracks = [];
+
+    for (final track in tracks) {
+      final clipRows =
+          await _projectDatabaseService.clipDao?.getClipsForTrack(track.id) ?? [];
+
+      final clips = clipRows
+          .map((clipRow) => TimelineClip(
+                id: clipRow.id,
+                trackId: clipRow.trackId,
+                sourcePath: clipRow.sourcePath,
+                startTimeOnTrackMs: clipRow.startTimeOnTrackMs,
+                endTimeOnTrackMs: clipRow.endTimeOnTrackMs ??
+                    clipRow.startTimeOnTrackMs +
+                        (clipRow.endTimeInSourceMs - clipRow.startTimeInSourceMs),
+                startTimeInSourceMs: clipRow.startTimeInSourceMs,
+                endTimeInSourceMs: clipRow.endTimeInSourceMs,
+                previewPositionX: clipRow.previewPositionX,
+                previewPositionY: clipRow.previewPositionY,
+                previewWidth: clipRow.previewWidth,
+                previewHeight: clipRow.previewHeight,
+              ))
+          .toList();
+
+      timelineTracks.add(TimelineTrack(
+        id: track.id,
+        name: track.name,
+        clips: clips,
+      ));
+    }
+
+    return TimelineData(
+      tracks: timelineTracks,
+    );
+  }
+
+  Future<void> _refreshActiveTimelinePlayer() async {
+    final videoPlayerService = di<VideoPlayerService>();
+    if (videoPlayerService.activePlayer is! GesTimelinePlayer) {
+      return;
+    }
+
+    try {
+      final timelineData = await buildTimelineData();
+      await (videoPlayerService.activePlayer as GesTimelinePlayer)
+          .loadTimeline(timelineData: timelineData);
+      logger.logDebug(
+        'Timeline player reloaded after transform update',
+        _logTag,
+      );
+    } catch (e) {
+      logger.logError(
+        'Failed to refresh timeline player after transform update: $e',
+        _logTag,
+      );
+    }
+  }
 
   @override
   void dispose() {

@@ -258,8 +258,9 @@ class ResizeClipCommand implements TimelineCommand, UndoableCommand {
       if (isFirstRunForUserAction) {
         for (final updateMap in neighborUpdatesFromPlacement) {
           final int neighborId = updateMap['id'];
-          if (neighborId == clipId)
+          if (neighborId == clipId) {
             continue; // Don't capture self as neighbor here
+          }
           final originalNeighbor = currentClipsForContext.firstWhereOrNull(
             (c) => c.databaseId == neighborId,
           );
@@ -525,10 +526,12 @@ class ResizeClipCommand implements TimelineCommand, UndoableCommand {
 
       // Add back the persisted states
       finalNotifierList.add(_persistedOldClipState!);
-      if (_persistedOldNeighborStates != null)
+      if (_persistedOldNeighborStates != null) {
         finalNotifierList.addAll(_persistedOldNeighborStates!.values);
-      if (_persistedOldDeletedNeighborsState != null)
+      }
+      if (_persistedOldDeletedNeighborsState != null) {
         finalNotifierList.addAll(_persistedOldDeletedNeighborsState!);
+      }
 
       di<TimelineStateViewModel>().setClips(finalNotifierList);
     } catch (e, s) {

@@ -1,6 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
+import 'package:flipedit/viewmodels/commands/play_pause_command.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/models/enums/edit_mode.dart';
 import 'package:hugeicons/hugeicons.dart';
@@ -151,13 +152,14 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
                     : HugeIcons.strokeRoundedPlay,
                 size: 16,
                 color: !hasActiveVideo 
-                  ? controlsContentColor.withOpacity(0.5)  // Dimmed when not ready
+                  ? controlsContentColor.withValues(alpha: 0.5)  // Dimmed when not ready
                   : controlsContentColor,
               ),
-              // Just control timeline navigation - video player will sync
+              // Use PlayPauseCommand for unified playback control
               onPressed: () async {
                 logInfo("Play button pressed - isPlaying: $isPlaying, hasActiveVideo: $hasActiveVideo", 'TimelineControls');
-                timelineNavigationViewModel.togglePlayPause();
+                final command = PlayPauseCommand(vm: timelineNavigationViewModel);
+                await command.execute();
               },
             ),
           ),

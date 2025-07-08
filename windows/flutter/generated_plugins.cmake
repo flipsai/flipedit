@@ -4,9 +4,9 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   file_selector_windows
+  irondash_engine_context
   screen_retriever_windows
   sqlite3_flutter_libs
-  texture_rgba_renderer
   url_launcher_windows
   window_manager
 )
