@@ -135,6 +135,8 @@ class VideoPlayerService extends ChangeNotifier {
             _lastRustPositionSeconds = positionSeconds;
             _lastRustPositionTimestamp = DateTime.now();
 
+            _ensureDisplayTimerRunning();
+
             _scheduleBatchUpdate(() {
               positionSecondsNotifier.value = positionSeconds;
               currentFrameNotifier.value = frameNumber;
@@ -153,6 +155,8 @@ class VideoPlayerService extends ChangeNotifier {
             // Save as base for interpolation
             _lastRustPositionSeconds = positionSeconds;
             _lastRustPositionTimestamp = DateTime.now();
+
+            _ensureDisplayTimerRunning();
 
             _scheduleBatchUpdate(() {
               positionSecondsNotifier.value = positionSeconds;
@@ -461,6 +465,12 @@ class VideoPlayerService extends ChangeNotifier {
         currentFrameNotifier.value = predictedFrame;
       });
     });
+  }
+
+  void _ensureDisplayTimerRunning() {
+    if (_displayTimer == null && isPlayingNotifier.value && !_isSeeking) {
+      _startDisplayTimer();
+    }
   }
 
   @override
