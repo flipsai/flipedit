@@ -75,8 +75,8 @@ impl VideoPipeline {
 
         let pipeline_desc = format!(
             "compositor name=comp sink_0::xpos=0 sink_1::xpos=960 ! videoconvert ! appsink name=mysink \
-             filesrc location={} ! decodebin ! videoconvert ! videoscale ! video/x-raw,width=960,height=540 ! comp. \
-             filesrc location={} ! decodebin ! videoconvert ! videoscale ! video/x-raw,width=960,height=540 ! comp.",
+             filesrc location={} ! decodebin ! videoconvert ! videoscale add-borders=false ! video/x-raw,width=960,height=540 ! comp. \
+             filesrc location={} ! decodebin ! videoconvert ! videoscale add-borders=false ! video/x-raw,width=960,height=540 ! comp.",
             file_path_left, file_path_right
         );
 

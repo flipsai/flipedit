@@ -35,6 +35,7 @@ struct ClipSource {
     uridecodebin: gst::Element,
     videoconvert: gst::Element,
     videoscale: gst::Element,
+    caps_filter: gst::Element,
     compositor_pad: Option<gst::Pad>,
     audiomixer_pad: Option<gst::Pad>,
     clip_data: TimelineClip,
@@ -127,67 +128,63 @@ impl DirectPipelinePlayer {
     }
 
     fn create_direct_pipeline(&mut self, timeline_data: &TimelineData) -> Result<gst::Pipeline> {
-        println!("🔥 CREATING SIMPLE PLAYBIN PIPELINE...");
+        println!("🔥 CREATING COMPOSITOR-BASED PIPELINE...");
         let pipeline = gst::Pipeline::new();
         println!("✅ Created new pipeline instance");
         
-        // SIMPLIFIED: Just play the first video for proof of concept
+        // Get all clips from timeline
         let all_clips: Vec<_> = timeline_data.tracks.iter().flat_map(|t| &t.clips).collect();
         if all_clips.is_empty() {
             return Err(anyhow!("No clips to play"));
         }
         
-        let first_clip = all_clips[0];
-        let uri = format!("file://{}", first_clip.source_path);
-        println!("🔥 CREATING PLAYBIN FOR: {}", uri);
-        info!("Creating simple playbin for first clip: {}", uri);
+        info!("Creating compositor pipeline with {} clips", all_clips.len());
         
-        // Check if file exists
-        println!("🔥 CHECKING FILE EXISTS: {}", first_clip.source_path);
-        if !std::path::Path::new(&first_clip.source_path).exists() {
-            println!("❌ FILE NOT FOUND: {}", first_clip.source_path);
-            return Err(anyhow!("Video file does not exist: {}", first_clip.source_path));
-        }
-        
-        println!("✅ FILE EXISTS, creating playbin with URI: {}", uri);
-        info!("File exists, creating playbin with URI: {}", uri);
-        
-        // Create simple playback pipeline: playbin with appsink
-        println!("🔥 CREATING PLAYBIN...");
-        let playbin = gst::ElementFactory::make("playbin")
-            .name("playbin0")
-            .property("uri", &uri)
+        // Create compositor and audiomixer for combining multiple clips
+        let compositor = gst::ElementFactory::make("compositor")
+            .name("compositor")
             .build()
-            .map_err(|e| {
-                println!("❌ FAILED TO CREATE PLAYBIN: {}", e);
-                anyhow!("Failed to create playbin: {}", e)
-            })?;
+            .map_err(|e| anyhow!("Failed to create compositor: {}", e))?;
         
-        println!("✅ Created playbin successfully");
-        info!("✅ Created playbin successfully");
+        let audiomixer = gst::ElementFactory::make("audiomixer")
+            .name("audiomixer")
+            .build()
+            .map_err(|e| anyhow!("Failed to create audiomixer: {}", e))?;
         
         // Create video sink
         let video_sink = self.create_texture_video_sink()?;
         
-        // Set the appsink as the video sink for playbin
-        playbin.set_property("video-sink", &video_sink);
+        // Add elements to pipeline
+        pipeline.add(&compositor)?;
+        pipeline.add(&audiomixer)?;
+        pipeline.add(&video_sink)?;
         
-        // Add playbin to pipeline
-        info!("Adding playbin to pipeline...");
-        println!("🔥 Adding playbin to pipeline...");
-        pipeline.add(&playbin)
-            .map_err(|e| {
-                println!("❌ Failed to add playbin to pipeline: {}", e);
-                anyhow!("Failed to add playbin to pipeline: {}", e)
-            })?;
-        info!("✅ Added playbin to pipeline");
+        // Link compositor to video sink
+        compositor.link(&video_sink)?;
+        
+        // Store references for later use
+        self.compositor = Some(compositor.clone());
+        self.audiomixer = Some(audiomixer.clone());
+        
+        // Add each clip to the pipeline
+        for (index, clip) in all_clips.iter().enumerate() {
+            info!("Adding clip {} to pipeline: {}", index + 1, clip.source_path);
+            
+            // Check if file exists
+            if !std::path::Path::new(&clip.source_path).exists() {
+                warn!("Video file does not exist, skipping: {}", clip.source_path);
+                continue;
+            }
+            
+            self.add_clip_source(&pipeline, &compositor, &audiomixer, clip, index)?;
+        }
         
         // Set up message bus handling
         println!("🔥 SETTING UP MESSAGE BUS...");
         self.setup_message_bus_handling(&pipeline)?;
         
-        println!("✅ Simple playbin pipeline created successfully");
-        info!("✅ Simple playbin pipeline created successfully");
+        println!("✅ Compositor-based pipeline created successfully");
+        info!("✅ Compositor-based pipeline created successfully with {} clips", all_clips.len());
         Ok(pipeline)
     }
 
@@ -221,13 +218,28 @@ impl DirectPipelinePlayer {
         // Set scaling method to nearest neighbor for performance
         videoscale.set_property_from_str("method", "nearest-neighbour");
         
+        // Create caps filter for explicit width/height sizing without aspect ratio preservation
+        let caps_filter = gst::ElementFactory::make("capsfilter")
+            .build()
+            .map_err(|e| anyhow!("Failed to create capsfilter for clip {}: {}", index + 1, e))?;
+        
+        // Set explicit caps to force exact dimensions from inspector values
+        let caps = gst::Caps::builder("video/x-raw")
+            .field("width", clip_data.preview_width as i32)
+            .field("height", clip_data.preview_height as i32)
+            .field("pixel-aspect-ratio", gst::Fraction::new(1, 1)) // Force square pixels
+            .build();
+        caps_filter.set_property("caps", &caps);
+        
         // Add elements to pipeline
         pipeline.add(&uridecodebin)?;
         pipeline.add(&videoconvert)?;
         pipeline.add(&videoscale)?;
+        pipeline.add(&caps_filter)?;
         
-        // Link video processing chain
+        // Link video processing chain: videoconvert -> videoscale -> capsfilter
         videoconvert.link(&videoscale)?;
+        videoscale.link(&caps_filter)?;
         
         // Request pads from compositor and audiomixer
         let compositor_pad = compositor.request_pad_simple("sink_%u")
@@ -236,17 +248,21 @@ impl DirectPipelinePlayer {
         let audiomixer_pad = audiomixer.request_pad_simple("sink_%u")
             .ok_or_else(|| anyhow!("Failed to request audiomixer pad for clip {}", index + 1))?;
         
-        // Link videoscale to compositor
-        let videoscale_src_pad = videoscale.static_pad("src")
-            .ok_or_else(|| anyhow!("Failed to get src pad from videoscale for clip {}", index + 1))?;
-        videoscale_src_pad.link(&compositor_pad)?;
+        // Link caps_filter directly to compositor
+        let caps_filter_src_pad = caps_filter.static_pad("src")
+            .ok_or_else(|| anyhow!("Failed to get src pad from caps_filter for clip {}", index + 1))?;
+        caps_filter_src_pad.link(&compositor_pad)?;
         
         // Set compositor pad properties for positioning and sizing
+        compositor_pad.set_property("zorder", index as u32);
         compositor_pad.set_property("xpos", clip_data.preview_position_x as i32);
         compositor_pad.set_property("ypos", clip_data.preview_position_y as i32);
         compositor_pad.set_property("width", clip_data.preview_width as i32);
         compositor_pad.set_property("height", clip_data.preview_height as i32);
-        compositor_pad.set_property("zorder", index as u32);
+        
+        info!("Set compositor pad properties for clip {}: pos=({}, {}), size=({}, {})", 
+            index + 1, clip_data.preview_position_x, clip_data.preview_position_y, 
+            clip_data.preview_width, clip_data.preview_height);
         
         // Set up pad-added callback for uridecodebin first (before moving audiomixer_pad)
         let pipeline_weak = pipeline.downgrade();
@@ -259,6 +275,7 @@ impl DirectPipelinePlayer {
             uridecodebin: uridecodebin.clone(),
             videoconvert: videoconvert.clone(),
             videoscale,
+            caps_filter,
             compositor_pad: Some(compositor_pad),
             audiomixer_pad: Some(audiomixer_pad),
             clip_data: clip_data.clone(),
@@ -345,7 +362,7 @@ impl DirectPipelinePlayer {
             }
         });
         
-        info!("Added clip {} with transforms: position=({},{}), size=({},{})",
+        info!("Added clip {} with transforms: position=({},{}), size=({},{}), pipeline: videoscale->capsfilter->videobox",
               index + 1,
               clip_data.preview_position_x, clip_data.preview_position_y,
               clip_data.preview_width, clip_data.preview_height);
