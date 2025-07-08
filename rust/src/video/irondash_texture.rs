@@ -125,45 +125,6 @@ pub fn create_player_texture(width: u32, height: u32, engine_handle: i64) -> Res
     rx.recv().unwrap_or_else(|_| Err(anyhow::anyhow!("Failed to receive player texture creation result")))
 }
 
-/// Get Flutter's OpenGL context handle for sharing with GStreamer
-/// This function extracts the GL context that Flutter is using so GStreamer can share it
-pub fn get_flutter_gl_context_handle(_engine_handle: i64) -> Result<Option<u64>> {
-    // For now, we return None since direct GL context extraction from Flutter
-    // requires deeper integration with the Flutter engine's GL context
-    // TODO: Implement proper GL context handle extraction from Flutter engine
-    warn!("GL context handle extraction not yet implemented - using software rendering path");
-    Ok(None)
-}
-
-/// Create a GL context message for GStreamer that references Flutter's GL context
-/// This allows GStreamer GL elements to share the same GL context as Flutter
-pub fn create_gl_context_message(flutter_gl_handle: Option<u64>) -> Option<String> {
-    match flutter_gl_handle {
-        Some(handle) => {
-            info!("Creating GL context message with Flutter handle: {}", handle);
-            // TODO: Create proper GStreamer GL context message
-            // This would typically be: "gst-gl-context-handle=<handle>"
-            Some(format!("gst-gl-context-handle={}", handle))
-        },
-        None => {
-            warn!("No Flutter GL handle available - falling back to software rendering");
-            None
-        }
-    }
-}
-
-/// Set GL context on GStreamer element for sharing
-/// This function configures a GStreamer element to use the shared GL context
-pub fn set_gl_context_on_element(_element: &gstreamer::Element, context_message: &str) -> Result<()> {
-    // TODO: Implement proper GL context setting on GStreamer elements
-    // This typically involves:
-    // 1. Creating a GstGLContext from the handle
-    // 2. Setting it on the GStreamer GL elements
-    // 3. Ensuring the GL context is current during rendering
-    warn!("GL context setting on element not yet implemented: {}", context_message);
-    Ok(())
-}
-
 // Global registry for storing actual irondash texture update functions
 lazy_static::lazy_static! {
     static ref IRONDASH_UPDATE_FUNCTIONS: Arc<Mutex<std::collections::HashMap<i64, Box<dyn Fn(FrameData) + Send + Sync>>>> = 

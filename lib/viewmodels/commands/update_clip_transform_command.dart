@@ -3,6 +3,9 @@ import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
 import 'timeline_command.dart';
 import 'package:watch_it/watch_it.dart';
+import '../timeline_viewmodel.dart';
+import 'package:flipedit/services/video_player_service.dart';
+import 'package:flipedit/src/rust/api/simple.dart';
 
 class UpdateClipTransformCommand extends TimelineCommand {
   final int clipId;
@@ -53,6 +56,9 @@ class UpdateClipTransformCommand extends TimelineCommand {
       height: newHeight,
     );
     await _stateViewModel.refreshClips();
+    
+    // Refresh the timeline player to apply new transforms
+    await _refreshTimelinePlayer(); 
   }
 
   @override
@@ -68,6 +74,9 @@ class UpdateClipTransformCommand extends TimelineCommand {
       height: oldHeight,
     );
     await _stateViewModel.refreshClips();
+    
+    // Refresh the timeline player to apply old transforms
+    await _refreshTimelinePlayer();
   }
 
   Future<void> _applyPropertiesToDb({
@@ -111,6 +120,27 @@ class UpdateClipTransformCommand extends TimelineCommand {
         'Command',
       );
       rethrow;
+    }
+  }
+
+  /// Refresh the timeline player to apply transform changes
+  Future<void> _refreshTimelinePlayer() async {
+    try {
+      final videoPlayerService = di<VideoPlayerService>();
+      if (videoPlayerService.activePlayer is! GesTimelinePlayer) {
+        logger.logInfo('No active timeline player to refresh.', 'Command');
+        return;
+      }
+
+      final timelineViewModel = di<TimelineViewModel>();
+      final timelineData = await timelineViewModel.buildTimelineData();
+      
+      final timelinePlayer = videoPlayerService.activePlayer as GesTimelinePlayer;
+      await timelinePlayer.loadTimeline(timelineData: timelineData);
+      
+      logger.logInfo('Timeline player refreshed with updated transform values.', 'Command');
+    } catch (e) {
+      logger.logError('Failed to refresh timeline player: $e', 'Command');
     }
   }
 }

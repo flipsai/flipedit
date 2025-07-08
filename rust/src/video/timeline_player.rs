@@ -2,7 +2,6 @@ use anyhow::{anyhow, Result};
 use gstreamer as gst;
 use gstreamer_editing_services as ges;
 use gstreamer_app as gst_app;
-use gstreamer_gl as gst_gl;
 use gst::prelude::*;
 use ges::prelude::*;
 use log::{debug, info, warn};
@@ -33,10 +32,6 @@ pub struct TimelinePlayer {
     position_callback: Arc<Mutex<Option<PositionUpdateCallback>>>,
     seek_completion_callback: Arc<Mutex<Option<SeekCompletionCallback>>>,
     position_timer_id: Arc<Mutex<Option<gst::glib::SourceId>>>,
-    // Remove bus_watch_guard as it's not Send and causes hot restart issues
-    // GL context sharing fields
-    gl_display: Option<gst_gl::GLDisplay>,
-    gl_context: Option<gst_gl::GLContext>,
     flutter_engine_handle: Option<i64>,
 }
 
@@ -63,9 +58,7 @@ impl TimelinePlayer {
             position_callback: Arc::new(Mutex::new(None)),
             seek_completion_callback: Arc::new(Mutex::new(None)),
             position_timer_id: Arc::new(Mutex::new(None)),
-            gl_display: None,
-            gl_context: None,
-            flutter_engine_handle: None,
+            flutter_engine_handle: None
         })
     }
 
@@ -137,6 +130,14 @@ impl TimelinePlayer {
             let uri = format!("file://{}", clip.source_path);
             info!("Adding clip {} from URI: {}", index + 1, uri);
             
+            // DEBUG: Log transform values received from Flutter
+            info!("Clip {} transforms: X={}, Y={}, W={}, H={}",
+                  index + 1,
+                  clip.preview_position_x,
+                  clip.preview_position_y,
+                  clip.preview_width,
+                  clip.preview_height);
+            
             let start_ms = clip.start_time_on_track_ms as u64;
             let duration_ms = (clip.end_time_on_track_ms - clip.start_time_on_track_ms) as u64;
             let inpoint_ms = clip.start_time_in_source_ms as u64;
@@ -171,7 +172,10 @@ impl TimelinePlayer {
                     ges::TrackType::VIDEO | ges::TrackType::AUDIO,
                 ).map_err(|e| anyhow!("Failed to add asset {} to layer: {}", index + 1, e))?;
                 
-                info!("Added clip {} to timeline: start={}ms, duration={}ms, inpoint={}ms", 
+                // Apply video transforms using GES video effects
+                self.apply_video_transforms(&ges_clip, clip)?;
+                
+                info!("Added clip {} to timeline: start={}ms, duration={}ms, inpoint={}ms",
                       index + 1, start_ms, final_duration, final_inpoint);
                 
                 info!("Successfully added clip {} to timeline", index + 1);
@@ -184,7 +188,10 @@ impl TimelinePlayer {
                     ges::TrackType::VIDEO | ges::TrackType::AUDIO,
                 ).map_err(|e| anyhow!("Failed to add asset {} to layer: {}", index + 1, e))?;
                 
-                info!("Added clip {} to timeline: start={}ms, duration={}ms, inpoint={}ms", 
+                // Apply video transforms using GES video effects
+                self.apply_video_transforms(&ges_clip, clip)?;
+                
+                info!("Added clip {} to timeline: start={}ms, duration={}ms, inpoint={}ms",
                       index + 1, start_ms, duration_ms, inpoint_ms);
                 info!("Successfully added clip {} to timeline", index + 1);
             }
@@ -197,6 +204,59 @@ impl TimelinePlayer {
         
         info!("GES timeline committed successfully with {} clips", all_clips.len());
         Ok(timeline)
+    }
+
+    /// Apply video transforms (position, scale) to a clip using GES video effects
+    fn apply_video_transforms(&self, ges_clip: &ges::Clip, clip_data: &crate::common::types::TimelineClip) -> Result<()> {
+        use ges::prelude::*;
+        
+        info!("Applying transforms to clip: X={}, Y={}, W={}, H={}",
+              clip_data.preview_position_x,
+              clip_data.preview_position_y,
+              clip_data.preview_width,
+              clip_data.preview_height);
+
+        // 1. Scale the video to the desired preview size
+        let videoscale_effect = ges::Effect::new("videoscale").map_err(|e| {
+            anyhow!("Failed to create videoscale effect: {}", e)
+        })?;
+        ges::prelude::TimelineElementExt::set_child_property(&videoscale_effect, "method", &0i32.to_value())?; // 0 = nearest-neighbor, fastest
+        ges::prelude::TimelineElementExt::set_child_property(&videoscale_effect, "add-borders", &false.to_value())?; // Disable aspect ratio preservation
+        ges_clip.add(&videoscale_effect).map_err(|_| {
+            anyhow!("Failed to add videoscale effect to clip")
+        })?;
+
+        // 2. Use a capsfilter to enforce the scaled dimensions
+        let capsfilter_effect = ges::Effect::new("capsfilter").map_err(|e| {
+            anyhow!("Failed to create capsfilter effect: {}", e)
+        })?;
+        let caps = gst::Caps::builder("video/x-raw")
+            .field("width", clip_data.preview_width as i32)
+            .field("height", clip_data.preview_height as i32)
+            .field("pixel-aspect-ratio", gst::Fraction::new(1, 1)) // Force square pixels
+            .build();
+        ges::prelude::TimelineElementExt::set_child_property(&capsfilter_effect, "caps", &caps.to_value())?;
+        ges_clip.add(&capsfilter_effect).map_err(|_| {
+            anyhow!("Failed to add capsfilter effect to clip")
+        })?;
+        
+        // 3. Position the scaled video on the canvas using videobox
+        let videobox_effect = ges::Effect::new("videobox").map_err(|e| {
+            anyhow!("Failed to create videobox effect: {}", e)
+        })?;
+        let left_border = clip_data.preview_position_x as i32;
+        let top_border = clip_data.preview_position_y as i32;
+        ges::prelude::TimelineElementExt::set_child_property(&videobox_effect, "left", &left_border.to_value())?;
+        ges::prelude::TimelineElementExt::set_child_property(&videobox_effect, "top", &top_border.to_value())?;
+        ges_clip.add(&videobox_effect).map_err(|_| {
+            anyhow!("Failed to add videobox effect to clip")
+        })?;
+        
+        info!("Applied video transform effects: position=({},{}), size=({},{})",
+              clip_data.preview_position_x, clip_data.preview_position_y,
+              clip_data.preview_width, clip_data.preview_height);
+
+        Ok(())
     }
 
     fn create_ges_pipeline(&mut self, timeline: &ges::Timeline) -> Result<ges::Pipeline> {

@@ -24,7 +24,7 @@ class VideoPlayerViewModel {
   Future<void> _initialize() async {
     try {
       // Build timeline data from current project
-      final timelineData = await _buildTimelineData();
+      final timelineData = await buildTimelineData();
       
       if (timelineData.tracks.isEmpty) {
         logInfo('VideoPlayerViewModel', 'No tracks available for timeline initialization');
@@ -55,7 +55,7 @@ class VideoPlayerViewModel {
     }
   }
 
-  Future<TimelineData> _buildTimelineData() async {
+  Future<TimelineData> buildTimelineData() async {
     final projectDatabaseService = di<ProjectDatabaseService>();
     final tracks = projectDatabaseService.tracksNotifier.value;
     
@@ -78,6 +78,12 @@ class VideoPlayerViewModel {
         previewWidth: clipRow.previewWidth,
         previewHeight: clipRow.previewHeight,
       )).toList();
+      
+      // DEBUG: Log transform values being passed to Rust
+      for (final clip in clips) {
+        logInfo('VideoPlayerViewModel',
+          'Clip ${clip.id} transforms: X=${clip.previewPositionX}, Y=${clip.previewPositionY}, W=${clip.previewWidth}, H=${clip.previewHeight}');
+      }
       
       timelineTracks.add(TimelineTrack(
         id: track.id,
@@ -116,7 +122,7 @@ class VideoPlayerViewModel {
     
     try {
       logInfo('VideoPlayerViewModel', 'Refreshing timeline with updated data');
-      final timelineData = await _buildTimelineData();
+      final timelineData = await buildTimelineData();
       await _timelinePlayer!.loadTimeline(timelineData: timelineData);
     } catch (e) {
       final errMsg = "Failed to refresh timeline: $e";
