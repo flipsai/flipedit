@@ -428,7 +428,7 @@ class VideoPlayerService extends ChangeNotifier {
 
   // Seek completion notifier for UI components
   final ValueNotifier<int> seekCompletionNotifier = ValueNotifier<int>(-1);
-
+  
   // Batch update system to reduce widget rebuild frequency
   void _scheduleBatchUpdate(VoidCallback update) {
     if (!_hasPendingUpdates) {

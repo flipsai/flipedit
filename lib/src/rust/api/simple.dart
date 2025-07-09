@@ -51,7 +51,7 @@ PlatformInt64 playDualVideo({
   engineHandle: engineHandle,
 );
 
-/// Create and load a GES timeline player with timeline data (proper GES implementation)
+/// Create and load a direct pipeline timeline player with timeline data (GStreamer-only implementation)
 Future<(GesTimelinePlayer, PlatformInt64)> createGesTimelinePlayer({
   required TimelineData timelineData,
   required PlatformInt64 engineHandle,
@@ -105,6 +105,15 @@ abstract class GesTimelinePlayer implements RustOpaqueInterface {
   Stream<int> setupSeekCompletionStream();
 
   Future<void> stop();
+
+  /// Update a specific clip's transform properties without reloading the entire timeline
+  Future<void> updateClipTransform({
+    required int clipId,
+    required double previewPositionX,
+    required double previewPositionY,
+    required double previewWidth,
+    required double previewHeight,
+  });
 
   /// Update position from GStreamer pipeline - call this regularly for smooth playhead updates
   void updatePosition();

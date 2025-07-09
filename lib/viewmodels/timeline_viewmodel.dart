@@ -490,18 +490,13 @@ class TimelineViewModel extends ChangeNotifier {
         oldWidth: clip.previewWidth,
         oldHeight: clip.previewHeight,
       );
-await runCommand(command);
+      
+      await runCommand(command);
 
-// Refresh the active timeline player to apply the new transforms
-await _refreshActiveTimelinePlayer();
-
-logger.logInfo(
-  'UpdateClipTransformCommand executed for clip $clipId with new transform: X=$newPositionX, Y=$newPositionY, W=$newWidth, H=$newHeight',
-  _logTag,
-);
-
-      // Reload the active timeline player so that the new transform is visible immediately
-      await _refreshActiveTimelinePlayer();
+      logger.logInfo(
+        'UpdateClipTransformCommand executed for clip $clipId with new transform: X=$newPositionX, Y=$newPositionY, W=$newWidth, H=$newHeight',
+        _logTag,
+      );
     } catch (e) {
       logger.logError(
         'Error executing UpdateClipTransformCommand for transform update on clip $clipId: $e',
@@ -551,27 +546,6 @@ logger.logInfo(
     );
   }
 
-  Future<void> _refreshActiveTimelinePlayer() async {
-    final videoPlayerService = di<VideoPlayerService>();
-    if (videoPlayerService.activePlayer is! GesTimelinePlayer) {
-      return;
-    }
-
-    try {
-      final timelineData = await buildTimelineData();
-      await (videoPlayerService.activePlayer as GesTimelinePlayer)
-          .loadTimeline(timelineData: timelineData);
-      logger.logDebug(
-        'Timeline player reloaded after transform update',
-        _logTag,
-      );
-    } catch (e) {
-      logger.logError(
-        'Failed to refresh timeline player after transform update: $e',
-        _logTag,
-      );
-    }
-  }
 
   @override
   void dispose() {

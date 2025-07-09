@@ -86,7 +86,7 @@ impl DirectPipelinePlayer {
             position_callback: Arc::new(Mutex::new(None)),
             seek_completion_callback: Arc::new(Mutex::new(None)),
             position_timer_id: Arc::new(Mutex::new(None)),
-            flutter_engine_handle: None
+            flutter_engine_handle: None,
         })
     }
 
@@ -623,6 +623,32 @@ impl DirectPipelinePlayer {
         }
         
         *self.current_position_ms.lock().unwrap() = position_ms;
+        
+        // If pipeline is not playing, pull preroll to show the seeked frame
+        let current_state = pipeline.current_state();
+        if current_state != gst::State::Playing {
+            // Ensure pipeline is in PAUSED state
+            if current_state != gst::State::Paused {
+                if let Err(e) = pipeline.set_state(gst::State::Paused) {
+                    warn!("Failed to set pipeline to PAUSED after seek: {}", e);
+                    return Ok(());
+                }
+                // Wait for state change to complete
+                let timeout = gst::ClockTime::from_seconds(1);
+                if let Err(e) = pipeline.state(Some(timeout)).0 {
+                    warn!("Failed to complete state change to PAUSED after seek: {}", e);
+                    return Ok(());
+                }
+            }
+            
+            // Pull preroll sample to show the frame at the new position
+            if let Err(e) = self.pull_preroll_and_render() {
+                warn!("Failed to pull preroll sample after seek to {}ms: {}", position_ms, e);
+            } else {
+                info!("Successfully showed frame at position {}ms after seek", position_ms);
+            }
+        }
+        
         Ok(())
     }
 
@@ -670,6 +696,179 @@ impl DirectPipelinePlayer {
         Ok(())
     }
     
+    /// Update a specific clip's transform properties without reloading the entire timeline
+    pub fn update_clip_transform(
+        &mut self,
+        clip_id: i32,
+        preview_position_x: f64,
+        preview_position_y: f64,
+        preview_width: f64,
+        preview_height: f64,
+    ) -> Result<()> {
+        info!("Updating clip transform for clip_id {} to pos=({}, {}), size=({}, {})",
+              clip_id, preview_position_x, preview_position_y, preview_width, preview_height);
+        
+        // Find the clip source by matching the clip ID
+        let mut found_clip = None;
+        for (key, clip_source) in self.clip_sources.iter_mut() {
+            if clip_source.clip_data.id == Some(clip_id) {
+                found_clip = Some(key.clone());
+                break;
+            }
+        }
+        
+        let clip_key = found_clip.ok_or_else(|| anyhow!("Clip with ID {} not found", clip_id))?;
+        
+        // Get the clip source
+        let clip_source = self.clip_sources.get_mut(&clip_key)
+            .ok_or_else(|| anyhow!("Clip source not found for key {}", clip_key))?;
+        
+        // Update the clip data
+        clip_source.clip_data.preview_position_x = preview_position_x;
+        clip_source.clip_data.preview_position_y = preview_position_y;
+        clip_source.clip_data.preview_width = preview_width;
+        clip_source.clip_data.preview_height = preview_height;
+        
+        // Update the compositor pad properties
+        if let Some(ref compositor_pad) = clip_source.compositor_pad {
+            compositor_pad.set_property("xpos", preview_position_x as i32);
+            compositor_pad.set_property("ypos", preview_position_y as i32);
+            compositor_pad.set_property("width", preview_width as i32);
+            compositor_pad.set_property("height", preview_height as i32);
+            
+            info!("Updated compositor pad properties for clip {}", clip_id);
+        }
+        
+        // Update the caps filter to match the new dimensions
+        let caps = gst::Caps::builder("video/x-raw")
+            .field("width", preview_width as i32)
+            .field("height", preview_height as i32)
+            .field("pixel-aspect-ratio", gst::Fraction::new(1, 1))
+            .build();
+        clip_source.caps_filter.set_property("caps", &caps);
+        
+        // Trigger a frame update by forcing a seek and pulling preroll sample
+        // This forces the pipeline to re-render with the new transform properties
+        if let Some(pipeline) = &self.pipeline {
+            let current_position = *self.current_position_ms.lock().unwrap();
+            let current_state = pipeline.current_state();
+            
+            if current_state == gst::State::Playing {
+                // Already playing, the frame will update naturally
+                info!("Pipeline is playing, transform will be visible in next frame");
+            } else {
+                // Pipeline is paused/stopped, need to manually trigger frame update
+                info!("Pipeline is paused, manually triggering frame update for transform");
+                
+                // Ensure pipeline is in PAUSED state
+                if current_state != gst::State::Paused {
+                    if let Err(e) = pipeline.set_state(gst::State::Paused) {
+                        warn!("Failed to set pipeline to PAUSED: {}", e);
+                        return Ok(());
+                    }
+                    // Wait for state change to complete
+                    let timeout = gst::ClockTime::from_seconds(1);
+                    if let Err(e) = pipeline.state(Some(timeout)).0 {
+                        warn!("Failed to complete state change to PAUSED: {}", e);
+                        return Ok(());
+                    }
+                }
+                
+                // Force seek to current position to trigger frame render with new transform
+                let seek_result = pipeline.seek_simple(
+                    gst::SeekFlags::FLUSH | gst::SeekFlags::ACCURATE,
+                    gst::ClockTime::from_mseconds(current_position),
+                );
+                
+                if seek_result.is_ok() {
+                    info!("Forced seek to {}ms to update frame with new transform", current_position);
+                    
+                    // Now pull the preroll sample to force the frame render
+                    if let Err(e) = self.pull_preroll_and_render() {
+                        warn!("Failed to pull preroll sample after transform update: {}", e);
+                    }
+                } else {
+                    warn!("Failed to seek for frame update after transform change");
+                }
+                
+                // Note: We DON'T restore to playing state here because the pipeline
+                // was already paused when we started, so it should stay paused
+            }
+        }
+        
+        info!("Successfully updated clip {} transform properties", clip_id);
+        Ok(())
+    }
+    
+    /// Pull preroll sample from appsink when pipeline is paused and update texture
+    /// This is the correct way to get a frame when the pipeline is in PAUSED state
+    fn pull_preroll_and_render(&self) -> Result<()> {
+        // Find the appsink element in the pipeline
+        if let Some(pipeline) = &self.pipeline {
+            let appsink = pipeline
+                .by_name("texture_video_sink0")
+                .ok_or_else(|| anyhow!("Could not find appsink element"))?;
+            
+            let appsink = appsink
+                .dynamic_cast::<gst_app::AppSink>()
+                .map_err(|_| anyhow!("Element is not an AppSink"))?;
+            
+            // Pull the preroll sample from the appsink (for paused pipelines)
+            match appsink.try_pull_preroll(gst::ClockTime::from_seconds(1)) {
+                Some(sample) => {
+                    if let Some(texture_id) = self.texture_id {
+                        // Process the sample and update texture using the same method as normal playback
+                        match Self::handle_video_sample_from_buffer(&sample, texture_id) {
+                            Ok(_) => {
+                                info!("Successfully pulled preroll sample and updated texture {}", texture_id);
+                                return Ok(());
+                            }
+                            Err(e) => {
+                                warn!("Failed to process preroll sample: {}", e);
+                                return Err(anyhow!("Failed to process preroll sample: {}", e));
+                            }
+                        }
+                    }
+                }
+                None => {
+                    debug!("No preroll sample available from appsink");
+                    return Err(anyhow!("No preroll sample available from appsink"));
+                }
+            }
+        }
+        
+        Err(anyhow!("No pipeline available for preroll rendering"))
+    }
+    
+    /// Process a GStreamer sample and update the texture (extracted from handle_video_sample)
+    fn handle_video_sample_from_buffer(
+        sample: &gst::Sample,
+        texture_id: i64,
+    ) -> Result<()> {
+        let buffer = sample.buffer().ok_or_else(|| anyhow!("No buffer in sample"))?;
+        let map = buffer.map_readable().map_err(|_| anyhow!("Failed to map buffer"))?;
+
+        let caps = sample.caps().ok_or_else(|| anyhow!("No caps in sample"))?;
+        let s = caps.structure(0).ok_or_else(|| anyhow!("No structure in caps"))?;
+        let width = s.get::<i32>("width").unwrap_or(1920) as u32;
+        let height = s.get::<i32>("height").unwrap_or(1080) as u32;
+
+        let frame_data = FrameData {
+            data: map.as_slice().to_vec(),
+            width,
+            height,
+            texture_id: Some(texture_id as u64),
+        };
+
+        // Update the texture with the new frame data
+        if crate::api::simple::update_video_frame(frame_data) {
+            info!("Successfully updated texture {} with preroll frame", texture_id);
+            Ok(())
+        } else {
+            Err(anyhow!("Failed to update texture with preroll frame data"))
+        }
+    }
+
     pub fn dispose(&mut self) -> Result<()> {
         if let Some(texture_id) = self.texture_id {
             crate::video::irondash_texture::unregister_irondash_update_function(texture_id);

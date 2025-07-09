@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.7.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1004575520;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -62202027;
 
 // Section: executor
 
@@ -941,6 +941,67 @@ fn wire__crate__api__simple__GesTimelinePlayer_stop_impl(
                     let mut api_that_guard = api_that_guard.unwrap();
                     let output_ok =
                         crate::api::simple::GESTimelinePlayer::stop(&mut *api_that_guard)?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__simple__GesTimelinePlayer_update_clip_transform_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "GesTimelinePlayer_update_clip_transform",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<GESTimelinePlayer>,
+            >>::sse_decode(&mut deserializer);
+            let api_clip_id = <i32>::sse_decode(&mut deserializer);
+            let api_preview_position_x = <f64>::sse_decode(&mut deserializer);
+            let api_preview_position_y = <f64>::sse_decode(&mut deserializer);
+            let api_preview_width = <f64>::sse_decode(&mut deserializer);
+            let api_preview_height = <f64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let mut api_that_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_that, 0, true,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref_mut()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let mut api_that_guard = api_that_guard.unwrap();
+                    let output_ok = crate::api::simple::GESTimelinePlayer::update_clip_transform(
+                        &mut *api_that_guard,
+                        api_clip_id,
+                        api_preview_position_x,
+                        api_preview_position_y,
+                        api_preview_width,
+                        api_preview_height,
+                    )?;
                     Ok(output_ok)
                 })())
             }
@@ -3652,82 +3713,88 @@ fn pde_ffi_dispatcher_primary_impl(
         18 => {
             wire__crate__api__simple__GesTimelinePlayer_stop_impl(port, ptr, rust_vec_len, data_len)
         }
-        20 => {
+        19 => wire__crate__api__simple__GesTimelinePlayer_update_clip_transform_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        21 => {
             wire__crate__api__simple__TimelinePlayer_dispose_impl(port, ptr, rust_vec_len, data_len)
         }
-        26 => wire__crate__api__simple__TimelinePlayer_load_timeline_impl(
+        27 => wire__crate__api__simple__TimelinePlayer_load_timeline_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        28 => {
+        29 => {
             wire__crate__api__simple__TimelinePlayer_pause_impl(port, ptr, rust_vec_len, data_len)
         }
-        29 => wire__crate__api__simple__TimelinePlayer_play_impl(port, ptr, rust_vec_len, data_len),
-        30 => wire__crate__api__simple__TimelinePlayer_set_position_ms_impl(
+        30 => wire__crate__api__simple__TimelinePlayer_play_impl(port, ptr, rust_vec_len, data_len),
+        31 => wire__crate__api__simple__TimelinePlayer_set_position_ms_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        31 => wire__crate__api__simple__TimelinePlayer_stop_impl(port, ptr, rust_vec_len, data_len),
-        33 => wire__crate__api__simple__VideoPlayer_dispose_impl(port, ptr, rust_vec_len, data_len),
-        34 => wire__crate__api__simple__VideoPlayer_extract_frame_at_position_impl(
+        32 => wire__crate__api__simple__TimelinePlayer_stop_impl(port, ptr, rust_vec_len, data_len),
+        34 => wire__crate__api__simple__VideoPlayer_dispose_impl(port, ptr, rust_vec_len, data_len),
+        35 => wire__crate__api__simple__VideoPlayer_extract_frame_at_position_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        47 => {
+        48 => {
             wire__crate__api__simple__VideoPlayer_load_video_impl(port, ptr, rust_vec_len, data_len)
         }
-        50 => wire__crate__api__simple__VideoPlayer_pause_impl(port, ptr, rust_vec_len, data_len),
-        51 => wire__crate__api__simple__VideoPlayer_play_impl(port, ptr, rust_vec_len, data_len),
-        52 => wire__crate__api__simple__VideoPlayer_seek_and_pause_control_impl(
+        51 => wire__crate__api__simple__VideoPlayer_pause_impl(port, ptr, rust_vec_len, data_len),
+        52 => wire__crate__api__simple__VideoPlayer_play_impl(port, ptr, rust_vec_len, data_len),
+        53 => wire__crate__api__simple__VideoPlayer_seek_and_pause_control_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        53 => wire__crate__api__simple__VideoPlayer_seek_to_frame_impl(
+        54 => wire__crate__api__simple__VideoPlayer_seek_to_frame_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        54 => wire__crate__api__simple__VideoPlayer_setup_frame_stream_impl(
+        55 => wire__crate__api__simple__VideoPlayer_setup_frame_stream_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        55 => wire__crate__api__simple__VideoPlayer_setup_position_stream_impl(
+        56 => wire__crate__api__simple__VideoPlayer_setup_position_stream_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        56 => wire__crate__api__simple__VideoPlayer_stop_impl(port, ptr, rust_vec_len, data_len),
-        57 => wire__crate__api__simple__VideoPlayer_sync_playing_state_impl(
+        57 => wire__crate__api__simple__VideoPlayer_stop_impl(port, ptr, rust_vec_len, data_len),
+        58 => wire__crate__api__simple__VideoPlayer_sync_playing_state_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        58 => wire__crate__api__simple__VideoPlayer_test_pipeline_impl(
+        59 => wire__crate__api__simple__VideoPlayer_test_pipeline_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        59 => wire__crate__api__simple__create_ges_timeline_player_impl(
+        60 => wire__crate__api__simple__create_ges_timeline_player_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        65 => wire__crate__api__bridge__init_app_impl(port, ptr, rust_vec_len, data_len),
+        66 => wire__crate__api__bridge__init_app_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -3774,90 +3841,90 @@ fn pde_ffi_dispatcher_sync_impl(
             data_len,
         ),
         11 => wire__crate__api__simple__GesTimelinePlayer_new_impl(ptr, rust_vec_len, data_len),
-        19 => wire__crate__api__simple__GesTimelinePlayer_update_position_impl(
+        20 => wire__crate__api__simple__GesTimelinePlayer_update_position_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        21 => wire__crate__api__simple__TimelinePlayer_get_latest_frame_impl(
+        22 => wire__crate__api__simple__TimelinePlayer_get_latest_frame_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        22 => wire__crate__api__simple__TimelinePlayer_get_latest_texture_id_impl(
+        23 => wire__crate__api__simple__TimelinePlayer_get_latest_texture_id_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        23 => wire__crate__api__simple__TimelinePlayer_get_position_ms_impl(
+        24 => wire__crate__api__simple__TimelinePlayer_get_position_ms_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        24 => wire__crate__api__simple__TimelinePlayer_get_texture_frame_impl(
+        25 => wire__crate__api__simple__TimelinePlayer_get_texture_frame_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        25 => wire__crate__api__simple__TimelinePlayer_is_playing_impl(ptr, rust_vec_len, data_len),
-        27 => wire__crate__api__simple__TimelinePlayer_new_impl(ptr, rust_vec_len, data_len),
-        32 => wire__crate__api__simple__TimelinePlayer_test_timeline_logic_impl(
+        26 => wire__crate__api__simple__TimelinePlayer_is_playing_impl(ptr, rust_vec_len, data_len),
+        28 => wire__crate__api__simple__TimelinePlayer_new_impl(ptr, rust_vec_len, data_len),
+        33 => wire__crate__api__simple__TimelinePlayer_test_timeline_logic_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        35 => wire__crate__api__simple__VideoPlayer_get_current_position_and_frame_impl(
+        36 => wire__crate__api__simple__VideoPlayer_get_current_position_and_frame_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        36 => wire__crate__api__simple__VideoPlayer_get_duration_seconds_impl(
+        37 => wire__crate__api__simple__VideoPlayer_get_duration_seconds_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        37 => {
+        38 => {
             wire__crate__api__simple__VideoPlayer_get_frame_rate_impl(ptr, rust_vec_len, data_len)
         }
-        38 => {
+        39 => {
             wire__crate__api__simple__VideoPlayer_get_latest_frame_impl(ptr, rust_vec_len, data_len)
         }
-        39 => wire__crate__api__simple__VideoPlayer_get_latest_texture_id_impl(
+        40 => wire__crate__api__simple__VideoPlayer_get_latest_texture_id_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        40 => wire__crate__api__simple__VideoPlayer_get_position_seconds_impl(
+        41 => wire__crate__api__simple__VideoPlayer_get_position_seconds_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        41 => wire__crate__api__simple__VideoPlayer_get_texture_frame_impl(
+        42 => wire__crate__api__simple__VideoPlayer_get_texture_frame_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        42 => {
+        43 => {
             wire__crate__api__simple__VideoPlayer_get_total_frames_impl(ptr, rust_vec_len, data_len)
         }
-        43 => wire__crate__api__simple__VideoPlayer_get_video_dimensions_impl(
+        44 => wire__crate__api__simple__VideoPlayer_get_video_dimensions_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        44 => wire__crate__api__simple__VideoPlayer_has_audio_impl(ptr, rust_vec_len, data_len),
-        45 => wire__crate__api__simple__VideoPlayer_is_playing_impl(ptr, rust_vec_len, data_len),
-        46 => wire__crate__api__simple__VideoPlayer_is_seekable_impl(ptr, rust_vec_len, data_len),
-        48 => wire__crate__api__simple__VideoPlayer_new_impl(ptr, rust_vec_len, data_len),
-        49 => wire__crate__api__simple__VideoPlayer_new_player_impl(ptr, rust_vec_len, data_len),
-        60 => wire__crate__api__simple__create_video_texture_impl(ptr, rust_vec_len, data_len),
-        61 => wire__crate__api__simple__get_texture_count_impl(ptr, rust_vec_len, data_len),
-        62 => wire__crate__api__simple__get_video_duration_ms_impl(ptr, rust_vec_len, data_len),
-        63 => wire__crate__api__bridge__greet_impl(ptr, rust_vec_len, data_len),
-        64 => wire__crate__api__simple__greet_impl(ptr, rust_vec_len, data_len),
-        66 => wire__crate__api__simple__play_basic_video_impl(ptr, rust_vec_len, data_len),
-        67 => wire__crate__api__simple__play_dual_video_impl(ptr, rust_vec_len, data_len),
-        68 => wire__crate__api__simple__update_video_frame_impl(ptr, rust_vec_len, data_len),
+        45 => wire__crate__api__simple__VideoPlayer_has_audio_impl(ptr, rust_vec_len, data_len),
+        46 => wire__crate__api__simple__VideoPlayer_is_playing_impl(ptr, rust_vec_len, data_len),
+        47 => wire__crate__api__simple__VideoPlayer_is_seekable_impl(ptr, rust_vec_len, data_len),
+        49 => wire__crate__api__simple__VideoPlayer_new_impl(ptr, rust_vec_len, data_len),
+        50 => wire__crate__api__simple__VideoPlayer_new_player_impl(ptr, rust_vec_len, data_len),
+        61 => wire__crate__api__simple__create_video_texture_impl(ptr, rust_vec_len, data_len),
+        62 => wire__crate__api__simple__get_texture_count_impl(ptr, rust_vec_len, data_len),
+        63 => wire__crate__api__simple__get_video_duration_ms_impl(ptr, rust_vec_len, data_len),
+        64 => wire__crate__api__bridge__greet_impl(ptr, rust_vec_len, data_len),
+        65 => wire__crate__api__simple__greet_impl(ptr, rust_vec_len, data_len),
+        67 => wire__crate__api__simple__play_basic_video_impl(ptr, rust_vec_len, data_len),
+        68 => wire__crate__api__simple__play_dual_video_impl(ptr, rust_vec_len, data_len),
+        69 => wire__crate__api__simple__update_video_frame_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }

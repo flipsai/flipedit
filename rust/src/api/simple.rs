@@ -13,7 +13,7 @@ use lazy_static::lazy_static;
 use std::sync::Mutex as StdMutex;
 use crate::video::pipeline::VideoPipeline;
 use crate::video::frame_handler::FrameHandler;
-use log::{info, warn};
+use log::info;
 
 lazy_static! {
     static ref ACTIVE_VIDEOS: StdMutex<Vec<VideoPipeline>> = StdMutex::new(Vec::new());
@@ -361,6 +361,25 @@ impl GESTimelinePlayer {
         })).map_err(|e| anyhow::anyhow!(e.to_string()))?;
         Ok(())
     }
+
+    /// Update a specific clip's transform properties without reloading the entire timeline
+    pub fn update_clip_transform(
+        &mut self,
+        clip_id: i32,
+        preview_position_x: f64,
+        preview_position_y: f64,
+        preview_width: f64,
+        preview_height: f64,
+    ) -> Result<(), String> {
+        self.inner.update_clip_transform(
+            clip_id,
+            preview_position_x,
+            preview_position_y,
+            preview_width,
+            preview_height,
+        ).map_err(|e| e.to_string())
+    }
+
 
     pub fn dispose(&mut self) -> Result<(), String> {
         self.inner.dispose().map_err(|e| e.to_string())

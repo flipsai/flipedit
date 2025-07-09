@@ -75,8 +75,13 @@ class UpdateClipTransformCommand extends TimelineCommand {
     );
     await _stateViewModel.refreshClips();
     
-    // Refresh the timeline player to apply old transforms
-    await _refreshTimelinePlayer();
+    // Apply the old transform values to the timeline player
+    await _applyTransformToTimelinePlayer(
+      oldPositionX,
+      oldPositionY,
+      oldWidth,
+      oldHeight,
+    );
   }
 
   Future<void> _applyPropertiesToDb({
@@ -125,6 +130,21 @@ class UpdateClipTransformCommand extends TimelineCommand {
 
   /// Refresh the timeline player to apply transform changes
   Future<void> _refreshTimelinePlayer() async {
+    await _applyTransformToTimelinePlayer(
+      newPositionX,
+      newPositionY,
+      newWidth,
+      newHeight,
+    );
+  }
+
+  /// Apply transform values to the timeline player
+  Future<void> _applyTransformToTimelinePlayer(
+    double positionX,
+    double positionY,
+    double width,
+    double height,
+  ) async {
     try {
       final videoPlayerService = di<VideoPlayerService>();
       if (videoPlayerService.activePlayer is! GesTimelinePlayer) {
@@ -132,15 +152,22 @@ class UpdateClipTransformCommand extends TimelineCommand {
         return;
       }
 
-      final timelineViewModel = di<TimelineViewModel>();
-      final timelineData = await timelineViewModel.buildTimelineData();
-      
       final timelinePlayer = videoPlayerService.activePlayer as GesTimelinePlayer;
-      await timelinePlayer.loadTimeline(timelineData: timelineData);
       
-      logger.logInfo('Timeline player refreshed with updated transform values.', 'Command');
+      // Use the new updateClipTransform method instead of reloading the entire timeline
+      // This method now handles on-demand frame rendering internally
+      await timelinePlayer.updateClipTransform(
+        clipId: clipId,
+        previewPositionX: positionX,
+        previewPositionY: positionY,
+        previewWidth: width,
+        previewHeight: height,
+      );
+      
+      
+      logger.logInfo('Timeline player updated clip $clipId transform: pos=($positionX,$positionY), size=($width,$height)', 'Command');
     } catch (e) {
-      logger.logError('Failed to refresh timeline player: $e', 'Command');
+      logger.logError('Failed to update clip transform: $e', 'Command');
     }
   }
 }
