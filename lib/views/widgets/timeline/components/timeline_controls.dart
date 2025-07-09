@@ -1,4 +1,5 @@
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter/material.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
 import 'package:flipedit/viewmodels/commands/play_pause_command.dart';
@@ -17,8 +18,8 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
 
   @override
   Widget build(BuildContext context) {
-    final theme = FluentTheme.of(context);
-    final controlsContentColor = theme.resources.textFillColorPrimary;
+    final theme = ShadTheme.of(context);
+    final controlsContentColor = theme.colorScheme.foreground;
     final timelineViewModel =
         di<TimelineViewModel>(); // Still needed for edit mode
     final timelineNavigationViewModel =
@@ -64,7 +65,7 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
           decoration: BoxDecoration(
             color:
                 currentMode == EditMode.select
-                    ? theme.accentColor.lightest
+                    ? theme.colorScheme.primary.withOpacity(0.1)
                     : Colors.transparent,
             borderRadius: BorderRadius.circular(4),
           ),
@@ -82,7 +83,7 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
 
     return Container(
       height: 40,
-      color: theme.resources.subtleFillColorSecondary,
+      color: theme.colorScheme.muted,
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Row(
         children: [
@@ -107,7 +108,7 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
               padding: const EdgeInsets.symmetric(horizontal: 8.0),
               child: Text(
                 '${(zoom * 100).toStringAsFixed(0)}%', // Use watched zoom
-                style: theme.typography.caption?.copyWith(fontSize: 10),
+                style: TextStyle(fontSize: 10, color: theme.colorScheme.mutedForeground),
               ),
             ),
           ),
@@ -187,15 +188,15 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
               decoration: BoxDecoration(
                 color:
                     isPlayheadLocked
-                        ? theme.accentColor.lightest
+                        ? theme.colorScheme.accent.withValues(alpha: 0.2)
                         : Colors.transparent,
                 borderRadius: BorderRadius.circular(4),
               ),
               child: IconButton(
                 icon: Icon(
                   isPlayheadLocked
-                      ? FluentIcons.lock
-                      : FluentIcons.unlock, // Use FluentIcons
+                      ? LucideIcons.lock
+                      : LucideIcons.lockOpen,
                   size: 16,
                   color: controlsContentColor,
                 ),
@@ -223,7 +224,7 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
               decoration: BoxDecoration(
                 color:
                     snappingEnabled
-                        ? theme.accentColor.lightest
+                        ? theme.colorScheme.primary.withOpacity(0.1)
                         : Colors.transparent, // Use watched state
                 borderRadius: BorderRadius.circular(4),
               ),
@@ -254,7 +255,7 @@ class TimelineControls extends StatelessWidget with WatchItMixin {
               decoration: BoxDecoration(
                 color:
                     aspectRatioLocked
-                        ? theme.accentColor.lightest
+                        ? theme.colorScheme.primary.withOpacity(0.1)
                         : Colors.transparent, // Use watched state
                 borderRadius: BorderRadius.circular(4),
               ),

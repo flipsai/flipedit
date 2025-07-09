@@ -1,4 +1,5 @@
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/material.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:flipedit/models/clip.dart';
 
 /// Widget for handling resize operations on timeline clips
@@ -29,9 +30,9 @@ class _ResizeClipHandleState extends State<ResizeClipHandle> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = FluentTheme.of(context);
+    final theme = ShadTheme.of(context);
     final bool isLeft = widget.direction == 'left';
-    final Color handleColor = theme.accentColor.light.withValues(alpha: 0.5);
+    final Color handleColor = theme.colorScheme.accent.withValues(alpha: 0.5);
 
     return MouseRegion(
       cursor: SystemMouseCursors.resizeLeftRight,

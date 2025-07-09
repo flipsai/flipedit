@@ -1,4 +1,5 @@
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter/material.dart';
 import 'package:watch_it/watch_it.dart';
 import 'dart:math' as math;
 // Import for ClipModel
@@ -19,7 +20,7 @@ class TimeRuler extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = FluentTheme.of(context);
+    final theme = ShadTheme.of(context);
 
     // Get access to the database service directly
     final databaseService = di<ProjectDatabaseService>();
@@ -38,7 +39,7 @@ class TimeRuler extends StatelessWidget {
     return Container(
       height: 25,
       width: availableWidth,
-      color: theme.resources.subtleFillColorSecondary,
+      color: theme.colorScheme.muted,
       child:
           isEmpty
               ? _buildEmptyState(theme) // Show empty state when no tracks
@@ -47,15 +48,15 @@ class TimeRuler extends StatelessWidget {
   }
 
   /// Build the empty state message
-  Widget _buildEmptyState(FluentThemeData theme) {
+  Widget _buildEmptyState(ShadThemeData theme) {
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.centerLeft,
           end: Alignment.centerRight,
           colors: [
-            theme.resources.controlStrokeColorDefault.withValues(alpha: 0.1),
-            theme.resources.controlStrokeColorDefault.withValues(alpha: 0.05),
+            theme.colorScheme.border.withValues(alpha: 0.1),
+            theme.colorScheme.border.withValues(alpha: 0.05),
           ],
         ),
       ),
@@ -64,15 +65,15 @@ class TimeRuler extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              FluentIcons.clock,
+              LucideIcons.clock,
               size: 14,
-              color: theme.resources.textFillColorDisabled,
+              color: theme.colorScheme.mutedForeground,
             ),
             const SizedBox(width: 8),
             Text(
               'Empty timeline - drag media to begin',
-              style: theme.typography.caption?.copyWith(
-                color: theme.resources.textFillColorDisabled,
+              style: theme.textTheme.small.copyWith(
+                color: theme.colorScheme.mutedForeground,
                 fontSize: 12,
               ),
             ),
@@ -83,14 +84,14 @@ class TimeRuler extends StatelessWidget {
   }
 
   /// Build the ruler with time markings
-  Widget _buildRuler(FluentThemeData theme) {
+  Widget _buildRuler(ShadThemeData theme) {
     return CustomPaint(
       painter: TimeRulerPainter(
         zoom: zoom,
-        majorTickColor: theme.resources.controlStrokeColorDefault,
-        minorTickColor: theme.resources.textFillColorSecondary,
-        textColor: theme.resources.textFillColorSecondary,
-        textStyle: theme.typography.caption?.copyWith(fontSize: 10),
+        majorTickColor: theme.colorScheme.border,
+        minorTickColor: theme.colorScheme.mutedForeground,
+        textColor: theme.colorScheme.mutedForeground,
+        textStyle: theme.textTheme.small.copyWith(fontSize: 10),
       ),
       size: Size(availableWidth, 25),
     );

@@ -1,4 +1,5 @@
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter/material.dart';
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/viewmodels/commands/remove_clip_command.dart';
@@ -15,13 +16,13 @@ class ClipContextMenu extends StatelessWidget {
   Widget build(BuildContext context) {
     final timelineVm = di<TimelineViewModel>();
 
-    return MenuFlyout(
+    return ShadContextMenu(
       items: [
-        MenuFlyoutItem(
-          leading: const Icon(FluentIcons.delete),
-          text: const Text('Remove Clip'),
+        ShadContextMenuItem(
+          leading: const Icon(LucideIcons.trash),
+          child: const Text('Remove Clip'),
           onPressed: () {
-            Flyout.of(context).close();
+            Navigator.of(context).pop();
             if (clip.databaseId != null) {
               timelineVm.runCommand(
                 RemoveClipCommand(vm: timelineVm, clipId: clip.databaseId!),
@@ -35,6 +36,7 @@ class ClipContextMenu extends StatelessWidget {
           },
         ),
       ],
+      child: const SizedBox.shrink(),
     );
   }
 }

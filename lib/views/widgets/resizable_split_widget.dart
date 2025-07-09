@@ -1,4 +1,4 @@
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/material.dart';
 
 class ResizableSplitItem {
   final Widget child;
@@ -90,9 +90,9 @@ class _ResizableSplitWidgetState extends State<ResizableSplitWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = FluentTheme.of(context);
+    final theme = Theme.of(context);
     final dividerColor = widget.dividerColor ?? 
-        theme.resources.cardStrokeColorDefault.withValues(alpha: 0.3);
+        theme.dividerColor.withValues(alpha: 0.3);
 
     if (widget.children.isEmpty) {
       return const SizedBox.shrink();

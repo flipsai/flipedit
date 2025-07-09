@@ -1,4 +1,5 @@
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter/material.dart';
 import 'package:flipedit/models/effect.dart';
 import 'package:flipedit/models/enums/effect_type.dart';
 
@@ -33,7 +34,7 @@ class EffectTree extends StatelessWidget {
           _EffectTreeItem(
             label: 'Original Footage',
             level: 0,
-            icon: FluentIcons.video,
+            icon: LucideIcons.video,
             onTap: () {},
           ),
 
@@ -65,19 +66,19 @@ class EffectTree extends StatelessWidget {
   IconData _getIconForEffectType(EffectType type) {
     switch (type) {
       case EffectType.backgroundRemoval:
-        return FluentIcons.cut;
+        return LucideIcons.scissors;
       case EffectType.objectTracking:
-        return FluentIcons.view;
+        return LucideIcons.eye;
       case EffectType.colorCorrection:
-        return FluentIcons.color;
+        return LucideIcons.palette;
       case EffectType.transform:
-        return FluentIcons.move;
+        return LucideIcons.move;
       case EffectType.filter:
-        return FluentIcons.filter;
+        return LucideIcons.settings;
       case EffectType.transition:
-        return FluentIcons.transition;
+        return LucideIcons.shuffle;
       case EffectType.text:
-        return FluentIcons.font;
+        return LucideIcons.type;
     }
   }
 }

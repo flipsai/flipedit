@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:flipedit/app.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/material.dart';
 import 'common_test_setup.dart';
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/models/enums/clip_type.dart';

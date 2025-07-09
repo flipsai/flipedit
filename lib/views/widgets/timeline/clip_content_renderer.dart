@@ -1,4 +1,5 @@
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter/material.dart';
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'painters/video_frames_painter.dart';
@@ -8,7 +9,7 @@ class ClipContentRenderer extends StatelessWidget {
   final ClipModel clip;
   final Color clipColor;
   final Color contrastColor;
-  final FluentThemeData theme;
+  final ShadThemeData theme;
 
   const ClipContentRenderer({
     super.key,
@@ -58,13 +59,13 @@ class ClipContentRenderer extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(FluentIcons.video, size: 16, color: contentColor),
+                    Icon(LucideIcons.video, size: 16, color: contentColor),
                     if (clip.durationFrames > 20)
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
                         child: Text(
                           fileNameNoExt,
-                          style: theme.typography.caption?.copyWith(
+                          style: TextStyle(
                             color: contentColor,
                             fontSize: 8,
                           ),

@@ -164,8 +164,8 @@ void setupMinTestWindowSize({
   double devicePixelRatio = 1.0,
 }) {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
-  binding.window.physicalSizeTestValue = minSize;
-  binding.window.devicePixelRatioTestValue = devicePixelRatio;
+  binding.platformDispatcher.views.first.physicalSize = minSize;
+  binding.platformDispatcher.views.first.devicePixelRatio = devicePixelRatio;
 }
 
 // Helper function for DI setup

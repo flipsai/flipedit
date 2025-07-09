@@ -1,4 +1,5 @@
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter/material.dart';
 import 'package:watch_it/watch_it.dart';
 import 'dart:io';
 
@@ -72,7 +73,7 @@ class _PlayerPanelState extends State<PlayerPanel> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(
-                            FluentIcons.video,
+                            LucideIcons.video,
                             size: 48,
                             color: Colors.white.withValues(alpha: 0.54),
                           ),
@@ -159,7 +160,7 @@ class _PlayerPanelState extends State<PlayerPanel> {
                   ),
                   child: Text(
                     clips.isNotEmpty ? 'Timeline Ready' : 'No Clips',
-                    style: FluentTheme.of(context).typography.caption?.copyWith(
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Colors.white,
                     ),
                   ),

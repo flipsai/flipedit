@@ -1,4 +1,5 @@
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/material.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:flipedit/services/video_player_service.dart';
 import 'package:watch_it/watch_it.dart';
 import 'dart:async';
@@ -292,7 +293,7 @@ class _PlayheadRendererState extends State<_PlayheadRenderer> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = FluentTheme.of(context);
+    final theme = ShadTheme.of(context);
     
     // Determine current frame based on state
     int currentFrame;
@@ -336,7 +337,7 @@ class _PlayheadRendererState extends State<_PlayheadRenderer> {
                   width: 2,
                   height: widget.timelineHeight,
                   decoration: BoxDecoration(
-                    color: theme.accentColor,
+                    color: theme.colorScheme.primary,
                     boxShadow: [
                       BoxShadow(
                         color: const Color(0xFF000000).withValues(alpha: 0.3),

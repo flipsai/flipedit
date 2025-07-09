@@ -1,4 +1,4 @@
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/material.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/persistence/database/project_database.dart';
@@ -87,11 +87,11 @@ class _TrackLabelState extends State<TrackLabel> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = FluentTheme.of(context);
+    final theme = Theme.of(context);
     final icon =
         widget.track.type == 'video'
-            ? FluentIcons.video
-            : FluentIcons.music_in_collection;
+            ? Icons.videocam
+            : Icons.music_note;
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -106,38 +106,36 @@ class _TrackLabelState extends State<TrackLabel> {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         margin: const EdgeInsets.only(bottom: 4, left: 4, right: 4),
         decoration: BoxDecoration(
-          color: theme.resources.subtleFillColorTertiary,
+          color: theme.disabledColor.withAlpha(50),
           borderRadius: BorderRadius.circular(4),
           border:
               _isEditing
-                  ? Border.all(color: theme.accentColor, width: 1.5)
+                  ? Border.all(color: theme.colorScheme.primary, width: 1.5)
                   : null,
         ),
         child: Row(
           children: [
-            Icon(icon, size: 16, color: theme.resources.textFillColorSecondary),
+            Icon(icon, size: 16, color: theme.hintColor),
             const SizedBox(width: 8),
             Expanded(
               child:
                   _isEditing
-                      ? TextBox(
+                      ? TextField(
                         controller: _textController,
                         focusNode: _focusNode,
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 4,
-                          horizontal: 6,
-                        ),
-                        style: theme.typography.body,
-                        decoration: WidgetStateProperty.all(
-                          const BoxDecoration(border: null),
+                        style: theme.textTheme.bodyMedium,
+                        decoration: const InputDecoration(
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(
+                            vertical: 4,
+                            horizontal: 6,
+                          ),
                         ),
                         onSubmitted: (_) => _submitNameChange(),
                       )
                       : Text(
                         widget.track.name,
-                        style: theme.typography.body?.copyWith(
-                          color: theme.resources.textFillColorPrimary,
-                        ),
+                        style: theme.textTheme.bodyMedium,
                         overflow: TextOverflow.ellipsis,
                       ),
             ),
@@ -146,10 +144,10 @@ class _TrackLabelState extends State<TrackLabel> {
                 width: 20,
                 height: 20,
                 child: IconButton(
-                  icon: const Icon(FluentIcons.delete, size: 12),
+                  icon: const Icon(Icons.delete_outline, size: 12),
                   onPressed: widget.onDelete,
-                  style: ButtonStyle(
-                    padding: WidgetStateProperty.all(EdgeInsets.zero),
+                  style: IconButton.styleFrom(
+                    padding: EdgeInsets.zero,
                   ),
                 ),
               ),

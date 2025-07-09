@@ -1,7 +1,7 @@
 import 'dart:io';
 // Import for Size class
 
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/material.dart';
 import 'package:flipedit/app.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/views/widgets/timeline/timeline.dart'; // Needed for timelineFinder

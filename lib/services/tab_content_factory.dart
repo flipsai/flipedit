@@ -1,4 +1,5 @@
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/material.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 import '../models/tab_item.dart';
 import '../views/widgets/player/player_panel.dart';
 import '../views/widgets/timeline/timeline.dart';
@@ -31,7 +32,7 @@ class TabContentFactory {
     return TabItem(
       id: id,
       title: title,
-      icon: const Icon(FluentIcons.document, size: 16),
+      icon: const Icon(LucideIcons.fileText, size: 16),
       content: content,
       isModified: isModified,
       metadata: {
@@ -59,7 +60,7 @@ class TabContentFactory {
     return TabItem(
       id: id,
       title: title,
-      icon: const Icon(FluentIcons.video, size: 16),
+      icon: const Icon(LucideIcons.video, size: 16),
       content: content,
       isModified: isModified,
       metadata: {
@@ -87,7 +88,7 @@ class TabContentFactory {
     return TabItem(
       id: id,
       title: title,
-      icon: const Icon(FluentIcons.music_note, size: 16),
+      icon: const Icon(LucideIcons.music, size: 16),
       content: content,
       isModified: isModified,
       metadata: {
@@ -106,7 +107,7 @@ class TabContentFactory {
     return TabItem(
       id: id,
       title: title,
-      icon: const Icon(FluentIcons.document, size: 16),
+      icon: const Icon(LucideIcons.fileText, size: 16),
       content: _buildGenericContent(title),
       isModified: isModified,
       metadata: {
@@ -125,7 +126,7 @@ class TabContentFactory {
     return TabItem(
       id: id,
       title: title,
-      icon: const Icon(FluentIcons.code, size: 16),
+      icon: const Icon(LucideIcons.terminal, size: 16),
       content: _buildTerminalContent(title),
       isModified: isModified,
       metadata: {
@@ -244,7 +245,7 @@ class TabContentFactory {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(
-                      FluentIcons.video,
+                      LucideIcons.video,
                       size: 64,
                       color: Colors.white,
                     ),
@@ -284,7 +285,7 @@ class TabContentFactory {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Icon(
-                    FluentIcons.music_note,
+                    LucideIcons.music,
                     size: 64,
                     color: Color.fromARGB(255, 10, 10, 10),
                   ),
@@ -341,7 +342,7 @@ class TabContentFactory {
           Row(
             children: [
               const Icon(
-                FluentIcons.code,
+                LucideIcons.terminal,
                 size: 16,
                 color: Colors.white,
               ),

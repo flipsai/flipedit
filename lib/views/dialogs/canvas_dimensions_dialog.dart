@@ -1,4 +1,5 @@
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/material.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:flipedit/services/canvas_dimensions_service.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
 import 'package:flipedit/utils/constants.dart';
@@ -26,7 +27,7 @@ class CanvasDimensionsDialog extends StatelessWidget {
       'CanvasDimensionsDialog',
     );
 
-    return await showDialog<bool>(
+    return await showShadDialog<bool>(
       context: context,
       barrierDismissible: false, // Prevent dismissing by tapping outside
       builder:
@@ -44,7 +45,7 @@ class CanvasDimensionsDialog extends StatelessWidget {
     final defaultHeight = AppConstants.defaultVideoHeight;
 
     // Get theme colors for consistent styling
-    final FluentThemeData theme = FluentTheme.of(context);
+    final ShadThemeData theme = ShadTheme.of(context);
 
     logger.logInfo(
       'Building dialog with canvas: ${canvasDimensionsService.canvasWidth.toInt()}x${canvasDimensionsService.canvasHeight.toInt()}, '
@@ -52,24 +53,42 @@ class CanvasDimensionsDialog extends StatelessWidget {
       _logTag,
     );
 
-    return ContentDialog(
-      title: Text('Set Canvas Dimensions', style: theme.typography.title),
-      content: Column(
+    return ShadDialog(
+      title: Text('Set Canvas Dimensions'),
+      description: Text('Do you want to set the canvas dimensions to match this clip?'),
+      child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Do you want to set the canvas dimensions to match this clip?',
-            style: theme.typography.body,
-          ),
           const SizedBox(height: 16),
-          InfoBar(
-            title: const Text('Note:'),
-            content: Text(
-              'This affects preview rendering and how effects like OpenCV are applied.',
-              style: theme.typography.caption,
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.muted,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: theme.colorScheme.border,
+                width: 1,
+              ),
             ),
-            severity: InfoBarSeverity.info,
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, color: theme.colorScheme.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Note:', style: TextStyle(fontWeight: FontWeight.bold)),
+                      Text(
+                        'This affects preview rendering and how effects like OpenCV are applied.',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 16),
 
@@ -77,38 +96,56 @@ class CanvasDimensionsDialog extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: theme.resources.cardBackgroundFillColorSecondary,
+              color: theme.colorScheme.card,
               borderRadius: BorderRadius.circular(4),
               border: Border.all(
-                color: theme.resources.controlStrokeColorDefault,
+                color: theme.colorScheme.border,
                 width: 1,
               ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                InfoLabel(
-                  label: 'Current Default Canvas',
-                  child: Text(
-                    '${defaultWidth}x$defaultHeight',
-                    style: theme.typography.bodyStrong,
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Current Default Canvas',
+                      style: TextStyle(fontSize: 12, color: theme.colorScheme.mutedForeground),
+                    ),
+                    Text(
+                      '${defaultWidth}x$defaultHeight',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 8),
-                InfoLabel(
-                  label: 'Current Canvas',
-                  child: Text(
-                    '${canvasDimensionsService.canvasWidth.toInt()} x ${canvasDimensionsService.canvasHeight.toInt()}',
-                    style: theme.typography.bodyStrong,
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Current Canvas',
+                      style: TextStyle(fontSize: 12, color: theme.colorScheme.mutedForeground),
+                    ),
+                    Text(
+                      '${canvasDimensionsService.canvasWidth.toInt()} x ${canvasDimensionsService.canvasHeight.toInt()}',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 8),
-                InfoLabel(
-                  label: 'Clip Dimensions',
-                  child: Text(
-                    '$clipWidth x $clipHeight',
-                    style: theme.typography.bodyStrong,
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Clip Dimensions',
+                      style: TextStyle(fontSize: 12, color: theme.colorScheme.mutedForeground),
+                    ),
+                    Text(
+                      '$clipWidth x $clipHeight',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -117,23 +154,18 @@ class CanvasDimensionsDialog extends StatelessWidget {
       ),
       actions: [
         // Cancel button
-        Button(
+        ShadButton.outline(
           onPressed: () {
             logger.logInfo('User chose to keep default dimensions', _logTag);
             canvasDimensionsService.resetToDefaults();
             canvasDimensionsService.markUserPrompted();
             Navigator.of(context).pop(false);
           },
-          style: ButtonStyle(
-            padding: ButtonState.all(
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            ),
-          ),
           child: const Text('Keep Default Dimensions'),
         ),
 
         // Confirm button with accent color
-        FilledButton(
+        ShadButton(
           onPressed: () {
             logger.logInfo(
               'User chose to use clip dimensions: ${clipWidth}x$clipHeight',
@@ -146,11 +178,6 @@ class CanvasDimensionsDialog extends StatelessWidget {
             canvasDimensionsService.markUserPrompted();
             Navigator.of(context).pop(true);
           },
-          style: ButtonStyle(
-            padding: ButtonState.all(
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            ),
-          ),
           child: const Text('Use Clip Dimensions'),
         ),
       ],

@@ -1,4 +1,5 @@
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter/material.dart';
 import 'package:watch_it/watch_it.dart';
 import '../../viewmodels/tab_system_viewmodel.dart';
 import 'tab_bar_widget.dart';
@@ -72,7 +73,7 @@ class TabDropZoneOverlay extends StatelessWidget {
     required Axis axis,
     required bool isFirstHalf,
   }) {
-    final theme = FluentTheme.of(context);
+    final theme = ShadTheme.of(context);
     final tabSystem = di<TabSystemViewModel>();
     final isHovered = hoveredZone == position;
     
@@ -90,9 +91,9 @@ class TabDropZoneOverlay extends StatelessWidget {
             width: MediaQuery.of(context).size.width * fraction,
             height: double.infinity,
             decoration: BoxDecoration(
-              color: theme.accentColor.withValues(alpha: 0.3),
+              color: theme.colorScheme.primary.withValues(alpha: 0.3),
               border: Border.all(
-                color: theme.accentColor,
+                color: theme.colorScheme.primary,
                 width: 2,
               ),
             ),
@@ -109,9 +110,9 @@ class TabDropZoneOverlay extends StatelessWidget {
             width: double.infinity,
             height: MediaQuery.of(context).size.height * fraction,
             decoration: BoxDecoration(
-              color: theme.accentColor.withValues(alpha: 0.3),
+              color: theme.colorScheme.primary.withValues(alpha: 0.3),
               border: Border.all(
-                color: theme.accentColor,
+                color: theme.colorScheme.primary,
                 width: 2,
               ),
             ),
@@ -166,7 +167,7 @@ class TabDropZoneOverlay extends StatelessWidget {
   }
 
   Widget _buildPreviewContent(BuildContext context, DropZonePosition position) {
-    final theme = FluentTheme.of(context);
+    final theme = ShadTheme.of(context);
     
     String label;
     IconData icon;
@@ -174,23 +175,23 @@ class TabDropZoneOverlay extends StatelessWidget {
     switch (position) {
       case DropZonePosition.left:
         label = 'New Group\n(Left Split)';
-        icon = FluentIcons.chrome_back;
+        icon = LucideIcons.arrowLeft;
         break;
       case DropZonePosition.right:
         label = 'New Group\n(Right Split)';
-        icon = FluentIcons.chrome_back;
+        icon = LucideIcons.arrowLeft;
         break;
       case DropZonePosition.top:
         label = 'New Group\n(Top Split)';
-        icon = FluentIcons.up;
+        icon = LucideIcons.arrowUp;
         break;
       case DropZonePosition.bottom:
         label = 'New Group\n(Bottom Split)';
-        icon = FluentIcons.down;
+        icon = LucideIcons.arrowDown;
         break;
       case DropZonePosition.center:
         label = 'Add to Group';
-        icon = FluentIcons.add;
+        icon = LucideIcons.plus;
         break;
     }
     
@@ -206,7 +207,7 @@ class TabDropZoneOverlay extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             label,
-            style: theme.typography.subtitle?.copyWith(
+            style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w600,
             ),

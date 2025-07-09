@@ -1,4 +1,5 @@
-import 'package:fluent_ui/fluent_ui.dart'; // For DropDownButton, FlyoutListTile, FluentIcons
+import 'package:flutter/material.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart'; // For EditorViewModel
 
 import 'package:flipedit/models/clip.dart';
@@ -171,15 +172,15 @@ Finder findViewMenuButton(WidgetTester tester) {
     reason: 'Should find the Text widget "View" for the menu button',
   );
 
-  // Find the DropDownButton ancestor of that Text widget
+  // Find the ShadSelect ancestor of that Text widget
   final buttonFinder = find.ancestor(
     of: textFinder,
-    matching: find.byType(DropDownButton),
+    matching: find.byType(ShadSelect),
   );
   expect(
     buttonFinder,
     findsOneWidget,
-    reason: 'Should find the DropDownButton ancestor of the "View" Text',
+    reason: 'Should find the ShadSelect ancestor of the "View" Text',
   );
   return buttonFinder;
 }
@@ -211,17 +212,17 @@ Future<void> testPanelToggleViaViewMenu({
     final lastTextFinder = findLastTextWidget(itemText);
     final itemFinder = find.ancestor(
       of: lastTextFinder,
-      matching: find.byType(FlyoutListTile),
+      matching: find.byType(ShadContextMenuItem),
     );
     expect(
       itemFinder,
       findsOneWidget,
       reason:
-          'Scoped [$panelName]: Should find the FlyoutListTile ancestor for the last "$itemText"',
+          'Scoped [$panelName]: Should find the ShadContextMenuItem ancestor for the last "$itemText"',
     );
     final checkmarkFinder = find.descendant(
       of: itemFinder,
-      matching: find.byIcon(FluentIcons.check_mark),
+      matching: find.byIcon(LucideIcons.check),
       matchRoot: true,
     );
     return tester.any(checkmarkFinder);

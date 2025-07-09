@@ -3,7 +3,7 @@ import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart'; // Added import
 import 'package:flipedit/views/widgets/timeline/timeline.dart';
 import 'package:mockito/mockito.dart';
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/material.dart';
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/services/undo_redo_service.dart'; // Keep for Mock definition if needed elsewhere, though not used here
 import 'package:watch_it/watch_it.dart';
@@ -109,7 +109,7 @@ void main() {
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(
-        FluentApp(
+        MaterialApp(
           home: const Timeline(), // Remove parameters
         ),
       );
@@ -123,7 +123,7 @@ void main() {
       // This test would depend on the specific UI elements in Timeline
       // For now, a placeholder test to ensure rendering
       await tester.pumpWidget(
-        FluentApp(
+        MaterialApp(
           home: const Timeline(), // Remove parameters
         ),
       );

@@ -1,4 +1,5 @@
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter/material.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:watch_it/watch_it.dart';
 
@@ -23,58 +24,58 @@ class ExtensionSidebar extends StatelessWidget with WatchItMixin {
             child: ListView(
               padding: EdgeInsets.zero,
               children: [
-                _buildExtensionButton(
+                _buildExtensionElevatedButton(
                   context: context,
-                  icon: FluentIcons.folder_open,
+                  icon: LucideIcons.folderOpen,
                   id: 'media',
                   tooltip: 'Media',
                   isSelected: selectedExtension == 'media',
                 ),
-                _buildExtensionButton(
+                _buildExtensionElevatedButton(
                   context: context,
-                  icon: FluentIcons.video,
+                  icon: LucideIcons.video,
                   id: 'composition',
                   tooltip: 'Composition',
                   isSelected: selectedExtension == 'composition',
                 ),
-                _buildExtensionButton(
+                _buildExtensionElevatedButton(
                   context: context,
-                  icon: FluentIcons.broom,
+                  icon: LucideIcons.brush,
                   id: 'backgroundRemoval',
                   tooltip: 'Background Removal',
                   isSelected: selectedExtension == 'backgroundRemoval',
                 ),
-                _buildExtensionButton(
+                _buildExtensionElevatedButton(
                   context: context,
-                  icon: FluentIcons.refresh,
+                  icon: LucideIcons.refreshCw,
                   id: 'replace',
                   tooltip: 'Replace',
                   isSelected: selectedExtension == 'replace',
                 ),
-                _buildExtensionButton(
+                _buildExtensionElevatedButton(
                   context: context,
-                  icon: FluentIcons.view,
+                  icon: LucideIcons.eye,
                   id: 'track',
                   tooltip: 'Track',
                   isSelected: selectedExtension == 'track',
                 ),
-                _buildExtensionButton(
+                _buildExtensionElevatedButton(
                   context: context,
-                  icon: FluentIcons.add,
+                  icon: LucideIcons.plus,
                   id: 'addFx',
                   tooltip: 'Add FX',
                   isSelected: selectedExtension == 'addFx',
                 ),
-                _buildExtensionButton(
+                _buildExtensionElevatedButton(
                   context: context,
-                  icon: FluentIcons.picture,
+                  icon: LucideIcons.image,
                   id: 'generate',
                   tooltip: 'Generate',
                   isSelected: selectedExtension == 'generate',
                 ),
-                _buildExtensionButton(
+                _buildExtensionElevatedButton(
                   context: context,
-                  icon: FluentIcons.color,
+                  icon: LucideIcons.palette,
                   id: 'enhance',
                   tooltip: 'Enhance',
                   isSelected: selectedExtension == 'enhance',
@@ -84,16 +85,16 @@ class ExtensionSidebar extends StatelessWidget with WatchItMixin {
           ),
 
           // Bottom section with settings and export
-          _buildExtensionButton(
+          _buildExtensionElevatedButton(
             context: context,
-            icon: FluentIcons.export,
+            icon: LucideIcons.download,
             id: 'export',
             tooltip: 'Export',
             isSelected: selectedExtension == 'export',
           ),
-          _buildExtensionButton(
+          _buildExtensionElevatedButton(
             context: context,
-            icon: FluentIcons.settings,
+            icon: LucideIcons.settings,
             id: 'settings',
             tooltip: 'Settings',
             isSelected: selectedExtension == 'settings',
@@ -103,7 +104,7 @@ class ExtensionSidebar extends StatelessWidget with WatchItMixin {
     );
   }
 
-  Widget _buildExtensionButton({
+  Widget _buildExtensionElevatedButton({
     required BuildContext context,
     required IconData icon,
     required String id,

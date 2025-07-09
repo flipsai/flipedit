@@ -1,4 +1,5 @@
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter/material.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart'; // Keep for now (actions)
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart'; // Import State VM
@@ -149,7 +150,7 @@ class _TimelineContent extends StatelessWidget with WatchItMixin {
 
   @override
   Widget build(BuildContext context) {
-    final theme = FluentTheme.of(context);
+    final theme = ShadTheme.of(context);
 
     // Watch properties from ViewModels
     final clips = watchValue(
@@ -184,7 +185,7 @@ class _TimelineContent extends StatelessWidget with WatchItMixin {
     const double framePixelWidth = 5.0;
 
     return Container(
-      color: theme.resources.cardBackgroundFillColorDefault,
+      color: theme.colorScheme.card,
       child: Column(
         children: [
           TimelineControls(),
@@ -287,7 +288,7 @@ class _TimelineContent extends StatelessWidget with WatchItMixin {
                                                         MainAxisAlignment.center,
                                                     children: [
                                                       const Icon(
-                                                        FluentIcons.error,
+                                                        LucideIcons.triangleAlert,
                                                         size: 24,
                                                       ),
                                                       const SizedBox(height: 8),
@@ -295,20 +296,20 @@ class _TimelineContent extends StatelessWidget with WatchItMixin {
                                                         'No tracks in project',
                                                         style:
                                                             theme
-                                                                .typography
-                                                                .bodyLarge,
+                                                                .textTheme
+                                                                .large,
                                                       ),
                                                       const SizedBox(height: 4),
                                                       Text(
                                                         'Drag media here to create a track',
                                                         style: theme
-                                                            .typography
-                                                            .body
-                                                            ?.copyWith(
+                                                            .textTheme
+                                                            .p
+                                                            .copyWith(
                                                               color:
                                                                   theme
-                                                                      .resources
-                                                                      .textFillColorSecondary,
+                                                                      .colorScheme
+                                                                      .mutedForeground,
                                                             ),
                                                       ),
                                                     ],
@@ -381,16 +382,14 @@ class _TimelineContent extends StatelessWidget with WatchItMixin {
                                                     .resizeLeftRight,
                                             child: Container(
                                               color:
-                                                  theme
-                                                      .resources
-                                                      .subtleFillColorTransparent,
+                                                  Colors.transparent,
                                               alignment: Alignment.center,
                                               child: Container(
                                                 width: 1.5,
                                                 color:
                                                     theme
-                                                        .resources
-                                                        .controlStrokeColorDefault,
+                                                        .colorScheme
+                                                        .border,
                                               ),
                                             ),
                                           ),

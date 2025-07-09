@@ -1,10 +1,14 @@
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/material.dart' as material;
 import 'package:watch_it/watch_it.dart';
 
 import '../../models/tab_item.dart';
 import '../../models/tab_group.dart';
 import '../../viewmodels/tab_system_viewmodel.dart';
+import '../../viewmodels/project_viewmodel.dart';
+import '../../viewmodels/timeline_viewmodel.dart';
+import '../../services/tab_content_factory.dart';
 
 class TabBarWidget extends StatelessWidget with WatchItMixin {
   final TabGroup tabGroup;
@@ -14,6 +18,7 @@ class TabBarWidget extends StatelessWidget with WatchItMixin {
   final Function(String tabId, String fromGroupId, String toGroupId, int? toIndex)? onTabMovedBetweenGroups;
   final Function()? onTabGroupClosed;
   final Function(String groupId)? onAddTab;
+  final bool isPrimary;
 
   const TabBarWidget({
     super.key,
@@ -24,11 +29,150 @@ class TabBarWidget extends StatelessWidget with WatchItMixin {
     this.onTabMovedBetweenGroups,
     this.onTabGroupClosed,
     this.onAddTab,
+    this.isPrimary = false,
   });
+
+  Future<void> _handleNewProject(BuildContext context) async {
+    await di<ProjectViewModel>().createNewProjectWithDialog(context);
+  }
+
+  Future<void> _handleOpenProject(BuildContext context) async {
+    await di<ProjectViewModel>().openProjectDialog(context);
+  }
+
+  Future<void> _handleImportMedia(BuildContext context) async {
+    await di<ProjectViewModel>().importMediaWithUI(context);
+  }
+
+  Future<void> _handleUndo() async {
+    await di<TimelineViewModel>().undo();
+  }
+
+  Future<void> _handleRedo() async {
+    await di<TimelineViewModel>().redo();
+  }
+
+  void _handleAddVideoTrack() {
+    di<ProjectViewModel>().addTrackCommand(type: 'video');
+  }
+
+  void _handleAddAudioTrack() {
+    di<ProjectViewModel>().addTrackCommand(type: 'audio');
+  }
+
+  void _handleNewTab() {
+    // Create a new tab in the tab system
+    final tabSystem = di<TabSystemViewModel>();
+
+    // Check what essential tabs are missing across all groups
+    final allTabs = tabSystem.getAllTabs();
+    final existingTabIds = allTabs.map((t) => t.id).toSet();
+
+    TabItem newTab;
+
+    if (!existingTabIds.contains('preview')) {
+      newTab = TabContentFactory.createVideoTab(
+        id: 'preview',
+        title: 'Preview',
+        isModified: false,
+      );
+    } else if (!existingTabIds.contains('inspector')) {
+      newTab = TabContentFactory.createDocumentTab(
+        id: 'inspector',
+        title: 'Inspector',
+        isModified: false,
+      );
+    } else if (!existingTabIds.contains('timeline')) {
+      newTab = TabContentFactory.createAudioTab(
+        id: 'timeline',
+        title: 'Timeline',
+        isModified: false,
+      );
+    } else {
+      // Create additional document tab if all essential tabs exist
+      newTab = TabContentFactory.createDocumentTab(
+        id: 'document_${DateTime.now().millisecondsSinceEpoch}',
+        title: 'Document ${DateTime.now().millisecond}',
+        isModified: false,
+      );
+    }
+
+    tabSystem.addTab(newTab);
+  }
+
+  void _handleOpenPreview() {
+    final tabSystem = di<TabSystemViewModel>();
+
+    // Check if preview tab already exists
+    final existingTab = tabSystem.getTab('preview');
+    if (existingTab != null) {
+      // If it exists, just activate it
+      tabSystem.setActiveTab('preview');
+      return;
+    }
+
+    // Create new preview tab
+    final previewTab = TabContentFactory.createVideoTab(
+      id: 'preview',
+      title: 'Preview',
+      isModified: false,
+    );
+
+    tabSystem.addTab(previewTab);
+  }
+
+  void _handleOpenInspector() {
+    final tabSystem = di<TabSystemViewModel>();
+
+    // Check if inspector tab already exists
+    final existingTab = tabSystem.getTab('inspector');
+    if (existingTab != null) {
+      // If it exists, just activate it
+      tabSystem.setActiveTab('inspector');
+      return;
+    }
+
+    // Create new inspector tab
+    final inspectorTab = TabContentFactory.createDocumentTab(
+      id: 'inspector',
+      title: 'Inspector',
+      isModified: false,
+    );
+
+    tabSystem.addTab(inspectorTab);
+  }
+
+  void _handleOpenTimeline() {
+    final tabSystem = di<TabSystemViewModel>();
+
+    // Check if timeline tab already exists
+    final existingTab = tabSystem.getTab('timeline');
+    if (existingTab != null) {
+      // If it exists, just activate it
+      tabSystem.setActiveTab('timeline');
+      return;
+    }
+
+    // Create new timeline tab
+    final timelineTab = TabContentFactory.createAudioTab(
+      id: 'timeline',
+      title: 'Timeline',
+      isModified: false,
+    );
+
+    // Try to add to terminal group if it exists, otherwise active group
+    final terminalGroup =
+        tabSystem.tabGroups.where((group) => group.id == 'terminal_group').firstOrNull;
+    if (terminalGroup != null) {
+      tabSystem.addTab(timelineTab, targetGroupId: terminalGroup.id);
+    } else {
+      tabSystem.addTab(timelineTab);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final theme = FluentTheme.of(context);
+    final theme = ShadTheme.of(context);
     
     return DragTarget<TabDragData>(
       onWillAcceptWithDetails: (details) {
@@ -56,14 +200,14 @@ class TabBarWidget extends StatelessWidget with WatchItMixin {
         return Container(
           height: 32,
           decoration: BoxDecoration(
-            color: theme.inactiveBackgroundColor,
+            color: theme.colorScheme.background,
             border: Border(
               bottom: BorderSide(
-                color: theme.resources.cardStrokeColorDefault,
+                color: theme.colorScheme.border,
                 width: 1,
               ),
               top: isDropTarget ? BorderSide(
-                color: theme.accentColor,
+                color: theme.colorScheme.primary,
                 width: 2,
               ) : BorderSide.none,
             ),
@@ -81,7 +225,7 @@ class TabBarWidget extends StatelessWidget with WatchItMixin {
     );
   }
 
-  Widget _buildTabList(BuildContext context, FluentThemeData theme) {
+  Widget _buildTabList(BuildContext context, ShadThemeData theme) {
     if (tabGroup.tabs.isEmpty) {
       return DragTarget<TabDragData>(
         onWillAcceptWithDetails: (details) {
@@ -108,18 +252,19 @@ class TabBarWidget extends StatelessWidget with WatchItMixin {
             padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(
               color: isDropTarget 
-                ? theme.accentColor.withValues(alpha: 0.1) 
+                ? theme.colorScheme.primary.withValues(alpha: 0.1) 
                 : Colors.transparent,
               borderRadius: BorderRadius.circular(4),
               border: isDropTarget 
-                ? Border.all(color: theme.accentColor, width: 1)
+                ? Border.all(color: theme.colorScheme.primary, width: 1)
                 : null,
             ),
             child: Text(
               isDropTarget ? 'Drop tab here' : 'No tabs open',
-              style: theme.typography.caption?.copyWith(
-                color: isDropTarget ? theme.accentColor : theme.inactiveColor,
+              style: TextStyle(
+                color: isDropTarget ? theme.colorScheme.primary : theme.colorScheme.mutedForeground,
                 fontWeight: isDropTarget ? FontWeight.w500 : FontWeight.normal,
+                fontSize: 12,
               ),
             ),
           );
@@ -156,24 +301,169 @@ class TabBarWidget extends StatelessWidget with WatchItMixin {
     );
   }
 
-  Widget _buildTabGroupActions(BuildContext context, FluentThemeData theme) {
+  Widget _buildTabGroupActions(BuildContext context, ShadThemeData theme) {
+    final projectVm = di<ProjectViewModel>();
+    final timelineVm = di<TimelineViewModel>();
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (isPrimary) ...[
+          ValueListenableBuilder<bool>(
+            valueListenable: projectVm.isProjectLoadedNotifier,
+            builder: (context, isProjectLoaded, _) {
+              return PopupMenuButton<String>(
+                child: const Padding(
+                  padding: EdgeInsets.all(8.0),
+                  child: Text('File'),
+                ),
+                itemBuilder: (BuildContext context) => [
+                  const PopupMenuItem<String>(
+                    value: 'new_project',
+                    child: Text('New Project'),
+                  ),
+                  const PopupMenuItem<String>(
+                    value: 'open_project',
+                    child: Text('Open Project...'),
+                  ),
+                  PopupMenuItem<String>(
+                    value: 'import_media',
+                    enabled: isProjectLoaded,
+                    child: const Text('Import Media...'),
+                  ),
+                ],
+                onSelected: (String value) {
+                  switch (value) {
+                    case 'new_project':
+                      _handleNewProject(context);
+                      break;
+                    case 'open_project':
+                      _handleOpenProject(context);
+                      break;
+                    case 'import_media':
+                      _handleImportMedia(context);
+                      break;
+                  }
+                },
+              );
+            },
+          ),
+          const SizedBox(width: 8),
+          PopupMenuButton<String>(
+            child: const Padding(
+              padding: EdgeInsets.all(8.0),
+              child: Text('Edit'),
+            ),
+            itemBuilder: (BuildContext context) => [
+              const PopupMenuItem<String>(
+                value: 'undo',
+                child: Text('Undo'),
+              ),
+              const PopupMenuItem<String>(
+                value: 'redo',
+                child: Text('Redo'),
+              ),
+            ],
+            onSelected: (String value) {
+              switch (value) {
+                case 'undo':
+                  _handleUndo();
+                  break;
+                case 'redo':
+                  _handleRedo();
+                  break;
+              }
+            },
+          ),
+          const SizedBox(width: 8),
+          ValueListenableBuilder<bool>(
+            valueListenable: projectVm.isProjectLoadedNotifier,
+            builder: (context, isProjectLoaded, _) {
+              return PopupMenuButton<String>(
+                child: const Padding(
+                  padding: EdgeInsets.all(8.0),
+                  child: Text('Track'),
+                ),
+                itemBuilder: (BuildContext context) => [
+                  PopupMenuItem<String>(
+                    value: 'add_video_track',
+                    enabled: isProjectLoaded,
+                    child: const Text('Add Video Track'),
+                  ),
+                  PopupMenuItem<String>(
+                    value: 'add_audio_track',
+                    enabled: isProjectLoaded,
+                    child: const Text('Add Audio Track'),
+                  ),
+                ],
+                onSelected: (String value) {
+                  switch (value) {
+                    case 'add_video_track':
+                      _handleAddVideoTrack();
+                      break;
+                    case 'add_audio_track':
+                      _handleAddAudioTrack();
+                      break;
+                  }
+                },
+              );
+            },
+          ),
+          const SizedBox(width: 8),
+          PopupMenuButton<String>(
+            child: const Padding(
+              padding: EdgeInsets.all(8.0),
+              child: Text('View'),
+            ),
+            itemBuilder: (BuildContext context) => [
+              const PopupMenuItem<String>(
+                value: 'new_tab',
+                child: Text('New Tab'),
+              ),
+              const PopupMenuItem<String>(
+                value: 'open_preview',
+                child: Text('Open Preview'),
+              ),
+              const PopupMenuItem<String>(
+                value: 'open_inspector',
+                child: Text('Open Inspector'),
+              ),
+              const PopupMenuItem<String>(
+                value: 'open_timeline',
+                child: Text('Open Timeline'),
+              ),
+            ],
+            onSelected: (String value) {
+              switch (value) {
+                case 'new_tab':
+                  _handleNewTab();
+                  break;
+                case 'open_preview':
+                  _handleOpenPreview();
+                  break;
+                case 'open_inspector':
+                  _handleOpenInspector();
+                  break;
+                case 'open_timeline':
+                  _handleOpenTimeline();
+                  break;
+              }
+            },
+          ),
+        ],
         IconButton(
           icon: Icon(
-            FluentIcons.add,
+            LucideIcons.plus,
             size: 14,
-            color: theme.inactiveColor,
+            color: theme.colorScheme.mutedForeground,
           ),
           onPressed: onAddTab != null ? () => onAddTab!(tabGroup.id) : null,
         ),
         if (onTabGroupClosed != null)
           IconButton(
             icon: Icon(
-              FluentIcons.chrome_close,
+              LucideIcons.x,
               size: 12,
-              color: theme.inactiveColor,
+              color: theme.colorScheme.mutedForeground,
             ),
             onPressed: onTabGroupClosed,
           ),
@@ -247,12 +537,12 @@ class _TabWidgetState extends State<_TabWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = FluentTheme.of(context);
+    final theme = ShadTheme.of(context);
     final tabSystem = di<TabSystemViewModel>();
     
     final backgroundColor = _getBackgroundColor(theme);
     final textColor = _getTextColor(theme);
-    final borderColor = widget.isActive ? theme.accentColor : Colors.transparent;
+    final borderColor = widget.isActive ? theme.colorScheme.primary : Colors.transparent;
 
     return Draggable<TabDragData>(
       data: TabDragData(
@@ -353,7 +643,7 @@ class _TabWidgetState extends State<_TabWidget> {
                           width: 2,
                         ),
                         right: BorderSide(
-                          color: theme.resources.cardStrokeColorDefault.withValues(alpha: 0.3),
+                          color: theme.colorScheme.border.withValues(alpha: 0.3),
                           width: 1,
                         ),
                       ),
@@ -372,7 +662,7 @@ class _TabWidgetState extends State<_TabWidget> {
                   child: Container(
                     width: 3,
                     decoration: BoxDecoration(
-                      color: theme.accentColor,
+                      color: theme.colorScheme.primary,
                       borderRadius: BorderRadius.circular(1.5),
                     ),
                   ),
@@ -384,7 +674,7 @@ class _TabWidgetState extends State<_TabWidget> {
     );
   }
 
-  Widget _buildTabContent(BuildContext context, FluentThemeData theme, Color textColor) {
+  Widget _buildTabContent(BuildContext context, ShadThemeData theme, Color textColor) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Row(
@@ -401,7 +691,7 @@ class _TabWidgetState extends State<_TabWidget> {
           Expanded(
             child: Text(
               widget.tab.title,
-              style: theme.typography.body?.copyWith(
+              style: TextStyle(
                 color: textColor,
                 fontSize: 12,
                 fontWeight: widget.isActive ? FontWeight.w500 : FontWeight.normal,
@@ -415,7 +705,7 @@ class _TabWidgetState extends State<_TabWidget> {
               width: 6,
               height: 6,
               decoration: BoxDecoration(
-                color: theme.accentColor,
+                color: theme.colorScheme.primary,
                 shape: BoxShape.circle,
               ),
             ),
@@ -428,11 +718,11 @@ class _TabWidgetState extends State<_TabWidget> {
                 width: 16,
                 height: 16,
                 decoration: BoxDecoration(
-                  color: _isHovered ? theme.menuColor.withValues(alpha: 0.1) : Colors.transparent,
+                  color: _isHovered ? theme.colorScheme.muted.withValues(alpha: 0.1) : Colors.transparent,
                   borderRadius: BorderRadius.circular(2),
                 ),
                 child: Icon(
-                  FluentIcons.chrome_close,
+                  LucideIcons.x,
                   size: 10,
                   color: textColor.withValues(alpha: 0.8),
                 ),
@@ -444,7 +734,7 @@ class _TabWidgetState extends State<_TabWidget> {
     );
   }
 
-  Widget _buildDragFeedback(BuildContext context, FluentThemeData theme) {
+  Widget _buildDragFeedback(BuildContext context, ShadThemeData theme) {
     return material.Material(
       elevation: 8,
       borderRadius: BorderRadius.circular(4),
@@ -455,32 +745,32 @@ class _TabWidgetState extends State<_TabWidget> {
         ),
         height: 32,
         decoration: BoxDecoration(
-          color: theme.cardColor,
+          color: theme.colorScheme.card,
           borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: theme.accentColor, width: 2),
+          border: Border.all(color: theme.colorScheme.primary, width: 2),
           boxShadow: [
             BoxShadow(
-              color: theme.shadowColor.withValues(alpha: 0.3),
+              color: Colors.black.withValues(alpha: 0.3),
               blurRadius: 8,
               offset: const Offset(0, 4),
             ),
           ],
         ),
-        child: _buildTabContent(context, theme, theme.typography.body?.color ?? Colors.black),
+        child: _buildTabContent(context, theme, theme.colorScheme.foreground),
       ),
     );
   }
 
-  Widget _buildPlaceholder(BuildContext context, FluentThemeData theme) {
+  Widget _buildPlaceholder(BuildContext context, ShadThemeData theme) {
     final double width = _tabWidth ?? 80.0; // Use measured width or default to 80
     
     return Container(
       width: width,
       height: 32,
       decoration: BoxDecoration(
-        color: theme.inactiveBackgroundColor.withValues(alpha: 0.3),
+        color: theme.colorScheme.background.withValues(alpha: 0.3),
         border: Border.all(
-          color: theme.resources.cardStrokeColorDefault.withValues(alpha: 0.5),
+          color: theme.colorScheme.border.withValues(alpha: 0.5),
           style: BorderStyle.solid,
         ),
         borderRadius: BorderRadius.circular(4),
@@ -490,7 +780,7 @@ class _TabWidgetState extends State<_TabWidget> {
           width: width * 0.5, // Scale the placeholder line based on tab width
           height: 2,
           decoration: BoxDecoration(
-            color: theme.accentColor.withValues(alpha: 0.5),
+            color: theme.colorScheme.primary.withValues(alpha: 0.5),
             borderRadius: BorderRadius.circular(1),
           ),
         ),
@@ -498,24 +788,24 @@ class _TabWidgetState extends State<_TabWidget> {
     );
   }
 
-  Color _getBackgroundColor(FluentThemeData theme) {
+  Color _getBackgroundColor(ShadThemeData theme) {
     if (_isDragging) {
-      return theme.inactiveBackgroundColor.withValues(alpha: 0.5);
+      return theme.colorScheme.background.withValues(alpha: 0.5);
     }
     if (widget.isActive) {
-      return theme.cardColor;
+      return theme.colorScheme.card;
     }
     if (_isHovered) {
-      return theme.menuColor.withValues(alpha: 0.05);
+      return theme.colorScheme.muted.withValues(alpha: 0.05);
     }
-    return theme.inactiveBackgroundColor;
+    return theme.colorScheme.background;
   }
 
-  Color _getTextColor(FluentThemeData theme) {
+  Color _getTextColor(ShadThemeData theme) {
     if (widget.isActive) {
-      return theme.typography.body?.color ?? Colors.black;
+      return theme.colorScheme.foreground;
     }
-    return theme.inactiveColor;
+    return theme.colorScheme.mutedForeground;
   }
 
   void _showContextMenu(BuildContext context) {

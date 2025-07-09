@@ -1,4 +1,5 @@
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter/material.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart'; // Needed for performRollEdit
 // Removed RollEditCommand import - command is created in ViewModel now
 // Removed watch_it import - VM is passed directly
@@ -38,7 +39,7 @@ class _RollEditHandleState extends State<RollEditHandle> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = FluentTheme.of(context);
+    final theme = ShadTheme.of(context);
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
       onHorizontalDragStart: (details) {
@@ -75,16 +76,16 @@ class _RollEditHandleState extends State<RollEditHandle> {
         cursor: SystemMouseCursors.resizeLeftRight,
         child: Container(
           decoration: BoxDecoration(
-            color: theme.accentColor.normal.withAlpha(70),
+            color: theme.colorScheme.accent.withAlpha(70),
             borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: theme.accentColor.normal, width: 1),
+            border: Border.all(color: theme.colorScheme.accent, width: 1),
           ),
           margin: const EdgeInsets.symmetric(vertical: 8),
           child: Center(
             child: Icon(
-              FluentIcons.a_a_d_logo,
+              LucideIcons.moveHorizontal,
               size: 14,
-              color: theme.accentColor.darker,
+              color: theme.colorScheme.accent,
             ),
           ),
         ),
