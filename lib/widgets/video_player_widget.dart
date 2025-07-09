@@ -49,7 +49,15 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
 
   @override
   void dispose() {
-    _viewModel.dispose();
+    // Schedule async disposal in a microtask to ensure proper thread handling
+    Future.microtask(() async {
+      try {
+        await _viewModel.dispose();
+      } catch (error) {
+        logError('VideoPlayerWidget', 'Error disposing video player: $error');
+      }
+    });
+    
     _zoomLevel.removeListener(_saveZoomPreferences);
     _zoomLevel.dispose();
     _panOffset.dispose();

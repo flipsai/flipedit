@@ -141,10 +141,14 @@ pub fn register_irondash_update_function(texture_id: i64, update_fn: Box<dyn Fn(
 
 
 /// Unregister an irondash texture update function
+/// This must be called on the main thread to avoid "Capsule dropped on wrong thread" errors
 pub fn unregister_irondash_update_function(texture_id: i64) {
-    if let Ok(mut functions) = IRONDASH_UPDATE_FUNCTIONS.lock() {
-        functions.remove(&texture_id);
-    }
+    // Schedule cleanup on main thread to avoid thread safety issues
+    let _ = EngineContext::perform_on_main_thread(move || {
+        if let Ok(mut functions) = IRONDASH_UPDATE_FUNCTIONS.lock() {
+            functions.remove(&texture_id);
+        }
+    });
 }
 
 /// Update video frame data - now calls the REAL irondash update functions

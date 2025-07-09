@@ -131,11 +131,24 @@ class VideoPlayerViewModel {
     }
   }
 
-  void dispose() {
-    final videoPlayerService = di<VideoPlayerService>();
-    videoPlayerService.unregisterTimelinePlayer();
-    _timelinePlayer?.dispose();
-    textureIdNotifier.dispose();
-    errorMessageNotifier.dispose();
+  Future<void> dispose() async {
+    try {
+      final videoPlayerService = di<VideoPlayerService>();
+      videoPlayerService.unregisterTimelinePlayer();
+      
+      // Await the Rust disposal to ensure it completes on the correct thread
+      if (_timelinePlayer != null) {
+        await _timelinePlayer!.dispose();
+        _timelinePlayer = null;
+      }
+      
+      textureIdNotifier.dispose();
+      errorMessageNotifier.dispose();
+    } catch (e) {
+      logError('VideoPlayerViewModel', 'Error during disposal: $e');
+      // Still dispose notifiers even if Rust disposal fails
+      textureIdNotifier.dispose();
+      errorMessageNotifier.dispose();
+    }
   }
 } 
