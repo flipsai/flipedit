@@ -163,7 +163,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                                               height: screenSize.height.clamp(videoSize.height, double.infinity),
                                               child: Stack(
                                                 children: [
-                                                  // Center the fixed-size canvas
+                                                  // Center the fixed-size canvas with unified transform
                                                   Positioned(
                                                     left: (screenSize.width - videoSize.width) / 2,
                                                     top: (screenSize.height - videoSize.height) / 2,
@@ -172,22 +172,62 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                                                       transform: Matrix4.identity()
                                                         ..scale(zoomLevel)
                                                         ..translate(panOffset.dx / zoomLevel, panOffset.dy / zoomLevel),
-                                                      child: Container(
-                                                        width: videoSize.width,
-                                                        height: videoSize.height,
-                                                        decoration: BoxDecoration(
-                                                          border: Border.all(color: Colors.grey.shade600, width: 1),
-                                                        ),
-                                                        child: ClipRect(
-                                                          child: FittedBox(
-                                                            fit: BoxFit.fill,
-                                                            child: SizedBox(
-                                                              width: videoSize.width,
-                                                              height: videoSize.height,
-                                                              child: Texture(textureId: textureId),
+                                                      child: Stack(
+                                                        children: [
+                                                          // Video texture
+                                                          Container(
+                                                            width: videoSize.width,
+                                                            height: videoSize.height,
+                                                            decoration: BoxDecoration(
+                                                              border: Border.all(color: Colors.grey.shade600, width: 1),
+                                                            ),
+                                                            child: ClipRect(
+                                                              child: FittedBox(
+                                                                fit: BoxFit.fill,
+                                                                child: SizedBox(
+                                                                  width: videoSize.width,
+                                                                  height: videoSize.height,
+                                                                  child: Texture(textureId: textureId),
+                                                                ),
+                                                              ),
                                                             ),
                                                           ),
-                                                        ),
+                                                          // Transform overlay for selected clip - now in same transform space
+                                                          IgnorePointer(
+                                                            ignoring: _isPanning, // Ignore pointer events during panning
+                                                            child: ValueListenableBuilder<int?>(
+                                                              valueListenable: _timelineViewModel.selectedClipIdNotifier,
+                                                              builder: (context, selectedClipId, _) {
+                                                                if (selectedClipId == null) return const SizedBox.shrink();
+                                                                
+                                                                final selectedClip = _timelineViewModel.clips
+                                                                    .where((clip) => clip.databaseId == selectedClipId)
+                                                                    .firstOrNull;
+                                                                
+                                                                if (selectedClip == null) return const SizedBox.shrink();
+                                                                
+                                                                return ClipTransformOverlay(
+                                                                  clip: selectedClip,
+                                                                  videoSize: videoSize,
+                                                                  screenSize: videoSize, // Use video size since we're in canvas space
+                                                                  onTransformChanged: (transform) {
+                                                                    _updateClipTransform(selectedClipId, transform);
+                                                                  },
+                                                                  onTransformStart: () {
+                                                                    logDebug('Transform started for clip $selectedClipId', 'VideoPlayerWidget');
+                                                                  },
+                                                                  onTransformEnd: () {
+                                                                    logDebug('Transform ended for clip $selectedClipId', 'VideoPlayerWidget');
+                                                                  },
+                                                                  onDeselect: () {
+                                                                    _timelineViewModel.selectedClipId = null;
+                                                                    logDebug('Deselected clip $selectedClipId', 'VideoPlayerWidget');
+                                                                  },
+                                                                );
+                                                              }
+                                                            ),
+                                                          ),
+                                                        ],
                                                       ),
                                                     ),
                                                   ),
@@ -196,48 +236,6 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                                             ),
                                           ),
                                         ),
-                    
-                                        // Transform overlay for selected clip - positioned over the entire screen
-                                        IgnorePointer(
-                                            ignoring: _isPanning, // Ignore pointer events during panning
-                                            child: Transform(
-                                              alignment: Alignment.center,
-                                              transform: Matrix4.identity()
-                                                ..scale(zoomLevel)
-                                                ..translate(panOffset.dx / zoomLevel, panOffset.dy / zoomLevel),
-                                              child: ValueListenableBuilder<int?>(
-                                                valueListenable: _timelineViewModel.selectedClipIdNotifier,
-                                                builder: (context, selectedClipId, _) {
-                                                  if (selectedClipId == null) return const SizedBox.shrink();
-                                                  
-                                                  final selectedClip = _timelineViewModel.clips
-                                                      .where((clip) => clip.databaseId == selectedClipId)
-                                                      .firstOrNull;
-                                                  
-                                                  if (selectedClip == null) return const SizedBox.shrink();
-                                                  
-                                                  return ClipTransformOverlay(
-                                                    clip: selectedClip,
-                                                    videoSize: videoSize,
-                                                    screenSize: screenSize, // Use full screen size for proper coordinate conversion
-                                                    onTransformChanged: (transform) {
-                                                      _updateClipTransform(selectedClipId, transform);
-                                                    },
-                                                    onTransformStart: () {
-                                                      logDebug('Transform started for clip $selectedClipId', 'VideoPlayerWidget');
-                                                    },
-                                                    onTransformEnd: () {
-                                                      logDebug('Transform ended for clip $selectedClipId', 'VideoPlayerWidget');
-                                                    },
-                                                    onDeselect: () {
-                                                      _timelineViewModel.selectedClipId = null;
-                                                      logDebug('Deselected clip $selectedClipId', 'VideoPlayerWidget');
-                                                    },
-                                                         );
-                                                       }
-                                              ),
-                                            ),
-                                          ),
                                       ],
                                     ),
                                   ),

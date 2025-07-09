@@ -108,17 +108,16 @@ class _ClipTransformOverlayState extends State<ClipTransformOverlay> {
 
   @override
   Widget build(BuildContext context) {
-    return Positioned.fill(
-      child: GestureDetector(
-        onPanStart: _onPanStart,
-        onPanUpdate: _onPanUpdate,
-        onPanEnd: _onPanEnd,
-        child: CustomPaint(
-          painter: TransformBoxPainter(
-            clipRect: clipRect,
-            isSelected: true,
-            showHandles: true,
-          ),
+    return GestureDetector(
+      onPanStart: _onPanStart,
+      onPanUpdate: _onPanUpdate,
+      onPanEnd: _onPanEnd,
+      child: CustomPaint(
+        size: widget.screenSize,
+        painter: TransformBoxPainter(
+          clipRect: clipRect,
+          isSelected: true,
+          showHandles: true,
         ),
       ),
     );
