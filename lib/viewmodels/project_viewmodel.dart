@@ -7,7 +7,8 @@ import 'package:flipedit/services/project_metadata_service.dart';
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/services/undo_redo_service.dart';
 import 'package:flipedit/utils/logger.dart';
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/material.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart';
@@ -19,6 +20,13 @@ import 'commands/load_project_command.dart';
 
 const _lastProjectIdKey = 'last_opened_project_id';
 const _logTag = 'ProjectViewModel';
+
+enum InfoBarSeverity {
+  info,
+  success,
+  warning,
+  error,
+}
 
 class ProjectViewModel {
   final ProjectMetadataService _metadataService = di<ProjectMetadataService>();
@@ -175,24 +183,24 @@ class ProjectViewModel {
   // Method to create a new project with UI dialog
   Future<void> createNewProjectWithDialog(BuildContext context) async {
     final projectNameController = TextEditingController();
-    await showDialog<String>(
+    await showShadDialog<String>(
       context: context,
       builder:
-          (context) => ContentDialog(
+          (context) => ShadDialog(
             title: const Text('New Project'),
-            content: SizedBox(
+            description: const Text('Enter a name for your new project'),
+            child: SizedBox(
               height: 50,
-              child: TextBox(
+              child: ShadInput(
                 controller: projectNameController,
-                placeholder: 'Enter project name',
               ),
             ),
             actions: [
-              Button(
+              ShadButton.outline(
                 child: const Text('Cancel'),
                 onPressed: () => Navigator.of(context).pop(),
               ),
-              FilledButton(
+              ShadButton(
                 child: const Text('Create'),
                 onPressed: () {
                   Navigator.of(context).pop(projectNameController.text);
@@ -242,14 +250,14 @@ class ProjectViewModel {
     }
 
     if (projects.isEmpty) {
-      await showDialog(
+      await showShadDialog(
         context: context,
         builder:
-            (context) => ContentDialog(
+            (context) => ShadDialog(
               title: const Text('Open Project'),
-              content: const Text('No projects found. Create one first?'),
+              description: const Text('No projects found. Create one first?'),
               actions: [
-                Button(
+                ShadButton(
                   child: const Text('OK'),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
@@ -259,23 +267,23 @@ class ProjectViewModel {
       return;
     }
 
-    await showDialog<int>(
+    await showShadDialog<int>(
       context: context,
       builder: (context) {
-        return ContentDialog(
+        return ShadDialog(
           title: const Text('Open Project'),
-          content: SizedBox(
+          description: const Text('Select a project to open'),
+          child: SizedBox(
             height: 300,
             width: 300,
             child: ListView.builder(
               itemCount: projects.length,
               itemBuilder: (context, index) {
                 final project = projects[index];
-                return ListTile.selectable(
+                return ListTile(
                   title: Text(project.name),
                   subtitle: Text('Created: ${project.createdAt.toLocal()}'),
-                  selected: false,
-                  onPressed: () {
+                  onTap: () {
                     Navigator.of(context).pop(project.id);
                   },
                 );
@@ -283,7 +291,7 @@ class ProjectViewModel {
             ),
           ),
           actions: [
-            Button(
+            ShadButton.outline(
               child: const Text('Cancel'),
               onPressed: () => Navigator.of(context).pop(),
             ),
@@ -313,14 +321,13 @@ class ProjectViewModel {
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color:
-                    FluentTheme.of(context).resources.subtleFillColorSecondary,
+                color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const ProgressRing(),
+                  const CircularProgressIndicator(),
                   const SizedBox(height: 16),
                   Text(message),
                 ],
@@ -337,15 +344,28 @@ class ProjectViewModel {
     String message, {
     InfoBarSeverity severity = InfoBarSeverity.info,
   }) {
-    displayInfoBar(
-      context,
-      builder: (context, close) {
-        return InfoBar(
-          title: Text(message),
-          severity: severity,
-          onClose: close,
-        );
-      },
+    Color backgroundColor;
+    switch (severity) {
+      case InfoBarSeverity.success:
+        backgroundColor = Colors.green;
+        break;
+      case InfoBarSeverity.warning:
+        backgroundColor = Colors.orange;
+        break;
+      case InfoBarSeverity.error:
+        backgroundColor = Colors.red;
+        break;
+      case InfoBarSeverity.info:
+        backgroundColor = Colors.blue;
+        break;
+    }
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: backgroundColor,
+        duration: const Duration(seconds: 3),
+      ),
     );
   }
 

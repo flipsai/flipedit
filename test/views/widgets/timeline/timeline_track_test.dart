@@ -6,7 +6,7 @@ import 'package:flipedit/views/widgets/timeline/timeline_track.dart';
 import 'package:mockito/mockito.dart';
 import 'package:mockito/annotations.dart';
 import 'timeline_track_test.mocks.dart'; // Import generated mocks
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/material.dart';
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/persistence/database/project_database.dart'
     as project_db;
@@ -87,7 +87,7 @@ void main() {
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(
-        FluentApp(
+        MaterialApp(
           home: TimelineTrack(
             track: testTrack,
             onDelete: () {},
@@ -105,7 +105,7 @@ void main() {
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(
-        FluentApp(
+        MaterialApp(
           home: TimelineTrack(
             track: testTrack,
             onDelete: () {

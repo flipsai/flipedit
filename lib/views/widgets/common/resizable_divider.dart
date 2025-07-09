@@ -1,4 +1,5 @@
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/material.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 
 /// A divider that can be dragged horizontally or vertically to resize adjacent widgets.
 class ResizableDivider extends StatefulWidget {
@@ -51,11 +52,11 @@ class _ResizableDividerState extends State<ResizableDivider> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = FluentTheme.of(context);
+    final theme = ShadTheme.of(context);
     final effectiveColor =
-        widget.color ?? theme.resources.subtleFillColorTertiary;
+        widget.color ?? theme.colorScheme.border;
     final effectiveHighlightColor =
-        widget.highlightColor ?? theme.resources.subtleFillColorSecondary;
+        widget.highlightColor ?? theme.colorScheme.border.withOpacity(0.8);
     final isVertical = widget.axis == Axis.vertical;
 
     return GestureDetector(

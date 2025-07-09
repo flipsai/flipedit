@@ -25,8 +25,6 @@ import 'commands/move_clip_command.dart';
 import 'commands/resize_clip_command.dart';
 import '../services/canvas_dimensions_service.dart';
 import 'package:flipedit/src/rust/common/types.dart';
-import 'package:flipedit/src/rust/api/simple.dart';
-import 'package:flipedit/services/video_player_service.dart';
 
 class TimelineViewModel extends ChangeNotifier {
   final String _logTag = 'TimelineViewModel';
@@ -259,8 +257,8 @@ class TimelineViewModel extends ChangeNotifier {
     // Use the AddClipCommand for adding new clips.
     if (clipId == null) {
       // Get canvas dimensions for the clip preview
-      final canvasWidth = _canvasDimensionsService.canvasWidth;
-      final canvasHeight = _canvasDimensionsService.canvasHeight;
+      // final canvasWidth = _canvasDimensionsService.canvasWidth;
+      // final canvasHeight = _canvasDimensionsService.canvasHeight;
 
       final clipData = ClipModel(
         databaseId: null,

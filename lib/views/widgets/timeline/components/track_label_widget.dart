@@ -1,4 +1,4 @@
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/material.dart';
 import 'package:flipedit/persistence/database/project_database.dart';
 import 'package:flutter/services.dart';
 
@@ -85,7 +85,7 @@ class _TrackLabelWidgetState extends State<TrackLabelWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = FluentTheme.of(context);
+    final theme = Theme.of(context);
 
     return GestureDetector(
       onTap: widget.onSelect,
@@ -95,13 +95,13 @@ class _TrackLabelWidgetState extends State<TrackLabelWidget> {
         decoration: BoxDecoration(
           color:
               widget.isSelected
-                  ? theme.accentColor.withValues(alpha: 0.2)
-                  : theme.resources.subtleFillColorTertiary,
+                  ? theme.colorScheme.primary.withAlpha(50)
+                  : theme.disabledColor.withAlpha(25),
           border: Border(
-            right: BorderSide(color: theme.resources.controlStrokeColorDefault),
+            right: BorderSide(color: theme.dividerColor),
             left:
                 widget.isSelected
-                    ? BorderSide(color: theme.accentColor, width: 3.0)
+                    ? BorderSide(color: theme.colorScheme.primary, width: 3.0)
                     : BorderSide.none,
           ),
         ),
@@ -115,9 +115,9 @@ class _TrackLabelWidgetState extends State<TrackLabelWidget> {
                 child: Padding(
                   padding: const EdgeInsets.only(right: 8.0),
                   child: Icon(
-                    FluentIcons.more_vertical,
+                    Icons.drag_handle,
                     size: 12,
-                    color: theme.resources.textFillColorSecondary,
+                    color: theme.hintColor,
                   ),
                 ),
               ),
@@ -127,19 +127,20 @@ class _TrackLabelWidgetState extends State<TrackLabelWidget> {
                 onDoubleTap: _enterEditingMode,
                 child:
                     _isEditing
-                        ? TextBox(
+                        ? TextField(
                           controller: _textController,
                           focusNode: _focusNode,
-                          placeholder: 'Track Name',
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6.0,
-                            vertical: 4.0,
-                          ),
-                          style: theme.typography.body,
-                          decoration: WidgetStateProperty.all(
-                            BoxDecoration(
-                              color: theme.resources.controlFillColorDefault,
+                          style: theme.textTheme.bodyMedium,
+                          decoration: InputDecoration(
+                            hintText: 'Track Name',
+                            filled: true,
+                            fillColor: theme.inputDecorationTheme.fillColor ?? Colors.white.withAlpha(25),
+                            border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(4.0),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 6.0,
+                              vertical: 4.0,
                             ),
                           ),
                           onSubmitted: (_) => _submitRename(),
@@ -150,18 +151,15 @@ class _TrackLabelWidgetState extends State<TrackLabelWidget> {
                         : Text(
                           widget.track.name,
                           overflow: TextOverflow.ellipsis,
-                          style: theme.typography.body,
+                          style: theme.textTheme.bodyMedium,
                         ),
               ),
             ),
             IconButton(
-              icon: const Icon(FluentIcons.delete, size: 14),
+              icon: const Icon(Icons.delete_outline, size: 14),
               onPressed: widget.onDelete,
-              style: ButtonStyle(
-                padding: WidgetStateProperty.all(EdgeInsets.zero),
-                textStyle: WidgetStateProperty.all(
-                  const TextStyle(inherit: false),
-                ),
+              style: IconButton.styleFrom(
+                padding: EdgeInsets.zero,
               ),
             ),
           ],

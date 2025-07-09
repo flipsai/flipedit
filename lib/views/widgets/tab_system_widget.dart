@@ -1,4 +1,5 @@
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter/material.dart';
 import 'package:watch_it/watch_it.dart';
 
 import '../../models/tab_line.dart';
@@ -73,7 +74,7 @@ class _TabSystemWidgetState extends State<TabSystemWidget> {
   }
 
   Widget _buildEmptyState(BuildContext context) {
-    final theme = FluentTheme.of(context);
+    final theme = ShadTheme.of(context);
     
     return Container(
       alignment: Alignment.center,
@@ -81,22 +82,24 @@ class _TabSystemWidgetState extends State<TabSystemWidget> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            FluentIcons.document,
+            LucideIcons.fileText,
             size: 64,
-            color: theme.inactiveColor.withValues(alpha: 0.5),
+            color: theme.colorScheme.mutedForeground.withValues(alpha: 0.5),
           ),
           const SizedBox(height: 16),
           Text(
             'No tabs open',
-            style: theme.typography.title?.copyWith(
-              color: theme.inactiveColor,
+            style: TextStyle(
+              color: theme.colorScheme.mutedForeground,
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             'Create a new tab to get started',
-            style: theme.typography.body?.copyWith(
-              color: theme.inactiveColor,
+            style: TextStyle(
+              color: theme.colorScheme.mutedForeground,
             ),
           ),
         ],
@@ -179,8 +182,8 @@ class _TabSystemWidgetState extends State<TabSystemWidget> {
         alignment: Alignment.center,
         child: Text(
           'No active tab',
-          style: FluentTheme.of(context).typography.body?.copyWith(
-            color: FluentTheme.of(context).inactiveColor,
+          style: TextStyle(
+            color: ShadTheme.of(context).colorScheme.mutedForeground,
           ),
         ),
       );

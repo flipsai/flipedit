@@ -1,4 +1,5 @@
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter/material.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/views/widgets/extensions/panels/panels.dart';
 import 'package:watch_it/watch_it.dart';
@@ -17,11 +18,11 @@ class ExtensionPanelContainer extends StatelessWidget with WatchItMixin {
 
   @override
   Widget build(BuildContext context) {
-    final theme = FluentTheme.of(context);
+    final theme = ShadTheme.of(context);
 
     return Container(
       width: 300,
-      color: theme.resources.controlFillColorDefault,
+      color: theme.colorScheme.card,
       child: Column(
         children: [
           _buildHeader(context),
@@ -32,26 +33,28 @@ class ExtensionPanelContainer extends StatelessWidget with WatchItMixin {
   }
 
   Widget _buildHeader(BuildContext context) {
-    final theme = FluentTheme.of(context);
+    final theme = ShadTheme.of(context);
     return Container(
       height: 36,
       padding: const EdgeInsets.symmetric(horizontal: 8),
-      color: theme.resources.subtleFillColorTertiary,
+      color: theme.colorScheme.muted,
       child: Row(
         children: [
           Expanded(
             child: Text(
               _getExtensionTitle(),
-              style: theme.typography.caption?.copyWith(
+              style: TextStyle(
+                fontSize: 12,
                 fontWeight: FontWeight.bold,
+                color: theme.colorScheme.foreground,
               ),
             ),
           ),
           IconButton(
             icon: Icon(
-              FluentIcons.chrome_close,
+              LucideIcons.x,
               size: 12,
-              color: theme.resources.textFillColorSecondary,
+              color: theme.colorScheme.mutedForeground,
             ),
             onPressed: () {
               di<EditorViewModel>().selectedExtension = '';

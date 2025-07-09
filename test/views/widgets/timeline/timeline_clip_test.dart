@@ -5,7 +5,7 @@ import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart'; // Adde
 import 'package:flipedit/views/widgets/timeline/timeline_clip.dart';
 import 'package:mockito/mockito.dart';
 // Removed unused mockito/annotations.dart
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/material.dart';
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
@@ -137,7 +137,7 @@ void main() {
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(
-        FluentApp(home: TimelineClip(clip: testClip, trackId: 1)),
+        MaterialApp(home: TimelineClip(clip: testClip, trackId: 1)),
       );
 
       expect(find.byType(TimelineClip), findsOneWidget);
@@ -148,7 +148,7 @@ void main() {
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(
-        FluentApp(
+        MaterialApp(
           home: TimelineClip(clip: testClip, trackId: 1, isDragging: true),
         ),
       );

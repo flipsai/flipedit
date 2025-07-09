@@ -3,7 +3,7 @@ import 'package:flipedit/di/service_locator.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
 import 'package:flipedit/utils/texture_bridge_check.dart';
 import 'package:window_manager/window_manager.dart';
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/material.dart';
 import 'package:flipedit/utils/logger.dart';
 import 'package:flipedit/utils/global_context.dart';
 import 'package:watch_it/watch_it.dart';
@@ -116,23 +116,27 @@ Future<void> main() async {
   // Create a global navigator key to access BuildContext
   final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
   
-  // Create a wrapper FluentApp to ensure global context is accessible early
-  final app = FluentApp(
+  // Create a wrapper MaterialApp to ensure global context is accessible early
+  final app = MaterialApp(
     navigatorKey: navigatorKey,
     // Apply theme to match the main app
-    theme: FluentThemeData(
-      accentColor: Colors.blue,
-      brightness: Brightness.light,
-      visualDensity: VisualDensity.standard,
-      focusTheme: FocusThemeData(glowFactor: 4.0),
-    ),
-    darkTheme: FluentThemeData(
-      accentColor: Colors.blue,
+    theme: ThemeData(
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: Colors.blue,
+        brightness: Brightness.dark,
+      ),
       brightness: Brightness.dark,
       visualDensity: VisualDensity.standard,
-      focusTheme: FocusThemeData(glowFactor: 4.0),
     ),
-    themeMode: ThemeMode.system,
+    darkTheme: ThemeData(
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: Colors.blue,
+        brightness: Brightness.dark,
+      ),
+      brightness: Brightness.dark,
+      visualDensity: VisualDensity.standard,
+    ),
+    themeMode: ThemeMode.dark, // Force dark theme
     home: Builder(
       builder: (context) {
         // Set global context as early as possible in the app lifecycle

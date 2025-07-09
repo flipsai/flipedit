@@ -1,4 +1,5 @@
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter/material.dart';
 import 'package:watch_it/watch_it.dart';
 
 import '../../models/tab_line.dart';
@@ -84,7 +85,7 @@ class _TabLineWidgetState extends State<TabLineWidget> {
         return Container(
           decoration: BoxDecoration(
             border: isHovering
-              ? Border.all(color: FluentTheme.of(context).accentColor, width: 2)
+              ? Border.all(color: ShadTheme.of(context).colorScheme.primary, width: 2)
               : null,
           ),
           child: Column(
@@ -126,8 +127,8 @@ class _TabLineWidgetState extends State<TabLineWidget> {
         alignment: Alignment.center,
         child: Text(
           'No active tab',
-          style: FluentTheme.of(context).typography.body?.copyWith(
-            color: FluentTheme.of(context).inactiveColor,
+          style: TextStyle(
+            color: ShadTheme.of(context).colorScheme.mutedForeground,
           ),
         ),
       );
@@ -137,7 +138,7 @@ class _TabLineWidgetState extends State<TabLineWidget> {
   }
 
   Widget _buildLineDragTarget(BuildContext context) {
-    final theme = FluentTheme.of(context);
+    final theme = ShadTheme.of(context);
     final tabSystem = di<TabSystemViewModel>();
     
     return DragTarget<TabDragData>(
@@ -158,24 +159,25 @@ class _TabLineWidgetState extends State<TabLineWidget> {
           height: 40,
           margin: const EdgeInsets.all(4),
           decoration: BoxDecoration(
-            color: theme.accentColor.withValues(alpha: 0.3),
+            color: theme.colorScheme.primary.withValues(alpha: 0.3),
             borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: theme.accentColor, width: 2),
+            border: Border.all(color: theme.colorScheme.primary, width: 2),
           ),
           child: Center(
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
-                  FluentIcons.add,
+                  LucideIcons.plus,
                   size: 14,
-                  color: theme.accentColor,
+                  color: theme.colorScheme.primary,
                 ),
                 const SizedBox(width: 4),
                 Text(
                   'Drop here to create new tab line',
-                  style: theme.typography.caption?.copyWith(
-                    color: theme.accentColor,
+                  style: TextStyle(
+                    color: theme.colorScheme.primary,
+                    fontSize: 12,
                   ),
                 ),
               ],

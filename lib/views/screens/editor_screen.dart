@@ -1,4 +1,4 @@
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/material.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/views/widgets/extensions/extension_panel_container.dart';
 import 'package:flipedit/views/widgets/extensions/extension_sidebar.dart';
@@ -17,9 +17,8 @@ class EditorScreen extends StatelessWidget with WatchItMixin {
 
   @override
   Widget build(BuildContext context) {
-    return ScaffoldPage(
-      padding: EdgeInsets.zero,
-      content: Row(
+    return Scaffold(
+      body: Row(
         children: [
           const ExtensionSidebar(),
 
@@ -43,7 +42,7 @@ class EditorScreen extends StatelessWidget with WatchItMixin {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
-            child: ProgressRing(),
+            child: CircularProgressIndicator(),
           );
         }
         
@@ -142,15 +141,12 @@ class EditorScreen extends StatelessWidget with WatchItMixin {
       if (primaryFocus != null) {
         final focusedWidget = primaryFocus.context?.widget;
         // Don't process delete key if a text field has focus
-        if (focusedWidget is TextBox ||
-            focusedWidget is TextFormBox ||
-            focusedWidget is NumberBox ||
-            primaryFocus.context?.findAncestorWidgetOfExactType<TextBox>() !=
+        if (focusedWidget is TextField ||
+            focusedWidget is TextFormField ||
+            primaryFocus.context?.findAncestorWidgetOfExactType<TextField>() !=
                 null ||
             primaryFocus.context
-                    ?.findAncestorWidgetOfExactType<TextFormBox>() !=
-                null ||
-            primaryFocus.context?.findAncestorWidgetOfExactType<NumberBox>() !=
+                    ?.findAncestorWidgetOfExactType<TextFormField>() !=
                 null) {
           logDebug(
             'Ignoring delete key as text field has focus',

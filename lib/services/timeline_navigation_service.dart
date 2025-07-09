@@ -1,5 +1,5 @@
 import 'package:flipedit/models/clip.dart';
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
 import 'package:watch_it/watch_it.dart';
@@ -59,17 +59,17 @@ class TimelineNavigationService extends ChangeNotifier {
   );
 
   // Default duration when no clips exist (10 minutes)
-  static const int DEFAULT_EMPTY_DURATION_MS = 600000; // 10 minutes
+  static const int defaultEmptyDurationMs = 600000; // 10 minutes
 
   // Minimum scrollable area beyond the last clip (60 minutes for a more 'infinite' feel)
-  static const int MINIMUM_SCROLL_BEYOND_MS = 3600000; // 60 minutes
+  static const int minimumScrollBeyondMs = 3600000; // 60 minutes
 
   final int defaultEmptyDurationFrames = ClipModel.msToFrames(
-    DEFAULT_EMPTY_DURATION_MS,
+    defaultEmptyDurationMs,
   );
 
   final int minimumScrollBeyondFrames = ClipModel.msToFrames(
-    MINIMUM_SCROLL_BEYOND_MS,
+    minimumScrollBeyondMs,
   );
 
   late final VoidCallback _scrollListener;

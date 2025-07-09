@@ -1,4 +1,5 @@
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/material.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 
 /// A custom painter for drawing the timeline playhead marker (triangle + line).
 class _PlayheadPainter extends CustomPainter {
@@ -53,7 +54,7 @@ class TimelinePlayhead extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = FluentTheme.of(context);
+    final theme = ShadTheme.of(context);
     const double playheadWidth = 10.0; // Width encompassing the triangle marker
 
     return SizedBox(
@@ -63,7 +64,7 @@ class TimelinePlayhead extends StatelessWidget {
       height: double.infinity,
       child: CustomPaint(
         painter: _PlayheadPainter(
-          color: theme.accentColor.darker, // Use a theme color
+          color: theme.colorScheme.accent, // Use a theme color
           triangleWidth: playheadWidth, // Match triangle width to SizedBox
         ),
       ),

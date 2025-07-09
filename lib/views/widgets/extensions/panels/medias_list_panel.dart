@@ -1,4 +1,5 @@
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter/material.dart';
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/project_asset.dart' as model;
 import 'package:flipedit/models/enums/clip_type.dart';
@@ -37,26 +38,28 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
       children: [
         Padding(
           padding: const EdgeInsets.all(8.0),
-          child: TextBox(
-            controller: searchController,
-            placeholder: 'Search media...',
-            prefix: const Padding(
-              padding: EdgeInsets.only(left: 8.0),
-              child: Icon(FluentIcons.search),
-            ),
-            suffix:
-                searchTerm.isNotEmpty
-                    ? IconButton(
-                      icon: const Icon(FluentIcons.clear),
-                      onPressed: () {
-                        searchController.clear();
-                        projectVm.setSearchTerm('');
-                      },
-                    )
-                    : null,
-            onChanged: (value) {
-              projectVm.setSearchTerm(value);
-            },
+          child: Row(
+            children: [
+              const Icon(LucideIcons.search),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ShadInput(
+                  controller: searchController,
+                  placeholder: const Text('Search media...'),
+                  onChanged: (value) {
+                    projectVm.setSearchTerm(value);
+                  },
+                ),
+              ),
+              if (searchTerm.isNotEmpty)
+                IconButton(
+                  icon: const Icon(LucideIcons.x),
+                  onPressed: () {
+                    searchController.clear();
+                    projectVm.setSearchTerm('');
+                  },
+                ),
+            ],
           ),
         ),
         Expanded(
@@ -68,7 +71,7 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
                       children: [
                         const Text('No media imported yet'),
                         const SizedBox(height: 10),
-                        Button(
+                        ElevatedButton(
                           child: const Text('Import Media'),
                           onPressed: () async {
                             await projectVm.importMediaWithUI(context);
@@ -121,7 +124,7 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
 
   // Update method to accept model.ProjectAsset
   Widget _buildClipListItem(BuildContext context, model.ProjectAsset asset) {
-    final theme = FluentTheme.of(context);
+    final theme = ShadTheme.of(context);
 
     // Use durationMs from model.ProjectAsset
     final String durationString =
@@ -152,7 +155,7 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
     final itemContent = Container(
       margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
       decoration: BoxDecoration(
-        color: theme.resources.layerFillColorDefault,
+        color: theme.colorScheme.card,
         borderRadius: BorderRadius.circular(4),
       ),
       child: GestureDetector(
@@ -166,10 +169,10 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
                 }
                 : null,
         child: ListTile(
-          title: Text(asset.name, style: theme.typography.bodyStrong),
-          subtitle: Text(durationString, style: theme.typography.caption),
+          title: Text(asset.name, style: TextStyle(fontWeight: FontWeight.bold, color: theme.colorScheme.foreground)),
+          subtitle: Text(durationString, style: TextStyle(fontSize: 12, color: theme.colorScheme.mutedForeground)),
           leading: Icon(_getIconForClipType(asset.type)),
-          onPressed: () {
+          onTap: () {
             // TODO: Define behavior when an asset in the media list is clicked
             // Maybe select it for properties view?
             // For now, let's not link it to EditorViewModel's selectedClipId
@@ -222,30 +225,30 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: theme.accentColor.lighter,
+            color: theme.colorScheme.primary.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(4),
           ),
           child: Text(
             asset.name, // Display asset name
-            style: theme.typography.body?.copyWith(color: Colors.black),
+            style: TextStyle(color: theme.colorScheme.foreground),
           ),
         ),
       ),
       childWhenDragging: Container(
-        color: theme.resources.subtleFillColorSecondary,
+        color: theme.colorScheme.muted,
         margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
         child: ListTile(
           title: Text(
             asset.name,
-            style: TextStyle(color: theme.resources.textFillColorDisabled),
+            style: TextStyle(color: theme.colorScheme.mutedForeground),
           ),
           subtitle: Text(
             durationString,
-            style: TextStyle(color: theme.resources.textFillColorDisabled),
+            style: TextStyle(color: theme.colorScheme.mutedForeground),
           ),
           leading: Icon(
             _getIconForClipType(asset.type),
-            color: theme.resources.textFillColorDisabled,
+            color: theme.colorScheme.mutedForeground,
           ),
         ),
       ),
@@ -254,7 +257,7 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
   }
 
   void _showMediaContextMenu(BuildContext context, model.ProjectAsset asset) {
-    final theme = FluentTheme.of(context);
+    final theme = ShadTheme.of(context);
 
     // Get the current position of the mouse cursor
     final RenderBox overlay =
@@ -272,14 +275,14 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
           child: Row(
             children: [
               Icon(
-                FluentIcons.delete,
-                color: theme.resources.textFillColorPrimary,
+                LucideIcons.trash,
+                color: theme.colorScheme.foreground,
                 size: 18,
               ),
               const SizedBox(width: 8),
               Text(
                 'Delete',
-                style: TextStyle(color: theme.resources.textFillColorPrimary),
+                style: TextStyle(color: theme.colorScheme.foreground),
               ),
             ],
           ),
@@ -289,22 +292,18 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
               await showDialog(
                 context: context,
                 builder:
-                    (context) => ContentDialog(
+                    (context) => AlertDialog(
                       title: const Text('Delete Media'),
                       content: Text(
                         'Are you sure you want to delete "${asset.name}"?\n\nThis will also remove any clips using this media from the timeline.',
                       ),
                       actions: [
-                        Button(
+                        ShadButton(
                           child: const Text('Cancel'),
                           onPressed: () => Navigator.pop(context),
                         ),
-                        FilledButton(
-                          style: ButtonStyle(
-                            backgroundColor: ButtonState.resolveWith(
-                              (states) => Colors.red,
-                            ),
-                          ),
+                        ShadButton(
+                          backgroundColor: Colors.red,
                           child: const Text('Delete'),
                           onPressed: () async {
                             Navigator.pop(context);
@@ -317,13 +316,13 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
                                 _showNotification(
                                   context,
                                   'Media and associated timeline clips have been deleted',
-                                  severity: InfoBarSeverity.success,
+                                  isSuccess: true,
                                 );
                               } else {
                                 _showNotification(
                                   context,
                                   'Failed to delete media',
-                                  severity: InfoBarSeverity.error,
+                                  isSuccess: false,
                                 );
                               }
                             }
@@ -342,17 +341,14 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
   void _showNotification(
     BuildContext context,
     String message, {
-    InfoBarSeverity severity = InfoBarSeverity.info,
+    bool isSuccess = true,
   }) {
-    displayInfoBar(
-      context,
-      builder: (context, close) {
-        return InfoBar(
-          title: Text(message),
-          severity: severity,
-          onClose: close,
-        );
-      },
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isSuccess ? Colors.green : Colors.red,
+        duration: const Duration(seconds: 3),
+      ),
     );
   }
 
@@ -364,16 +360,16 @@ class MediasListPanel extends StatelessWidget with WatchItMixin {
   IconData _getIconForClipType(ClipType type) {
     switch (type) {
       case ClipType.video:
-        return FluentIcons.video;
+        return LucideIcons.video;
       case ClipType.audio:
-        return FluentIcons.volume3;
+        return LucideIcons.volume2;
       case ClipType.image:
-        return FluentIcons.photo2;
+        return LucideIcons.image;
       case ClipType.text:
-        return FluentIcons.font;
+        return LucideIcons.type;
       case ClipType.effect:
         // Effects likely won't be ProjectAssets in this way
-        return FluentIcons.settings;
+        return LucideIcons.settings;
     }
   }
 }

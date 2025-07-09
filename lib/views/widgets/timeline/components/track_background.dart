@@ -1,4 +1,4 @@
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/material.dart';
 import '../painters/track_background_painter.dart'; // Import the painter
 
 // Renamed from _TrackBackground
@@ -9,10 +9,10 @@ class TrackBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = FluentTheme.of(context);
-    final lineColor = theme.resources.controlStrokeColorDefault;
-    final faintLineColor = theme.resources.subtleFillColorTertiary;
-    final textColor = theme.typography.caption?.color ?? Colors.grey;
+    final theme = Theme.of(context);
+    final lineColor = theme.dividerColor;
+    final faintLineColor = theme.disabledColor.withAlpha(50);
+    final textColor = theme.textTheme.bodySmall?.color ?? Colors.grey;
 
     return RepaintBoundary(
       child: CustomPaint(

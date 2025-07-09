@@ -1,4 +1,4 @@
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/material.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/project_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
@@ -249,12 +249,12 @@ class _PlatformAppMenuBarState extends State<PlatformAppMenuBar> {
 }
 
 // --- Widget for Linux / Other ---
-class FluentAppMenuBar extends StatefulWidget {
+class AppMenuBar extends StatefulWidget {
   final EditorViewModel editorVm;
   final ProjectViewModel projectVm;
   final TimelineViewModel timelineVm;
 
-  const FluentAppMenuBar({
+  const AppMenuBar({
     super.key,
     required this.editorVm,
     required this.projectVm,
@@ -262,10 +262,10 @@ class FluentAppMenuBar extends StatefulWidget {
   });
 
   @override
-  State<FluentAppMenuBar> createState() => _FluentAppMenuBarState();
+  State<AppMenuBar> createState() => _AppMenuBarState();
 }
 
-class _FluentAppMenuBarState extends State<FluentAppMenuBar> {
+class _AppMenuBarState extends State<AppMenuBar> {
   Future<void> _handleNewProject(BuildContext context) async {
     await widget.projectVm.createNewProjectWithDialog(context);
   }
@@ -413,84 +413,143 @@ class _FluentAppMenuBarState extends State<FluentAppMenuBar> {
           ValueListenableBuilder<bool>(
             valueListenable: widget.projectVm.isProjectLoadedNotifier,
             builder: (context, isProjectLoaded, _) {
-              return DropDownButton(
-                title: const Text('File'),
-                items: [
-                  MenuFlyoutItem(
-                    text: const Text('New Project'),
-                    onPressed: () => _handleNewProject(context),
+              return PopupMenuButton<String>(
+                child: const Padding(
+                  padding: EdgeInsets.all(8.0),
+                  child: Text('File'),
+                ),
+                itemBuilder: (BuildContext context) => [
+                  const PopupMenuItem<String>(
+                    value: 'new_project',
+                    child: Text('New Project'),
                   ),
-                  MenuFlyoutItem(
-                    text: const Text('Open Project...'),
-                    onPressed: () => _handleOpenProject(context),
+                  const PopupMenuItem<String>(
+                    value: 'open_project',
+                    child: Text('Open Project...'),
                   ),
-                  MenuFlyoutItem(
-                    text: const Text('Import Media...'),
-                    onPressed:
-                        isProjectLoaded
-                            ? () => _handleImportMedia(context)
-                            : null,
+                  PopupMenuItem<String>(
+                    value: 'import_media',
+                    enabled: isProjectLoaded,
+                    child: const Text('Import Media...'),
                   ),
                 ],
+                onSelected: (String value) {
+                  switch (value) {
+                    case 'new_project':
+                      _handleNewProject(context);
+                      break;
+                    case 'open_project':
+                      _handleOpenProject(context);
+                      break;
+                    case 'import_media':
+                      _handleImportMedia(context);
+                      break;
+                  }
+                },
               );
             },
           ),
           const SizedBox(width: 8),
-          DropDownButton(
-            title: const Text('Edit'),
-            items: [
-              MenuFlyoutItem(
-                text: const Text('Undo'),
-                onPressed: () => _handleUndo(),
+          PopupMenuButton<String>(
+            child: const Padding(
+              padding: EdgeInsets.all(8.0),
+              child: Text('Edit'),
+            ),
+            itemBuilder: (BuildContext context) => [
+              const PopupMenuItem<String>(
+                value: 'undo',
+                child: Text('Undo'),
               ),
-              MenuFlyoutItem(
-                text: const Text('Redo'),
-                onPressed: () => _handleRedo(),
+              const PopupMenuItem<String>(
+                value: 'redo',
+                child: Text('Redo'),
               ),
             ],
+            onSelected: (String value) {
+              switch (value) {
+                case 'undo':
+                  _handleUndo();
+                  break;
+                case 'redo':
+                  _handleRedo();
+                  break;
+              }
+            },
           ),
           const SizedBox(width: 8),
           ValueListenableBuilder<bool>(
             valueListenable: widget.projectVm.isProjectLoadedNotifier,
             builder: (context, isProjectLoaded, _) {
-              return DropDownButton(
-                title: const Text('Track'),
-                items: [
-                  MenuFlyoutItem(
-                    text: const Text('Add Video Track'),
-                    onPressed:
-                        isProjectLoaded ? () => _handleAddVideoTrack() : null,
+              return PopupMenuButton<String>(
+                child: const Padding(
+                  padding: EdgeInsets.all(8.0),
+                  child: Text('Track'),
+                ),
+                itemBuilder: (BuildContext context) => [
+                  PopupMenuItem<String>(
+                    value: 'add_video_track',
+                    enabled: isProjectLoaded,
+                    child: const Text('Add Video Track'),
                   ),
-                  MenuFlyoutItem(
-                    text: const Text('Add Audio Track'),
-                    onPressed:
-                        isProjectLoaded ? () => _handleAddAudioTrack() : null,
+                  PopupMenuItem<String>(
+                    value: 'add_audio_track',
+                    enabled: isProjectLoaded,
+                    child: const Text('Add Audio Track'),
                   ),
                 ],
+                onSelected: (String value) {
+                  switch (value) {
+                    case 'add_video_track':
+                      _handleAddVideoTrack();
+                      break;
+                    case 'add_audio_track':
+                      _handleAddAudioTrack();
+                      break;
+                  }
+                },
               );
             },
           ),
           const SizedBox(width: 8),
-          DropDownButton(
-            title: const Text('View'),
-            items: [
-              MenuFlyoutItem(
-                text: const Text('New Tab'),
-                onPressed: () => _handleNewTab(),
+          PopupMenuButton<String>(
+            child: const Padding(
+              padding: EdgeInsets.all(8.0),
+              child: Text('View'),
+            ),
+            itemBuilder: (BuildContext context) => [
+              const PopupMenuItem<String>(
+                value: 'new_tab',
+                child: Text('New Tab'),
               ),
-              MenuFlyoutItem(
-                text: const Text('Open Preview'),
-                onPressed: () => _handleOpenPreview(),
+              const PopupMenuItem<String>(
+                value: 'open_preview',
+                child: Text('Open Preview'),
               ),
-              MenuFlyoutItem(
-                text: const Text('Open Inspector'),
-                onPressed: () => _handleOpenInspector(),
+              const PopupMenuItem<String>(
+                value: 'open_inspector',
+                child: Text('Open Inspector'),
               ),
-              MenuFlyoutItem(
-                text: const Text('Open Timeline'),
-                onPressed: () => _handleOpenTimeline(),
+              const PopupMenuItem<String>(
+                value: 'open_timeline',
+                child: Text('Open Timeline'),
               ),
             ],
+            onSelected: (String value) {
+              switch (value) {
+                case 'new_tab':
+                  _handleNewTab();
+                  break;
+                case 'open_preview':
+                  _handleOpenPreview();
+                  break;
+                case 'open_inspector':
+                  _handleOpenInspector();
+                  break;
+                case 'open_timeline':
+                  _handleOpenTimeline();
+                  break;
+              }
+            },
           ),
         ],
       ),

@@ -1,4 +1,5 @@
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter/material.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
@@ -41,19 +42,23 @@ class InspectorPanel extends StatelessWidget with WatchItMixin {
 
     // Display message if no clip is selected or found
     if (selectedClip == null || selectedClip.databaseId == null) {
-      return const Center(
-        child: Text('No clip selected or clip data unavailable'),
+      return Center(
+        child: Text(
+          'No clip selected or clip data unavailable',
+          style: ShadTheme.of(context).textTheme.muted,
+        ),
       );
     }
 
     // Build the UI using the found selectedClip
-    return ScaffoldPage(
+    return Container(
+      color: ShadTheme.of(context).colorScheme.background,
       padding: const EdgeInsets.all(12), // Add some padding
-      content: ListView(
+      child: ListView(
         children: [
           Text(
             'Inspector: ${selectedClip.name}',
-            style: FluentTheme.of(context).typography.subtitle,
+            style: ShadTheme.of(context).textTheme.h4,
           ),
           const SizedBox(height: 16),
           _buildCommonProperties(context, selectedClip),
@@ -74,34 +79,16 @@ class InspectorPanel extends StatelessWidget with WatchItMixin {
       children: [
         Text(
           'Common Properties',
-          style: FluentTheme.of(context).typography.bodyStrong,
+          style: ShadTheme.of(context).textTheme.large.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
-        InfoLabel(label: 'Name:', child: Text(clip.name)),
-        InfoLabel(
-          label: 'Source Path:',
-          child: Text(clip.sourcePath, overflow: TextOverflow.ellipsis),
-        ),
-        InfoLabel(
-          label: 'Duration (Track ms):',
-          child: Text('${clip.durationOnTrackMs} ms'),
-        ), // Use durationOnTrackMs
-        InfoLabel(
-          label: 'Duration (Frames):',
-          child: Text('${clip.durationFrames} frames'),
-        ),
-        InfoLabel(
-          label: 'Start Time (Track):',
-          child: Text('${clip.startTimeOnTrackMs} ms'),
-        ),
-        InfoLabel(
-          label: 'Trim Start (Source):',
-          child: Text('${clip.startTimeInSourceMs} ms'),
-        ),
-        InfoLabel(
-          label: 'Trim End (Source):',
-          child: Text('${clip.endTimeInSourceMs} ms'),
-        ),
+        _buildInfoRow('Name:', clip.name),
+        _buildInfoRow('Source Path:', clip.sourcePath),
+        _buildInfoRow('Duration (Track ms):', '${clip.durationOnTrackMs} ms'),
+        _buildInfoRow('Duration (Frames):', '${clip.durationFrames} frames'),
+        _buildInfoRow('Start Time (Track):', '${clip.startTimeOnTrackMs} ms'),
+        _buildInfoRow('Trim Start (Source):', '${clip.startTimeInSourceMs} ms'),
+        _buildInfoRow('Trim End (Source):', '${clip.endTimeInSourceMs} ms'),
       ],
     );
   }
@@ -112,7 +99,7 @@ class InspectorPanel extends StatelessWidget with WatchItMixin {
       children: [
         Text(
           'Type-Specific Properties',
-          style: FluentTheme.of(context).typography.bodyStrong,
+          style: ShadTheme.of(context).textTheme.large.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
         switch (clip.type) {
@@ -127,30 +114,45 @@ class InspectorPanel extends StatelessWidget with WatchItMixin {
   }
 
   Widget _buildVideoProperties(BuildContext context, ClipModel clip) {
-    return InfoLabel(
-      label: 'Codec:',
-      child: Text(clip.metadata['codec'] ?? 'N/A'),
-    );
+    return _buildInfoRow('Codec:', clip.metadata['codec'] ?? 'N/A');
   }
 
   Widget _buildAudioProperties(BuildContext context, ClipModel clip) {
-    return InfoLabel(
-      label: 'Sample Rate:',
-      child: Text(clip.metadata['sample_rate'] ?? 'N/A'),
-    );
+    return _buildInfoRow('Sample Rate:', clip.metadata['sample_rate'] ?? 'N/A');
   }
 
   Widget _buildImageProperties(BuildContext context, ClipModel clip) {
-    return InfoLabel(
-      label: 'Resolution:',
-      child: Text(clip.metadata['resolution'] ?? 'N/A'),
-    );
+    return _buildInfoRow('Resolution:', clip.metadata['resolution'] ?? 'N/A');
   }
 
   Widget _buildTextProperties(BuildContext context, ClipModel clip) {
-    return InfoLabel(
-      label: 'Font:',
-      child: Text(clip.metadata['font'] ?? 'N/A'),
+    return _buildInfoRow('Font:', clip.metadata['font'] ?? 'N/A');
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Builder(
+      builder: (context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 150,
+              child: Text(
+                label,
+                style: ShadTheme.of(context).textTheme.small.copyWith(fontWeight: FontWeight.w500),
+              ),
+            ),
+            Expanded(
+              child: Text(
+                value,
+                style: ShadTheme.of(context).textTheme.small,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -228,14 +230,13 @@ class InspectorPanel extends StatelessWidget with WatchItMixin {
       children: [
         Text(
           'Position and Size',
-          style: FluentTheme.of(context).typography.bodyStrong,
+          style: ShadTheme.of(context).textTheme.large.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
-        InfoBar(
-          title: const Text(
+        ShadAlert(
+          description: const Text(
             'These values control how the clip appears in the preview.',
           ),
-          severity: InfoBarSeverity.info,
         ),
         const SizedBox(height: 8),
 
@@ -245,11 +246,8 @@ class InspectorPanel extends StatelessWidget with WatchItMixin {
           builder: (context, feedback, _) {
             if (feedback == null) return const SizedBox.shrink();
 
-            final isError = feedback.startsWith('Error:');
-            return InfoBar(
-              title: Text(feedback),
-              severity:
-                  isError ? InfoBarSeverity.error : InfoBarSeverity.success,
+            return ShadAlert(
+              description: Text(feedback),
             );
           },
         ),
@@ -257,34 +255,42 @@ class InspectorPanel extends StatelessWidget with WatchItMixin {
         Row(
           children: [
             Expanded(
-              child: InfoLabel(
-                label: 'X Position:',
-                child: NumberBox(
-                  value: currentX,
-                  onChanged: (value) {
-                    if (value != null) {
-                      xController.text = value.toStringAsFixed(0);
-                      updatePreviewTransform();
-                    }
-                  },
-                  mode: SpinButtonPlacementMode.inline,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('X Position:', style: ShadTheme.of(context).textTheme.small.copyWith(fontWeight: FontWeight.w500)),
+                  const SizedBox(height: 4),
+                  ShadInput(
+                    controller: xController,
+                    keyboardType: TextInputType.number,
+                    onChanged: (value) {
+                      final parsed = double.tryParse(value);
+                      if (parsed != null) {
+                        updatePreviewTransform();
+                      }
+                    },
+                  ),
+                ],
               ),
             ),
             const SizedBox(width: 8),
             Expanded(
-              child: InfoLabel(
-                label: 'Y Position:',
-                child: NumberBox(
-                  value: currentY,
-                  onChanged: (value) {
-                    if (value != null) {
-                      yController.text = value.toStringAsFixed(0);
-                      updatePreviewTransform();
-                    }
-                  },
-                  mode: SpinButtonPlacementMode.inline,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Y Position:', style: ShadTheme.of(context).textTheme.small.copyWith(fontWeight: FontWeight.w500)),
+                  const SizedBox(height: 4),
+                  ShadInput(
+                    controller: yController,
+                    keyboardType: TextInputType.number,
+                    onChanged: (value) {
+                      final parsed = double.tryParse(value);
+                      if (parsed != null) {
+                        updatePreviewTransform();
+                      }
+                    },
+                  ),
+                ],
               ),
             ),
           ],
@@ -293,42 +299,48 @@ class InspectorPanel extends StatelessWidget with WatchItMixin {
         Row(
           children: [
             Expanded(
-              child: InfoLabel(
-                label: 'Width:',
-                child: NumberBox(
-                  value: currentWidth,
-                  onChanged: (value) {
-                    if (value != null) {
-                      widthController.text = value.toStringAsFixed(0);
-                      updatePreviewTransform();
-                    }
-                  },
-                  mode: SpinButtonPlacementMode.inline,
-                  min: 1, // Example minimum, adjust as needed
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Width:', style: ShadTheme.of(context).textTheme.small.copyWith(fontWeight: FontWeight.w500)),
+                  const SizedBox(height: 4),
+                  ShadInput(
+                    controller: widthController,
+                    keyboardType: TextInputType.number,
+                    onChanged: (value) {
+                      final parsed = double.tryParse(value);
+                      if (parsed != null && parsed >= 1) {
+                        updatePreviewTransform();
+                      }
+                    },
+                  ),
+                ],
               ),
             ),
             const SizedBox(width: 8),
             Expanded(
-              child: InfoLabel(
-                label: 'Height:',
-                child: NumberBox(
-                  value: currentHeight,
-                  onChanged: (value) {
-                    if (value != null) {
-                      heightController.text = value.toStringAsFixed(0);
-                      updatePreviewTransform();
-                    }
-                  },
-                  mode: SpinButtonPlacementMode.inline,
-                  min: 1, // Example minimum, adjust as needed
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Height:', style: ShadTheme.of(context).textTheme.small.copyWith(fontWeight: FontWeight.w500)),
+                  const SizedBox(height: 4),
+                  ShadInput(
+                    controller: heightController,
+                    keyboardType: TextInputType.number,
+                    onChanged: (value) {
+                      final parsed = double.tryParse(value);
+                      if (parsed != null && parsed >= 1) {
+                        updatePreviewTransform();
+                      }
+                    },
+                  ),
+                ],
               ),
             ),
           ],
         ),
         const SizedBox(height: 8),
-        Button(
+        ShadButton(
           child: const Text('Reset to Default'),
           onPressed: () {
             final defaultWidth =
@@ -366,7 +378,7 @@ class InspectorPanel extends StatelessWidget with WatchItMixin {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Effects', style: FluentTheme.of(context).typography.bodyStrong),
+        Text('Effects', style: ShadTheme.of(context).textTheme.large.copyWith(fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
         if (effects.isEmpty)
           const Text('No effects applied.')
@@ -385,7 +397,7 @@ class InspectorPanel extends StatelessWidget with WatchItMixin {
                 title: Text(effect.name),
                 subtitle: Text(effect.type.toString().split('.').last),
                 trailing: IconButton(
-                  icon: const Icon(FluentIcons.delete), // Consider styling
+                  icon: const Icon(LucideIcons.trash), // Consider styling
                   onPressed: () {
                     // TODO: Implement effect removal via ViewModel
                     logInfo(
@@ -400,7 +412,7 @@ class InspectorPanel extends StatelessWidget with WatchItMixin {
             // onReorder callback removed as we switched to ListView.builder
           ),
         const SizedBox(height: 8),
-        Button(
+        ShadButton(
           child: const Text('Add Effect'),
           onPressed: () {
             // TODO: Implement add effect functionality (e.g., show a dialog)

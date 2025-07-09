@@ -1,4 +1,5 @@
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter/material.dart';
 import 'package:flipedit/services/canvas_dimensions_service.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
 import 'package:watch_it/watch_it.dart';
@@ -40,7 +41,6 @@ class _ProjectSettingsPanelState extends State<ProjectSettingsPanel> {
   @override
   Widget build(BuildContext context) {
     final canvasDimensionsService = di<CanvasDimensionsService>();
-    final theme = FluentTheme.of(context);
 
     // Get the current dimensions
     final canvasWidth = canvasDimensionsService.canvasWidth;
@@ -54,75 +54,78 @@ class _ProjectSettingsPanelState extends State<ProjectSettingsPanel> {
       _heightController.text = canvasHeight.toInt().toString();
     }
 
-    return ScaffoldPage(
-      header: PageHeader(
+    return Scaffold(
+      backgroundColor: ShadTheme.of(context).colorScheme.background,
+      appBar: AppBar(
         title: const Text('Project Settings'),
-        commandBar: CommandBar(
-          mainAxisAlignment: MainAxisAlignment.end,
-          primaryItems: [
-            CommandBarButton(
-              icon: const Icon(FluentIcons.reset),
-              label: const Text('Reset to Default'),
-              onPressed: () {
-                canvasDimensionsService.resetToDefaults();
-                setState(() {
-                  _widthController.text =
-                      canvasDimensionsService.canvasWidth.toInt().toString();
-                  _heightController.text =
-                      canvasDimensionsService.canvasHeight.toInt().toString();
-                });
-                logger.logInfo('Reset dimensions to default values', _logTag);
-              },
+        backgroundColor: ShadTheme.of(context).colorScheme.card,
+        foregroundColor: ShadTheme.of(context).colorScheme.foreground,
+        actions: [
+          ShadButton(
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(LucideIcons.rotateCcw),
+                SizedBox(width: 8),
+                Text('Reset to Default'),
+              ],
             ),
-          ],
-        ),
+            onPressed: () {
+              canvasDimensionsService.resetToDefaults();
+              setState(() {
+                _widthController.text =
+                    canvasDimensionsService.canvasWidth.toInt().toString();
+                _heightController.text =
+                    canvasDimensionsService.canvasHeight.toInt().toString();
+              });
+              logger.logInfo('Reset dimensions to default values', _logTag);
+            },
+          ),
+        ],
       ),
-      content: SingleChildScrollView(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Project dimensions section
-            Text('Project Canvas Dimensions', style: theme.typography.subtitle),
+            Text(
+              'Project Canvas Dimensions',
+              style: ShadTheme.of(context).textTheme.large.copyWith(fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 8),
             Text(
               'Set the dimensions for your project canvas. This affects preview rendering and effects processing.',
-              style: theme.typography.body,
+              style: ShadTheme.of(context).textTheme.muted,
             ),
             const SizedBox(height: 16),
 
             // Current dimensions display
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: theme.resources.cardBackgroundFillColorSecondary,
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(
-                  color: theme.resources.controlStrokeColorDefault,
-                  width: 1,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(FluentIcons.video, color: theme.accentColor, size: 20),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: RichText(
-                      overflow: TextOverflow.ellipsis,
-                      text: TextSpan(
-                        style: theme.typography.body,
-                        children: [
-                          const TextSpan(text: 'Current dimensions: '),
-                          TextSpan(
-                            text:
-                                '${canvasWidth.toInt()} × ${canvasHeight.toInt()} px',
-                            style: theme.typography.bodyStrong,
-                          ),
-                        ],
+            ShadCard(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    Icon(LucideIcons.video, size: 20),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: RichText(
+                        overflow: TextOverflow.ellipsis,
+                        text: TextSpan(
+                          style: ShadTheme.of(context).textTheme.p,
+                          children: [
+                            const TextSpan(text: 'Current dimensions: '),
+                            TextSpan(
+                              text:
+                                  '${canvasWidth.toInt()} × ${canvasHeight.toInt()} px',
+                              style: ShadTheme.of(context).textTheme.p.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 24),
@@ -131,50 +134,58 @@ class _ProjectSettingsPanelState extends State<ProjectSettingsPanel> {
             Row(
               children: [
                 Expanded(
-                  child: InfoLabel(
-                    label: 'Width (pixels)',
-                    child: NumberBox<int>(
-                      value: canvasWidth.toInt(),
-                      mode: SpinButtonPlacementMode.inline,
-                      min: 320,
-                      max: 7680, // 8K
-                      onChanged: (value) {
-                        if (value != null && value > 0) {
-                          canvasDimensionsService.canvasWidth =
-                              value.toDouble();
-                          _widthController.text = value.toString();
-                          logger.logInfo(
-                            'Canvas width updated to $value px',
-                            _logTag,
-                          );
-                          setState(() {});
-                        }
-                      },
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Width (pixels)',
+                        style: const TextStyle(fontWeight: FontWeight.w500),
+                      ),
+                      const SizedBox(height: 4),
+                      ShadInput(
+                        controller: _widthController,
+                        keyboardType: TextInputType.number,
+                        onChanged: (value) {
+                          final intValue = int.tryParse(value);
+                          if (intValue != null && intValue >= 320 && intValue <= 7680) {
+                            canvasDimensionsService.canvasWidth = intValue.toDouble();
+                            logger.logInfo(
+                              'Canvas width updated to $intValue px',
+                              _logTag,
+                            );
+                            setState(() {});
+                          }
+                        },
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: InfoLabel(
-                    label: 'Height (pixels)',
-                    child: NumberBox<int>(
-                      value: canvasHeight.toInt(),
-                      mode: SpinButtonPlacementMode.inline,
-                      min: 240,
-                      max: 4320, // 8K
-                      onChanged: (value) {
-                        if (value != null && value > 0) {
-                          canvasDimensionsService.canvasHeight =
-                              value.toDouble();
-                          _heightController.text = value.toString();
-                          logger.logInfo(
-                            'Canvas height updated to $value px',
-                            _logTag,
-                          );
-                          setState(() {});
-                        }
-                      },
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Height (pixels)',
+                        style: const TextStyle(fontWeight: FontWeight.w500),
+                      ),
+                      const SizedBox(height: 4),
+                      ShadInput(
+                        controller: _heightController,
+                        keyboardType: TextInputType.number,
+                        onChanged: (value) {
+                          final intValue = int.tryParse(value);
+                          if (intValue != null && intValue >= 240 && intValue <= 4320) {
+                            canvasDimensionsService.canvasHeight = intValue.toDouble();
+                            logger.logInfo(
+                              'Canvas height updated to $intValue px',
+                              _logTag,
+                            );
+                            setState(() {});
+                          }
+                        },
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -182,53 +193,60 @@ class _ProjectSettingsPanelState extends State<ProjectSettingsPanel> {
             const SizedBox(height: 24),
 
             // Preset buttons
-            InfoLabel(
-              label: 'Common Presets',
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 600),
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    _PresetButton(
-                      label: 'HD (1280×720)',
-                      width: 1280,
-                      height: 720,
-                      onPressed: _updateDimensions,
-                    ),
-                    _PresetButton(
-                      label: 'Full HD (1920×1080)',
-                      width: 1920,
-                      height: 1080,
-                      onPressed: _updateDimensions,
-                    ),
-                    _PresetButton(
-                      label: '2K (2560×1440)',
-                      width: 2560,
-                      height: 1440,
-                      onPressed: _updateDimensions,
-                    ),
-                    _PresetButton(
-                      label: '4K (3840×2160)',
-                      width: 3840,
-                      height: 2160,
-                      onPressed: _updateDimensions,
-                    ),
-                    _PresetButton(
-                      label: 'Square (1080×1080)',
-                      width: 1080,
-                      height: 1080,
-                      onPressed: _updateDimensions,
-                    ),
-                    _PresetButton(
-                      label: 'Instagram (1080×1350)',
-                      width: 1080,
-                      height: 1350,
-                      onPressed: _updateDimensions,
-                    ),
-                  ],
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Common Presets',
+                  style: const TextStyle(fontWeight: FontWeight.w500),
                 ),
-              ),
+                const SizedBox(height: 8),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 600),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _PresetButton(
+                        label: 'HD (1280×720)',
+                        width: 1280,
+                        height: 720,
+                        onPressed: _updateDimensions,
+                      ),
+                      _PresetButton(
+                        label: 'Full HD (1920×1080)',
+                        width: 1920,
+                        height: 1080,
+                        onPressed: _updateDimensions,
+                      ),
+                      _PresetButton(
+                        label: '2K (2560×1440)',
+                        width: 2560,
+                        height: 1440,
+                        onPressed: _updateDimensions,
+                      ),
+                      _PresetButton(
+                        label: '4K (3840×2160)',
+                        width: 3840,
+                        height: 2160,
+                        onPressed: _updateDimensions,
+                      ),
+                      _PresetButton(
+                        label: 'Square (1080×1080)',
+                        width: 1080,
+                        height: 1080,
+                        onPressed: _updateDimensions,
+                      ),
+                      _PresetButton(
+                        label: 'Instagram (1080×1350)',
+                        width: 1080,
+                        height: 1350,
+                        onPressed: _updateDimensions,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -262,16 +280,12 @@ class _PresetButton extends StatelessWidget {
     required this.width,
     required this.height,
     required this.onPressed,
+    super.key,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Button(
-      style: ButtonStyle(
-        padding: ButtonState.all(
-          const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        ),
-      ),
+    return ShadButton(
       child: Text(label, style: const TextStyle(fontSize: 12)),
       onPressed: () => onPressed(width, height),
     );

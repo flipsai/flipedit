@@ -34,7 +34,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   drift: ^2.26.0
   file_picker: ^10.1.0
-  fluent_ui: ^4.11.2
+  shadcn_ui: ^0.27.2
   flutter:
     sdk: flutter
   # fvp: ^0.31.0 # Remove or comment out the pub.dev version

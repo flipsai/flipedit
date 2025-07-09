@@ -3,7 +3,6 @@ import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
 import 'timeline_command.dart';
 import 'package:watch_it/watch_it.dart';
-import '../timeline_viewmodel.dart';
 import 'package:flipedit/services/video_player_service.dart';
 import 'package:flipedit/src/rust/api/simple.dart';
 

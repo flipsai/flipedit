@@ -1,5 +1,6 @@
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart' as fw;
+import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
@@ -263,7 +264,7 @@ class _TrackContentWidgetState extends State<TrackContentWidget> {
             );
           }
 
-          final theme = FluentTheme.of(context);
+          final theme = ShadTheme.of(context);
 
           return Container(
             height: trackHeight,
@@ -272,10 +273,10 @@ class _TrackContentWidgetState extends State<TrackContentWidget> {
               color:
                   widget
                           .isSelected // Use isSelected from parent
-                      ? theme.accentColor.withValues(alpha: 0.1)
+                      ? theme.colorScheme.primary.withOpacity(0.1)
                       : candidateData.isNotEmpty
-                      ? theme.accentColor.lightest.withValues(alpha: 0.3)
-                      : theme.resources.subtleFillColorSecondary,
+                      ? theme.colorScheme.primary.withOpacity(0.3)
+                      : theme.colorScheme.muted,
             ),
             child: Stack(
               clipBehavior: fw.Clip.hardEdge,

@@ -1,4 +1,5 @@
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/material.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:watch_it/watch_it.dart';
 
 /// Panel for AI content generation
@@ -19,52 +20,66 @@ class GeneratePanel extends StatelessWidget with WatchItMixin {
           const SizedBox(height: 16),
           const Text('Create new content using AI.'),
           const SizedBox(height: 16),
-          InfoLabel(
-            label: 'Generation Type',
-            child: ComboBox<String>(
-              placeholder: const Text('Select type'),
-              isExpanded: true,
-              items: const [
-                ComboBoxItem<String>(value: 'image', child: Text('Image')),
-                ComboBoxItem<String>(value: 'video', child: Text('Video')),
-                ComboBoxItem<String>(value: 'audio', child: Text('Audio')),
-              ],
-              onChanged: (value) {
-                // Handle type selection
-              },
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Generation Type', style: TextStyle(fontWeight: FontWeight.w500)),
+              const SizedBox(height: 8),
+              ShadSelect<String>(
+                placeholder: const Text('Select type'),
+                options: const [
+                  ShadOption(value: 'image', child: Text('Image')),
+                  ShadOption(value: 'video', child: Text('Video')),
+                  ShadOption(value: 'audio', child: Text('Audio')),
+                ],
+                selectedOptionBuilder: (context, value) => Text(value),
+                onChanged: (value) {
+                  // Handle type selection
+                },
+              ),
+            ],
           ),
           const SizedBox(height: 16),
-          InfoLabel(
-            label: 'Prompt',
-            child: TextBox(
-              placeholder: 'Describe what you want to generate...',
-              maxLines: 5,
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Prompt', style: TextStyle(fontWeight: FontWeight.w500)),
+              const SizedBox(height: 8),
+              ShadInput(
+                controller: TextEditingController(),
+                placeholder: const Text('Describe what you want to generate...'),
+                maxLines: 5,
+              ),
+            ],
           ),
           const SizedBox(height: 16),
-          InfoLabel(
-            label: 'ComfyUI Workflow',
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextBox(
-                    placeholder: 'No workflow selected',
-                    readOnly: true,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('ComfyUI Workflow', style: TextStyle(fontWeight: FontWeight.w500)),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: ShadInput(
+                      controller: TextEditingController(text: 'No workflow selected'),
+                      readOnly: true,
+                      placeholder: const Text('No workflow selected'),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Button(
-                  child: const Text('Browse'),
-                  onPressed: () {
-                    // Handle browse workflow
-                  },
-                ),
-              ],
-            ),
+                  const SizedBox(width: 8),
+                  ShadButton(
+                    child: const Text('Browse'),
+                    onPressed: () {
+                      // Handle browse workflow
+                    },
+                  ),
+                ],
+              ),
+            ],
           ),
           const SizedBox(height: 24),
-          Button(
+          ShadButton(
             child: const Text('Generate'),
             onPressed: () {
               // Handle generate action

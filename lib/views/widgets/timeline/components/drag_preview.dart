@@ -1,7 +1,7 @@
-import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flutter/widgets.dart' as fw; // Alias needed if Fluent imported
-import 'package:flipedit/models/clip.dart'; // Import ClipModel
-import 'dart:developer' as developer; // Import for developer logging
+import 'package:flutter/material.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flipedit/models/clip.dart';
+import 'dart:developer' as developer;
 
 // Renamed from _DragPreview
 class DragPreview extends StatelessWidget {
@@ -20,7 +20,7 @@ class DragPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = FluentTheme.of(context);
+    final theme = ShadTheme.of(context);
     // Use the same track height constant
     const trackHeight = 65.0;
 
@@ -46,7 +46,7 @@ class DragPreview extends StatelessWidget {
         '${(timeAtDropPositionMs / 1000).toStringAsFixed(2)}s';
 
     return Stack(
-      clipBehavior: fw.Clip.none,
+      clipBehavior: Clip.none,
       children: [
         // Position indicator line
         Positioned(
@@ -54,7 +54,7 @@ class DragPreview extends StatelessWidget {
           top: 0,
           bottom: 0,
           width: 1,
-          child: Container(color: theme.accentColor.lighter),
+          child: Container(color: theme.colorScheme.primary.withOpacity(0.7)),
         ),
         // Preview rectangle
         Positioned(
@@ -64,9 +64,9 @@ class DragPreview extends StatelessWidget {
           width: previewWidth.clamp(2.0, double.infinity),
           child: Container(
             decoration: BoxDecoration(
-              color: theme.accentColor.normal.withValues(alpha: 0.5),
+              color: theme.colorScheme.primary.withOpacity(0.5),
               borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: theme.accentColor.normal, width: 2),
+              border: Border.all(color: theme.colorScheme.primary, width: 2),
             ),
             child: Center(
               child: Text(

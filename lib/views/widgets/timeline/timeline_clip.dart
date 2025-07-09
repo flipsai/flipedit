@@ -1,11 +1,13 @@
-import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:flipedit/models/clip.dart';
 import 'package:flipedit/models/enums/clip_type.dart';
 import 'package:flipedit/viewmodels/editor_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_viewmodel.dart';
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';
 import 'package:flipedit/viewmodels/commands/move_clip_command.dart';
+import 'package:flipedit/viewmodels/commands/remove_clip_command.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/services/timeline_clip_resize_service.dart';
 import 'package:flipedit/services/project_database_service.dart';
@@ -14,7 +16,6 @@ import 'package:flipedit/services/timeline_logic_service.dart';
 // Import extracted components
 import 'resize_clip_handle.dart';
 import 'clip_content_renderer.dart';
-import 'clip_context_menu.dart';
 
 /// A clip in the timeline track
 class TimelineClip extends StatefulWidget with WatchItStatefulWidgetMixin {
@@ -59,8 +60,6 @@ class _TimelineClipState extends State<TimelineClip> {
   // Service for resize logic
   final TimelineClipResizeService _resizeService = TimelineClipResizeService();
 
-  // Controller for the context menu flyout
-  final FlyoutController _contextMenuController = FlyoutController();
   
   // Flag to track if widget is being disposed
   bool _isDisposed = false;
@@ -93,7 +92,6 @@ class _TimelineClipState extends State<TimelineClip> {
   @override
   void dispose() {
     _isDisposed = true;
-    _contextMenuController.dispose();
     super.dispose();
   }
 
@@ -169,7 +167,7 @@ class _TimelineClipState extends State<TimelineClip> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = FluentTheme.of(context);
+    final theme = ShadTheme.of(context);
     final editorVm = di<EditorViewModel>();
     final timelineVm = di<TimelineViewModel>();
     final timelineNavVm =
@@ -284,7 +282,7 @@ class _TimelineClipState extends State<TimelineClip> {
     final baseClipColor = _clipTypeColors[widget.clip.type] ?? Colors.grey;
     final clipColor = baseClipColor;
     final contrastColor = _getContrastColor(clipColor);
-    final selectionBorderColor = theme.accentColor.normal;
+    final selectionBorderColor = theme.colorScheme.primary;
     const double borderRadiusValue = 10.0;
     const double borderWidth = 2.5;
     const double shadowBlur = 12.0;
@@ -294,140 +292,159 @@ class _TimelineClipState extends State<TimelineClip> {
       child: SizedBox(
         // Control visual width for resize preview
         width: finalVisualWidth,
-        child: FlyoutTarget(
-          controller: _contextMenuController,
-          child: GestureDetector(
-            dragStartBehavior: DragStartBehavior.start,
-            trackpadScrollCausesScale: false,
-            supportedDevices: const {
-              PointerDeviceKind.touch,
-              PointerDeviceKind.mouse,
-              PointerDeviceKind.stylus,
-              PointerDeviceKind.invertedStylus,
-            },
-            onTap: () {
-              timelineVm.selectedClipId = widget.clip.databaseId;
-              editorVm.selectedClipId = widget.clip.databaseId?.toString();
-            },
-            // --- Drag Handling for MOVEMENT ---
-            onHorizontalDragStart: _handleMoveStart,
-            onHorizontalDragUpdate: _handleMoveUpdate,
-            onHorizontalDragEnd: _handleMoveEnd,
-            // --- Context Menu ---
-            onSecondaryTapUp: (details) {
-              editorVm.selectedClipId = widget.clip.databaseId?.toString();
-              _contextMenuController.showFlyout(
-                barrierDismissible: true,
-                dismissWithEsc: true,
-                position: details.globalPosition,
-                builder: (context) => ClipContextMenu(clip: widget.clip),
-              );
-            },
-            // --- Clip Visual Container ---
-            child: Container(
-              // Using simple Container, AnimatedContainer might conflict with SizedBox width animation
-              // height: fixedClipHeight, // Let parent dictate height
-              padding: const EdgeInsets.all(borderWidth),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(borderRadiusValue),
-                border: Border.all(
-                  color:
-                      isSelected && _resizingDirection == null
-                          ? selectionBorderColor
-                          : clipColor.withAlpha(70),
-                  width:
-                      isSelected && _resizingDirection == null
-                          ? borderWidth
-                          : 1.0,
-                ),
-                boxShadow: [
-                  // Consistent shadow application
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.10),
-                    blurRadius: shadowBlur,
-                    offset: const Offset(0, 3),
-                  ),
-                  if (isSelected &&
-                      _resizingDirection ==
-                          null) // Only show selection glow if not resizing
-                    BoxShadow(
-                      color: selectionBorderColor.withValues(alpha: 0.25),
-                      blurRadius: shadowBlur * 1.2,
-                      spreadRadius: 1.5,
-                    ),
-                ],
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [clipColor.withAlpha(210), clipColor.withAlpha(160)],
-                ),
+        child: GestureDetector(
+          dragStartBehavior: DragStartBehavior.start,
+          trackpadScrollCausesScale: false,
+          supportedDevices: const {
+            PointerDeviceKind.touch,
+            PointerDeviceKind.mouse,
+            PointerDeviceKind.stylus,
+            PointerDeviceKind.invertedStylus,
+          },
+          onTap: () {
+            timelineVm.selectedClipId = widget.clip.databaseId;
+            editorVm.selectedClipId = widget.clip.databaseId?.toString();
+          },
+          // --- Drag Handling for MOVEMENT ---
+          onHorizontalDragStart: _handleMoveStart,
+          onHorizontalDragUpdate: _handleMoveUpdate,
+          onHorizontalDragEnd: _handleMoveEnd,
+          // --- Context Menu ---
+          onSecondaryTapUp: (details) {
+            editorVm.selectedClipId = widget.clip.databaseId?.toString();
+            // Show context menu placeholder
+            showMenu(
+              context: context,
+              position: RelativeRect.fromLTRB(
+                details.globalPosition.dx,
+                details.globalPosition.dy,
+                details.globalPosition.dx + 1,
+                details.globalPosition.dy + 1,
               ),
-              // --- Clip Content Stack (Handles, Content, Overlay) ---
-              child: Stack(
-                clipBehavior: Clip.hardEdge,
-                children: [
-                  // Main content visualization (clipped by SizedBox width)
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(borderRadiusValue - 2),
-                    child: ClipContentRenderer(
-                      clip: widget.clip,
-                      clipColor: clipColor,
-                      contrastColor: contrastColor,
-                      theme: theme,
-                    ),
+              items: [
+                PopupMenuItem(
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete, size: 16),
+                      SizedBox(width: 8),
+                      Text('Remove Clip'),
+                    ],
                   ),
-                  // Left resize handle
-                  Positioned(
-                    left: 0,
-                    top: 0,
-                    bottom: 0,
-                    width: 8,
-                    child: ResizeClipHandle(
-                      direction: 'left',
-                      clip: widget.clip,
-                      pixelsPerFrame: pixelsPerFrame,
-                      onDragStart: () => _handleResizeStart('left'),
-                      onDragUpdate: (delta) => _handleResizeUpdate(delta),
-                      onDragEnd:
-                          (finalDelta) => _handleResizeEnd('left', finalDelta),
-                    ),
+                  onTap: () {
+                    if (widget.clip.databaseId != null) {
+                      timelineVm.runCommand(
+                        RemoveClipCommand(vm: timelineVm, clipId: widget.clip.databaseId!),
+                      );
+                    }
+                  },
+                ),
+              ],
+            );
+          },
+          // --- Clip Visual Container ---
+          child: Container(
+            // Using simple Container, AnimatedContainer might conflict with SizedBox width animation
+            // height: fixedClipHeight, // Let parent dictate height
+            padding: const EdgeInsets.all(borderWidth),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(borderRadiusValue),
+              border: Border.all(
+                color:
+                    isSelected && _resizingDirection == null
+                        ? selectionBorderColor
+                        : clipColor.withAlpha(70),
+                width:
+                    isSelected && _resizingDirection == null
+                        ? borderWidth
+                        : 1.0,
+              ),
+              boxShadow: [
+                // Consistent shadow application
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.10),
+                  blurRadius: shadowBlur,
+                  offset: const Offset(0, 3),
+                ),
+                if (isSelected &&
+                    _resizingDirection ==
+                        null) // Only show selection glow if not resizing
+                  BoxShadow(
+                    color: selectionBorderColor.withValues(alpha: 0.25),
+                    blurRadius: shadowBlur * 1.2,
+                    spreadRadius: 1.5,
                   ),
-                  // Right resize handle
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    bottom: 0,
-                    width: 8,
-                    child: ResizeClipHandle(
-                      direction: 'right',
-                      clip: widget.clip,
-                      pixelsPerFrame: pixelsPerFrame,
-                      onDragStart: () => _handleResizeStart('right'),
-                      onDragUpdate: (delta) => _handleResizeUpdate(delta),
-                      onDragEnd:
-                          (finalDelta) => _handleResizeEnd('right', finalDelta),
-                    ),
+              ],
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [clipColor.withAlpha(210), clipColor.withAlpha(160)],
+              ),
+            ),
+            // --- Clip Content Stack (Handles, Content, Overlay) ---
+            child: Stack(
+              clipBehavior: Clip.hardEdge,
+              children: [
+                // Main content visualization (clipped by SizedBox width)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(borderRadiusValue - 2),
+                  child: ClipContentRenderer(
+                    clip: widget.clip,
+                    clipColor: clipColor,
+                    contrastColor: contrastColor,
+                    theme: theme,
                   ),
-                  // Info overlay at bottom
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    child: Container(
-                      height: 16,
-                      margin: const EdgeInsets.only(bottom: 2),
-                      padding: const EdgeInsets.symmetric(horizontal: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.09),
-                        borderRadius: BorderRadius.only(
-                          bottomLeft: Radius.circular(borderRadiusValue - 1),
-                          bottomRight: Radius.circular(borderRadiusValue - 1),
-                        ),
+                ),
+                // Left resize handle
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: 8,
+                  child: ResizeClipHandle(
+                    direction: 'left',
+                    clip: widget.clip,
+                    pixelsPerFrame: pixelsPerFrame,
+                    onDragStart: () => _handleResizeStart('left'),
+                    onDragUpdate: (delta) => _handleResizeUpdate(delta),
+                    onDragEnd:
+                        (finalDelta) => _handleResizeEnd('left', finalDelta),
+                  ),
+                ),
+                // Right resize handle
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: 8,
+                  child: ResizeClipHandle(
+                    direction: 'right',
+                    clip: widget.clip,
+                    pixelsPerFrame: pixelsPerFrame,
+                    onDragStart: () => _handleResizeStart('right'),
+                    onDragUpdate: (delta) => _handleResizeUpdate(delta),
+                    onDragEnd:
+                        (finalDelta) => _handleResizeEnd('right', finalDelta),
+                  ),
+                ),
+                // Info overlay at bottom
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    height: 16,
+                    margin: const EdgeInsets.only(bottom: 2),
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.09),
+                      borderRadius: BorderRadius.only(
+                        bottomLeft: Radius.circular(borderRadiusValue - 1),
+                        bottomRight: Radius.circular(borderRadiusValue - 1),
                       ),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
