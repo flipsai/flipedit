@@ -266,78 +266,82 @@ class _TrackContentWidgetState extends State<TrackContentWidget> {
 
           final theme = ShadTheme.of(context);
 
-          return Container(
-            height: trackHeight,
-            margin: EdgeInsets.zero,
-            decoration: BoxDecoration(
-              color:
-                  widget
-                          .isSelected // Use isSelected from parent
-                      ? theme.colorScheme.primary.withOpacity(0.1)
-                      : candidateData.isNotEmpty
-                      ? theme.colorScheme.primary.withOpacity(0.3)
-                      : theme.colorScheme.muted,
-            ),
-            child: Stack(
-              clipBehavior: fw.Clip.hardEdge,
-              children: [
-                Positioned.fill(child: TrackBackground(zoom: widget.zoom)),
+          return RepaintBoundary(
+            child: Container(
+              height: trackHeight,
+              margin: EdgeInsets.zero,
+              decoration: BoxDecoration(
+                color:
+                    widget
+                            .isSelected // Use isSelected from parent
+                        ? theme.colorScheme.primary.withOpacity(0.1)
+                        : candidateData.isNotEmpty
+                        ? theme.colorScheme.primary.withOpacity(0.3)
+                        : theme.colorScheme.muted,
+              ),
+              child: Stack(
+                clipBehavior: fw.Clip.hardEdge,
+                children: [
+                  Positioned.fill(child: TrackBackground(zoom: widget.zoom)),
 
-                if (candidateData.isNotEmpty && frameForPreview >= 0)
-                  ..._getPreviewClipsFromViewModel(
-                    candidateData.first!,
-                    frameForPreview,
-                    widget.zoom,
-                    trackHeight,
-                  )
-                else
-                  ...widget.clips.whereType<ClipModel>().map((clip) {
-                    final leftPosition = clip.startFrame * widget.zoom * 5.0;
-                    final clipWidth = clip.durationFrames * widget.zoom * 5.0;
-                    return Positioned(
-                      left: leftPosition,
-                      top: 0,
-                      height: trackHeight,
-                      width: clipWidth.clamp(4.0, double.infinity),
-                      child: TimelineClip(
-                        key: ValueKey(clip.databaseId ?? clip.sourcePath),
-                        clip: clip,
-                        trackId: widget.trackId,
-                        onResizeUpdate: _handleClipResizeUpdate,
-                        onResizeEnd: _handleClipResizeEnd,
-                      ),
-                    );
-                  }),
+                  if (candidateData.isNotEmpty && frameForPreview >= 0)
+                    ..._getPreviewClipsFromViewModel(
+                      candidateData.first!,
+                      frameForPreview,
+                      widget.zoom,
+                      trackHeight,
+                    )
+                  else
+                    ...widget.clips.whereType<ClipModel>().map((clip) {
+                      final leftPosition = clip.startFrame * widget.zoom * 5.0;
+                      final clipWidth = clip.durationFrames * widget.zoom * 5.0;
+                      return Positioned(
+                        left: leftPosition,
+                        top: 0,
+                        height: trackHeight,
+                        width: clipWidth.clamp(4.0, double.infinity),
+                        child: RepaintBoundary(
+                          child: TimelineClip(
+                            key: ValueKey(clip.databaseId ?? clip.sourcePath),
+                            clip: clip,
+                            trackId: widget.trackId,
+                            onResizeUpdate: _handleClipResizeUpdate,
+                            onResizeEnd: _handleClipResizeEnd,
+                          ),
+                        ),
+                      );
+                    }),
 
-                if (_resizePreviewRect != null)
-                  Positioned.fromRect(
-                    rect: _resizePreviewRect!,
-                    child: IgnorePointer(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.yellow.withValues(alpha: 0.25),
-                          borderRadius: BorderRadius.circular(10.0),
+                  if (_resizePreviewRect != null)
+                    Positioned.fromRect(
+                      rect: _resizePreviewRect!,
+                      child: IgnorePointer(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.yellow.withValues(alpha: 0.25),
+                            borderRadius: BorderRadius.circular(10.0),
+                          ),
                         ),
                       ),
                     ),
-                  ),
 
-                if (frameForPreview >= 0 && timeForPreviewMs >= 0)
-                  DragPreview(
-                    candidateData: candidateData,
-                    zoom: widget.zoom,
-                    frameAtDropPosition: frameForPreview,
-                    timeAtDropPositionMs: timeForPreviewMs,
-                  ),
+                  if (frameForPreview >= 0 && timeForPreviewMs >= 0)
+                    DragPreview(
+                      candidateData: candidateData,
+                      zoom: widget.zoom,
+                      frameAtDropPosition: frameForPreview,
+                      timeAtDropPositionMs: timeForPreviewMs,
+                    ),
 
-                if (candidateData.isEmpty)
-                  ..._buildRollEditHandles(
-                    widget.clips,
-                    widget.zoom,
-                    widget.timelineViewModel,
-                    trackHeight,
-                  ),
-              ],
+                  if (candidateData.isEmpty)
+                    ..._buildRollEditHandles(
+                      widget.clips,
+                      widget.zoom,
+                      widget.timelineViewModel,
+                      trackHeight,
+                    ),
+                ],
+              ),
             ),
           );
         },

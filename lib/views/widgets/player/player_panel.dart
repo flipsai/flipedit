@@ -1,9 +1,6 @@
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:watch_it/watch_it.dart';
-import 'dart:io';
-
-import 'package:flipedit/utils/logger.dart';
 import 'package:flipedit/widgets/video_player_widget.dart';
 import 'package:flipedit/services/video_player_service.dart';
 import 'package:flipedit/viewmodels/timeline_navigation_viewmodel.dart';

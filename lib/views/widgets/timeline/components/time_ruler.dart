@@ -1,39 +1,38 @@
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:flutter/material.dart';
-import 'package:watch_it/watch_it.dart';
 import 'dart:math' as math;
-// Import for ClipModel
-import '../../../../services/project_database_service.dart';
-// Import for Track
-import '../../../../utils/logger.dart' as logger;
+import 'dart:ui' as ui;
 
 /// A ruler widget that displays frame numbers and tick marks for the timeline using CustomPaint
 class TimeRuler extends StatelessWidget {
   final double zoom;
   final double availableWidth;
+  final bool hasTracks;
 
   const TimeRuler({
     super.key,
     required this.zoom,
     required this.availableWidth,
+    required this.hasTracks,
   });
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is TimeRuler &&
+        other.zoom == zoom &&
+        other.availableWidth == availableWidth &&
+        other.hasTracks == hasTracks;
+  }
+
+  @override
+  int get hashCode => Object.hash(zoom, availableWidth, hasTracks);
 
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
 
-    // Get access to the database service directly
-    final databaseService = di<ProjectDatabaseService>();
-
-    // Simple direct check for tracks - this happens on every build
-    final hasTracks = databaseService.tracksNotifier.value.isNotEmpty;
     final isEmpty = !hasTracks;
-
-    // Log the current state
-    logger.logInfo(
-      'TimeRuler',
-      'Building TimeRuler - hasTracks: $hasTracks, isEmpty: $isEmpty',
-    );
 
     // Return the entire widget based on this simple check
     return Container(
@@ -149,6 +148,12 @@ class TimeRulerPainter extends CustomPainter {
     if (minorTickSpacing <= 0) return;
 
     final int numMinorTicks = (size.width / minorTickSpacing).ceil();
+    final double canvasHeight = size.height;
+
+    // Pre-calculate offsets to reduce object creation
+    final List<Offset> minorTickOffsets = [];
+    final List<Offset> majorTickOffsets = [];
+    final List<double> majorTickXPositions = [];
 
     for (int i = 0; i <= numMinorTicks; i++) {
       final double second = i * secondsPerMinorTick;
@@ -156,15 +161,36 @@ class TimeRulerPainter extends CustomPainter {
 
       final bool isMajorTick = (second % secondsPerMajorTick).abs() < 1e-6;
       final double tickHeight = isMajorTick ? majorTickHeight : minorTickHeight;
-      final Paint paintToUse = isMajorTick ? majorTickPaint : minorTickPaint;
 
-      canvas.drawLine(
-        Offset(x, size.height),
-        Offset(x, size.height - tickHeight),
-        paintToUse,
-      );
+      final Offset startOffset = Offset(x, canvasHeight);
+      final Offset endOffset = Offset(x, canvasHeight - tickHeight);
 
-      if (isMajorTick && textStyle != null) {
+      if (isMajorTick) {
+        majorTickOffsets.add(startOffset);
+        majorTickOffsets.add(endOffset);
+        majorTickXPositions.add(x);
+      } else {
+        minorTickOffsets.add(startOffset);
+        minorTickOffsets.add(endOffset);
+      }
+    }
+
+    // Draw all minor ticks at once
+    if (minorTickOffsets.isNotEmpty) {
+      canvas.drawPoints(ui.PointMode.lines, minorTickOffsets, minorTickPaint);
+    }
+
+    // Draw all major ticks at once
+    if (majorTickOffsets.isNotEmpty) {
+      canvas.drawPoints(ui.PointMode.lines, majorTickOffsets, majorTickPaint);
+    }
+
+    // Draw text labels for major ticks
+    if (textStyle != null && majorTickSpacing > textPadding) {
+      for (int i = 0; i < majorTickXPositions.length; i++) {
+        final double x = majorTickXPositions[i];
+        final double second = (x / pixelsPerSecond);
+        
         String label =
             (secondsPerMinorTick < 1 && second.truncateToDouble() != second)
                 ? second.toStringAsFixed(1)

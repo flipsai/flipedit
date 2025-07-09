@@ -193,12 +193,14 @@ class _TimelineContent extends StatelessWidget with WatchItMixin {
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
+                // Cache expensive calculations
                 final double contentWidth = timelineEnd * zoom * framePixelWidth;
                 final double totalScrollableWidth = math.max(
                   viewportWidth,
                   contentWidth + trackLabelWidth,
                 );
                 final double availableHeight = constraints.maxHeight;
+                final double timelineContentWidth = totalScrollableWidth - trackLabelWidth;
 
                 return ClipRect(
                   child: Stack(
@@ -208,9 +210,12 @@ class _TimelineContent extends StatelessWidget with WatchItMixin {
                         SizedBox(
                           height: timeRulerHeight,
                           width: viewportWidth,
-                          child: TimeRuler(
-                            zoom: zoom,
-                            availableWidth: viewportWidth - trackLabelWidth,
+                          child: RepaintBoundary(
+                            child: TimeRuler(
+                              zoom: zoom,
+                              availableWidth: viewportWidth - trackLabelWidth,
+                              hasTracks: tracks.isNotEmpty,
+                            ),
                           ),
                         ),
 
@@ -246,14 +251,13 @@ class _TimelineContent extends StatelessWidget with WatchItMixin {
                                             ),
                                             child: SizedBox(
                                               height: timeRulerHeight,
-                                              width:
-                                                  totalScrollableWidth -
-                                                  trackLabelWidth,
-                                              child: TimeRuler(
-                                                zoom: zoom,
-                                                availableWidth:
-                                                    totalScrollableWidth -
-                                                    trackLabelWidth,
+                                              width: timelineContentWidth,
+                                              child: RepaintBoundary(
+                                                child: TimeRuler(
+                                                  zoom: zoom,
+                                                  availableWidth: timelineContentWidth,
+                                                  hasTracks: tracks.isNotEmpty,
+                                                ),
                                               ),
                                             ),
                                           ),
