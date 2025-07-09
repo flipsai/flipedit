@@ -12,6 +12,7 @@ import 'resizable_split_widget.dart';
 class TabLineWidget extends StatefulWidget {
   final TabLine tabLine;
   final bool isLast;
+  final bool isPrimary;
   final Function(String tabId)? onTabSelected;
   final Function(String tabId)? onTabClosed;
 
@@ -19,6 +20,7 @@ class TabLineWidget extends StatefulWidget {
     super.key,
     required this.tabLine,
     this.isLast = false,
+    this.isPrimary = false,
     this.onTabSelected,
     this.onTabClosed,
   });
@@ -51,15 +53,17 @@ class _TabLineWidgetState extends State<TabLineWidget> {
     
     if (widget.tabLine.tabColumns.length == 1) {
       // Single column - no dividers needed
-      return _buildTabColumn(context, widget.tabLine.tabColumns.first, tabSystem);
+      return _buildTabColumn(context, widget.tabLine.tabColumns.first, tabSystem, isPrimary: widget.isPrimary);
     }
     
     // Multiple columns - use resizable split widget
     return ResizableSplitWidget(
       axis: Axis.horizontal,
-      children: widget.tabLine.tabColumns.map((column) {
+      children: widget.tabLine.tabColumns.asMap().entries.map((entry) {
+        final index = entry.key;
+        final column = entry.value;
         return ResizableSplitItem(
-          child: _buildTabColumn(context, column, tabSystem),
+          child: _buildTabColumn(context, column, tabSystem, isPrimary: widget.isPrimary && index == 0),
           initialWeight: tabSystem.panelSizes[column.id] ?? 1.0,
         );
       }).toList(),
@@ -71,7 +75,7 @@ class _TabLineWidgetState extends State<TabLineWidget> {
     );
   }
 
-  Widget _buildTabColumn(BuildContext context, TabGroup column, TabSystemViewModel tabSystem) {
+  Widget _buildTabColumn(BuildContext context, TabGroup column, TabSystemViewModel tabSystem, {bool isPrimary = false}) {
     return DragTarget<TabDragData>(
       onWillAcceptWithDetails: (details) {
         return details.data.sourceGroupId != column.id;
@@ -91,6 +95,7 @@ class _TabLineWidgetState extends State<TabLineWidget> {
           child: Column(
             children: [
               TabBarWidget(
+                isPrimary: isPrimary,
                 tabGroup: column,
                 onTabSelected: (tabId) {
                   tabSystem.setActiveTab(tabId);

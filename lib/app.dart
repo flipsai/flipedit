@@ -12,8 +12,9 @@ import 'package:flipedit/views/widgets/app_menu_bar.dart';
 import 'package:window_manager/window_manager.dart';
 
 class FlipEditApp extends StatelessWidget with WatchItMixin {
-  FlipEditApp({super.key});
+  FlipEditApp({super.key, this.navigatorKey});
 
+  final GlobalKey<NavigatorState>? navigatorKey;
   final _logTag = 'FlipEditApp';
 
   @override
@@ -21,10 +22,6 @@ class FlipEditApp extends StatelessWidget with WatchItMixin {
     // Set global context immediately in build method
     GlobalContext.setContext(context);
     logger.logInfo('Global context set in build method', _logTag);
-
-    final editorVm = di<EditorViewModel>();
-    final projectVm = di<ProjectViewModel>();
-    final timelineVm = di<TimelineViewModel>();
 
     final currentProject = watchValue(
       (ProjectViewModel vm) => vm.currentProjectNotifier,
@@ -46,43 +43,31 @@ class FlipEditApp extends StatelessWidget with WatchItMixin {
       );
     });
 
-    Widget homeWidget;
-    const bool isTestMode = bool.fromEnvironment('TEST_MODE');
-
-    if ((Platform.isMacOS || Platform.isWindows) && !isTestMode) {
+    // Determine the root widget based on the platform.
+    // For macOS, we wrap the app in a PlatformMenuBar.
+    Widget homeWidget = EditorScreen();
+    if (Platform.isMacOS || Platform.isWindows) {
       homeWidget = PlatformAppMenuBar(
-        editorVm: editorVm,
-        projectVm: projectVm,
-        timelineVm: timelineVm,
-        child: const EditorScreen(),
-      );
-    } else {
-      homeWidget = Scaffold(
-        appBar: AppBar(
-          title: const Text('FlipEdit'),
-          actions: [
-            AppMenuBar(
-              editorVm: editorVm,
-              projectVm: projectVm,
-              timelineVm: timelineVm,
-            ),
-          ],
-        ),
-        body: const EditorScreen(),
+        editorVm: di<EditorViewModel>(),
+        projectVm: di<ProjectViewModel>(),
+        timelineVm: di<TimelineViewModel>(),
+        child: EditorScreen(),
       );
     }
 
     return ShadApp.custom(
-      theme: ShadThemeData(
-        brightness: Brightness.light,
-        colorScheme: ShadColorScheme.fromName('blue', brightness: Brightness.light),
-      ),
       darkTheme: ShadThemeData(
         brightness: Brightness.dark,
-        colorScheme: ShadColorScheme.fromName('blue', brightness: Brightness.dark),
+        colorScheme: const ShadSlateColorScheme.dark(),
+      ),
+      theme: ShadThemeData(
+        brightness: Brightness.light,
+        colorScheme: const ShadSlateColorScheme.light(),
       ),
       themeMode: ThemeMode.dark, // Force dark theme
       appBuilder: (context) => MaterialApp(
+        navigatorKey: navigatorKey,
+        debugShowCheckedModeBanner: false,
         title: windowTitle,
         theme: ThemeData(
           brightness: Brightness.dark,

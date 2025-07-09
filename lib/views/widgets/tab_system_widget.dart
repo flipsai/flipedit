@@ -111,6 +111,7 @@ class _TabSystemWidgetState extends State<TabSystemWidget> {
     return Column(
       children: [
         TabBarWidget(
+          isPrimary: true,
           tabGroup: group,
           onTabSelected: (tabId) {
             tabSystem.setActiveTab(tabId);
@@ -144,6 +145,7 @@ class _TabSystemWidgetState extends State<TabSystemWidget> {
       // Single line - no dividers needed
       return TabLineWidget(
         tabLine: tabLines.first,
+        isPrimary: true,
         isLast: true,
         onTabSelected: widget.onTabSelected,
         onTabClosed: widget.onTabClosed,
@@ -161,6 +163,7 @@ class _TabSystemWidgetState extends State<TabSystemWidget> {
         return ResizableSplitItem(
           child: TabLineWidget(
             tabLine: tabLine,
+            isPrimary: index == 0,
             isLast: isLast,
             onTabSelected: widget.onTabSelected,
             onTabClosed: widget.onTabClosed,

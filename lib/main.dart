@@ -116,38 +116,7 @@ Future<void> main() async {
   // Create a global navigator key to access BuildContext
   final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
   
-  // Create a wrapper MaterialApp to ensure global context is accessible early
-  final app = MaterialApp(
-    navigatorKey: navigatorKey,
-    // Apply theme to match the main app
-    theme: ThemeData(
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: Colors.blue,
-        brightness: Brightness.dark,
-      ),
-      brightness: Brightness.dark,
-      visualDensity: VisualDensity.standard,
-    ),
-    darkTheme: ThemeData(
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: Colors.blue,
-        brightness: Brightness.dark,
-      ),
-      brightness: Brightness.dark,
-      visualDensity: VisualDensity.standard,
-    ),
-    themeMode: ThemeMode.dark, // Force dark theme
-    home: Builder(
-      builder: (context) {
-        // Set global context as early as possible in the app lifecycle
-        GlobalContext.setContext(context);
-        logInfo('main', 'Global context initialized in wrapper app');
-        return FlipEditApp();
-      },
-    ),
-  );
-
-  runApp(app);
+  runApp(FlipEditApp(navigatorKey: navigatorKey));
   
   // Ensure GlobalContext is set after first frame
   WidgetsBinding.instance.addPostFrameCallback((_) {
