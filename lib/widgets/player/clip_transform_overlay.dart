@@ -50,6 +50,11 @@ class _ClipTransformOverlayState extends State<ClipTransformOverlay> {
   bool actionLocked = false;
   late double originalAspectRatio;
   bool isShiftPressed = false;
+  
+  // Throttling for Rust updates
+  static const Duration _updateThrottleInterval = Duration(milliseconds: 16); // ~60 FPS
+  DateTime _lastUpdateTime = DateTime.now();
+  bool _hasPendingUpdate = false;
 
   @override
   void initState() {
@@ -174,6 +179,9 @@ class _ClipTransformOverlayState extends State<ClipTransformOverlay> {
       initialRect = null;
       actionLocked = false;
     });
+    
+    // Send final position to Rust immediately on end
+    _notifyTransformChanged();
     
     widget.onTransformEnd?.call();
     logDebug('Ended transform operation', 'ClipTransformOverlay');
@@ -383,19 +391,37 @@ class _ClipTransformOverlayState extends State<ClipTransformOverlay> {
     widget.onTransformChanged(videoTransform);
   }
   
-  // Deferred update to reduce lag during drag operations
+  // Throttled update to reduce Rust calls during drag operations
   void _deferredNotifyTransformChanged() {
     // Update the UI immediately for visual feedback
     if (mounted) {
       setState(() {});
     }
     
-    // Defer the coordinate conversion to next frame
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _notifyTransformChanged();
-      }
-    });
+    // Throttle Rust updates to avoid lag
+    final now = DateTime.now();
+    if (now.difference(_lastUpdateTime) >= _updateThrottleInterval) {
+      _lastUpdateTime = now;
+      _hasPendingUpdate = false;
+      
+      // Immediate update for first call or after throttle interval
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _notifyTransformChanged();
+        }
+      });
+    } else if (!_hasPendingUpdate) {
+      _hasPendingUpdate = true;
+      
+      // Schedule delayed update
+      Future.delayed(_updateThrottleInterval - now.difference(_lastUpdateTime), () {
+        if (mounted && _hasPendingUpdate) {
+          _lastUpdateTime = DateTime.now();
+          _hasPendingUpdate = false;
+          _notifyTransformChanged();
+        }
+      });
+    }
   }
 
   ResizeHandle? _getResizeHandle(Offset position) {
