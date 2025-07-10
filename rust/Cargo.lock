@@ -704,6 +704,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4271d37baee1b8c7e4b708028c57d816cf9d2434acb33a549475f78c181f6253"
 
 [[package]]
+name = "gio"
+version = "0.20.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8e27e276e7b6b8d50f6376ee7769a71133e80d093bdc363bd0af71664228b831"
+dependencies = [
+ "futures-channel",
+ "futures-core",
+ "futures-io",
+ "futures-util",
+ "gio-sys",
+ "glib",
+ "libc",
+ "pin-project-lite",
+ "smallvec",
+]
+
+[[package]]
 name = "gio-sys"
 version = "0.20.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -903,6 +920,36 @@ checksum = "87f2fb0037b6d3c5b51f60dea11e667910f33be222308ca5a101450018a09840"
 dependencies = [
  "glib-sys 0.20.10",
  "gobject-sys 0.20.10",
+ "gstreamer-sys",
+ "libc",
+ "system-deps 7.0.5",
+]
+
+[[package]]
+name = "gstreamer-editing-services"
+version = "0.23.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b06578fc84ae2699f052c7eee0098490876b21f27d838245b693f32b44848ff9"
+dependencies = [
+ "gio",
+ "glib",
+ "gstreamer",
+ "gstreamer-base",
+ "gstreamer-editing-services-sys",
+ "gstreamer-pbutils",
+ "libc",
+]
+
+[[package]]
+name = "gstreamer-editing-services-sys"
+version = "0.23.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b5405ed85523dd06aa620c0a272ef080ccebc0e13eca7ff915b38ea277e9243"
+dependencies = [
+ "gio-sys",
+ "glib-sys 0.20.10",
+ "gobject-sys 0.20.10",
+ "gstreamer-pbutils-sys",
  "gstreamer-sys",
  "libc",
  "system-deps 7.0.5",
@@ -1734,6 +1781,7 @@ dependencies = [
  "gstreamer",
  "gstreamer-app",
  "gstreamer-audio",
+ "gstreamer-editing-services",
  "gstreamer-gl",
  "gstreamer-pbutils",
  "gstreamer-video",

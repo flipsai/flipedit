@@ -47,3 +47,5 @@ app.*.map.json
 /android/app/release
 
 /assets/build
+
+ges_doc_text

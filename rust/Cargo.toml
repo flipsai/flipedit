@@ -28,6 +28,7 @@ irondash_engine_context = { git = "https://github.com/irondash/irondash.git", re
 irondash_texture = { git = "https://github.com/irondash/irondash.git", rev = "65343873472d6796c0388362a8e04b6e9a499044", package = "irondash_texture" }
 # Run loop utilities for irondash
 irondash_run_loop = { git = "https://github.com/irondash/irondash.git", rev = "65343873472d6796c0388362a8e04b6e9a499044", package = "irondash_run_loop" }
+gstreamer-editing-services = "0.23.5"
 
 [target.'cfg(target_os = "android")'.dependencies]
 android_logger = "0.14"
