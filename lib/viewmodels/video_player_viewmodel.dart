@@ -4,6 +4,7 @@ import 'package:flipedit/src/rust/api/simple.dart';
 import 'package:flipedit/src/rust/common/types.dart';
 import 'package:flipedit/services/video_player_service.dart';
 import 'package:flipedit/services/project_database_service.dart';
+import 'package:flipedit/services/ges_timeline_service.dart';
 import 'package:flipedit/utils/logger.dart';
 import 'package:irondash_engine_context/irondash_engine_context.dart';
 import 'package:watch_it/watch_it.dart';
@@ -56,13 +57,68 @@ class VideoPlayerViewModel {
   }
 
   Future<TimelineData> buildTimelineData() async {
+    try {
+      // Get timeline data from GES service instead of database
+      final gesTimelineService = di<GESTimelineService>();
+      
+      // Ensure GES timeline is initialized
+      if (!gesTimelineService.isInitialized) {
+        await gesTimelineService.initialize();
+      }
+      
+      // Get clips from GES timeline
+      final gesClips = await gesTimelineService.getTimelineData();
+      
+      // If GES timeline is empty, fall back to database clips
+      if (gesClips.isEmpty) {
+        logInfo('VideoPlayerViewModel', 'GES timeline empty, falling back to database clips');
+        return await _buildTimelineDataFromDatabase();
+      }
+      
+      // Group clips by track
+      final Map<int, List<TimelineClip>> clipsByTrack = {};
+      for (final clip in gesClips) {
+        clipsByTrack.putIfAbsent(clip.trackId, () => []).add(clip);
+      }
+      
+      // Build timeline tracks
+      List<TimelineTrack> timelineTracks = [];
+      final projectDatabaseService = di<ProjectDatabaseService>();
+      final tracks = projectDatabaseService.tracksNotifier.value;
+      
+      for (final track in tracks) {
+        final clips = clipsByTrack[track.id] ?? [];
+        
+        // DEBUG: Log transform values being passed to Rust
+        for (final clip in clips) {
+          logInfo('VideoPlayerViewModel',
+            'GES Clip ${clip.id} transforms: X=${clip.previewPositionX}, Y=${clip.previewPositionY}, W=${clip.previewWidth}, H=${clip.previewHeight}');
+        }
+        
+        timelineTracks.add(TimelineTrack(
+          id: track.id,
+          name: track.name,
+          clips: clips,
+        ));
+      }
+      
+      logInfo('VideoPlayerViewModel', 'Built timeline data from GES: ${timelineTracks.length} tracks, ${gesClips.length} total clips');
+      return TimelineData(tracks: timelineTracks);
+    } catch (e) {
+      logError('VideoPlayerViewModel', 'Failed to build timeline data from GES: $e');
+      return await _buildTimelineDataFromDatabase();
+    }
+  }
+
+  /// Build timeline data from database as fallback
+  Future<TimelineData> _buildTimelineDataFromDatabase() async {
     final projectDatabaseService = di<ProjectDatabaseService>();
     final tracks = projectDatabaseService.tracksNotifier.value;
     
     List<TimelineTrack> timelineTracks = [];
     
     for (final track in tracks) {
-      // Get clips for this track
+      // Get clips for this track from database
       final clipRows = await projectDatabaseService.clipDao?.getClipsForTrack(track.id) ?? [];
       
       final clips = clipRows.map((clipRow) => TimelineClip(
@@ -79,12 +135,6 @@ class VideoPlayerViewModel {
         previewHeight: clipRow.previewHeight,
       )).toList();
       
-      // DEBUG: Log transform values being passed to Rust
-      for (final clip in clips) {
-        logInfo('VideoPlayerViewModel',
-          'Clip ${clip.id} transforms: X=${clip.previewPositionX}, Y=${clip.previewPositionY}, W=${clip.previewWidth}, H=${clip.previewHeight}');
-      }
-      
       timelineTracks.add(TimelineTrack(
         id: track.id,
         name: track.name,
@@ -92,6 +142,7 @@ class VideoPlayerViewModel {
       ));
     }
     
+    logInfo('VideoPlayerViewModel', 'Built timeline data from database fallback: ${timelineTracks.length} tracks, ${timelineTracks.fold(0, (sum, track) => sum + track.clips.length)} total clips');
     return TimelineData(tracks: timelineTracks);
   }
 

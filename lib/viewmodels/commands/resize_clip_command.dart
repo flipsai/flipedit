@@ -9,7 +9,7 @@ import 'package:flipedit/persistence/database/project_database.dart'
     show ChangeLog;
 import 'package:flipedit/utils/logger.dart' as logger;
 import 'package:collection/collection.dart';
-import '../../services/timeline_logic_service.dart';
+import '../../services/ges_timeline_service.dart';
 import '../../services/project_database_service.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart';
@@ -22,7 +22,7 @@ class ResizeClipCommand implements TimelineCommand, UndoableCommand {
 
   // Dependencies
   final ProjectDatabaseService _projectDatabaseService;
-  final TimelineLogicService _timelineLogicService;
+  final GESTimelineService _gesTimelineService;
   final ValueNotifier<List<ClipModel>> _clipsNotifier;
 
   // Core state
@@ -53,7 +53,7 @@ class ResizeClipCommand implements TimelineCommand, UndoableCommand {
     required ClipModel
     initialResolvedClipState, // This is the key: state before operation
     required ProjectDatabaseService projectDatabaseService,
-    required TimelineLogicService timelineLogicService,
+    required GESTimelineService gesTimelineService,
     required ValueNotifier<List<ClipModel>> clipsNotifier,
     // Optional: for fromJson to pass pre-loaded "old" states
     ClipModel? deserializedPersistedOldClipState,
@@ -61,7 +61,7 @@ class ResizeClipCommand implements TimelineCommand, UndoableCommand {
     List<ClipModel>? deserializedPersistedOldDeletedNeighborsState,
   }) : _initialClipState = initialResolvedClipState,
        _projectDatabaseService = projectDatabaseService,
-       _timelineLogicService = timelineLogicService,
+       _gesTimelineService = gesTimelineService,
        _clipsNotifier = clipsNotifier,
        _persistedOldClipState = deserializedPersistedOldClipState,
        _persistedOldNeighborStates = deserializedPersistedOldNeighborStates,
@@ -207,7 +207,7 @@ class ResizeClipCommand implements TimelineCommand, UndoableCommand {
     );
 
     try {
-      final placementResult = _timelineLogicService.prepareClipPlacement(
+      final placementResult = await _gesTimelineService.prepareClipPlacement(
         clips: currentClipsForContext, // Use the full list for context
         clipId: clipId, // ID of the clip being resized
         trackId: baseClipForLogic.trackId, // Original track ID
@@ -361,6 +361,19 @@ class ResizeClipCommand implements TimelineCommand, UndoableCommand {
               _logTag,
             );
           }
+        }
+
+        // Update GES timeline with resized clip
+        try {
+          final newStartMs = fieldsToUpdate['startTimeOnTrackMs'] as int;
+          final newEndMs = fieldsToUpdate['endTimeOnTrackMs'] as int;
+          await _gesTimelineService.resizeClipInTimeline(clipId, newStartMs, newEndMs);
+          logger.logInfo(
+            '[ResizeClipCommand] Updated clip $clipId in GES timeline: ${newStartMs}ms - ${newEndMs}ms',
+            _logTag,
+          );
+        } catch (e) {
+          logger.logError('Failed to resize clip in GES timeline: $e', _logTag);
         }
 
         logger.logInfo(
@@ -660,7 +673,7 @@ class ResizeClipCommand implements TimelineCommand, UndoableCommand {
     }
 
     // Get dependencies from DI
-    final timelineLogicService = di<TimelineLogicService>();
+    final gesTimelineService = di<GESTimelineService>();
     final clipsNotifier = di<TimelineViewModel>().clipsNotifier;
 
     return ResizeClipCommand(
@@ -669,7 +682,7 @@ class ResizeClipCommand implements TimelineCommand, UndoableCommand {
       newBoundaryFrame: newBoundaryFrame,
       initialResolvedClipState: initialForConstructor,
       projectDatabaseService: projectDatabaseService,
-      timelineLogicService: timelineLogicService,
+      gesTimelineService: gesTimelineService,
       clipsNotifier: clipsNotifier,
       deserializedPersistedOldClipState: initialForConstructor.copyWith(),
       deserializedPersistedOldNeighborStates: originalNeighborsForConstructor,

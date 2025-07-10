@@ -124,16 +124,15 @@ class _TrackContentWidgetState extends State<TrackContentWidget> {
       frameForPreview,
     );
 
-    final previewClips =
-        widget.timelineViewModel
-            .getDragPreviewClips(
-              draggedClipId: draggedClip.databaseId!,
-              targetTrackId: widget.trackId,
-              targetStartTimeOnTrackMs: targetStartTimeOnTrackMs,
-            )
-            .where((clip) => clip.trackId == widget.trackId)
-            .whereType<ClipModel>()
-            .toList();
+    // Simple fallback for drag preview since this is synchronous UI code
+    // The actual GES calculations happen during the real drag operation
+    final movedClip = draggedClip.copyWith(
+      trackId: widget.trackId,
+      startTimeOnTrackMs: targetStartTimeOnTrackMs,
+      endTimeOnTrackMs: targetStartTimeOnTrackMs + draggedClip.durationOnTrackMs,
+    );
+    
+    final previewClips = [movedClip];
 
     return previewClips.map((clip) {
       final leftPosition = clip.startFrame * zoom * 5.0;

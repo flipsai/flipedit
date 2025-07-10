@@ -12,6 +12,7 @@ import 'common/types.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'frb_generated.dart';
+import 'ges/timeline_bridge.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated_web.dart';
 
 abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
@@ -136,10 +137,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   TextureFrame dco_decode_box_autoadd_texture_frame(dynamic raw);
 
   @protected
+  TimelineClip dco_decode_box_autoadd_timeline_clip(dynamic raw);
+
+  @protected
   TimelineData dco_decode_box_autoadd_timeline_data(dynamic raw);
 
   @protected
   BigInt dco_decode_box_autoadd_u_64(dynamic raw);
+
+  @protected
+  ClipPlacementResult dco_decode_clip_placement_result(dynamic raw);
 
   @protected
   double dco_decode_f_64(dynamic raw);
@@ -152,6 +159,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlatformInt64 dco_decode_i_64(dynamic raw);
+
+  @protected
+  List<ClipPlacementResult> dco_decode_list_clip_placement_result(dynamic raw);
+
+  @protected
+  List<OverlapInfo> dco_decode_list_overlap_info(dynamic raw);
 
   @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
@@ -173,6 +186,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   BigInt? dco_decode_opt_box_autoadd_u_64(dynamic raw);
+
+  @protected
+  OverlapInfo dco_decode_overlap_info(dynamic raw);
 
   @protected
   (GesTimelinePlayer, PlatformInt64)
@@ -321,12 +337,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  TimelineClip sse_decode_box_autoadd_timeline_clip(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   TimelineData sse_decode_box_autoadd_timeline_data(
     SseDeserializer deserializer,
   );
 
   @protected
   BigInt sse_decode_box_autoadd_u_64(SseDeserializer deserializer);
+
+  @protected
+  ClipPlacementResult sse_decode_clip_placement_result(
+    SseDeserializer deserializer,
+  );
 
   @protected
   double sse_decode_f_64(SseDeserializer deserializer);
@@ -339,6 +365,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
+
+  @protected
+  List<ClipPlacementResult> sse_decode_list_clip_placement_result(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<OverlapInfo> sse_decode_list_overlap_info(SseDeserializer deserializer);
 
   @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
@@ -368,6 +402,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   BigInt? sse_decode_opt_box_autoadd_u_64(SseDeserializer deserializer);
+
+  @protected
+  OverlapInfo sse_decode_overlap_info(SseDeserializer deserializer);
 
   @protected
   (GesTimelinePlayer, PlatformInt64)
@@ -538,6 +575,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_timeline_clip(
+    TimelineClip self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_timeline_data(
     TimelineData self,
     SseSerializer serializer,
@@ -545,6 +588,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_box_autoadd_u_64(BigInt self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_clip_placement_result(
+    ClipPlacementResult self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_f_64(double self, SseSerializer serializer);
@@ -557,6 +606,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_clip_placement_result(
+    List<ClipPlacementResult> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_overlap_info(
+    List<OverlapInfo> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_prim_u_8_strict(
@@ -593,6 +654,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_opt_box_autoadd_u_64(BigInt? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_overlap_info(OverlapInfo self, SseSerializer serializer);
 
   @protected
   void

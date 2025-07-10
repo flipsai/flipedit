@@ -5,6 +5,7 @@
 
 import '../common/types.dart';
 import '../frb_generated.dart';
+import '../ges/timeline_bridge.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These types are ignored because they are not used by any `pub` functions: `ACTIVE_VIDEOS`
@@ -64,6 +65,115 @@ Future<(GesTimelinePlayer, PlatformInt64)> createGesTimelinePlayer({
 /// This is a reliable way to get video duration without depending on fallback estimations
 BigInt getVideoDurationMs({required String filePath}) =>
     RustLib.instance.api.crateApiSimpleGetVideoDurationMs(filePath: filePath);
+
+BigInt gesCreateTimeline() =>
+    RustLib.instance.api.crateApiSimpleGesCreateTimeline();
+
+void gesDestroyTimeline({required BigInt handle}) =>
+    RustLib.instance.api.crateApiSimpleGesDestroyTimeline(handle: handle);
+
+ClipPlacementResult gesAddClip({
+  required BigInt handle,
+  required TimelineClip clipData,
+}) => RustLib.instance.api.crateApiSimpleGesAddClip(
+  handle: handle,
+  clipData: clipData,
+);
+
+ClipPlacementResult gesMoveClip({
+  required BigInt handle,
+  required int clipId,
+  required int newTrackId,
+  required BigInt newStartTimeMs,
+}) => RustLib.instance.api.crateApiSimpleGesMoveClip(
+  handle: handle,
+  clipId: clipId,
+  newTrackId: newTrackId,
+  newStartTimeMs: newStartTimeMs,
+);
+
+ClipPlacementResult gesResizeClip({
+  required BigInt handle,
+  required int clipId,
+  required BigInt newStartTimeMs,
+  required BigInt newEndTimeMs,
+}) => RustLib.instance.api.crateApiSimpleGesResizeClip(
+  handle: handle,
+  clipId: clipId,
+  newStartTimeMs: newStartTimeMs,
+  newEndTimeMs: newEndTimeMs,
+);
+
+void gesRemoveClip({required BigInt handle, required int clipId}) => RustLib
+    .instance
+    .api
+    .crateApiSimpleGesRemoveClip(handle: handle, clipId: clipId);
+
+List<OverlapInfo> gesFindOverlappingClips({
+  required BigInt handle,
+  required int trackId,
+  required BigInt startTimeMs,
+  required BigInt endTimeMs,
+  int? excludeClipId,
+}) => RustLib.instance.api.crateApiSimpleGesFindOverlappingClips(
+  handle: handle,
+  trackId: trackId,
+  startTimeMs: startTimeMs,
+  endTimeMs: endTimeMs,
+  excludeClipId: excludeClipId,
+);
+
+List<TimelineClip> gesGetTimelineData({required BigInt handle}) =>
+    RustLib.instance.api.crateApiSimpleGesGetTimelineData(handle: handle);
+
+BigInt gesGetTimelineDurationMs({required BigInt handle}) =>
+    RustLib.instance.api.crateApiSimpleGesGetTimelineDurationMs(handle: handle);
+
+ClipPlacementResult gesCalculateClipPlacement({
+  required BigInt handle,
+  required TimelineClip clipData,
+}) => RustLib.instance.api.crateApiSimpleGesCalculateClipPlacement(
+  handle: handle,
+  clipData: clipData,
+);
+
+bool gesValidateClipOperation({
+  required BigInt handle,
+  required TimelineClip clipData,
+}) => RustLib.instance.api.crateApiSimpleGesValidateClipOperation(
+  handle: handle,
+  clipData: clipData,
+);
+
+List<ClipPlacementResult> gesRippleEdit({
+  required BigInt handle,
+  required int clipId,
+  required BigInt newStartTimeMs,
+}) => RustLib.instance.api.crateApiSimpleGesRippleEdit(
+  handle: handle,
+  clipId: clipId,
+  newStartTimeMs: newStartTimeMs,
+);
+
+BigInt gesFrameToMs({
+  required int frameNumber,
+  required int framerateNum,
+  required int framerateDen,
+}) => RustLib.instance.api.crateApiSimpleGesFrameToMs(
+  frameNumber: frameNumber,
+  framerateNum: framerateNum,
+  framerateDen: framerateDen,
+);
+
+int gesMsToFrame({
+  required BigInt timeMs,
+  required int framerateNum,
+  required int framerateDen,
+}) => RustLib.instance.api.crateApiSimpleGesMsToFrame(
+  timeMs: timeMs,
+  framerateNum: framerateNum,
+  framerateDen: framerateDen,
+);
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<GESTimelinePlayer>>
 abstract class GesTimelinePlayer implements RustOpaqueInterface {

@@ -1,7 +1,7 @@
 use flutter_rust_bridge::frb;
 pub use crate::api::bridge::*;
 use crate::video::player::VideoPlayer as InternalVideoPlayer;
-use crate::video::direct_pipeline_player::DirectPipelinePlayer as InternalDirectPipelinePlayer;
+use crate::video::ges_timeline_player::GESTimelinePlayer as InternalGESTimelinePlayer;
 pub use crate::common::types::{FrameData, TimelineData, TimelineClip, TimelineTrack, TextureFrame};
 use gstreamer as gst;
 use gstreamer::prelude::*;
@@ -178,14 +178,14 @@ impl VideoPlayer {
 }
 
 pub struct TimelinePlayer {
-    inner: InternalDirectPipelinePlayer,
+    inner: InternalGESTimelinePlayer,
 }
 
 impl TimelinePlayer {
     #[frb(sync)]
     pub fn new() -> Self {
         Self {
-            inner: InternalDirectPipelinePlayer::new().expect("Failed to create DirectPipelinePlayer"),
+            inner: InternalGESTimelinePlayer::new().expect("Failed to create GES Timeline Player"),
         }
     }
 
@@ -257,16 +257,16 @@ impl TimelinePlayer {
     }
 }
 
-// GES timeline player implementation (now using DirectPipelinePlayer)
+// GES timeline player implementation (now using proper GES Pipeline)
 pub struct GESTimelinePlayer {
-    inner: InternalDirectPipelinePlayer,
+    inner: InternalGESTimelinePlayer,
 }
 
 impl GESTimelinePlayer {
     #[frb(sync)]
     pub fn new() -> Self {
         Self {
-            inner: InternalDirectPipelinePlayer::new().expect("Failed to create DirectPipelinePlayer"),
+            inner: InternalGESTimelinePlayer::new().expect("Failed to create GES Timeline Player"),
         }
     }
 
@@ -447,23 +447,20 @@ pub fn play_dual_video(file_path_left: String, file_path_right: String, engine_h
     Ok(texture_id)
 }
 
-/// Create and load a direct pipeline timeline player with timeline data (GStreamer-only implementation)
+/// Create and load a GES timeline player with timeline data (proper GES implementation with gap handling)
 pub fn create_ges_timeline_player(timeline_data: TimelineData, engine_handle: i64) -> Result<(GESTimelinePlayer, i64), String> {
-    // Initialize GStreamer only (no more GES)
-    gst::init().map_err(|e| format!("Failed to initialize GStreamer: {}", e))?;
-    
-    // Create direct pipeline player
-    let mut direct_player = GESTimelinePlayer::new();
+    // GESTimelinePlayer initializes both GStreamer and GES
+    let mut ges_player = GESTimelinePlayer::new();
     
     // Create texture for this specific player
-    let texture_id = direct_player.create_texture(engine_handle)?;
+    let texture_id = ges_player.create_texture(engine_handle)?;
     
-    // Load the timeline data
-    direct_player.load_timeline(timeline_data.clone())?;
+    // Load the timeline data using GES
+    ges_player.load_timeline(timeline_data.clone())?;
     
-    log::info!("Created direct pipeline timeline player with {} tracks using GStreamer compositor", timeline_data.tracks.len());
+    log::info!("Created GES timeline player with {} tracks using GES Pipeline with proper gap handling", timeline_data.tracks.len());
     
-    Ok((direct_player, texture_id))
+    Ok((ges_player, texture_id))
 }
 
 /// Get video duration in milliseconds using GStreamer
@@ -551,4 +548,96 @@ pub fn get_video_duration_ms(file_path: String) -> Result<u64, String> {
         .map_err(|e| format!("Failed to clean up pipeline: {:?}", e))?;
     
     Ok(duration_ms)
+}
+
+// ===============================
+// GES Timeline Bridge Functions
+// ===============================
+
+pub use crate::ges::timeline_bridge::{ClipPlacementResult, OverlapInfo};
+
+#[frb(sync)]
+pub fn ges_create_timeline() -> anyhow::Result<u64> {
+    crate::ges::timeline_bridge::ges_create_timeline()
+}
+
+#[frb(sync)]
+pub fn ges_destroy_timeline(handle: u64) -> anyhow::Result<()> {
+    crate::ges::timeline_bridge::ges_destroy_timeline(handle)
+}
+
+#[frb(sync)]
+pub fn ges_add_clip(handle: u64, clip_data: TimelineClip) -> anyhow::Result<ClipPlacementResult> {
+    crate::ges::timeline_bridge::ges_add_clip(handle, clip_data)
+}
+
+#[frb(sync)]
+pub fn ges_move_clip(handle: u64, clip_id: i32, new_track_id: i32, new_start_time_ms: u64) -> anyhow::Result<ClipPlacementResult> {
+    crate::ges::timeline_bridge::ges_move_clip(handle, clip_id, new_track_id, new_start_time_ms)
+}
+
+#[frb(sync)]
+pub fn ges_resize_clip(handle: u64, clip_id: i32, new_start_time_ms: u64, new_end_time_ms: u64) -> anyhow::Result<ClipPlacementResult> {
+    crate::ges::timeline_bridge::ges_resize_clip(handle, clip_id, new_start_time_ms, new_end_time_ms)
+}
+
+#[frb(sync)]
+pub fn ges_remove_clip(handle: u64, clip_id: i32) -> anyhow::Result<()> {
+    crate::ges::timeline_bridge::ges_remove_clip(handle, clip_id)
+}
+
+#[frb(sync)]
+pub fn ges_find_overlapping_clips(
+    handle: u64,
+    track_id: i32,
+    start_time_ms: u64,
+    end_time_ms: u64,
+    exclude_clip_id: Option<i32>,
+) -> anyhow::Result<Vec<OverlapInfo>> {
+    crate::ges::timeline_bridge::ges_find_overlapping_clips(handle, track_id, start_time_ms, end_time_ms, exclude_clip_id)
+}
+
+#[frb(sync)]
+pub fn ges_get_timeline_data(handle: u64) -> anyhow::Result<Vec<TimelineClip>> {
+    crate::ges::timeline_bridge::ges_get_timeline_data(handle)
+}
+
+#[frb(sync)]
+pub fn ges_get_timeline_duration_ms(handle: u64) -> anyhow::Result<u64> {
+    crate::ges::timeline_bridge::ges_get_timeline_duration_ms(handle)
+}
+
+#[frb(sync)]
+pub fn ges_calculate_clip_placement(
+    handle: u64,
+    clip_data: TimelineClip,
+) -> anyhow::Result<ClipPlacementResult> {
+    crate::ges::timeline_bridge::ges_calculate_clip_placement(handle, clip_data)
+}
+
+#[frb(sync)]
+pub fn ges_validate_clip_operation(
+    handle: u64,
+    clip_data: TimelineClip,
+) -> anyhow::Result<bool> {
+    crate::ges::timeline_bridge::ges_validate_clip_operation(handle, clip_data)
+}
+
+#[frb(sync)]
+pub fn ges_ripple_edit(
+    handle: u64,
+    clip_id: i32,
+    new_start_time_ms: u64,
+) -> anyhow::Result<Vec<ClipPlacementResult>> {
+    crate::ges::timeline_bridge::ges_ripple_edit(handle, clip_id, new_start_time_ms)
+}
+
+#[frb(sync)]
+pub fn ges_frame_to_ms(frame_number: i32, framerate_num: i32, framerate_den: i32) -> u64 {
+    crate::ges::timeline_bridge::ges_frame_to_ms(frame_number, framerate_num, framerate_den)
+}
+
+#[frb(sync)]
+pub fn ges_ms_to_frame(time_ms: u64, framerate_num: i32, framerate_den: i32) -> i32 {
+    crate::ges::timeline_bridge::ges_ms_to_frame(time_ms, framerate_num, framerate_den)
 } 

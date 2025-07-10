@@ -32,7 +32,7 @@ class MediaDurationService {
       logInfo(_logTag, 'Getting duration for: $filePath using GStreamer');
       
       // Call the Rust GStreamer-based duration function
-      final durationMs = await getVideoDurationMs(filePath: filePath);
+      final durationMs = getVideoDurationMs(filePath: filePath);
       
       logInfo(_logTag, 'Duration for $filePath: $durationMs ms (GStreamer)');
       return durationMs.toInt();

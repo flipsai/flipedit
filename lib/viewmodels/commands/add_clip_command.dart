@@ -8,7 +8,7 @@ import 'timeline_command.dart';
 import '../../models/clip.dart';
 import '../../models/enums/clip_type.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
-import '../../services/timeline_logic_service.dart';
+import '../../services/ges_timeline_service.dart';
 import '../../services/project_database_service.dart';
 import '../../services/media_duration_service.dart';
 import '../../services/canvas_dimensions_service.dart';
@@ -21,7 +21,7 @@ class AddClipCommand implements TimelineCommand, UndoableCommand {
   final int trackId;
   final int startTimeOnTrackMs;
 
-  final TimelineLogicService _timelineLogicService = di<TimelineLogicService>();
+  final GESTimelineService _gesTimelineService = di<GESTimelineService>();
   final ProjectDatabaseService _databaseService = di<ProjectDatabaseService>();
   final TimelineStateViewModel _stateViewModel = di<TimelineStateViewModel>();
   final MediaDurationService _mediaDurationService = di<MediaDurationService>();
@@ -178,7 +178,7 @@ class AddClipCommand implements TimelineCommand, UndoableCommand {
       _logTag,
     );
 
-    final placement = _timelineLogicService.prepareClipPlacement(
+    final placement = await _gesTimelineService.prepareClipPlacement(
       clips: _stateViewModel.clips,
       clipId: null,
       trackId: trackId,
@@ -276,6 +276,26 @@ class AddClipCommand implements TimelineCommand, UndoableCommand {
       _logTag,
     );
 
+    // Add clip to GES timeline
+    if (_insertedClipId != null) {
+      try {
+        final finalClip = processedClipData.copyWith(
+          databaseId: drift.Value(_insertedClipId),
+          startTimeOnTrackMs: newClipDataMap['startTimeOnTrackMs'],
+          endTimeOnTrackMs: newClipDataMap['endTimeOnTrackMs'],
+          startTimeInSourceMs: newClipDataMap['startTimeInSourceMs'],
+          endTimeInSourceMs: newClipDataMap['endTimeInSourceMs'],
+        );
+        await _gesTimelineService.addClipToTimeline(finalClip);
+        logger.logInfo(
+          '[AddClipCommand] Added clip $_insertedClipId to GES timeline',
+          _logTag,
+        );
+      } catch (e) {
+        logger.logError('Failed to add clip to GES timeline: $e', _logTag);
+      }
+    }
+
     List<ClipModel> finalUpdatedClips = List<ClipModel>.from(
       placement['updatedClips'],
     );
@@ -337,6 +357,17 @@ class AddClipCommand implements TimelineCommand, UndoableCommand {
     }
 
     try {
+      // Remove from GES timeline first
+      try {
+        await _gesTimelineService.removeClipFromTimeline(_insertedClipId!);
+        logger.logInfo(
+          '[AddClipCommand] Removed clip $_insertedClipId from GES timeline during undo',
+          _logTag,
+        );
+      } catch (e) {
+        logger.logError('Failed to remove clip from GES timeline during undo: $e', _logTag);
+      }
+
       await _databaseService.clipDao!.deleteClip(_insertedClipId!);
 
       for (final originalNeighbor in _originalNeighborStates!) {

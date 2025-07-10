@@ -1,7 +1,7 @@
 use irondash_texture::{Texture, PayloadProvider, BoxedPixelData, SimplePixelData};
 use crate::common::types::FrameData;
 use std::sync::{Arc, Mutex};
-use log::{info, debug, warn};
+use log::{info, debug};
 use anyhow::Result;
 use irondash_engine_context::EngineContext;
 use std::sync::mpsc;
@@ -153,13 +153,13 @@ pub fn unregister_irondash_update_function(texture_id: i64) {
 
 /// Update video frame data - now calls the REAL irondash update functions
 pub fn update_video_frame(frame_data: FrameData) -> Result<()> {
-    let mut updated_count = 0;
+    let mut _updated_count = 0;
     
     // Call the REAL irondash texture update functions
     if let Ok(functions) = IRONDASH_UPDATE_FUNCTIONS.lock() {
-        for (texture_id, update_fn) in functions.iter() {
+        for (_texture_id, update_fn) in functions.iter() {
             update_fn(frame_data.clone());
-            updated_count += 1;
+            _updated_count += 1;
         }
     }
     

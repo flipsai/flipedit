@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.7.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -62202027;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1409573430;
 
 // Section: executor
 
@@ -3023,6 +3023,501 @@ fn wire__crate__api__simple__create_video_texture_impl(
         },
     )
 }
+fn wire__crate__api__simple__ges_add_clip_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "ges_add_clip",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_handle = <u64>::sse_decode(&mut deserializer);
+            let api_clip_data = <crate::common::types::TimelineClip>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                (move || {
+                    let output_ok = crate::api::simple::ges_add_clip(api_handle, api_clip_data)?;
+                    Ok(output_ok)
+                })(),
+            )
+        },
+    )
+}
+fn wire__crate__api__simple__ges_calculate_clip_placement_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "ges_calculate_clip_placement",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_handle = <u64>::sse_decode(&mut deserializer);
+            let api_clip_data = <crate::common::types::TimelineClip>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                (move || {
+                    let output_ok = crate::api::simple::ges_calculate_clip_placement(
+                        api_handle,
+                        api_clip_data,
+                    )?;
+                    Ok(output_ok)
+                })(),
+            )
+        },
+    )
+}
+fn wire__crate__api__simple__ges_create_timeline_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "ges_create_timeline",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                (move || {
+                    let output_ok = crate::api::simple::ges_create_timeline()?;
+                    Ok(output_ok)
+                })(),
+            )
+        },
+    )
+}
+fn wire__crate__api__simple__ges_destroy_timeline_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "ges_destroy_timeline",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_handle = <u64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                (move || {
+                    let output_ok = crate::api::simple::ges_destroy_timeline(api_handle)?;
+                    Ok(output_ok)
+                })(),
+            )
+        },
+    )
+}
+fn wire__crate__api__simple__ges_find_overlapping_clips_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "ges_find_overlapping_clips",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_handle = <u64>::sse_decode(&mut deserializer);
+            let api_track_id = <i32>::sse_decode(&mut deserializer);
+            let api_start_time_ms = <u64>::sse_decode(&mut deserializer);
+            let api_end_time_ms = <u64>::sse_decode(&mut deserializer);
+            let api_exclude_clip_id = <Option<i32>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                (move || {
+                    let output_ok = crate::api::simple::ges_find_overlapping_clips(
+                        api_handle,
+                        api_track_id,
+                        api_start_time_ms,
+                        api_end_time_ms,
+                        api_exclude_clip_id,
+                    )?;
+                    Ok(output_ok)
+                })(),
+            )
+        },
+    )
+}
+fn wire__crate__api__simple__ges_frame_to_ms_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "ges_frame_to_ms",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_frame_number = <i32>::sse_decode(&mut deserializer);
+            let api_framerate_num = <i32>::sse_decode(&mut deserializer);
+            let api_framerate_den = <i32>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Result::<_, ()>::Ok(crate::api::simple::ges_frame_to_ms(
+                    api_frame_number,
+                    api_framerate_num,
+                    api_framerate_den,
+                ))?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__simple__ges_get_timeline_data_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "ges_get_timeline_data",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_handle = <u64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                (move || {
+                    let output_ok = crate::api::simple::ges_get_timeline_data(api_handle)?;
+                    Ok(output_ok)
+                })(),
+            )
+        },
+    )
+}
+fn wire__crate__api__simple__ges_get_timeline_duration_ms_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "ges_get_timeline_duration_ms",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_handle = <u64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                (move || {
+                    let output_ok = crate::api::simple::ges_get_timeline_duration_ms(api_handle)?;
+                    Ok(output_ok)
+                })(),
+            )
+        },
+    )
+}
+fn wire__crate__api__simple__ges_move_clip_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "ges_move_clip",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_handle = <u64>::sse_decode(&mut deserializer);
+            let api_clip_id = <i32>::sse_decode(&mut deserializer);
+            let api_new_track_id = <i32>::sse_decode(&mut deserializer);
+            let api_new_start_time_ms = <u64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                (move || {
+                    let output_ok = crate::api::simple::ges_move_clip(
+                        api_handle,
+                        api_clip_id,
+                        api_new_track_id,
+                        api_new_start_time_ms,
+                    )?;
+                    Ok(output_ok)
+                })(),
+            )
+        },
+    )
+}
+fn wire__crate__api__simple__ges_ms_to_frame_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "ges_ms_to_frame",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_time_ms = <u64>::sse_decode(&mut deserializer);
+            let api_framerate_num = <i32>::sse_decode(&mut deserializer);
+            let api_framerate_den = <i32>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Result::<_, ()>::Ok(crate::api::simple::ges_ms_to_frame(
+                    api_time_ms,
+                    api_framerate_num,
+                    api_framerate_den,
+                ))?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__simple__ges_remove_clip_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "ges_remove_clip",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_handle = <u64>::sse_decode(&mut deserializer);
+            let api_clip_id = <i32>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                (move || {
+                    let output_ok = crate::api::simple::ges_remove_clip(api_handle, api_clip_id)?;
+                    Ok(output_ok)
+                })(),
+            )
+        },
+    )
+}
+fn wire__crate__api__simple__ges_resize_clip_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "ges_resize_clip",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_handle = <u64>::sse_decode(&mut deserializer);
+            let api_clip_id = <i32>::sse_decode(&mut deserializer);
+            let api_new_start_time_ms = <u64>::sse_decode(&mut deserializer);
+            let api_new_end_time_ms = <u64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                (move || {
+                    let output_ok = crate::api::simple::ges_resize_clip(
+                        api_handle,
+                        api_clip_id,
+                        api_new_start_time_ms,
+                        api_new_end_time_ms,
+                    )?;
+                    Ok(output_ok)
+                })(),
+            )
+        },
+    )
+}
+fn wire__crate__api__simple__ges_ripple_edit_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "ges_ripple_edit",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_handle = <u64>::sse_decode(&mut deserializer);
+            let api_clip_id = <i32>::sse_decode(&mut deserializer);
+            let api_new_start_time_ms = <u64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                (move || {
+                    let output_ok = crate::api::simple::ges_ripple_edit(
+                        api_handle,
+                        api_clip_id,
+                        api_new_start_time_ms,
+                    )?;
+                    Ok(output_ok)
+                })(),
+            )
+        },
+    )
+}
+fn wire__crate__api__simple__ges_validate_clip_operation_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "ges_validate_clip_operation",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_handle = <u64>::sse_decode(&mut deserializer);
+            let api_clip_data = <crate::common::types::TimelineClip>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                (move || {
+                    let output_ok =
+                        crate::api::simple::ges_validate_clip_operation(api_handle, api_clip_data)?;
+                    Ok(output_ok)
+                })(),
+            )
+        },
+    )
+}
 fn wire__crate__api__simple__get_texture_count_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -3399,6 +3894,31 @@ impl SseDecode for bool {
     }
 }
 
+impl SseDecode for crate::ges::timeline_bridge::ClipPlacementResult {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_clipId = <Option<i32>>::sse_decode(deserializer);
+        let mut var_trackId = <i32>::sse_decode(deserializer);
+        let mut var_startTimeMs = <u64>::sse_decode(deserializer);
+        let mut var_endTimeMs = <u64>::sse_decode(deserializer);
+        let mut var_startTimeInSourceMs = <u64>::sse_decode(deserializer);
+        let mut var_endTimeInSourceMs = <u64>::sse_decode(deserializer);
+        let mut var_overlappingClips =
+            <Vec<crate::ges::timeline_bridge::OverlapInfo>>::sse_decode(deserializer);
+        let mut var_success = <bool>::sse_decode(deserializer);
+        return crate::ges::timeline_bridge::ClipPlacementResult {
+            clip_id: var_clipId,
+            track_id: var_trackId,
+            start_time_ms: var_startTimeMs,
+            end_time_ms: var_endTimeMs,
+            start_time_in_source_ms: var_startTimeInSourceMs,
+            end_time_in_source_ms: var_endTimeInSourceMs,
+            overlapping_clips: var_overlappingClips,
+            success: var_success,
+        };
+    }
+}
+
 impl SseDecode for f64 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -3433,6 +3953,32 @@ impl SseDecode for i64 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         deserializer.cursor.read_i64::<NativeEndian>().unwrap()
+    }
+}
+
+impl SseDecode for Vec<crate::ges::timeline_bridge::ClipPlacementResult> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = vec![];
+        for idx_ in 0..len_ {
+            ans_.push(<crate::ges::timeline_bridge::ClipPlacementResult>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::ges::timeline_bridge::OverlapInfo> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = vec![];
+        for idx_ in 0..len_ {
+            ans_.push(<crate::ges::timeline_bridge::OverlapInfo>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
     }
 }
 
@@ -3519,6 +4065,28 @@ impl SseDecode for Option<u64> {
         } else {
             return None;
         }
+    }
+}
+
+impl SseDecode for crate::ges::timeline_bridge::OverlapInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_clipId = <i32>::sse_decode(deserializer);
+        let mut var_startTimeMs = <u64>::sse_decode(deserializer);
+        let mut var_endTimeMs = <u64>::sse_decode(deserializer);
+        let mut var_overlapStartMs = <u64>::sse_decode(deserializer);
+        let mut var_overlapEndMs = <u64>::sse_decode(deserializer);
+        let mut var_actionType = <String>::sse_decode(deserializer);
+        let mut var_actionTimeMs = <Option<u64>>::sse_decode(deserializer);
+        return crate::ges::timeline_bridge::OverlapInfo {
+            clip_id: var_clipId,
+            start_time_ms: var_startTimeMs,
+            end_time_ms: var_endTimeMs,
+            overlap_start_ms: var_overlapStartMs,
+            overlap_end_ms: var_overlapEndMs,
+            action_type: var_actionType,
+            action_time_ms: var_actionTimeMs,
+        };
     }
 }
 
@@ -3794,7 +4362,7 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        66 => wire__crate__api__bridge__init_app_impl(port, ptr, rust_vec_len, data_len),
+        80 => wire__crate__api__bridge__init_app_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -3918,13 +4486,35 @@ fn pde_ffi_dispatcher_sync_impl(
         49 => wire__crate__api__simple__VideoPlayer_new_impl(ptr, rust_vec_len, data_len),
         50 => wire__crate__api__simple__VideoPlayer_new_player_impl(ptr, rust_vec_len, data_len),
         61 => wire__crate__api__simple__create_video_texture_impl(ptr, rust_vec_len, data_len),
-        62 => wire__crate__api__simple__get_texture_count_impl(ptr, rust_vec_len, data_len),
-        63 => wire__crate__api__simple__get_video_duration_ms_impl(ptr, rust_vec_len, data_len),
-        64 => wire__crate__api__bridge__greet_impl(ptr, rust_vec_len, data_len),
-        65 => wire__crate__api__simple__greet_impl(ptr, rust_vec_len, data_len),
-        67 => wire__crate__api__simple__play_basic_video_impl(ptr, rust_vec_len, data_len),
-        68 => wire__crate__api__simple__play_dual_video_impl(ptr, rust_vec_len, data_len),
-        69 => wire__crate__api__simple__update_video_frame_impl(ptr, rust_vec_len, data_len),
+        62 => wire__crate__api__simple__ges_add_clip_impl(ptr, rust_vec_len, data_len),
+        63 => {
+            wire__crate__api__simple__ges_calculate_clip_placement_impl(ptr, rust_vec_len, data_len)
+        }
+        64 => wire__crate__api__simple__ges_create_timeline_impl(ptr, rust_vec_len, data_len),
+        65 => wire__crate__api__simple__ges_destroy_timeline_impl(ptr, rust_vec_len, data_len),
+        66 => {
+            wire__crate__api__simple__ges_find_overlapping_clips_impl(ptr, rust_vec_len, data_len)
+        }
+        67 => wire__crate__api__simple__ges_frame_to_ms_impl(ptr, rust_vec_len, data_len),
+        68 => wire__crate__api__simple__ges_get_timeline_data_impl(ptr, rust_vec_len, data_len),
+        69 => {
+            wire__crate__api__simple__ges_get_timeline_duration_ms_impl(ptr, rust_vec_len, data_len)
+        }
+        70 => wire__crate__api__simple__ges_move_clip_impl(ptr, rust_vec_len, data_len),
+        71 => wire__crate__api__simple__ges_ms_to_frame_impl(ptr, rust_vec_len, data_len),
+        72 => wire__crate__api__simple__ges_remove_clip_impl(ptr, rust_vec_len, data_len),
+        73 => wire__crate__api__simple__ges_resize_clip_impl(ptr, rust_vec_len, data_len),
+        74 => wire__crate__api__simple__ges_ripple_edit_impl(ptr, rust_vec_len, data_len),
+        75 => {
+            wire__crate__api__simple__ges_validate_clip_operation_impl(ptr, rust_vec_len, data_len)
+        }
+        76 => wire__crate__api__simple__get_texture_count_impl(ptr, rust_vec_len, data_len),
+        77 => wire__crate__api__simple__get_video_duration_ms_impl(ptr, rust_vec_len, data_len),
+        78 => wire__crate__api__bridge__greet_impl(ptr, rust_vec_len, data_len),
+        79 => wire__crate__api__simple__greet_impl(ptr, rust_vec_len, data_len),
+        81 => wire__crate__api__simple__play_basic_video_impl(ptr, rust_vec_len, data_len),
+        82 => wire__crate__api__simple__play_dual_video_impl(ptr, rust_vec_len, data_len),
+        83 => wire__crate__api__simple__update_video_frame_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -3977,6 +4567,33 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<VideoPlayer>> for VideoPlayer 
 }
 
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::ges::timeline_bridge::ClipPlacementResult {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.clip_id.into_into_dart().into_dart(),
+            self.track_id.into_into_dart().into_dart(),
+            self.start_time_ms.into_into_dart().into_dart(),
+            self.end_time_ms.into_into_dart().into_dart(),
+            self.start_time_in_source_ms.into_into_dart().into_dart(),
+            self.end_time_in_source_ms.into_into_dart().into_dart(),
+            self.overlapping_clips.into_into_dart().into_dart(),
+            self.success.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::ges::timeline_bridge::ClipPlacementResult
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::ges::timeline_bridge::ClipPlacementResult>
+    for crate::ges::timeline_bridge::ClipPlacementResult
+{
+    fn into_into_dart(self) -> crate::ges::timeline_bridge::ClipPlacementResult {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::common::types::FrameData {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -3996,6 +4613,32 @@ impl flutter_rust_bridge::IntoIntoDart<crate::common::types::FrameData>
     for crate::common::types::FrameData
 {
     fn into_into_dart(self) -> crate::common::types::FrameData {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::ges::timeline_bridge::OverlapInfo {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.clip_id.into_into_dart().into_dart(),
+            self.start_time_ms.into_into_dart().into_dart(),
+            self.end_time_ms.into_into_dart().into_dart(),
+            self.overlap_start_ms.into_into_dart().into_dart(),
+            self.overlap_end_ms.into_into_dart().into_dart(),
+            self.action_type.into_into_dart().into_dart(),
+            self.action_time_ms.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::ges::timeline_bridge::OverlapInfo
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::ges::timeline_bridge::OverlapInfo>
+    for crate::ges::timeline_bridge::OverlapInfo
+{
+    fn into_into_dart(self) -> crate::ges::timeline_bridge::OverlapInfo {
         self
     }
 }
@@ -4190,6 +4833,23 @@ impl SseEncode for bool {
     }
 }
 
+impl SseEncode for crate::ges::timeline_bridge::ClipPlacementResult {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Option<i32>>::sse_encode(self.clip_id, serializer);
+        <i32>::sse_encode(self.track_id, serializer);
+        <u64>::sse_encode(self.start_time_ms, serializer);
+        <u64>::sse_encode(self.end_time_ms, serializer);
+        <u64>::sse_encode(self.start_time_in_source_ms, serializer);
+        <u64>::sse_encode(self.end_time_in_source_ms, serializer);
+        <Vec<crate::ges::timeline_bridge::OverlapInfo>>::sse_encode(
+            self.overlapping_clips,
+            serializer,
+        );
+        <bool>::sse_encode(self.success, serializer);
+    }
+}
+
 impl SseEncode for f64 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -4218,6 +4878,26 @@ impl SseEncode for i64 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         serializer.cursor.write_i64::<NativeEndian>(self).unwrap();
+    }
+}
+
+impl SseEncode for Vec<crate::ges::timeline_bridge::ClipPlacementResult> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::ges::timeline_bridge::ClipPlacementResult>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::ges::timeline_bridge::OverlapInfo> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::ges::timeline_bridge::OverlapInfo>::sse_encode(item, serializer);
+        }
     }
 }
 
@@ -4288,6 +4968,19 @@ impl SseEncode for Option<u64> {
         if let Some(value) = self {
             <u64>::sse_encode(value, serializer);
         }
+    }
+}
+
+impl SseEncode for crate::ges::timeline_bridge::OverlapInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.clip_id, serializer);
+        <u64>::sse_encode(self.start_time_ms, serializer);
+        <u64>::sse_encode(self.end_time_ms, serializer);
+        <u64>::sse_encode(self.overlap_start_ms, serializer);
+        <u64>::sse_encode(self.overlap_end_ms, serializer);
+        <String>::sse_encode(self.action_type, serializer);
+        <Option<u64>>::sse_encode(self.action_time_ms, serializer);
     }
 }
 

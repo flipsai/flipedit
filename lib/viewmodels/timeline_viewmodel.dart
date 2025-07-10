@@ -18,7 +18,7 @@ import 'commands/reorder_tracks_command.dart';
 import 'commands/add_track_command.dart';
 import 'package:flipedit/services/undo_redo_service.dart';
 import 'commands/roll_edit_command.dart';
-import 'package:flipedit/services/timeline_logic_service.dart';
+import 'package:flipedit/services/ges_timeline_service.dart';
 import 'commands/update_clip_transform_command.dart';
 import 'package:flipedit/services/commands/undoable_command.dart';
 import 'commands/move_clip_command.dart';
@@ -35,8 +35,8 @@ class TimelineViewModel extends ChangeNotifier {
         ProjectDatabaseService
       >(); // Needed by some commands directly? Review later.
   final UndoRedoService _undoRedoService = di<UndoRedoService>();
-  final TimelineLogicService _timelineLogicService =
-      di<TimelineLogicService>(); // Needed for calculations
+  final GESTimelineService _gesTimelineService =
+      di<GESTimelineService>(); // Needed for calculations
   final TimelineStateViewModel _stateViewModel =
       di<TimelineStateViewModel>(); // Inject State VM
   final TimelineNavigationViewModel _navigationViewModel =
@@ -408,7 +408,7 @@ class TimelineViewModel extends ChangeNotifier {
 
   // Removed refreshClips - Handled by TimelineStateViewModel
 
-  // --- Logic Service Delegations (Helper methods using TimelineLogicService) ---
+  // --- Logic Service Delegations (Helper methods using GESTimelineService) ---
 
   /// Calculates the frame corresponding to a pixel offset on the timeline.
   int calculateFramePositionForOffset(
@@ -416,7 +416,7 @@ class TimelineViewModel extends ChangeNotifier {
     double scrollOffset,
     double zoom,
   ) {
-    return _timelineLogicService.calculateFramePosition(
+    return _gesTimelineService.calculateFramePosition(
       pixelPosition,
       scrollOffset,
       zoom,
@@ -426,22 +426,22 @@ class TimelineViewModel extends ChangeNotifier {
   /// Converts a frame number to milliseconds.
   /// Converts a frame number to milliseconds.
   int frameToMs(int frame) {
-    return _timelineLogicService.frameToMs(frame);
+    return _gesTimelineService.frameToMs(frame);
   }
 
   /// Calculates the scroll offset required to center a specific frame.
   double calculateScrollOffsetForFrame(int frame, double zoom) {
-    return _timelineLogicService.calculateScrollOffsetForFrame(frame, zoom);
+    return _gesTimelineService.calculateScrollOffsetForFrame(frame, zoom);
   }
 
   /// Generates a preview list of clips for drag visualization.
-  List<ClipModel> getDragPreviewClips({
+  Future<List<ClipModel>> getDragPreviewClips({
     required int draggedClipId,
     required int targetTrackId,
     required int targetStartTimeOnTrackMs,
-  }) {
+  }) async {
     // Get clips from State VM
-    return _timelineLogicService.getPreviewClipsForDrag(
+    return await _gesTimelineService.getPreviewClipsForDrag(
       clips: _stateViewModel.clips,
       clipId: draggedClipId,
       targetTrackId: targetTrackId,

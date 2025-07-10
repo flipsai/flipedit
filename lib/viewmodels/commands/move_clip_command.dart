@@ -7,7 +7,7 @@ import 'timeline_command.dart';
 import '../../models/clip.dart';
 import 'package:flipedit/utils/logger.dart' as logger;
 import 'package:collection/collection.dart';
-import '../../services/timeline_logic_service.dart';
+import '../../services/ges_timeline_service.dart';
 import '../../services/project_database_service.dart';
 import '../../viewmodels/timeline_navigation_viewmodel.dart';
 import 'package:watch_it/watch_it.dart';
@@ -22,7 +22,7 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
   // Dependencies - these are not part of the serialized state directly
   // but are needed for the command to function.
   final ProjectDatabaseService _projectDatabaseService;
-  final TimelineLogicService _timelineLogicService;
+  final GESTimelineService _gesTimelineService;
   final TimelineNavigationViewModel _timelineNavViewModel;
   final ValueNotifier<List<ClipModel>> _clipsNotifier; // Made private
 
@@ -47,7 +47,7 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
     required this.newStartTimeOnTrackMs,
     // Required dependencies for operation
     required ProjectDatabaseService projectDatabaseService,
-    required TimelineLogicService timelineLogicService,
+    required GESTimelineService gesTimelineService,
     required TimelineNavigationViewModel timelineNavViewModel,
     required ValueNotifier<List<ClipModel>> clipsNotifier,
     // Optional: For deserialization, to restore state
@@ -55,7 +55,7 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
     Map<int, ClipModel>? originalNeighborStates,
     List<ClipModel>? deletedNeighborsState,
   }) : _projectDatabaseService = projectDatabaseService,
-       _timelineLogicService = timelineLogicService,
+       _gesTimelineService = gesTimelineService,
        _timelineNavViewModel = timelineNavViewModel,
        _clipsNotifier = clipsNotifier,
        _originalClipState = originalClipState,
@@ -143,7 +143,7 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
       // Update UI immediately for responsiveness
       di<TimelineStateViewModel>().setClips(visualUpdateClips);
 
-      final placementResult = _timelineLogicService.prepareClipPlacement(
+      final placementResult = await _gesTimelineService.prepareClipPlacement(
         clips: currentClips, // Use current clips from notifier for calculation
         clipId: clipId,
         trackId: newTrackId,
@@ -214,6 +214,21 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
         'startTimeInSourceMs': mainClipUpdateData['startTimeInSourceMs'],
         'endTimeInSourceMs': mainClipUpdateData['endTimeInSourceMs'],
       }, log: false); // Log handled by UndoRedoService
+
+      // Update GES timeline with the moved clip
+      try {
+        await _gesTimelineService.moveClipInTimeline(
+          clipId,
+          newTrackId,
+          newStartTimeOnTrackMs,
+        );
+        logger.logInfo(
+          '[MoveClipCommand] Updated clip $clipId in GES timeline',
+          _logTag,
+        );
+      } catch (e) {
+        logger.logError('Failed to update clip in GES timeline: $e', _logTag);
+      }
 
       logger.logDebug('[MoveClipCommand] Updating ViewModel state...', _logTag);
 
@@ -506,7 +521,7 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
     }
 
     // --- Retrieve dependencies using di ---
-    final timelineLogicService = di<TimelineLogicService>();
+    final gesTimelineService = di<GESTimelineService>();
     final timelineNavViewModel = di<TimelineNavigationViewModel>();
     final clipsNotifier = di<TimelineViewModel>().clipsNotifier;
 
@@ -515,7 +530,7 @@ class MoveClipCommand implements TimelineCommand, UndoableCommand {
       newTrackId: newTrackId,
       newStartTimeOnTrackMs: newStartTimeOnTrackMs,
       projectDatabaseService: projectDatabaseService, // Passed in
-      timelineLogicService: timelineLogicService, // From di
+      gesTimelineService: gesTimelineService, // From di
       timelineNavViewModel: timelineNavViewModel, // From di
       clipsNotifier: clipsNotifier, // From di
       originalClipState: originalClipState, // For undo

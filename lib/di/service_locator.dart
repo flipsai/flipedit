@@ -4,7 +4,7 @@ import 'package:flipedit/services/canvas_dimensions_service.dart';
 import 'package:flipedit/services/command_history_service.dart';
 import 'package:flipedit/services/clip_update_service.dart';
 import 'package:flipedit/services/optimized_playback_service.dart';
-import 'package:flipedit/services/timeline_logic_service.dart';
+import 'package:flipedit/services/ges_timeline_service.dart';
 import 'package:flipedit/services/layout_service.dart';
 import 'package:flipedit/services/project_database_service.dart';
 import 'package:flipedit/services/project_metadata_service.dart';
@@ -109,8 +109,11 @@ Future<void> setupServiceLocator() async {
     dispose: (vm) => vm.dispose(),
   );
 
-  // Register TimelineLogicService
-  di.registerLazySingleton<TimelineLogicService>(() => TimelineLogicService());
+  // Register GESTimelineService (replaces TimelineLogicService)
+  di.registerLazySingleton<GESTimelineService>(
+    () => GESTimelineService(),
+    dispose: (service) => service.dispose(),
+  );
 
   di.registerLazySingleton<MediaDurationService>(() => MediaDurationService());
 

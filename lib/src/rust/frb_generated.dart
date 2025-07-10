@@ -11,6 +11,7 @@ import 'dart:convert';
 import 'frb_generated.dart';
 import 'frb_generated.io.dart'
     if (dart.library.js_interop) 'frb_generated.web.dart';
+import 'ges/timeline_bridge.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 /// Main entrypoint of the Rust API
@@ -66,7 +67,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.7.0';
 
   @override
-  int get rustContentHash => -62202027;
+  int get rustContentHash => -1409573430;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -306,6 +307,74 @@ abstract class RustLibApi extends BaseApi {
     required int width,
     required int height,
     required PlatformInt64 engineHandle,
+  });
+
+  ClipPlacementResult crateApiSimpleGesAddClip({
+    required BigInt handle,
+    required TimelineClip clipData,
+  });
+
+  ClipPlacementResult crateApiSimpleGesCalculateClipPlacement({
+    required BigInt handle,
+    required TimelineClip clipData,
+  });
+
+  BigInt crateApiSimpleGesCreateTimeline();
+
+  void crateApiSimpleGesDestroyTimeline({required BigInt handle});
+
+  List<OverlapInfo> crateApiSimpleGesFindOverlappingClips({
+    required BigInt handle,
+    required int trackId,
+    required BigInt startTimeMs,
+    required BigInt endTimeMs,
+    int? excludeClipId,
+  });
+
+  BigInt crateApiSimpleGesFrameToMs({
+    required int frameNumber,
+    required int framerateNum,
+    required int framerateDen,
+  });
+
+  List<TimelineClip> crateApiSimpleGesGetTimelineData({required BigInt handle});
+
+  BigInt crateApiSimpleGesGetTimelineDurationMs({required BigInt handle});
+
+  ClipPlacementResult crateApiSimpleGesMoveClip({
+    required BigInt handle,
+    required int clipId,
+    required int newTrackId,
+    required BigInt newStartTimeMs,
+  });
+
+  int crateApiSimpleGesMsToFrame({
+    required BigInt timeMs,
+    required int framerateNum,
+    required int framerateDen,
+  });
+
+  void crateApiSimpleGesRemoveClip({
+    required BigInt handle,
+    required int clipId,
+  });
+
+  ClipPlacementResult crateApiSimpleGesResizeClip({
+    required BigInt handle,
+    required int clipId,
+    required BigInt newStartTimeMs,
+    required BigInt newEndTimeMs,
+  });
+
+  List<ClipPlacementResult> crateApiSimpleGesRippleEdit({
+    required BigInt handle,
+    required int clipId,
+    required BigInt newStartTimeMs,
+  });
+
+  bool crateApiSimpleGesValidateClipOperation({
+    required BigInt handle,
+    required TimelineClip clipData,
   });
 
   BigInt crateApiSimpleGetTextureCount();
@@ -2421,12 +2490,436 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  ClipPlacementResult crateApiSimpleGesAddClip({
+    required BigInt handle,
+    required TimelineClip clipData,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_u_64(handle, serializer);
+          sse_encode_box_autoadd_timeline_clip(clipData, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 62)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_clip_placement_result,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiSimpleGesAddClipConstMeta,
+        argValues: [handle, clipData],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleGesAddClipConstMeta => const TaskConstMeta(
+    debugName: "ges_add_clip",
+    argNames: ["handle", "clipData"],
+  );
+
+  @override
+  ClipPlacementResult crateApiSimpleGesCalculateClipPlacement({
+    required BigInt handle,
+    required TimelineClip clipData,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_u_64(handle, serializer);
+          sse_encode_box_autoadd_timeline_clip(clipData, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 63)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_clip_placement_result,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiSimpleGesCalculateClipPlacementConstMeta,
+        argValues: [handle, clipData],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleGesCalculateClipPlacementConstMeta =>
+      const TaskConstMeta(
+        debugName: "ges_calculate_clip_placement",
+        argNames: ["handle", "clipData"],
+      );
+
+  @override
+  BigInt crateApiSimpleGesCreateTimeline() {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 64)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_u_64,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiSimpleGesCreateTimelineConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleGesCreateTimelineConstMeta =>
+      const TaskConstMeta(debugName: "ges_create_timeline", argNames: []);
+
+  @override
+  void crateApiSimpleGesDestroyTimeline({required BigInt handle}) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_u_64(handle, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 65)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiSimpleGesDestroyTimelineConstMeta,
+        argValues: [handle],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleGesDestroyTimelineConstMeta =>
+      const TaskConstMeta(
+        debugName: "ges_destroy_timeline",
+        argNames: ["handle"],
+      );
+
+  @override
+  List<OverlapInfo> crateApiSimpleGesFindOverlappingClips({
+    required BigInt handle,
+    required int trackId,
+    required BigInt startTimeMs,
+    required BigInt endTimeMs,
+    int? excludeClipId,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_u_64(handle, serializer);
+          sse_encode_i_32(trackId, serializer);
+          sse_encode_u_64(startTimeMs, serializer);
+          sse_encode_u_64(endTimeMs, serializer);
+          sse_encode_opt_box_autoadd_i_32(excludeClipId, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 66)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_overlap_info,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiSimpleGesFindOverlappingClipsConstMeta,
+        argValues: [handle, trackId, startTimeMs, endTimeMs, excludeClipId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleGesFindOverlappingClipsConstMeta =>
+      const TaskConstMeta(
+        debugName: "ges_find_overlapping_clips",
+        argNames: [
+          "handle",
+          "trackId",
+          "startTimeMs",
+          "endTimeMs",
+          "excludeClipId",
+        ],
+      );
+
+  @override
+  BigInt crateApiSimpleGesFrameToMs({
+    required int frameNumber,
+    required int framerateNum,
+    required int framerateDen,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_i_32(frameNumber, serializer);
+          sse_encode_i_32(framerateNum, serializer);
+          sse_encode_i_32(framerateDen, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 67)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_u_64,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSimpleGesFrameToMsConstMeta,
+        argValues: [frameNumber, framerateNum, framerateDen],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleGesFrameToMsConstMeta => const TaskConstMeta(
+    debugName: "ges_frame_to_ms",
+    argNames: ["frameNumber", "framerateNum", "framerateDen"],
+  );
+
+  @override
+  List<TimelineClip> crateApiSimpleGesGetTimelineData({
+    required BigInt handle,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_u_64(handle, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 68)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_timeline_clip,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiSimpleGesGetTimelineDataConstMeta,
+        argValues: [handle],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleGesGetTimelineDataConstMeta =>
+      const TaskConstMeta(
+        debugName: "ges_get_timeline_data",
+        argNames: ["handle"],
+      );
+
+  @override
+  BigInt crateApiSimpleGesGetTimelineDurationMs({required BigInt handle}) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_u_64(handle, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 69)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_u_64,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiSimpleGesGetTimelineDurationMsConstMeta,
+        argValues: [handle],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleGesGetTimelineDurationMsConstMeta =>
+      const TaskConstMeta(
+        debugName: "ges_get_timeline_duration_ms",
+        argNames: ["handle"],
+      );
+
+  @override
+  ClipPlacementResult crateApiSimpleGesMoveClip({
+    required BigInt handle,
+    required int clipId,
+    required int newTrackId,
+    required BigInt newStartTimeMs,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_u_64(handle, serializer);
+          sse_encode_i_32(clipId, serializer);
+          sse_encode_i_32(newTrackId, serializer);
+          sse_encode_u_64(newStartTimeMs, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 70)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_clip_placement_result,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiSimpleGesMoveClipConstMeta,
+        argValues: [handle, clipId, newTrackId, newStartTimeMs],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleGesMoveClipConstMeta => const TaskConstMeta(
+    debugName: "ges_move_clip",
+    argNames: ["handle", "clipId", "newTrackId", "newStartTimeMs"],
+  );
+
+  @override
+  int crateApiSimpleGesMsToFrame({
+    required BigInt timeMs,
+    required int framerateNum,
+    required int framerateDen,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_u_64(timeMs, serializer);
+          sse_encode_i_32(framerateNum, serializer);
+          sse_encode_i_32(framerateDen, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 71)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_i_32,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSimpleGesMsToFrameConstMeta,
+        argValues: [timeMs, framerateNum, framerateDen],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleGesMsToFrameConstMeta => const TaskConstMeta(
+    debugName: "ges_ms_to_frame",
+    argNames: ["timeMs", "framerateNum", "framerateDen"],
+  );
+
+  @override
+  void crateApiSimpleGesRemoveClip({
+    required BigInt handle,
+    required int clipId,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_u_64(handle, serializer);
+          sse_encode_i_32(clipId, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 72)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiSimpleGesRemoveClipConstMeta,
+        argValues: [handle, clipId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleGesRemoveClipConstMeta =>
+      const TaskConstMeta(
+        debugName: "ges_remove_clip",
+        argNames: ["handle", "clipId"],
+      );
+
+  @override
+  ClipPlacementResult crateApiSimpleGesResizeClip({
+    required BigInt handle,
+    required int clipId,
+    required BigInt newStartTimeMs,
+    required BigInt newEndTimeMs,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_u_64(handle, serializer);
+          sse_encode_i_32(clipId, serializer);
+          sse_encode_u_64(newStartTimeMs, serializer);
+          sse_encode_u_64(newEndTimeMs, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 73)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_clip_placement_result,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiSimpleGesResizeClipConstMeta,
+        argValues: [handle, clipId, newStartTimeMs, newEndTimeMs],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleGesResizeClipConstMeta =>
+      const TaskConstMeta(
+        debugName: "ges_resize_clip",
+        argNames: ["handle", "clipId", "newStartTimeMs", "newEndTimeMs"],
+      );
+
+  @override
+  List<ClipPlacementResult> crateApiSimpleGesRippleEdit({
+    required BigInt handle,
+    required int clipId,
+    required BigInt newStartTimeMs,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_u_64(handle, serializer);
+          sse_encode_i_32(clipId, serializer);
+          sse_encode_u_64(newStartTimeMs, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 74)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_clip_placement_result,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiSimpleGesRippleEditConstMeta,
+        argValues: [handle, clipId, newStartTimeMs],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleGesRippleEditConstMeta =>
+      const TaskConstMeta(
+        debugName: "ges_ripple_edit",
+        argNames: ["handle", "clipId", "newStartTimeMs"],
+      );
+
+  @override
+  bool crateApiSimpleGesValidateClipOperation({
+    required BigInt handle,
+    required TimelineClip clipData,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_u_64(handle, serializer);
+          sse_encode_box_autoadd_timeline_clip(clipData, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 75)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_bool,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiSimpleGesValidateClipOperationConstMeta,
+        argValues: [handle, clipData],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleGesValidateClipOperationConstMeta =>
+      const TaskConstMeta(
+        debugName: "ges_validate_clip_operation",
+        argNames: ["handle", "clipData"],
+      );
+
+  @override
   BigInt crateApiSimpleGetTextureCount() {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 62)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 76)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_usize,
@@ -2449,7 +2942,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(filePath, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 63)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 77)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_u_64,
@@ -2475,7 +2968,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(name, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 64)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 78)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -2498,7 +2991,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(name, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 65)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 79)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -2523,7 +3016,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 66,
+            funcId: 80,
             port: port_,
           );
         },
@@ -2552,7 +3045,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(filePath, serializer);
           sse_encode_i_64(engineHandle, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 67)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 81)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_i_64,
@@ -2584,7 +3077,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(filePathLeft, serializer);
           sse_encode_String(filePathRight, serializer);
           sse_encode_i_64(engineHandle, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 68)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 82)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_i_64,
@@ -2610,7 +3103,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_box_autoadd_frame_data(frameData, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 69)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 83)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_bool,
@@ -2818,6 +3311,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  TimelineClip dco_decode_box_autoadd_timeline_clip(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_timeline_clip(raw);
+  }
+
+  @protected
   TimelineData dco_decode_box_autoadd_timeline_data(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_timeline_data(raw);
@@ -2827,6 +3326,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   BigInt dco_decode_box_autoadd_u_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_u_64(raw);
+  }
+
+  @protected
+  ClipPlacementResult dco_decode_clip_placement_result(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 8)
+      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    return ClipPlacementResult(
+      clipId: dco_decode_opt_box_autoadd_i_32(arr[0]),
+      trackId: dco_decode_i_32(arr[1]),
+      startTimeMs: dco_decode_u_64(arr[2]),
+      endTimeMs: dco_decode_u_64(arr[3]),
+      startTimeInSourceMs: dco_decode_u_64(arr[4]),
+      endTimeInSourceMs: dco_decode_u_64(arr[5]),
+      overlappingClips: dco_decode_list_overlap_info(arr[6]),
+      success: dco_decode_bool(arr[7]),
+    );
   }
 
   @protected
@@ -2859,6 +3376,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   PlatformInt64 dco_decode_i_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dcoDecodeI64(raw);
+  }
+
+  @protected
+  List<ClipPlacementResult> dco_decode_list_clip_placement_result(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>)
+        .map(dco_decode_clip_placement_result)
+        .toList();
+  }
+
+  @protected
+  List<OverlapInfo> dco_decode_list_overlap_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_overlap_info).toList();
   }
 
   @protected
@@ -2901,6 +3432,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   BigInt? dco_decode_opt_box_autoadd_u_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_u_64(raw);
+  }
+
+  @protected
+  OverlapInfo dco_decode_overlap_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
+    return OverlapInfo(
+      clipId: dco_decode_i_32(arr[0]),
+      startTimeMs: dco_decode_u_64(arr[1]),
+      endTimeMs: dco_decode_u_64(arr[2]),
+      overlapStartMs: dco_decode_u_64(arr[3]),
+      overlapEndMs: dco_decode_u_64(arr[4]),
+      actionType: dco_decode_String(arr[5]),
+      actionTimeMs: dco_decode_opt_box_autoadd_u_64(arr[6]),
+    );
   }
 
   @protected
@@ -3237,6 +3785,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  TimelineClip sse_decode_box_autoadd_timeline_clip(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_timeline_clip(deserializer));
+  }
+
+  @protected
   TimelineData sse_decode_box_autoadd_timeline_data(
     SseDeserializer deserializer,
   ) {
@@ -3248,6 +3804,31 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   BigInt sse_decode_box_autoadd_u_64(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_u_64(deserializer));
+  }
+
+  @protected
+  ClipPlacementResult sse_decode_clip_placement_result(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_clipId = sse_decode_opt_box_autoadd_i_32(deserializer);
+    var var_trackId = sse_decode_i_32(deserializer);
+    var var_startTimeMs = sse_decode_u_64(deserializer);
+    var var_endTimeMs = sse_decode_u_64(deserializer);
+    var var_startTimeInSourceMs = sse_decode_u_64(deserializer);
+    var var_endTimeInSourceMs = sse_decode_u_64(deserializer);
+    var var_overlappingClips = sse_decode_list_overlap_info(deserializer);
+    var var_success = sse_decode_bool(deserializer);
+    return ClipPlacementResult(
+      clipId: var_clipId,
+      trackId: var_trackId,
+      startTimeMs: var_startTimeMs,
+      endTimeMs: var_endTimeMs,
+      startTimeInSourceMs: var_startTimeInSourceMs,
+      endTimeInSourceMs: var_endTimeInSourceMs,
+      overlappingClips: var_overlappingClips,
+      success: var_success,
+    );
   }
 
   @protected
@@ -3281,6 +3862,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   PlatformInt64 sse_decode_i_64(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getPlatformInt64();
+  }
+
+  @protected
+  List<ClipPlacementResult> sse_decode_list_clip_placement_result(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <ClipPlacementResult>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_clip_placement_result(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<OverlapInfo> sse_decode_list_overlap_info(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <OverlapInfo>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_overlap_info(deserializer));
+    }
+    return ans_;
   }
 
   @protected
@@ -3364,6 +3971,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     } else {
       return null;
     }
+  }
+
+  @protected
+  OverlapInfo sse_decode_overlap_info(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_clipId = sse_decode_i_32(deserializer);
+    var var_startTimeMs = sse_decode_u_64(deserializer);
+    var var_endTimeMs = sse_decode_u_64(deserializer);
+    var var_overlapStartMs = sse_decode_u_64(deserializer);
+    var var_overlapEndMs = sse_decode_u_64(deserializer);
+    var var_actionType = sse_decode_String(deserializer);
+    var var_actionTimeMs = sse_decode_opt_box_autoadd_u_64(deserializer);
+    return OverlapInfo(
+      clipId: var_clipId,
+      startTimeMs: var_startTimeMs,
+      endTimeMs: var_endTimeMs,
+      overlapStartMs: var_overlapStartMs,
+      overlapEndMs: var_overlapEndMs,
+      actionType: var_actionType,
+      actionTimeMs: var_actionTimeMs,
+    );
   }
 
   @protected
@@ -3738,6 +4366,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_timeline_clip(
+    TimelineClip self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_timeline_clip(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_timeline_data(
     TimelineData self,
     SseSerializer serializer,
@@ -3750,6 +4387,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_box_autoadd_u_64(BigInt self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_u_64(self, serializer);
+  }
+
+  @protected
+  void sse_encode_clip_placement_result(
+    ClipPlacementResult self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_opt_box_autoadd_i_32(self.clipId, serializer);
+    sse_encode_i_32(self.trackId, serializer);
+    sse_encode_u_64(self.startTimeMs, serializer);
+    sse_encode_u_64(self.endTimeMs, serializer);
+    sse_encode_u_64(self.startTimeInSourceMs, serializer);
+    sse_encode_u_64(self.endTimeInSourceMs, serializer);
+    sse_encode_list_overlap_info(self.overlappingClips, serializer);
+    sse_encode_bool(self.success, serializer);
   }
 
   @protected
@@ -3777,6 +4430,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putPlatformInt64(self);
+  }
+
+  @protected
+  void sse_encode_list_clip_placement_result(
+    List<ClipPlacementResult> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_clip_placement_result(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_overlap_info(
+    List<OverlapInfo> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_overlap_info(item, serializer);
+    }
   }
 
   @protected
@@ -3857,6 +4534,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     if (self != null) {
       sse_encode_box_autoadd_u_64(self, serializer);
     }
+  }
+
+  @protected
+  void sse_encode_overlap_info(OverlapInfo self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.clipId, serializer);
+    sse_encode_u_64(self.startTimeMs, serializer);
+    sse_encode_u_64(self.endTimeMs, serializer);
+    sse_encode_u_64(self.overlapStartMs, serializer);
+    sse_encode_u_64(self.overlapEndMs, serializer);
+    sse_encode_String(self.actionType, serializer);
+    sse_encode_opt_box_autoadd_u_64(self.actionTimeMs, serializer);
   }
 
   @protected

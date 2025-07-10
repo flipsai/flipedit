@@ -11,7 +11,7 @@ import 'package:flipedit/viewmodels/commands/remove_clip_command.dart';
 import 'package:watch_it/watch_it.dart';
 import 'package:flipedit/services/timeline_clip_resize_service.dart';
 import 'package:flipedit/services/project_database_service.dart';
-import 'package:flipedit/services/timeline_logic_service.dart';
+import 'package:flipedit/services/ges_timeline_service.dart';
 
 // Import extracted components
 import 'resize_clip_handle.dart';
@@ -505,7 +505,7 @@ class _TimelineClipState extends State<TimelineClip> {
           newTrackId: widget.clip.trackId,
           newStartTimeOnTrackMs: newStartTimeMs,
           projectDatabaseService: di<ProjectDatabaseService>(),
-          timelineLogicService: di<TimelineLogicService>(),
+          gesTimelineService: di<GESTimelineService>(),
           timelineNavViewModel: di<TimelineNavigationViewModel>(),
           clipsNotifier: di<TimelineViewModel>().clipsNotifier,
         );
@@ -599,7 +599,7 @@ class _TimelineClipState extends State<TimelineClip> {
 
     // Retrieve services via di
     final projectDatabaseService = di<ProjectDatabaseService>();
-    final timelineLogicService = di<TimelineLogicService>();
+    final gesTimelineService = di<GESTimelineService>();
     final navigationViewModel = di<TimelineNavigationViewModel>();
 
     await _resizeService.handleResizeEnd(
@@ -614,7 +614,7 @@ class _TimelineClipState extends State<TimelineClip> {
       runCommand: (cmd) => di<TimelineViewModel>().runCommand(cmd),
       // Pass the required services
       projectDatabaseService: projectDatabaseService,
-      timelineLogicService: timelineLogicService,
+      gesTimelineService: gesTimelineService,
       navigationViewModel: navigationViewModel,
     );
 

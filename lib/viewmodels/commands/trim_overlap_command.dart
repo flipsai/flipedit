@@ -2,7 +2,7 @@ import '../timeline_viewmodel.dart';
 import '../timeline_state_viewmodel.dart';
 import '../commands/timeline_command.dart';
 import '../../models/clip.dart';
-import '../../services/timeline_logic_service.dart';
+import '../../services/ges_timeline_service.dart';
 import '../../services/project_database_service.dart';
 import 'package:watch_it/watch_it.dart';
 
@@ -11,7 +11,7 @@ class TrimOverlapCommand implements TimelineCommand {
   final ClipModel newClip;
   late List<ClipModel> _beforeNeighbors;
 
-  final TimelineLogicService _timelineLogicService = di<TimelineLogicService>();
+  final GESTimelineService _gesTimelineService = di<GESTimelineService>();
   final TimelineStateViewModel _stateViewModel = di<TimelineStateViewModel>();
   final ProjectDatabaseService _databaseService = di<ProjectDatabaseService>();
 
@@ -24,13 +24,13 @@ class TrimOverlapCommand implements TimelineCommand {
   @override
   Future<void> execute() async {
     _beforeNeighbors =
-        _timelineLogicService
+        (await _gesTimelineService
             .getOverlappingClips(
               _stateViewModel.clips,
               newClip.trackId,
               newClip.startTimeOnTrackMs,
               newClip.endTimeOnTrackMs,
-            )
+            ))
             .map((c) => c.copyWith())
             .toList();
     await vm.placeClipOnTrack(
