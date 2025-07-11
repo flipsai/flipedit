@@ -16,14 +16,6 @@ impl TextureRegistry {
         }
     }
 
-    /// Update all registered textures with the same frame data
-    pub fn update_all_textures(&self, frame_data: FrameData) {
-        for (texture_id, update_fn) in &self.update_functions {
-            debug!("Updating texture {} with frame data", texture_id);
-            update_fn(frame_data.clone());
-        }
-    }
-
     /// Get the number of registered textures
     pub fn texture_count(&self) -> usize {
         self.update_functions.len()
@@ -35,14 +27,6 @@ lazy_static::lazy_static! {
     pub static ref TEXTURE_REGISTRY: Arc<Mutex<TextureRegistry>> = 
         Arc::new(Mutex::new(TextureRegistry::new()));
 }
-
-/// Update all registered textures with the same frame data  
-pub fn update_all_textures(frame_data: FrameData) {
-    if let Ok(registry) = TEXTURE_REGISTRY.lock() {
-        registry.update_all_textures(frame_data);
-    }
-}
-
 /// Get the number of registered textures
 pub fn get_texture_count() -> usize {
     TEXTURE_REGISTRY.lock()

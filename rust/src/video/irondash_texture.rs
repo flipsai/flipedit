@@ -153,18 +153,12 @@ pub fn unregister_irondash_update_function(texture_id: i64) {
 
 /// Update video frame data - now calls the REAL irondash update functions
 pub fn update_video_frame(frame_data: FrameData) -> Result<()> {
-    let mut updated_count = 0;
-    
     // Call the REAL irondash texture update functions
     if let Ok(functions) = IRONDASH_UPDATE_FUNCTIONS.lock() {
-        for (texture_id, update_fn) in functions.iter() {
+        for (_texture_id, update_fn) in functions.iter() {
             update_fn(frame_data.clone());
-            updated_count += 1;
         }
     }
-    
-    // Also call texture registry for compatibility
-    crate::video::texture_registry::update_all_textures(frame_data);
     
     Ok(())
 }
