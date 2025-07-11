@@ -49,3 +49,5 @@ app.*.map.json
 /assets/build
 
 ges_doc_text
+
+ges_guide_sections

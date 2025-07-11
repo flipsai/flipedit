@@ -1,7 +1,10 @@
 use anyhow::{anyhow, Result};
 use gstreamer as gst;
+use gstreamer_app;
+use gstreamer_video;
+use gstreamer_editing_services as ges;
 use gst::prelude::*;
-use log::info;
+use log::{info, warn};
 use std::sync::{Arc, Mutex};
 
 use crate::common::types::{FrameData, TimelineData};
@@ -38,6 +41,17 @@ unsafe impl Sync for DirectPipelinePlayer {}
 impl DirectPipelinePlayer {
     pub fn new() -> Result<Self> {
         gst::init().map_err(|e| anyhow!("Failed to initialize GStreamer: {}", e))?;
+        
+        // Initialize GES
+        ges::init()
+            .map_err(|e| anyhow!("Failed to initialize GStreamer Editing Services: {}", e))?;
+        
+        // Set GStreamer debug environment to suppress the discoverer warning
+        // This warning is non-critical and occurs when GES initializes its discoverer
+        std::env::set_var("GST_DEBUG_NO_COLOR", "1");
+        if std::env::var("GST_DEBUG").is_err() {
+            std::env::set_var("GST_DEBUG", "discoverer:1,ges:2"); // Reduce discoverer verbosity
+        }
         
         // Configure plugin rankings for better compatibility and error handling
         {
@@ -118,8 +132,8 @@ impl DirectPipelinePlayer {
         // Create GES timeline using the timeline manager
         let timeline = self.ges_timeline_manager.create_timeline_from_data(timeline_data)?;
         
-        // Create video sink for the texture
-        let video_sink = self.create_texture_video_sink()?;
+        // Create video sink for the GES pipeline (use autovideosink for proper GES integration)
+        let video_sink = self.create_ges_video_sink()?;
         
         // Create GES pipeline using the pipeline manager
         self.ges_pipeline_manager.create_pipeline(&timeline, &video_sink)?;
@@ -129,32 +143,89 @@ impl DirectPipelinePlayer {
             *self.duration_ms.lock().unwrap() = Some(duration_ms);
         }
         
-        
-        info!("GES pipeline loaded successfully");
+        info!("GES pipeline loaded successfully with proper bus message handling");
         Ok(())
     }
     
-    fn create_texture_video_sink(&self) -> Result<gst::Element> {
-        let video_sink = gst::ElementFactory::make("appsink")
-            .name("texture_video_sink0")
-            .property("emit-signals", true)
-            .property("sync", true)
-            .property("async", false)
-            .build()
-            .map_err(|e| anyhow!("Failed to create texture video sink: {}", e))?;
+    
+    fn create_ges_video_sink(&self) -> Result<gst::Element> {
+        // Create a simple appsink for GES pipeline - this is the recommended approach
+        // GES pipelines work best with direct sinks, not complex tee setups
         
-        // Set video sink caps
+        info!("Creating direct appsink for GES pipeline video output");
+        
+        // Create appsink for texture updates
+        let appsink = gst::ElementFactory::make("appsink")
+            .name("ges_video_appsink")
+            .property("emit-signals", true)
+            .property("sync", true)  // Sync for proper timing in GES
+            .property("async", false)
+            .property("max-buffers", 3u32)  // Allow small buffer for smoother playback
+            .property("drop", false)  // Don't drop frames for better quality
+            .build()
+            .map_err(|e| anyhow!("Failed to create appsink: {}", e))?;
+        
+        // Set appsink caps - use a more flexible format
         let caps = gst::Caps::builder("video/x-raw")
             .field("format", "RGBA")
-            .field("width", 1920i32)
-            .field("height", 1080i32)
+            .field("pixel-aspect-ratio", gst::Fraction::new(1, 1))
             .build();
-        video_sink.set_property("caps", &caps);
+        appsink.set_property("caps", &caps);
         
-        // Note: Texture callback will be set up when the texture_update_fn is registered
-        // For now, we just configure the appsink to emit signals
+        // Set up appsink callback
+        let appsink_element = appsink.clone().dynamic_cast::<gstreamer_app::AppSink>()
+            .map_err(|_| anyhow!("Failed to cast to AppSink"))?;
         
-        Ok(video_sink)
+        appsink_element.set_callbacks(
+            gstreamer_app::AppSinkCallbacks::builder()
+                .new_sample(move |appsink| {
+                    // Handle the video sample for texture updates
+                    if let Ok(sample) = appsink.pull_sample() {
+                        if let Some(buffer) = sample.buffer() {
+                            if let Some(caps) = sample.caps() {
+                                if let Ok(video_info) = gstreamer_video::VideoInfo::from_caps(&caps) {
+                                    let width = video_info.width();
+                                    let height = video_info.height();
+                                    
+                                    if let Ok(map) = buffer.map_readable() {
+                                        let data = map.as_slice();
+                                        
+                                        // Create frame data and update texture
+                                        let frame_data = FrameData {
+                                            data: data.to_vec(),
+                                            width,
+                                            height,
+                                            texture_id: None,
+                                        };
+                                        
+                                        // Update the texture using the IronDash system
+                                        if let Err(e) = crate::video::irondash_texture::update_video_frame(frame_data) {
+                                            warn!("Failed to update texture: {}", e);
+                                        } else {
+                                            // Log successful frame processing (occasionally)
+                                            static mut FRAME_COUNT: u32 = 0;
+                                            unsafe {
+                                                FRAME_COUNT += 1;
+                                                if FRAME_COUNT % 30 == 0 {  // Log every 30 frames
+                                                    info!("📺 Successfully processed frame {} ({}x{})", 
+                                                          FRAME_COUNT, width, height);
+                                                }
+                                            }
+                                        }
+                                        
+                                        return Ok(gst::FlowSuccess::Ok);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Ok(gst::FlowSuccess::Ok)
+                })
+                .build(),
+        );
+        
+        info!("✅ Created direct appsink for GES pipeline video output");
+        Ok(appsink)
     }
 
     pub fn play(&mut self) -> Result<()> {
@@ -227,10 +298,24 @@ impl DirectPipelinePlayer {
     pub fn update_position(&self) {
         // Query position from GES pipeline manager
         if let Some(position_ms) = self.ges_pipeline_manager.query_position() {
+            let old_position = *self.current_position_ms.lock().unwrap();
             *self.current_position_ms.lock().unwrap() = position_ms;
             
             // Update the GES pipeline manager's position tracking
             self.ges_pipeline_manager.update_position(position_ms);
+            
+            // Call position update callback if available
+            if let Some(callback) = self.position_callback.lock().unwrap().as_ref() {
+                let duration_ms = self.get_duration_ms().unwrap_or(0);
+                if let Err(e) = callback(position_ms as f64 / 1000.0, duration_ms) {
+                    warn!("Position update callback failed: {}", e);
+                }
+            }
+            
+            // Log position updates occasionally for debugging
+            if position_ms > 0 && (position_ms - old_position) > 500 {
+                println!("📍 Position updated: {}ms / {}ms", position_ms, self.get_duration_ms().unwrap_or(0));
+            }
         }
     }
 
@@ -239,11 +324,33 @@ impl DirectPipelinePlayer {
     }
     
     pub fn get_current_position_ms(&self) -> u64 {
-        *self.current_position_ms.lock().unwrap()
+        // Query the latest position from the pipeline before returning
+        if let Some(position_ms) = self.ges_pipeline_manager.query_position() {
+            *self.current_position_ms.lock().unwrap() = position_ms;
+            position_ms
+        } else {
+            *self.current_position_ms.lock().unwrap()
+        }
+    }
+
+    pub fn get_current_frame_number(&self) -> u64 {
+        let position_seconds = self.get_position_secs();
+        // TODO: Get actual frame rate from video metadata instead of hardcoded 30fps
+        let frame_rate = 30.0;
+        (position_seconds * frame_rate) as u64
     }
 
     pub fn is_playing(&self) -> bool {
-        *self.is_playing.lock().unwrap()
+        // Check both our internal state and the actual pipeline state
+        let internal_playing = *self.is_playing.lock().unwrap();
+        let pipeline_playing = self.ges_pipeline_manager.is_playing();
+        
+        // If there's a mismatch, update our internal state
+        if internal_playing != pipeline_playing {
+            *self.is_playing.lock().unwrap() = pipeline_playing;
+        }
+        
+        pipeline_playing
     }
 
     pub fn set_position_update_callback(&mut self, callback: PositionUpdateCallback) -> Result<()> {
@@ -285,6 +392,13 @@ impl DirectPipelinePlayer {
         // GES handles clip transforms automatically
         // This method is kept for API compatibility but does nothing
         info!("Clip transform update requested - handled automatically by GES");
+        Ok(())
+    }
+
+    /// Set the timeline duration explicitly (called from Flutter)
+    pub fn set_timeline_duration(&mut self, duration_ms: u64) -> Result<()> {
+        *self.duration_ms.lock().unwrap() = Some(duration_ms);
+        info!("Timeline duration updated to {}ms", duration_ms);
         Ok(())
     }
 

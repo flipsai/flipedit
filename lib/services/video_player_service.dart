@@ -31,6 +31,9 @@ class VideoPlayerService extends ChangeNotifier {
   // Position tracking - Rust is the source of truth
   final ValueNotifier<double> positionSecondsNotifier = ValueNotifier<double>(0.0);
   final ValueNotifier<int> currentFrameNotifier = ValueNotifier<int>(0);
+  final ValueNotifier<double> positionMsNotifier = ValueNotifier<double>(0.0);
+  
+  double _frameRate = 30.0; // Default fallback
   
   // Batch update system to reduce widget rebuilds
   Timer? _batchUpdateTimer;
@@ -46,6 +49,13 @@ class VideoPlayerService extends ChangeNotifier {
   dynamic get activePlayer => _activePlayer;
   double get positionSeconds => positionSecondsNotifier.value;
   int get currentFrame => currentFrameNotifier.value;
+  double get positionMs => positionMsNotifier.value;
+
+  // Set frame rate for accurate frame calculations
+  void setFrameRate(double frameRate) {
+    _frameRate = frameRate;
+    logDebug("Frame rate set to: $_frameRate fps", _logTag);
+  }
 
   // Set the current video path (for coordination)
   void setCurrentVideoPath(String videoPath) {
@@ -54,16 +64,6 @@ class VideoPlayerService extends ChangeNotifier {
       logDebug("Current video path set to: $videoPath", _logTag);
       notifyListeners();
     }
-  }
-
-  // Register an active video player instance for seeking
-  void registerVideoPlayer(VideoPlayer videoPlayer) {
-    _activePlayer = videoPlayer;
-    hasActiveVideoNotifier.value = true;
-    logDebug("Active video player registered", _logTag);
-    
-    // Set up position stream for real-time updates
-    _setupPositionStream();
   }
 
   // Register an active timeline player instance for seeking
@@ -116,9 +116,10 @@ class VideoPlayerService extends ChangeNotifier {
     
     try {
       if (_activePlayer is GesTimelinePlayer) {
-        // For GES timeline players, use timer-based polling (avoids main-context threading issues)
-        logDebug("Setting up position polling for GES timeline player", _logTag);
-        _positionPollingTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
+        // For GES timeline players, use timer-based polling according to GES guide
+        // GES guide recommends 40-100ms intervals, we'll use 50ms (20fps) for smooth playhead updates
+        logDebug("Setting up position polling for GES timeline player (50ms intervals per GES guide)", _logTag);
+        _positionPollingTimer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
           if (_isSeeking) return;
           if (_activePlayer == null) {
             timer.cancel();
@@ -126,10 +127,23 @@ class VideoPlayerService extends ChangeNotifier {
           }
 
           try {
-            _activePlayer!.updatePosition();
-            final positionMs = _activePlayer!.getPositionMs();
+            final gesPlayer = _activePlayer as GesTimelinePlayer;
+            
+            // Only update position if actively playing (optimization from GES guide)
+            if (!gesPlayer.isActivelyPlaying()) {
+              // If not actively playing, still update occasionally to catch state changes
+              return;
+            }
+            
+            // Call updatePosition() as recommended by GES guide
+            gesPlayer.updatePosition();
+            
+            // Use the new getCurrentPositionMs() method for better accuracy
+            final positionMsBigInt = gesPlayer.getCurrentPositionMs();
+            final positionMs = positionMsBigInt.toDouble();
             final positionSeconds = positionMs / 1000.0;
-            final frameNumber = (positionSeconds * 30).round();
+            // Get frame number directly from Rust instead of calculating
+            final frameNumber = gesPlayer.getCurrentFrameNumber().toInt();
 
             // Save as base for interpolation
             _lastRustPositionSeconds = positionSeconds;
@@ -140,36 +154,17 @@ class VideoPlayerService extends ChangeNotifier {
             _scheduleBatchUpdate(() {
               positionSecondsNotifier.value = positionSeconds;
               currentFrameNotifier.value = frameNumber;
+              positionMsNotifier.value = positionMs;
             });
+            
+            // Debug log position updates occasionally
+            if (positionMs % 1000 < 50) { // Log roughly every second
+              logDebug("📍 GES Position: ${positionSeconds.toStringAsFixed(2)}s", _logTag);
+            }
           } catch (e) {
             logError(_logTag, "Position polling error: $e");
           }
         });
-      } else {
-        // Push-based stream for simple VideoPlayer
-        final positionStream = _activePlayer!.setupPositionStream();
-        _positionStreamSubscription = positionStream.listen(
-          (positionData) {
-            final (positionSeconds, frameNumber) = positionData;
-            if (_isSeeking) return;
-            // Save as base for interpolation
-            _lastRustPositionSeconds = positionSeconds;
-            _lastRustPositionTimestamp = DateTime.now();
-
-            _ensureDisplayTimerRunning();
-
-            _scheduleBatchUpdate(() {
-              positionSecondsNotifier.value = positionSeconds;
-              currentFrameNotifier.value = frameNumber.toInt();
-            });
-          },
-          onError: (error) {
-            logError(_logTag, "Position stream error: $error");
-          },
-          onDone: () {
-            logDebug("Position stream completed", _logTag);
-          },
-        );
       }
       
       logDebug("Position stream setup completed", _logTag);
@@ -211,11 +206,13 @@ class VideoPlayerService extends ChangeNotifier {
           _isSeeking = false;
           // Force position update when seek completes
           final positionSeconds = positionMs / 1000.0;
-          final frameNumber = (positionSeconds * 30).round();
+          // Get frame number directly from Rust instead of calculating
+          final frameNumber = (_activePlayer as GesTimelinePlayer).getCurrentFrameNumber().toInt();
           
           _scheduleBatchUpdate(() {
             positionSecondsNotifier.value = positionSeconds;
             currentFrameNotifier.value = frameNumber;
+            positionMsNotifier.value = positionMs.toDouble();
             // Notify UI components that seek is complete
             seekCompletionNotifier.value = frameNumber;
           });
@@ -259,14 +256,8 @@ class VideoPlayerService extends ChangeNotifier {
       // Pause position polling until seek completes
       _isSeeking = true;
       
-      if (_activePlayer is VideoPlayer) {
-        await _activePlayer!.seekToFrame(frameNumber: BigInt.from(frameNumber));
-        _isSeeking = false;
-      } else if (_activePlayer is GesTimelinePlayer) {
-        // Convert frame to milliseconds (assuming 30fps)
         final positionMs = (frameNumber * 1000 / 30).round();
         await _activePlayer!.seekToPosition(positionMs: positionMs);
-      }
       
       logDebug("Seek completed to frame: $frameNumber", _logTag);
     } catch (e) {
@@ -287,18 +278,11 @@ class VideoPlayerService extends ChangeNotifier {
       // Pause position polling until seek completes
       _isSeeking = true;
       
-      if (_activePlayer is VideoPlayer) {
-        final actualPosition = await _activePlayer!.seekAndPauseControl(
-          seconds: seconds,
-          wasPlayingBefore: wasPlayingBefore,
-        );
-        logDebug("Seek completed to actual position: ${actualPosition}s", _logTag);
-        _isSeeking = false;
-      } else if (_activePlayer is GesTimelinePlayer) {
+      
         final positionMs = (seconds * 1000).round();
         await _activePlayer!.seekToPosition(positionMs: positionMs);
         logDebug("Seek completed to position: ${seconds}s", _logTag);
-      }
+      
     } catch (e) {
       logError(_logTag, "Error seeking to time $seconds: $e");
     }
@@ -306,7 +290,7 @@ class VideoPlayerService extends ChangeNotifier {
 
   // Extract frame at position for preview
   Future<void> previewFrameAtTime(double seconds) async {
-    if (_activePlayer == null || _activePlayer is! VideoPlayer) {
+    if (_activePlayer == null) {
       logDebug("No active video player for frame preview", _logTag);
       return;
     }
@@ -322,9 +306,6 @@ class VideoPlayerService extends ChangeNotifier {
   double getFrameRate() {
     if (_activePlayer == null) return 30.0; // Default frame rate
     try {
-      if (_activePlayer is VideoPlayer) {
-        return _activePlayer!.getFrameRate();
-      }
       return 30.0; // Default for timeline player
     } catch (e) {
       logError(_logTag, "Error getting frame rate: $e");
@@ -335,22 +316,17 @@ class VideoPlayerService extends ChangeNotifier {
   int getTotalFrames() {
     if (_activePlayer == null) return 0;
     try {
-      if (_activePlayer is VideoPlayer) {
-        return _activePlayer!.getTotalFrames().toInt();
-      } else if (_activePlayer is GesTimelinePlayer) {
         final durationMs = _activePlayer!.getDurationMs();
         logInfo(_logTag, "GES Timeline Player duration: ${durationMs}ms");
         if (durationMs != null && durationMs > 0) {
-          // Convert duration to frames (assuming 30 FPS)
-          final totalFrames = (durationMs / 1000.0 * 30.0).round();
-          logInfo(_logTag, "Converted to frames: $totalFrames frames (${totalFrames / 30.0} seconds)");
+          // Convert duration to frames using actual frame rate
+          final totalFrames = (durationMs / 1000.0 * _frameRate).round();
+          logInfo(_logTag, "Converted to frames: $totalFrames frames (${totalFrames / _frameRate} seconds)");
           return totalFrames;
         }
         // Fallback: if no duration available, try to get it from project timeline
         logInfo(_logTag, "No duration from GES player, falling back to timeline calculation");
         return _calculateTimelineFrames();
-      }
-      return 0;
     } catch (e) {
       logError(_logTag, "Error getting total frames: $e");
       return 0;
@@ -375,28 +351,23 @@ class VideoPlayerService extends ChangeNotifier {
       }
       
       if (maxEndTimeMs > 0) {
-        // Convert to frames (30 FPS)
-        return (maxEndTimeMs / 1000.0 * 30.0).round();
+        // Convert to frames using actual frame rate
+        return (maxEndTimeMs / 1000.0 * _frameRate).round();
       }
       
       // Default fallback: 30 seconds
-      return 900; // 30 seconds at 30 FPS
+      return (30.0 * _frameRate).round();
     } catch (e) {
       logError(_logTag, "Error calculating timeline frames: $e");
-      return 900; // Default fallback
+      return (30.0 * _frameRate).round(); // Default fallback
     }
   }
 
   double getDuration() {
     if (_activePlayer == null) return 0.0;
     try {
-      if (_activePlayer is VideoPlayer) {
-        return _activePlayer!.getDurationSeconds();
-      } else if (_activePlayer is GesTimelinePlayer) {
-        final durationMs = _activePlayer!.getDurationMs();
-        return durationMs != null ? durationMs / 1000.0 : 0.0;
-      }
-      return 0.0;
+      final durationMs = _activePlayer!.getDurationMs();
+      return durationMs != null ? durationMs / 1000.0 : 0.0;
     } catch (e) {
       logError(_logTag, "Error getting duration: $e");
       return 0.0;

@@ -1,8 +1,8 @@
 use anyhow::{anyhow, Result};
 use ges::prelude::*;
-use gst::prelude::*;
 use gstreamer as gst;
 use gstreamer_editing_services as ges;
+use gst::prelude::*;
 use log::{info, warn};
 use std::sync::{Arc, Mutex};
 
@@ -32,36 +32,35 @@ impl GESPipelineManager {
 
         // Create pipeline from timeline
         let pipeline = ges::Pipeline::new();
-        pipeline.set_timeline(timeline)?;
+        
+        // Set the timeline on the GES pipeline
+        pipeline.set_timeline(timeline)
+            .map_err(|e| anyhow!("Failed to set timeline on GES pipeline: {}", e))?;
 
-        // Set up video output
+        // Set up video output sink for preview
         pipeline.preview_set_video_sink(Some(video_sink));
 
-        // Configure audio sink to reduce underflow issues
-        self.configure_audio_sink(&pipeline)?;
+        // Temporarily disable audio to avoid aggregator issues - focus on video first
+        // Set up audio sink - use fakesink to avoid audio aggregator issues
+        let audio_sink = gst::ElementFactory::make("fakesink")
+            .name("ges-audio-sink")
+            .property("sync", false)  // Don't sync audio for now
+            .build()
+            .map_err(|e| anyhow!("Failed to create audio sink: {}", e))?;
+        pipeline.set_property("audio-sink", &audio_sink);
 
+        // Set pipeline mode to FULL_PREVIEW for both video and audio output
+        pipeline.set_mode(ges::PipelineFlags::FULL_PREVIEW)
+            .map_err(|e| anyhow!("Failed to set pipeline mode to FULL_PREVIEW: {}", e))?;
+
+        info!("GES pipeline configured with video sink and audio sink");
         self.pipeline = Some(pipeline);
 
         info!("GES pipeline created successfully");
         Ok(())
     }
 
-    /// Configure audio sink to reduce underflow warnings
-    fn configure_audio_sink(&self, pipeline: &ges::Pipeline) -> Result<()> {
-        // Create a custom audio sink with larger buffer to prevent underflows
-        let audio_sink = gst::ElementFactory::make("pulsesink")
-            .name("custom_audio_sink")
-            .property("buffer-time", 200000i64) // 200ms buffer (larger than default)
-            .property("latency-time", 20000i64) // 20ms latency
-            .property("sync", true)
-            .build()
-            .map_err(|e| anyhow!("Failed to create custom audio sink: {}", e))?;
 
-        pipeline.preview_set_audio_sink(Some(&audio_sink));
-        info!("Configured custom audio sink with larger buffer to reduce underflows");
-
-        Ok(())
-    }
 
     /// Start playback
     pub fn play(&mut self) -> Result<()> {
@@ -70,9 +69,31 @@ impl GESPipelineManager {
             .as_ref()
             .ok_or_else(|| anyhow!("No GES pipeline available for playback"))?;
 
-        info!("Setting GES pipeline to PLAYING");
+        info!("Setting GES pipeline to PLAYING (non-blocking approach)");
 
-        // Set pipeline to PLAYING state
+        // According to GES guide: First set to PAUSED for preroll, then to PLAYING
+        // But we'll do this without blocking the main thread
+        info!("Step 1: Setting pipeline to PAUSED");
+        match pipeline.set_state(gst::State::Paused) {
+            Ok(gst::StateChangeSuccess::Success) => {
+                info!("✅ GES pipeline set to PAUSED successfully");
+            }
+            Ok(gst::StateChangeSuccess::Async) => {
+                info!("⏳ GES pipeline transitioning to PAUSED asynchronously (non-blocking)");
+                // Don't wait synchronously - let the bus messages handle state change notifications
+            }
+            Ok(gst::StateChangeSuccess::NoPreroll) => {
+                info!("✅ GES pipeline set to PAUSED (no preroll)");
+            }
+            Err(e) => {
+                let error_msg = format!("Failed to set GES pipeline to PAUSED: {}", e);
+                warn!("{}", error_msg);
+                return Err(anyhow!(error_msg));
+            }
+        }
+
+        // Step 2: Now set to PLAYING
+        info!("Step 2: Setting pipeline to PLAYING");
         match pipeline.set_state(gst::State::Playing) {
             Ok(gst::StateChangeSuccess::Success) => {
                 info!("✅ GES pipeline set to PLAYING successfully");
@@ -80,7 +101,8 @@ impl GESPipelineManager {
                 Ok(())
             }
             Ok(gst::StateChangeSuccess::Async) => {
-                info!("⏳ GES pipeline transitioning to PLAYING asynchronously");
+                info!("⏳ GES pipeline transitioning to PLAYING asynchronously (non-blocking)");
+                // Don't wait synchronously - let the bus messages handle state change notifications
                 self.is_playing = true;
                 Ok(())
             }
@@ -104,11 +126,22 @@ impl GESPipelineManager {
             .as_ref()
             .ok_or_else(|| anyhow!("No GES pipeline available for pause"))?;
 
-        info!("Setting GES pipeline to PAUSED");
+        info!("Setting GES pipeline to PAUSED (non-blocking)");
 
         match pipeline.set_state(gst::State::Paused) {
-            Ok(_) => {
+            Ok(gst::StateChangeSuccess::Success) => {
                 info!("✅ GES pipeline paused successfully");
+                self.is_playing = false;
+                Ok(())
+            }
+            Ok(gst::StateChangeSuccess::Async) => {
+                info!("⏳ GES pipeline transitioning to PAUSED asynchronously (non-blocking)");
+                // Don't wait synchronously - let the bus messages handle state change notifications
+                self.is_playing = false;
+                Ok(())
+            }
+            Ok(gst::StateChangeSuccess::NoPreroll) => {
+                info!("✅ GES pipeline paused (no preroll)");
                 self.is_playing = false;
                 Ok(())
             }
@@ -162,15 +195,28 @@ impl GESPipelineManager {
         let success = pipeline.seek_simple(seek_flags, position_time);
 
         if success.is_ok() {
-            info!("✅ GES pipeline seek successful to {}ms", position_ms);
+            info!("✅ GES pipeline seek command sent successfully to {}ms", position_ms);
             *self.current_position_ms.lock().unwrap() = position_ms;
 
-            // If we were playing before seek, make sure we're still in playing state
+            // According to GES guide, we should wait for ASYNC_DONE after seeking
+            // Use a brief non-blocking wait to allow the seek to settle
+            std::thread::sleep(std::time::Duration::from_millis(50));
+
+            // Restore the previous state properly (non-blocking)
             if was_playing {
-                info!("🔄 Restoring PLAYING state after seek");
+                info!("🔄 Restoring PLAYING state after seek (non-blocking)");
                 match pipeline.set_state(gst::State::Playing) {
-                    Ok(_) => {
+                    Ok(gst::StateChangeSuccess::Success) => {
                         info!("✅ Successfully restored PLAYING state after seek");
+                        self.is_playing = true;
+                    }
+                    Ok(gst::StateChangeSuccess::Async) => {
+                        info!("⏳ Restoring PLAYING state asynchronously after seek (non-blocking)");
+                        // Don't wait synchronously - let the bus messages handle state change notifications
+                        self.is_playing = true;
+                    }
+                    Ok(gst::StateChangeSuccess::NoPreroll) => {
+                        info!("✅ PLAYING state restored (no preroll) after seek");
                         self.is_playing = true;
                     }
                     Err(e) => {
@@ -180,10 +226,17 @@ impl GESPipelineManager {
                 }
             } else {
                 // If we weren't playing, ensure we're in PAUSED state for frame display
-                info!("🔄 Setting PAUSED state after seek for frame display");
+                info!("🔄 Setting PAUSED state after seek for frame display (non-blocking)");
                 match pipeline.set_state(gst::State::Paused) {
-                    Ok(_) => {
+                    Ok(gst::StateChangeSuccess::Success) => {
                         info!("✅ Successfully set PAUSED state after seek");
+                    }
+                    Ok(gst::StateChangeSuccess::Async) => {
+                        info!("⏳ Setting PAUSED state asynchronously after seek (non-blocking)");
+                        // Don't wait synchronously - let the bus messages handle state change notifications
+                    }
+                    Ok(gst::StateChangeSuccess::NoPreroll) => {
+                        info!("✅ PAUSED state set (no preroll) after seek");
                     }
                     Err(e) => {
                         warn!("⚠️ Failed to set PAUSED state after seek: {}", e);
@@ -271,14 +324,35 @@ impl GESPipelineManager {
         Ok(())
     }
 
+    /// Get the bus for message handling
+    pub fn get_bus(&self) -> Option<gst::Bus> {
+        self.pipeline.as_ref().and_then(|p| p.bus())
+    }
+
     /// Query current position from pipeline
     pub fn query_position(&self) -> Option<u64> {
         if let Some(pipeline) = &self.pipeline {
-            if let Some(position) = pipeline.query_position::<gst::ClockTime>() {
-                let position_ns = position.nseconds();
-                let position_ms = (position_ns as f64 / 1_000_000.0) as u64;
-                return Some(position_ms);
+            // Use get_state to get the actual current state including pending changes
+            let (_result, current_state, pending_state) = pipeline.state(gst::ClockTime::ZERO);
+            info!("🔍 Query position: current_state = {:?}, pending_state = {:?}", current_state, pending_state);
+            
+            // Only query position if pipeline is in PLAYING or PAUSED state
+            // or if it's transitioning to one of these states
+            if current_state == gst::State::Playing || current_state == gst::State::Paused ||
+               pending_state == gst::State::Playing || pending_state == gst::State::Paused {
+                if let Some(position) = pipeline.query_position::<gst::ClockTime>() {
+                    let position_ns = position.nseconds();
+                    let position_ms = (position_ns as f64 / 1_000_000.0) as u64;
+                    info!("✅ Position query successful: {}ms", position_ms);
+                    return Some(position_ms);
+                } else {
+                    info!("❌ Position query failed - pipeline not ready or no position available");
+                }
+            } else {
+                info!("⚠️ Position query skipped - current_state={:?}, pending_state={:?}", current_state, pending_state);
             }
+        } else {
+            info!("❌ No pipeline available for position query");
         }
         None
     }

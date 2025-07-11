@@ -59,8 +59,6 @@ Future<void> setupServiceLocator() async {
     dispose: (service) => service.dispose(),
   );
 
-  di.registerLazySingleton<VideoPlayer>(() => VideoPlayer());
-
   // Undo/Redo service for project clips
   di.registerLazySingleton<UndoRedoService>(
     () => UndoRedoService(projectDatabaseService: di<ProjectDatabaseService>()),

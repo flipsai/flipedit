@@ -6,7 +6,7 @@ import 'package:flipedit/viewmodels/timeline_state_viewmodel.dart'; // Import St
 import 'package:flipedit/services/video_player_service.dart'; // Add VideoPlayerService import
 import 'package:flipedit/views/widgets/timeline/components/time_ruler.dart';
 import 'package:flipedit/views/widgets/timeline/components/timeline_controls.dart';
-import 'package:flipedit/views/widgets/timeline/components/lightweight_playhead_overlay.dart';
+import 'package:flipedit/views/widgets/timeline/components/playhead.dart';
 import 'package:flipedit/views/widgets/timeline/timeline_track.dart';
 import 'package:flipedit/views/widgets/timeline/mixins/timeline_scroll_logic_mixin.dart';
 import 'package:flipedit/views/widgets/timeline/mixins/timeline_interaction_logic_mixin.dart';
@@ -409,7 +409,7 @@ class _TimelineContent extends StatelessWidget with WatchItMixin {
 
                       // Lightweight Playhead Overlay (Separate rendering layer for performance)
                       if (hasActiveVideo)
-                        LightweightPlayheadOverlay(
+                        Playhead(
                           key: const ValueKey('timeline_playhead'),
                           zoom: zoom,
                           trackLabelWidth: trackLabelWidth,

@@ -4,13 +4,13 @@ import 'package:flipedit/services/video_player_service.dart';
 import 'package:watch_it/watch_it.dart';
 import 'dart:async';
 
-class LightweightPlayheadOverlay extends StatefulWidget {
+class Playhead extends StatefulWidget {
   final double zoom;
   final double trackLabelWidth;
   final double timelineHeight;
   final ScrollController scrollController;
 
-  const LightweightPlayheadOverlay({
+  const Playhead({
     super.key,
     required this.zoom,
     required this.trackLabelWidth,
@@ -19,10 +19,10 @@ class LightweightPlayheadOverlay extends StatefulWidget {
   });
 
   @override
-  State<LightweightPlayheadOverlay> createState() => _LightweightPlayheadOverlayState();
+  State<Playhead> createState() => _PlayheadState();
 }
 
-class _LightweightPlayheadOverlayState extends State<LightweightPlayheadOverlay> {
+class _PlayheadState extends State<Playhead> {
   late VideoPlayerService _videoPlayerService;
   bool _isDragging = false;
   double _dragPosition = 0.0;
@@ -89,7 +89,7 @@ class _LightweightPlayheadOverlayState extends State<LightweightPlayheadOverlay>
   }
 
   @override
-  void didUpdateWidget(LightweightPlayheadOverlay oldWidget) {
+  void didUpdateWidget(Playhead oldWidget) {
     super.didUpdateWidget(oldWidget);
     
     // Handle scroll controller changes

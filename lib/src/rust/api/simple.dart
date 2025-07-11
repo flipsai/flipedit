@@ -7,9 +7,6 @@ import '../common/types.dart';
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These types are ignored because they are not used by any `pub` functions: `ACTIVE_VIDEOS`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `deref`, `initialize`
-
 String greet({required String name}) =>
     RustLib.instance.api.crateApiSimpleGreet(name: name);
 
@@ -31,25 +28,6 @@ bool updateVideoFrame({required FrameData frameData}) =>
 /// Get the number of active irondash textures
 BigInt getTextureCount() =>
     RustLib.instance.api.crateApiSimpleGetTextureCount();
-
-/// Play a basic MP4 video and return irondash texture id
-PlatformInt64 playBasicVideo({
-  required String filePath,
-  required PlatformInt64 engineHandle,
-}) => RustLib.instance.api.crateApiSimplePlayBasicVideo(
-  filePath: filePath,
-  engineHandle: engineHandle,
-);
-
-PlatformInt64 playDualVideo({
-  required String filePathLeft,
-  required String filePathRight,
-  required PlatformInt64 engineHandle,
-}) => RustLib.instance.api.crateApiSimplePlayDualVideo(
-  filePathLeft: filePathLeft,
-  filePathRight: filePathRight,
-  engineHandle: engineHandle,
-);
 
 /// Create and load a direct pipeline timeline player with timeline data (GStreamer-only implementation)
 Future<(GesTimelinePlayer, PlatformInt64)> createGesTimelinePlayer({
@@ -73,6 +51,15 @@ abstract class GesTimelinePlayer implements RustOpaqueInterface {
   @override
   Future<void> dispose();
 
+  /// Get current frame number based on position and frame rate
+  BigInt getCurrentFrameNumber();
+
+  /// Get current playback position in milliseconds
+  BigInt getCurrentPositionMs();
+
+  /// Get current playback position in seconds
+  double getCurrentPositionSeconds();
+
   int? getDurationMs();
 
   FrameData? getLatestFrame();
@@ -82,6 +69,9 @@ abstract class GesTimelinePlayer implements RustOpaqueInterface {
   int getPositionMs();
 
   TextureFrame? getTextureFrame();
+
+  /// Check if pipeline is actively playing (for optimizing position update frequency)
+  bool isActivelyPlaying();
 
   bool isPlaying();
 
@@ -97,6 +87,9 @@ abstract class GesTimelinePlayer implements RustOpaqueInterface {
   Future<void> play();
 
   Future<void> seekToPosition({required int positionMs});
+
+  /// Set the timeline duration explicitly (called from Flutter when clips change)
+  Future<void> setTimelineDuration({required BigInt durationMs});
 
   Stream<FrameData> setupFrameStream();
 
@@ -116,6 +109,7 @@ abstract class GesTimelinePlayer implements RustOpaqueInterface {
   });
 
   /// Update position from GStreamer pipeline - call this regularly for smooth playhead updates
+  /// According to GES guide, this should be called every 40-100ms during playback
   void updatePosition();
 }
 
@@ -151,70 +145,4 @@ abstract class TimelinePlayer implements RustOpaqueInterface {
 
   /// Test method to verify timeline logic - set position and check if frame should be shown
   bool testTimelineLogic({required int positionMs});
-}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<VideoPlayer>>
-abstract class VideoPlayer implements RustOpaqueInterface {
-  @override
-  Future<void> dispose();
-
-  /// Extract frame at specific position for preview without seeking main pipeline
-  Future<void> extractFrameAtPosition({required double seconds});
-
-  /// Get current position and frame - Flutter can call this periodically
-  (double, BigInt) getCurrentPositionAndFrame();
-
-  double getDurationSeconds();
-
-  double getFrameRate();
-
-  FrameData? getLatestFrame();
-
-  /// Get the latest texture ID for GPU-based rendering
-  BigInt getLatestTextureId();
-
-  double getPositionSeconds();
-
-  /// Get texture frame data for GPU-based rendering
-  TextureFrame? getTextureFrame();
-
-  BigInt getTotalFrames();
-
-  (int, int) getVideoDimensions();
-
-  bool hasAudio();
-
-  bool isPlaying();
-
-  bool isSeekable();
-
-  Future<void> loadVideo({required String filePath});
-
-  factory VideoPlayer() => RustLib.instance.api.crateApiSimpleVideoPlayerNew();
-
-  static VideoPlayer newPlayer() =>
-      RustLib.instance.api.crateApiSimpleVideoPlayerNewPlayer();
-
-  Future<void> pause();
-
-  Future<void> play();
-
-  /// Seek to final position with pause/resume control - used when releasing slider
-  Future<double> seekAndPauseControl({
-    required double seconds,
-    required bool wasPlayingBefore,
-  });
-
-  Future<void> seekToFrame({required BigInt frameNumber});
-
-  Stream<FrameData> setupFrameStream();
-
-  Stream<(double, BigInt)> setupPositionStream();
-
-  Future<void> stop();
-
-  /// Force synchronization between pipeline state and internal state
-  Future<bool> syncPlayingState();
-
-  Future<void> testPipeline({required String filePath});
 }

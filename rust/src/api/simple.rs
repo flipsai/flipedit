@@ -1,6 +1,5 @@
 use flutter_rust_bridge::frb;
 pub use crate::api::bridge::*;
-use crate::video::player::VideoPlayer as InternalVideoPlayer;
 use crate::video::direct_pipeline_player::DirectPipelinePlayer as InternalDirectPipelinePlayer;
 pub use crate::common::types::{FrameData, TimelineData, TimelineClip, TimelineTrack, TextureFrame};
 use gstreamer as gst;
@@ -11,13 +10,7 @@ use anyhow::Result;
 use crate::frb_generated::StreamSink;
 use lazy_static::lazy_static;
 use std::sync::Mutex as StdMutex;
-use crate::video::pipeline::VideoPipeline;
-use crate::video::frame_handler::FrameHandler;
 use log::info;
-
-lazy_static! {
-    static ref ACTIVE_VIDEOS: StdMutex<Vec<VideoPipeline>> = StdMutex::new(Vec::new());
-}
 
 // Position update callback type
 pub type PositionUpdateCallback = Box<dyn Fn(f64, u64) + Send + Sync>;
@@ -26,157 +19,6 @@ pub type PositionUpdateCallback = Box<dyn Fn(f64, u64) + Send + Sync>;
 pub fn greet(name: String) -> String {
     crate::api::bridge::greet(name)
 }
-
-pub struct VideoPlayer {
-    inner: InternalVideoPlayer,
-}
-
-impl VideoPlayer {
-    #[frb(sync)]
-    pub fn new() -> Self {
-        Self {
-            inner: InternalVideoPlayer::new(),
-        }
-    }
-
-    #[frb(sync)]
-    pub fn new_player() -> Self {
-        Self::new()
-    }
-
-
-    pub fn load_video(&mut self, file_path: String) -> Result<(), String> {
-        self.inner.load_video(file_path)
-    }
-
-    pub fn play(&mut self) -> Result<(), String> {
-        self.inner.play()
-    }
-
-    pub fn pause(&mut self) -> Result<(), String> {
-        self.inner.pause()
-    }
-
-    pub fn stop(&mut self) -> Result<(), String> {
-        self.inner.stop()
-    }
-
-    pub fn setup_frame_stream(&mut self, sink: StreamSink<FrameData>) -> Result<()> {
-        self.inner.set_frame_callback(Box::new(move |frame| {
-            if let Err(e) = sink.add(frame) {
-                // Log or handle the error appropriately
-                // For now, we'll just print it to stderr
-                eprintln!("Failed to send frame to sink: {:?}", e);
-            }
-            Ok(())
-        }))?;
-        Ok(())
-    }
-
-    pub fn setup_position_stream(&mut self, sink: StreamSink<(f64, u64)>) -> Result<()> {
-        self.inner.set_position_update_callback(Box::new(move |position, frame| {
-            if let Err(e) = sink.add((position, frame)) {
-                // Log or handle the error appropriately
-                eprintln!("Failed to send position update to sink: {:?}", e);
-            }
-            Ok(())
-        }))?;
-        Ok(())
-    }
-
-    /// Get current position and frame - Flutter can call this periodically
-    #[frb(sync)]
-    pub fn get_current_position_and_frame(&self) -> (f64, u64) {
-        let position_seconds = self.inner.get_position_seconds();
-        let frame_number = self.inner.get_current_frame_number();
-        (position_seconds, frame_number)
-    }
-
-    #[frb(sync)]
-    pub fn get_video_dimensions(&self) -> (i32, i32) {
-        self.inner.get_video_dimensions()
-    }
-
-    #[frb(sync)]
-    pub fn is_playing(&self) -> bool {
-        self.inner.is_playing()
-    }
-
-    #[frb(sync)]
-    pub fn get_latest_frame(&self) -> Option<FrameData> {
-        self.inner.get_latest_frame()
-    }
-    
-    /// Get the latest texture ID for GPU-based rendering
-    #[frb(sync)]
-    pub fn get_latest_texture_id(&self) -> u64 {
-        self.inner.get_latest_texture_id()
-    }
-    
-    /// Get texture frame data for GPU-based rendering
-    #[frb(sync)]
-    pub fn get_texture_frame(&self) -> Option<TextureFrame> {
-        self.inner.get_texture_frame()
-    }
-
-    #[frb(sync)]
-    pub fn has_audio(&self) -> bool {
-        self.inner.has_audio()
-    }
-
-    pub fn dispose(&mut self) -> Result<(), String> {
-        self.inner.dispose()
-    }
-
-    #[frb(sync)]
-    pub fn get_duration_seconds(&self) -> f64 {
-        self.inner.get_duration_seconds()
-    }
-
-    #[frb(sync)]
-    pub fn get_position_seconds(&self) -> f64 {
-        self.inner.get_position_seconds()
-    }
-
-    #[frb(sync)]
-    pub fn is_seekable(&self) -> bool {
-        self.inner.is_seekable()
-    }
-
-    #[frb(sync)]
-    pub fn get_frame_rate(&self) -> f64 {
-        self.inner.get_frame_rate()
-    }
-
-    #[frb(sync)]
-    pub fn get_total_frames(&self) -> u64 {
-        self.inner.get_total_frames()
-    }
-
-    /// Extract frame at specific position for preview without seeking main pipeline
-    pub fn extract_frame_at_position(&mut self, seconds: f64) -> Result<(), String> {
-        self.inner.extract_frame_at_position(seconds)
-    }
-
-    /// Seek to final position with pause/resume control - used when releasing slider  
-    pub fn seek_and_pause_control(&mut self, seconds: f64, was_playing_before: bool) -> Result<f64, String> {
-        self.inner.seek_and_pause_control(seconds, was_playing_before)
-    }
-
-    /// Force synchronization between pipeline state and internal state
-    pub fn sync_playing_state(&mut self) -> bool {
-        self.inner.sync_playing_state()
-    }
-
-    pub fn seek_to_frame(&mut self, frame_number: u64) -> Result<(), String> {
-        self.inner.seek_to_frame(frame_number).map(|_| ())
-    }
-
-    pub fn test_pipeline(&self, file_path: String) -> Result<(), String> {
-        testing::test_pipeline(file_path)
-    }
-}
-
 pub struct TimelinePlayer {
     inner: InternalDirectPipelinePlayer,
 }
@@ -332,9 +174,34 @@ impl GESTimelinePlayer {
     }
 
     /// Update position from GStreamer pipeline - call this regularly for smooth playhead updates
+    /// According to GES guide, this should be called every 40-100ms during playback
     #[frb(sync)]
     pub fn update_position(&self) {
         self.inner.update_position();
+    }
+    
+    /// Check if pipeline is actively playing (for optimizing position update frequency)
+    #[frb(sync)]
+    pub fn is_actively_playing(&self) -> bool {
+        self.inner.is_playing()
+    }
+    
+    /// Get current playback position in milliseconds
+    #[frb(sync)]
+    pub fn get_current_position_ms(&self) -> u64 {
+        self.inner.get_current_position_ms()
+    }
+    
+    /// Get current playback position in seconds
+    #[frb(sync)]
+    pub fn get_current_position_seconds(&self) -> f64 {
+        self.inner.get_position_secs()
+    }
+
+    /// Get current frame number based on position and frame rate
+    #[frb(sync)]
+    pub fn get_current_frame_number(&self) -> u64 {
+        self.inner.get_current_frame_number()
     }
 
     pub fn setup_frame_stream(&mut self, _sink: StreamSink<FrameData>) -> Result<()> {
@@ -380,6 +247,10 @@ impl GESTimelinePlayer {
         ).map_err(|e| e.to_string())
     }
 
+    /// Set the timeline duration explicitly (called from Flutter when clips change)
+    pub fn set_timeline_duration(&mut self, duration_ms: u64) -> Result<(), String> {
+        self.inner.set_timeline_duration(duration_ms).map_err(|e| e.to_string())
+    }
 
     pub fn dispose(&mut self) -> Result<(), String> {
         self.inner.dispose().map_err(|e| e.to_string())
@@ -413,39 +284,6 @@ pub fn update_video_frame(frame_data: FrameData) -> bool {
 pub fn get_texture_count() -> usize {
     crate::video::texture_registry::get_texture_count()
 } 
-
-/// Play a basic MP4 video and return irondash texture id
-#[frb(sync)]
-pub fn play_basic_video(file_path: String, engine_handle: i64) -> Result<i64, String> {
-    // Create texture placeholder (1x1)
-    let texture_id = crate::video::irondash_texture::create_video_texture_on_main_thread(1, 1, engine_handle)
-        .map_err(|e| e.to_string())?;
-
-    // Build pipeline
-    let handler = FrameHandler::new();
-    let vp = VideoPipeline::new(&file_path, std::sync::Arc::new(std::sync::Mutex::new(handler)))
-        .map_err(|e| e.to_string())?;
-    vp.play().map_err(|e| e.to_string())?;
-
-    ACTIVE_VIDEOS.lock().unwrap().push(vp);
-
-    Ok(texture_id)
-} 
-
-#[frb(sync)]
-pub fn play_dual_video(file_path_left: String, file_path_right: String, engine_handle: i64) -> Result<i64, String> {
-    let texture_id = crate::video::irondash_texture::create_video_texture_on_main_thread(1, 1, engine_handle)
-        .map_err(|e| e.to_string())?;
-
-    let handler = FrameHandler::new();
-    let vp = VideoPipeline::new_dual(&file_path_left, &file_path_right, Arc::new(Mutex::new(handler)))
-        .map_err(|e| e.to_string())?;
-    vp.play().map_err(|e| e.to_string())?;
-
-    ACTIVE_VIDEOS.lock().unwrap().push(vp);
-
-    Ok(texture_id)
-}
 
 /// Create and load a direct pipeline timeline player with timeline data (GStreamer-only implementation)
 pub fn create_ges_timeline_player(timeline_data: TimelineData, engine_handle: i64) -> Result<(GESTimelinePlayer, i64), String> {
