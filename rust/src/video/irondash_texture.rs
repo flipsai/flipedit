@@ -1,7 +1,7 @@
 use irondash_texture::{Texture, PayloadProvider, BoxedPixelData, SimplePixelData};
 use crate::common::types::FrameData;
 use std::sync::{Arc, Mutex};
-use log::{info, debug, warn};
+use log::{info, debug};
 use anyhow::Result;
 use irondash_engine_context::EngineContext;
 use std::sync::mpsc;
