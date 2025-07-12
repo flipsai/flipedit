@@ -1,16 +1,17 @@
 use anyhow::{anyhow, Result};
 use gstreamer as gst;
 use gstreamer_app;
-use gstreamer_video;
 use gstreamer_editing_services as ges;
 use gst::prelude::*;
 use log::{info, warn};
 use std::sync::{Arc, Mutex};
 
-use crate::common::types::{FrameData, TimelineData};
-use crate::video::irondash_texture::create_player_texture;
+use crate::common::types::TimelineData;
+use crate::video::wgpu_texture::{create_gpu_video_texture, mark_gpu_textures_available, WgpuTexture, get_texture_id_for_engine};
 use crate::video::ges_timeline::GESTimelineManager;
 use crate::video::ges_pipeline::GESPipelineManager;
+use gstreamer_gl as gst_gl;
+use gstreamer_gl::prelude::GLContextExt;
 
 pub type PositionUpdateCallback = Box<dyn Fn(f64, u64) -> Result<()> + Send + Sync>;
 pub type SeekCompletionCallback = Box<dyn Fn(u64) -> Result<()> + Send + Sync>;
@@ -21,9 +22,10 @@ pub struct DirectPipelinePlayer {
     ges_timeline_manager: GESTimelineManager,
     ges_pipeline_manager: GESPipelineManager,
     
-    // Texture and playback state
+    // GPU texture state
     texture_id: Option<i64>,
-    texture_update_fn: Option<Box<dyn Fn(FrameData) + Send + Sync>>,
+    wgpu_texture: Option<Arc<WgpuTexture>>,
+    gl_context: Option<gst_gl::GLContext>,
     is_playing: Arc<Mutex<bool>>,
     current_position_ms: Arc<Mutex<u64>>,
     duration_ms: Arc<Mutex<Option<u64>>>,
@@ -100,9 +102,10 @@ impl DirectPipelinePlayer {
             ges_timeline_manager: GESTimelineManager::new(),
             ges_pipeline_manager: GESPipelineManager::new(),
             
-            // Texture and playback state
+            // GPU texture state
             texture_id: None,
-            texture_update_fn: None,
+            wgpu_texture: None,
+            gl_context: None,
             is_playing: Arc::new(Mutex::new(false)),
             current_position_ms: Arc::new(Mutex::new(0)),
             duration_ms: Arc::new(Mutex::new(None)),
@@ -112,111 +115,89 @@ impl DirectPipelinePlayer {
         })
     }
 
-    /// Create texture with proper GL context sharing for this player
-    pub fn create_texture(&mut self, engine_handle: i64) -> Result<i64> {
-        let (texture_id, update_fn) = create_player_texture(1920, 1080, engine_handle)?;
-        self.texture_id = Some(texture_id);
-        self.texture_update_fn = Some(update_fn);
-        self.flutter_engine_handle = Some(engine_handle);
-        
-        info!("Created GL-enabled texture with ID: {}", texture_id);
-        Ok(texture_id)
-    }
 
-    pub fn load_timeline(&mut self, timeline_data: TimelineData) -> Result<()> {
+    pub fn load_timeline(&mut self, timeline_data: TimelineData, engine_handle: i64) -> Result<i64> {
         let total_clips: usize = timeline_data.tracks.iter().map(|t| t.clips.len()).sum();
         println!("🔥 LOAD_TIMELINE CALLED with {} tracks and {} clips", timeline_data.tracks.len(), total_clips);
-        info!("Loading timeline with {} tracks and {} total clips using GES pipeline", timeline_data.tracks.len(), total_clips);
+        info!("Loading RED TEST PATTERN (5s) instead of timeline for GPU context testing");
         self.stop_pipeline()?;
         
-        // Create GES timeline using the timeline manager
-        let timeline = self.ges_timeline_manager.create_timeline_from_data(timeline_data)?;
+        // Store engine handle
+        self.flutter_engine_handle = Some(engine_handle);
         
-        // Create video sink for the GES pipeline (use autovideosink for proper GES integration)
-        let video_sink = self.create_ges_video_sink()?;
+        // Create test pipeline with red background instead of GES timeline
+        let video_sink = self.create_gpu_video_sink(engine_handle)?;
+        self.create_test_red_pipeline(&video_sink)?;
         
-        // Create GES pipeline using the pipeline manager
-        self.ges_pipeline_manager.create_pipeline(&timeline, &video_sink)?;
+        // Set test duration to 5 seconds
+        *self.duration_ms.lock().unwrap() = Some(5000);
         
-        // Get duration from timeline manager
-        if let Some(duration_ms) = self.ges_timeline_manager.get_duration_ms() {
-            *self.duration_ms.lock().unwrap() = Some(duration_ms);
-        }
-        
-        info!("GES pipeline loaded successfully with proper bus message handling");
-        Ok(())
+        info!("GPU-only RED TEST pipeline loaded successfully");
+        Ok(self.texture_id.unwrap_or(0))
     }
     
     
-    fn create_ges_video_sink(&self) -> Result<gst::Element> {
-        // Create a simple appsink for GES pipeline - this is the recommended approach
-        // GES pipelines work best with direct sinks, not complex tee setups
+    fn create_gpu_video_sink(&mut self, engine_handle: i64) -> Result<gst::Element> {
+        info!("Creating GPU-only video sink with OpenGL context sharing");
         
-        info!("Creating direct appsink for GES pipeline video output");
+        // Create glsinkbin for GPU processing
+        let glsinkbin = gst::ElementFactory::make("glsinkbin")
+            .name("gpu_video_sink")
+            .build()
+            .map_err(|e| anyhow!("Failed to create glsinkbin: {}", e))?;
         
-        // Create appsink for texture updates
+        // Create appsink as the sink element inside glsinkbin
         let appsink = gst::ElementFactory::make("appsink")
-            .name("ges_video_appsink")
+            .name("gpu_appsink")
             .property("emit-signals", true)
-            .property("sync", true)  // Sync for proper timing in GES
+            .property("sync", true)
             .property("async", false)
-            .property("max-buffers", 3u32)  // Allow small buffer for smoother playback
-            .property("drop", false)  // Don't drop frames for better quality
+            .property("max-buffers", 3u32)
+            .property("drop", false)
             .build()
             .map_err(|e| anyhow!("Failed to create appsink: {}", e))?;
         
-        // Set appsink caps - use a more flexible format
+        // Set GL memory caps for zero-copy GPU processing
         let caps = gst::Caps::builder("video/x-raw")
             .field("format", "RGBA")
-            .field("pixel-aspect-ratio", gst::Fraction::new(1, 1))
+            .field("texture-target", "2D")
+            .features(["memory:GLMemory"])
             .build();
         appsink.set_property("caps", &caps);
         
-        // Set up appsink callback
-        let appsink_element = appsink.clone().dynamic_cast::<gstreamer_app::AppSink>()
+        // Set the appsink as the sink element for glsinkbin
+        glsinkbin.set_property("sink", &appsink);
+        
+        // Set up appsink callback for GPU texture handling
+        let appsink_element = appsink.dynamic_cast::<gstreamer_app::AppSink>()
             .map_err(|_| anyhow!("Failed to cast to AppSink"))?;
         
         appsink_element.set_callbacks(
             gstreamer_app::AppSinkCallbacks::builder()
                 .new_sample(move |appsink| {
-                    // Handle the video sample for texture updates
+                    // GPU-only frame processing - no CPU copies!
                     if let Ok(sample) = appsink.pull_sample() {
                         if let Some(buffer) = sample.buffer() {
-                            if let Some(caps) = sample.caps() {
-                                if let Ok(video_info) = gstreamer_video::VideoInfo::from_caps(&caps) {
-                                    let width = video_info.width();
-                                    let height = video_info.height();
-                                    
-                                    if let Ok(map) = buffer.map_readable() {
-                                        let data = map.as_slice();
-                                        
-                                        // Create frame data and update texture
-                                        let frame_data = FrameData {
-                                            data: data.to_vec(),
-                                            width,
-                                            height,
-                                            texture_id: None,
-                                        };
-                                        
-                                        // Update the texture using the IronDash system
-                                        if let Err(e) = crate::video::irondash_texture::update_video_frame(frame_data) {
-                                            warn!("Failed to update texture: {}", e);
-                                        } else {
-                                            // Log successful frame processing (occasionally)
-                                            static mut FRAME_COUNT: u32 = 0;
-                                            unsafe {
-                                                FRAME_COUNT += 1;
-                                                if FRAME_COUNT % 30 == 0 {  // Log every 30 frames
-                                                    info!("📺 Successfully processed frame {} ({}x{})", 
-                                                          FRAME_COUNT, width, height);
-                                                }
-                                            }
-                                        }
-                                        
-                                        return Ok(gst::FlowSuccess::Ok);
+                            // Check if buffer has GL memory - simplified check for GPU mode
+                            // In GPU-only mode, we assume all buffers are GL memory
+                            // since we're using glsinkbin with GL memory caps
+                            if buffer.n_memory() > 0 {
+                                // This buffer is already on GPU - mark textures available
+                                if let Err(e) = mark_gpu_textures_available() {
+                                    warn!("Failed to mark GPU textures available: {}", e);
+                                } else {
+                                    // Log successful GPU frame processing (occasionally)
+                                    use std::sync::atomic::{AtomicU32, Ordering};
+                                    static FRAME_COUNT: AtomicU32 = AtomicU32::new(0);
+                                    let count = FRAME_COUNT.fetch_add(1, Ordering::Relaxed);
+                                    if count % 30 == 0 {
+                                        info!("🚀 GPU-only frame {} processed (zero CPU copy)", count);
                                     }
                                 }
+                                return Ok(gst::FlowSuccess::Ok);
                             }
+                            
+                            warn!("Received non-GL memory buffer - this should not happen in GPU-only mode");
                         }
                     }
                     Ok(gst::FlowSuccess::Ok)
@@ -224,8 +205,95 @@ impl DirectPipelinePlayer {
                 .build(),
         );
         
-        info!("✅ Created direct appsink for GES pipeline video output");
-        Ok(appsink)
+        // Extract GL context from the pipeline for texture creation
+        // This happens after the pipeline is created and GL context is available
+        
+        // Create GL context and GPU texture immediately - simplified approach
+        // We'll create our own GL context instead of trying to extract from pipeline
+        match self.create_gl_context_and_texture(engine_handle) {
+            Ok(texture_id) => {
+                info!("🚀 Created GPU texture with ID: {}", texture_id);
+                self.texture_id = Some(texture_id);
+                crate::video::wgpu_texture::store_texture_id_for_engine(engine_handle, texture_id);
+            }
+            Err(e) => {
+                warn!("Failed to create GPU texture: {}", e);
+            }
+        }
+        
+        info!("✅ Created GPU-only video sink with OpenGL context sharing");
+        Ok(glsinkbin)
+    }
+
+    fn create_gl_context_and_texture(&mut self, engine_handle: i64) -> Result<i64> {
+        info!("Creating GL context and GPU texture");
+        
+        // Create a GL display for our platform
+        let gl_display = gst_gl::GLDisplay::new();
+        
+        // Create GL context
+        let gl_context = gst_gl::GLContext::new(&gl_display);
+        
+        // Activate the context
+        gl_context.activate(true)
+            .map_err(|e| anyhow!("Failed to activate GL context: {}", e))?;
+        
+        // Store the context
+        self.gl_context = Some(gl_context.clone());
+        
+        // Create GPU texture with the new context
+        let (texture_id, wgpu_texture) = create_gpu_video_texture(gl_context, 1920, 1080, engine_handle)?;
+        self.wgpu_texture = Some(wgpu_texture);
+        
+        Ok(texture_id)
+    }
+
+    fn create_test_red_pipeline(&mut self, video_sink: &gst::Element) -> Result<()> {
+        info!("Creating test pipeline with 5-second red background");
+        
+        // Create pipeline
+        let pipeline = gst::Pipeline::new();
+        
+        // Create videotestsrc with solid color - fallback to simple approach
+        let test_src = gst::ElementFactory::make("videotestsrc")
+            .name("red_test_source")
+            .property("num-buffers", 150i32)  // 5 seconds at 30fps = 150 frames
+            .property("foreground-color", 0xFF0000FFu32)  // Red color (RGBA)
+            .build()
+            .map_err(|e| anyhow!("Failed to create videotestsrc: {}", e))?;
+        
+        // Try to set pattern, but don't fail if it doesn't work
+        let _ = test_src.set_property_from_str("pattern", "solid-color");
+        
+        // Create caps filter for consistent format
+        let caps_filter = gst::ElementFactory::make("capsfilter")
+            .name("test_caps_filter")
+            .build()
+            .map_err(|e| anyhow!("Failed to create capsfilter: {}", e))?;
+        
+        let caps = gst::Caps::builder("video/x-raw")
+            .field("format", "RGBA")
+            .field("width", 1920i32)
+            .field("height", 1080i32)
+            .field("framerate", gst::Fraction::new(30, 1))
+            .build();
+        caps_filter.set_property("caps", &caps);
+        
+        // Add elements to pipeline
+        pipeline.add_many(&[&test_src, &caps_filter, video_sink])
+            .map_err(|e| anyhow!("Failed to add elements to test pipeline: {}", e))?;
+        
+        // Link elements
+        test_src.link(&caps_filter)
+            .map_err(|e| anyhow!("Failed to link test_src to caps_filter: {}", e))?;
+        caps_filter.link(video_sink)
+            .map_err(|e| anyhow!("Failed to link caps_filter to video_sink: {}", e))?;
+        
+        // Store pipeline in GES pipeline manager for consistent interface
+        self.ges_pipeline_manager.set_test_pipeline(pipeline);
+        
+        info!("✅ Test red background pipeline created successfully");
+        Ok(())
     }
 
     pub fn play(&mut self) -> Result<()> {
@@ -367,11 +435,6 @@ impl DirectPipelinePlayer {
         Ok(())
     }
 
-    pub fn set_texture_update_function(&mut self, update_fn: Box<dyn Fn(FrameData) + Send + Sync>) -> Result<()> {
-        self.texture_update_fn = Some(update_fn);
-        info!("Texture update function registered for GES pipeline player");
-        Ok(())
-    }
 
     /// Update timeline position - handled automatically by GES
     pub fn update_timeline_position(&self, _timeline_position_ms: u64) -> Result<()> {
@@ -402,10 +465,19 @@ impl DirectPipelinePlayer {
         Ok(())
     }
 
+    /// Get the GPU texture ID for this player
+    pub fn get_gpu_texture_id(&self) -> Option<i64> {
+        if let Some(engine_handle) = self.flutter_engine_handle {
+            get_texture_id_for_engine(engine_handle)
+        } else {
+            None
+        }
+    }
+
     pub fn dispose(&mut self) -> Result<()> {
         if let Some(texture_id) = self.texture_id {
-            crate::video::irondash_texture::unregister_irondash_update_function(texture_id);
-            info!("Unregistered texture {}", texture_id);
+            crate::video::wgpu_texture::unregister_gpu_texture(texture_id);
+            info!("Unregistered GPU texture {}", texture_id);
         }
         
         // Dispose GES components

@@ -1,15 +1,11 @@
 use flutter_rust_bridge::frb;
 pub use crate::api::bridge::*;
 use crate::video::direct_pipeline_player::DirectPipelinePlayer as InternalDirectPipelinePlayer;
-pub use crate::common::types::{FrameData, TimelineData, TimelineClip, TimelineTrack, TextureFrame};
+pub use crate::common::types::{TimelineData, TimelineClip, TimelineTrack};
 use gstreamer as gst;
 use gstreamer::prelude::*;
-use crate::utils::testing;
-use std::sync::{Arc, Mutex};
 use anyhow::Result;
 use crate::frb_generated::StreamSink;
-use lazy_static::lazy_static;
-use std::sync::Mutex as StdMutex;
 use log::info;
 
 // Position update callback type
@@ -32,8 +28,8 @@ impl TimelinePlayer {
     }
 
 
-    pub fn load_timeline(&mut self, timeline_data: TimelineData) -> Result<(), String> {
-        self.inner.load_timeline(timeline_data).map_err(|e| e.to_string())
+    pub fn load_timeline(&mut self, timeline_data: TimelineData, engine_handle: i64) -> Result<i64, String> {
+        self.inner.load_timeline(timeline_data, engine_handle).map_err(|e| e.to_string())
     }
 
     pub fn set_position_ms(&mut self, position_ms: i32) {
@@ -59,25 +55,13 @@ impl TimelinePlayer {
         self.inner.dispose().map_err(|e| e.to_string())
     }
 
-    #[frb(sync)]
-    pub fn get_latest_frame(&self) -> Option<FrameData> {
-        // TODO: Implement frame handling for timeline player
-        None
-    }
     
     /// Get the latest texture ID for GPU-based rendering
     #[frb(sync)]
     pub fn get_latest_texture_id(&self) -> u64 {
-        // TODO: Implement texture ID for timeline player
-        0
+        self.inner.get_gpu_texture_id().unwrap_or(0) as u64
     }
     
-    /// Get texture frame data for GPU-based rendering
-    #[frb(sync)]
-    pub fn get_texture_frame(&self) -> Option<TextureFrame> {
-        // TODO: Implement texture frame for timeline player
-        None
-    }
 
     #[frb(sync)]
     pub fn is_playing(&self) -> bool {
@@ -113,13 +97,8 @@ impl GESTimelinePlayer {
     }
 
 
-    /// Create texture for this player
-    pub fn create_texture(&mut self, engine_handle: i64) -> Result<i64, String> {
-        self.inner.create_texture(engine_handle).map_err(|e| e.to_string())
-    }
-
-    pub fn load_timeline(&mut self, timeline_data: TimelineData) -> Result<(), String> {
-        self.inner.load_timeline(timeline_data).map_err(|e| e.to_string())
+    pub fn load_timeline(&mut self, timeline_data: TimelineData, engine_handle: i64) -> Result<i64, String> {
+        self.inner.load_timeline(timeline_data, engine_handle).map_err(|e| e.to_string())
     }
 
     pub fn play(&mut self) -> Result<(), String> {
@@ -159,18 +138,8 @@ impl GESTimelinePlayer {
     }
 
     #[frb(sync)]
-    pub fn get_latest_frame(&self) -> Option<FrameData> {
-        None // Not implemented yet - need texture integration
-    }
-
-    #[frb(sync)]
     pub fn get_latest_texture_id(&self) -> u64 {
-        0 // Not implemented yet - need texture integration
-    }
-
-    #[frb(sync)]
-    pub fn get_texture_frame(&self) -> Option<TextureFrame> {
-        None // Not implemented yet - need texture integration
+        self.inner.get_gpu_texture_id().unwrap_or(0) as u64
     }
 
     /// Update position from GStreamer pipeline - call this regularly for smooth playhead updates
@@ -204,10 +173,6 @@ impl GESTimelinePlayer {
         self.inner.get_current_frame_number()
     }
 
-    pub fn setup_frame_stream(&mut self, _sink: StreamSink<FrameData>) -> Result<()> {
-        info!("Frame stream setup requested for GES timeline player (not yet implemented)");
-        Ok(())
-    }
 
     pub fn setup_position_stream(&mut self, sink: StreamSink<(f64, u64)>) -> Result<()> {
         self.inner.set_position_update_callback(Box::new(move |position, frame| {
@@ -266,17 +231,12 @@ pub fn create_video_texture(width: u32, height: u32, engine_handle: i64) -> Resu
         .map_err(|e| e.to_string())
 }
 
-/// Update video frame data for all irondash textures
+/// Update video frame data (placeholder for GPU-only mode)
 #[frb(sync)]
-pub fn update_video_frame(frame_data: FrameData) -> bool {
-    // Only call the real irondash texture update function
-    match crate::video::irondash_texture::update_video_frame(frame_data) {
-        Ok(_) => true,
-        Err(e) => {
-            log::error!("Failed to update video frame: {}", e);
-            false
-        }
-    }
+pub fn update_video_frame(_frame_data: crate::common::types::FrameData) -> bool {
+    // GPU-only mode - this function is no longer used
+    // Mark textures available directly instead
+    crate::video::wgpu_texture::mark_gpu_textures_available().is_ok()
 }
 
 /// Get the number of active irondash textures
@@ -293,11 +253,8 @@ pub fn create_ges_timeline_player(timeline_data: TimelineData, engine_handle: i6
     // Create direct pipeline player
     let mut direct_player = GESTimelinePlayer::new();
     
-    // Create texture for this specific player
-    let texture_id = direct_player.create_texture(engine_handle)?;
-    
-    // Load the timeline data
-    direct_player.load_timeline(timeline_data.clone())?;
+    // Load the timeline data - this creates the GPU texture automatically
+    let texture_id = direct_player.load_timeline(timeline_data.clone(), engine_handle)?;
     
     log::info!("Created direct pipeline timeline player with {} tracks using GStreamer compositor", timeline_data.tracks.len());
     

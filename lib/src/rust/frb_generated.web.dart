@@ -82,9 +82,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  RustStreamSink<FrameData> dco_decode_StreamSink_frame_data_Sse(dynamic raw);
-
-  @protected
   RustStreamSink<int> dco_decode_StreamSink_i_32_Sse(dynamic raw);
 
   @protected
@@ -103,9 +100,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int dco_decode_box_autoadd_i_32(dynamic raw);
-
-  @protected
-  TextureFrame dco_decode_box_autoadd_texture_frame(dynamic raw);
 
   @protected
   TimelineData dco_decode_box_autoadd_timeline_data(dynamic raw);
@@ -135,13 +129,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<TimelineTrack> dco_decode_list_timeline_track(dynamic raw);
 
   @protected
-  FrameData? dco_decode_opt_box_autoadd_frame_data(dynamic raw);
-
-  @protected
   int? dco_decode_opt_box_autoadd_i_32(dynamic raw);
-
-  @protected
-  TextureFrame? dco_decode_opt_box_autoadd_texture_frame(dynamic raw);
 
   @protected
   BigInt? dco_decode_opt_box_autoadd_u_64(dynamic raw);
@@ -154,9 +142,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   (double, BigInt) dco_decode_record_f_64_u_64(dynamic raw);
-
-  @protected
-  TextureFrame dco_decode_texture_frame(dynamic raw);
 
   @protected
   TimelineClip dco_decode_timeline_clip(dynamic raw);
@@ -234,11 +219,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  RustStreamSink<FrameData> sse_decode_StreamSink_frame_data_Sse(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   RustStreamSink<int> sse_decode_StreamSink_i_32_Sse(
     SseDeserializer deserializer,
   );
@@ -259,11 +239,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int sse_decode_box_autoadd_i_32(SseDeserializer deserializer);
-
-  @protected
-  TextureFrame sse_decode_box_autoadd_texture_frame(
-    SseDeserializer deserializer,
-  );
 
   @protected
   TimelineData sse_decode_box_autoadd_timeline_data(
@@ -299,17 +274,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  FrameData? sse_decode_opt_box_autoadd_frame_data(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   int? sse_decode_opt_box_autoadd_i_32(SseDeserializer deserializer);
-
-  @protected
-  TextureFrame? sse_decode_opt_box_autoadd_texture_frame(
-    SseDeserializer deserializer,
-  );
 
   @protected
   BigInt? sse_decode_opt_box_autoadd_u_64(SseDeserializer deserializer);
@@ -322,9 +287,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   (double, BigInt) sse_decode_record_f_64_u_64(SseDeserializer deserializer);
-
-  @protected
-  TextureFrame sse_decode_texture_frame(SseDeserializer deserializer);
 
   @protected
   TimelineClip sse_decode_timeline_clip(SseDeserializer deserializer);
@@ -413,12 +375,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_StreamSink_frame_data_Sse(
-    RustStreamSink<FrameData> self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_StreamSink_i_32_Sse(
     RustStreamSink<int> self,
     SseSerializer serializer,
@@ -444,12 +400,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_box_autoadd_i_32(int self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_box_autoadd_texture_frame(
-    TextureFrame self,
-    SseSerializer serializer,
-  );
 
   @protected
   void sse_encode_box_autoadd_timeline_data(
@@ -491,19 +441,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_opt_box_autoadd_frame_data(
-    FrameData? self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_opt_box_autoadd_i_32(int? self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_opt_box_autoadd_texture_frame(
-    TextureFrame? self,
-    SseSerializer serializer,
-  );
 
   @protected
   void sse_encode_opt_box_autoadd_u_64(BigInt? self, SseSerializer serializer);
@@ -520,9 +458,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     (double, BigInt) self,
     SseSerializer serializer,
   );
-
-  @protected
-  void sse_encode_texture_frame(TextureFrame self, SseSerializer serializer);
 
   @protected
   void sse_encode_timeline_clip(TimelineClip self, SseSerializer serializer);

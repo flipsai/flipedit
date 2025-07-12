@@ -123,7 +123,11 @@ class VideoPlayerViewModel {
     try {
       logInfo('VideoPlayerViewModel', 'Refreshing timeline with updated data');
       final timelineData = await buildTimelineData();
-      await _timelinePlayer!.loadTimeline(timelineData: timelineData);
+      
+      // Acquire Flutter engine handle for zero-copy texture rendering
+      final handle = await EngineContext.instance.getEngineHandle();
+      
+      await _timelinePlayer!.loadTimeline(timelineData: timelineData, engineHandle: handle);
     } catch (e) {
       final errMsg = "Failed to refresh timeline: $e";
       errorMessageNotifier.value = errMsg;

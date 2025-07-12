@@ -2,6 +2,9 @@
 
 A new Flutter project.
 
+## Command to run in debug mode
+GST_DEBUG=3 RUST_LOG=debug RUST_BACKTRACE=full flutter run -d linux --enable-impeller
+
 ## Getting Started
 
 This project is a starting point for a Flutter application.

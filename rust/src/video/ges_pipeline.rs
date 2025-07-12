@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex};
 /// GES Pipeline Manager - handles GES pipeline creation and management
 pub struct GESPipelineManager {
     pipeline: Option<ges::Pipeline>,
+    test_pipeline: Option<gst::Pipeline>,  // For test patterns
     current_position_ms: Arc<Mutex<u64>>,
     is_playing: bool,
 }
@@ -17,6 +18,7 @@ impl GESPipelineManager {
     pub fn new() -> Self {
         Self {
             pipeline: None,
+            test_pipeline: None,
             current_position_ms: Arc::new(Mutex::new(0)),
             is_playing: false,
         }
@@ -60,71 +62,108 @@ impl GESPipelineManager {
         Ok(())
     }
 
-
+    /// Set a test pipeline (for testing GPU context without GES)
+    pub fn set_test_pipeline(&mut self, pipeline: gst::Pipeline) {
+        info!("Setting test pipeline for GPU context testing");
+        self.test_pipeline = Some(pipeline);
+    }
 
     /// Start playback
     pub fn play(&mut self) -> Result<()> {
-        let pipeline = self
-            .pipeline
-            .as_ref()
-            .ok_or_else(|| anyhow!("No GES pipeline available for playback"))?;
+        // Use test pipeline if available, otherwise use GES pipeline
+        if let Some(test_pipeline) = &self.test_pipeline {
+            info!("Starting test pipeline playback");
+            match test_pipeline.set_state(gst::State::Playing) {
+                Ok(_) => {
+                    self.is_playing = true;
+                    info!("✅ Test pipeline started successfully");
+                    Ok(())
+                }
+                Err(e) => {
+                    let error_msg = format!("Failed to start test pipeline: {}", e);
+                    warn!("{}", error_msg);
+                    Err(anyhow!(error_msg))
+                }
+            }
+        } else {
+            let pipeline = self
+                .pipeline
+                .as_ref()
+                .ok_or_else(|| anyhow!("No pipeline available for playback"))?;
 
-        info!("Setting GES pipeline to PLAYING (non-blocking approach)");
+            info!("Setting GES pipeline to PLAYING (non-blocking approach)");
 
-        // According to GES guide: First set to PAUSED for preroll, then to PLAYING
-        // But we'll do this without blocking the main thread
-        info!("Step 1: Setting pipeline to PAUSED");
-        match pipeline.set_state(gst::State::Paused) {
-            Ok(gst::StateChangeSuccess::Success) => {
-                info!("✅ GES pipeline set to PAUSED successfully");
+            // According to GES guide: First set to PAUSED for preroll, then to PLAYING
+            // But we'll do this without blocking the main thread
+            info!("Step 1: Setting pipeline to PAUSED");
+            match pipeline.set_state(gst::State::Paused) {
+                Ok(gst::StateChangeSuccess::Success) => {
+                    info!("✅ GES pipeline set to PAUSED successfully");
+                }
+                Ok(gst::StateChangeSuccess::Async) => {
+                    info!("⏳ GES pipeline transitioning to PAUSED asynchronously (non-blocking)");
+                    // Don't wait synchronously - let the bus messages handle state change notifications
+                }
+                Ok(gst::StateChangeSuccess::NoPreroll) => {
+                    info!("✅ GES pipeline set to PAUSED (no preroll)");
+                }
+                Err(e) => {
+                    let error_msg = format!("Failed to set GES pipeline to PAUSED: {}", e);
+                    warn!("{}", error_msg);
+                    return Err(anyhow!(error_msg));
+                }
             }
-            Ok(gst::StateChangeSuccess::Async) => {
-                info!("⏳ GES pipeline transitioning to PAUSED asynchronously (non-blocking)");
-                // Don't wait synchronously - let the bus messages handle state change notifications
-            }
-            Ok(gst::StateChangeSuccess::NoPreroll) => {
-                info!("✅ GES pipeline set to PAUSED (no preroll)");
-            }
-            Err(e) => {
-                let error_msg = format!("Failed to set GES pipeline to PAUSED: {}", e);
-                warn!("{}", error_msg);
-                return Err(anyhow!(error_msg));
-            }
-        }
 
-        // Step 2: Now set to PLAYING
-        info!("Step 2: Setting pipeline to PLAYING");
-        match pipeline.set_state(gst::State::Playing) {
-            Ok(gst::StateChangeSuccess::Success) => {
-                info!("✅ GES pipeline set to PLAYING successfully");
-                self.is_playing = true;
-                Ok(())
-            }
-            Ok(gst::StateChangeSuccess::Async) => {
-                info!("⏳ GES pipeline transitioning to PLAYING asynchronously (non-blocking)");
-                // Don't wait synchronously - let the bus messages handle state change notifications
-                self.is_playing = true;
-                Ok(())
-            }
-            Ok(gst::StateChangeSuccess::NoPreroll) => {
-                info!("✅ GES pipeline set to PLAYING (no preroll)");
-                self.is_playing = true;
-                Ok(())
-            }
-            Err(e) => {
-                let error_msg = format!("Failed to set GES pipeline to PLAYING: {}", e);
-                warn!("{}", error_msg);
-                Err(anyhow!(error_msg))
+            // Step 2: Now set to PLAYING
+            info!("Step 2: Setting pipeline to PLAYING");
+            match pipeline.set_state(gst::State::Playing) {
+                Ok(gst::StateChangeSuccess::Success) => {
+                    info!("✅ GES pipeline set to PLAYING successfully");
+                    self.is_playing = true;
+                    Ok(())
+                }
+                Ok(gst::StateChangeSuccess::Async) => {
+                    info!("⏳ GES pipeline transitioning to PLAYING asynchronously (non-blocking)");
+                    // Don't wait synchronously - let the bus messages handle state change notifications
+                    self.is_playing = true;
+                    Ok(())
+                }
+                Ok(gst::StateChangeSuccess::NoPreroll) => {
+                    info!("✅ GES pipeline set to PLAYING (no preroll)");
+                    self.is_playing = true;
+                    Ok(())
+                }
+                Err(e) => {
+                    let error_msg = format!("Failed to set GES pipeline to PLAYING: {}", e);
+                    warn!("{}", error_msg);
+                    Err(anyhow!(error_msg))
+                }
             }
         }
     }
 
     /// Pause playback
     pub fn pause(&mut self) -> Result<()> {
-        let pipeline = self
-            .pipeline
-            .as_ref()
-            .ok_or_else(|| anyhow!("No GES pipeline available for pause"))?;
+        // Use test pipeline if available, otherwise use GES pipeline
+        if let Some(test_pipeline) = &self.test_pipeline {
+            info!("Pausing test pipeline");
+            match test_pipeline.set_state(gst::State::Paused) {
+                Ok(_) => {
+                    self.is_playing = false;
+                    info!("✅ Test pipeline paused successfully");
+                    Ok(())
+                }
+                Err(e) => {
+                    let error_msg = format!("Failed to pause test pipeline: {}", e);
+                    warn!("{}", error_msg);
+                    Err(anyhow!(error_msg))
+                }
+            }
+        } else {
+            let pipeline = self
+                .pipeline
+                .as_ref()
+                .ok_or_else(|| anyhow!("No pipeline available for pause"))?;
 
         info!("Setting GES pipeline to PAUSED (non-blocking)");
 
@@ -151,11 +190,28 @@ impl GESPipelineManager {
                 Err(anyhow!(error_msg))
             }
         }
+        }
     }
 
     /// Stop playback
     pub fn stop(&mut self) -> Result<()> {
-        if let Some(pipeline) = &self.pipeline {
+        // Stop test pipeline if available
+        if let Some(test_pipeline) = &self.test_pipeline {
+            info!("Setting test pipeline to NULL");
+            match test_pipeline.set_state(gst::State::Null) {
+                Ok(_) => {
+                    info!("✅ Test pipeline stopped successfully");
+                    self.is_playing = false;
+                    *self.current_position_ms.lock().unwrap() = 0;
+                    Ok(())
+                }
+                Err(e) => {
+                    let error_msg = format!("Failed to stop test pipeline: {}", e);
+                    warn!("{}", error_msg);
+                    Err(anyhow!(error_msg))
+                }
+            }
+        } else if let Some(pipeline) = &self.pipeline {
             info!("Setting GES pipeline to NULL");
 
             match pipeline.set_state(gst::State::Null) {
@@ -331,7 +387,27 @@ impl GESPipelineManager {
 
     /// Query current position from pipeline
     pub fn query_position(&self) -> Option<u64> {
-        if let Some(pipeline) = &self.pipeline {
+        // Check test pipeline first, then GES pipeline
+        if let Some(test_pipeline) = &self.test_pipeline {
+            // Use get_state to get the actual current state including pending changes
+            let (_result, current_state, pending_state) = test_pipeline.state(gst::ClockTime::ZERO);
+            info!("🔍 Query position (test): current_state = {:?}, pending_state = {:?}", current_state, pending_state);
+            
+            // Only query position if pipeline is in PLAYING or PAUSED state
+            if current_state == gst::State::Playing || current_state == gst::State::Paused ||
+               pending_state == gst::State::Playing || pending_state == gst::State::Paused {
+                if let Some(position) = test_pipeline.query_position::<gst::ClockTime>() {
+                    let position_ns = position.nseconds();
+                    let position_ms = (position_ns as f64 / 1_000_000.0) as u64;
+                    info!("✅ Position query successful (test): {}ms", position_ms);
+                    return Some(position_ms);
+                } else {
+                    info!("❌ Position query failed (test) - pipeline not ready or no position available");
+                }
+            } else {
+                info!("⚠️ Position query skipped (test) - current_state={:?}, pending_state={:?}", current_state, pending_state);
+            }
+        } else if let Some(pipeline) = &self.pipeline {
             // Use get_state to get the actual current state including pending changes
             let (_result, current_state, pending_state) = pipeline.state(gst::ClockTime::ZERO);
             info!("🔍 Query position: current_state = {:?}, pending_state = {:?}", current_state, pending_state);

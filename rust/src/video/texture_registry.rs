@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use crate::common::types::FrameData;
-use log::{debug};
 
 /// Global texture registry that maps texture IDs to update functions
 /// This provides a safe way to update textures from any thread

@@ -29,6 +29,10 @@ irondash_texture = { git = "https://github.com/irondash/irondash.git", rev = "65
 # Run loop utilities for irondash
 irondash_run_loop = { git = "https://github.com/irondash/irondash.git", rev = "65343873472d6796c0388362a8e04b6e9a499044", package = "irondash_run_loop" }
 gstreamer-editing-services = "0.23.5"
+wgpu = "26.0.1"
+wgpu-hal = "26.0.0"
+wgpu-core = "26.0.1"
+pollster = "0.3"
 
 [target.'cfg(target_os = "android")'.dependencies]
 android_logger = "0.14"
